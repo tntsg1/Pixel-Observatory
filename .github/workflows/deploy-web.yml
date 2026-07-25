@@ -23,6 +23,9 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Download game assets from Git LFS
+        run: git lfs pull --include="assets/**" --exclude=""
+
       - name: Install Godot and export templates
         env:
           GODOT_RELEASE: 4.7-stable
