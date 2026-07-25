@@ -4,10 +4,10 @@ extends SceneTree
 # (id: naked_eye_limits).
 #   1. Only that card's image reference moved, to a real file; its title, text
 #      and level progression are untouched.
-#   2. Concept Brief renders the art with no stretch, no crop, nearest-neighbour
-#      filtering, and substantially larger than the previous 720x405 board.
-#   3. The diagram never overlaps the title, explanation or Start button, and
-#      stays on screen.
+#   2. Concept Brief renders the art with no stretch, no crop and
+#      nearest-neighbour filtering in the dedicated visual column.
+#   3. The diagram and scrollable tutorial column never overlap the title or
+#      Start button and stay on screen.
 #   4. English mode stays English-only; Chinese mode translates the explanation
 #      outside the image.
 #   5. Mission Complete still builds with its existing layout.
@@ -15,7 +15,6 @@ extends SceneTree
 const CARD_ID := "naked_eye_limits"
 const NEW_IMAGE := "res://assets/learning_diagrams/naked_eye_limits_light_gathering.png"
 const SOURCE_SIZE := Vector2(1672, 941)
-const OLD_BOARD := Vector2(720, 405)   # previous diagram area
 const PANEL_RECT := Rect2(56, 74, 912, 612)
 
 var failures := 0
@@ -99,14 +98,16 @@ func _test_brief(gm: Node, tf: Node) -> void:
 	_check(absf(drawn_aspect - source_aspect) < 0.01,
 		"2f. aspect ratio preserved (%.4f vs %.4f)" % [drawn_aspect, source_aspect])
 
-	var area_ratio := (drawn.size.x * drawn.size.y) / (OLD_BOARD.x * OLD_BOARD.y)
-	_check(area_ratio >= 1.35,
-		"2g. substantially larger than before: %.0fx%.0f vs %.0fx%.0f (%.0f%% of the area)"
-		% [drawn.size.x, drawn.size.y, OLD_BOARD.x, OLD_BOARD.y, area_ratio * 100.0])
+	_check(drawn.size.x >= 500.0 and drawn.size.y >= 280.0,
+		"2g. diagram remains a large readable teaching visual (%.0fx%.0f)" % [drawn.size.x, drawn.size.y])
 
 	# 3. containment + no overlap with any text or button.
 	_check(Rect2(0, 0, 1024, 768).encloses(drawn), "3a. diagram stays fully on screen (no clipping)")
 	_check(PANEL_RECT.grow(1.0).encloses(drawn), "3b. diagram stays inside the concept panel")
+	var tutorial_scroll := card_node.get_node_or_null("ConceptTutorialScroll") as ScrollContainer
+	_check(tutorial_scroll != null, "3c. concept explanation has a dedicated scrollable tutorial column")
+	if tutorial_scroll != null:
+		_check(not Rect2(tutorial_scroll.position, tutorial_scroll.size).intersects(drawn), "3d. tutorial column does not cover the diagram")
 	var clashes: Array[String] = []
 	for child in card_node.get_children():
 		var control := child as Control
@@ -123,7 +124,7 @@ func _test_brief(gm: Node, tf: Node) -> void:
 			else:
 				text = (control as Button).text
 			clashes.append("%s@%s" % [text.substr(0, 18), str(rect)])
-	_check(clashes.is_empty(), "3c. no overlap with title / explanation / Start button %s" % str(clashes))
+	_check(clashes.is_empty(), "3e. no overlap with title or Start button %s" % str(clashes))
 
 	card_node.queue_free()
 	await process_frame
@@ -193,11 +194,14 @@ func _open_brief(gm: Node, tf: Node, language: String) -> Node:
 
 func _all_text(node: Node) -> String:
 	var out := ""
+	if node is Label:
+		out += (node as Label).text + "\n"
+	elif node is Button:
+		out += (node as Button).text + "\n"
+	elif node is RichTextLabel:
+		out += (node as RichTextLabel).get_parsed_text() + "\n"
 	for child in node.get_children():
-		if child is Label:
-			out += (child as Label).text + "\n"
-		elif child is Button:
-			out += (child as Button).text + "\n"
+		out += _all_text(child)
 	return out
 
 

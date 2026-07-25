@@ -212,6 +212,11 @@ func _try_lock() -> void:
 		status_label.add_theme_color_override("font_color", GREEN)
 		InteractionFeedback.success(self)
 		_advance()
+		_radio_operation_chain(
+			GameManager.text("Locked the feed cabin", "锁定馈源舱"),
+			GameManager.text("The radio beam settled on the source without cable drift", "射电波束稳定落在信号源上，缆索不再漂移"),
+			GameManager.text("Receiver tuning is now available", "接收机调谐现已可用")
+		)
 	elif model.is_on_target():
 		status_label.text = GameManager.text("On target but still drifting - wait for it to settle.", "已对准但仍在漂移——等它稳定下来。")
 		status_label.add_theme_color_override("font_color", GOLD)
@@ -289,6 +294,11 @@ func _confirm_tune() -> void:
 		status_label.text = GameManager.text("Good tuning. Now identify the interference.", "调谐良好。接下来识别干扰。")
 		status_label.add_theme_color_override("font_color", GREEN)
 		_advance()
+		_radio_operation_chain(
+			GameManager.text("Tuned the receiver window", "调谐接收机频率窗口"),
+			GameManager.text("The source band entered the passband while excess noise fell", "信号频段进入通带，多余噪声下降"),
+			GameManager.text("RFI peaks can now be classified", "射频干扰峰现已可分类")
+		)
 	else:
 		status_label.text = GameManager.text("The window is off the source or full of RFI. Adjust it.", "窗口偏离信号或落在干扰上。请调整。")
 		status_label.add_theme_color_override("font_color", RED)
@@ -350,6 +360,11 @@ func _confirm_rfi() -> void:
 		status_label.text = GameManager.text("Interference rejected. Fold the pulse next.", "干扰已剔除。下一步折叠脉冲。")
 		status_label.add_theme_color_override("font_color", GREEN)
 		_advance()
+		_radio_operation_chain(
+			GameManager.text("Classified and rejected RFI", "分类并剔除射频干扰"),
+			GameManager.text("Man-made peaks no longer contaminate the time series", "人造信号峰不再污染时间序列"),
+			GameManager.text("The celestial pulse is ready for period folding", "天体脉冲现已可进行周期折叠")
+		)
 	else:
 		status_label.text = GameManager.text("Some peaks are misidentified - a false peak would give a wrong period.", "部分峰识别错误——假峰会给出错误周期。")
 		status_label.add_theme_color_override("font_color", RED)
@@ -429,6 +444,25 @@ func _confirm_fold() -> void:
 	status_label.add_theme_color_override("font_color", GREEN)
 	InteractionFeedback.success(self)
 	_advance()
+	_radio_operation_chain(
+		GameManager.text("Matched period and dispersion measure", "匹配脉冲周期与色散量"),
+		GameManager.text("Dispersed samples aligned and folded integrations raised SNR", "色散样本对齐，折叠积分提高了信噪比"),
+		GameManager.text("A repeating radio pulse emerged from the noise", "重复射电脉冲从噪声中显现")
+	)
+
+
+func _radio_operation_chain(action_text: String, effect_text: String, reveal_text: String) -> void:
+	var chain := InteractionFeedback.operation_chain(
+		self,
+		action_text,
+		effect_text,
+		reveal_text,
+		null,
+		CYAN,
+		2.7
+	)
+	if chain != null:
+		chain.position.y = 538.0
 
 
 # ---------------------------------------------------------------- 5. REPORT

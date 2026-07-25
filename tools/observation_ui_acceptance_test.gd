@@ -5,13 +5,19 @@ const ASSET_DIR := "res://assets/ui/observation/suc/processed/"
 var failures := 0
 var view: Control
 var gm: Node
+var had_save := false
+var saved_bytes := PackedByteArray()
 
 
 func _initialize() -> void:
+	had_save = FileAccess.file_exists("user://savegame.json")
+	if had_save:
+		saved_bytes = FileAccess.get_file_as_bytes("user://savegame.json")
 	await process_frame
 	gm = root.get_node_or_null("/root/GameManager")
 	_check(gm != null, "GameManager is available")
 	if gm == null:
+		_restore_save()
 		quit(1)
 		return
 	_setup_level()
@@ -28,7 +34,17 @@ func _initialize() -> void:
 	_test_target_lock_alignment()
 	_test_language_and_input_math()
 	print("OBSERVATION UI ACCEPTANCE %s" % ("PASS" if failures == 0 else "FAIL"))
+	_restore_save()
 	quit(0 if failures == 0 else 1)
+
+
+func _restore_save() -> void:
+	if had_save:
+		var save_file := FileAccess.open("user://savegame.json", FileAccess.WRITE)
+		if save_file != null:
+			save_file.store_buffer(saved_bytes)
+	elif FileAccess.file_exists("user://savegame.json"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://savegame.json"))
 
 
 func _setup_level() -> void:
@@ -89,6 +105,10 @@ func _test_assets_and_layers() -> void:
 	_check((view.get("cloud_layer") as Control).z_index < reticle.z_index, "atmosphere remains below aiming artwork")
 	_check(reticle.z_index < (view.get("az_readout") as Label).z_index, "dynamic readouts remain above aiming artwork")
 	_check((view.get("az_readout") as Label).z_index < (view.get("guidance_banner") as Label).z_index, "bottom guidance remains the top sky-viewport layer")
+	var controls := view.get("controls_help") as Label
+	var guidance := view.get("guidance_banner") as Label
+	_check(controls.position.y + controls.size.y <= guidance.position.y + 2.0, "live centering guidance sits below the A/D/W/S control legend")
+	_check(guidance.position.y > 460.0, "centering guidance stays outside the optical center")
 
 
 func _first_visible_tick_position(property_name: String) -> Vector2:
@@ -171,6 +191,8 @@ func _test_modes() -> void:
 	for mode in ["naked_eye", "finder", "telescope"]:
 		view.call("_set_view_mode", mode)
 		fovs.append(float(view.get("fov_x")))
+		view.set("display_fov_x", float(view.get("fov_x")))
+		view.set("display_fov_y", float(view.get("fov_y")))
 		var info: Dictionary = view.call("_object_visual_for_mode", target_object)
 		target_sizes.append(float(info.get("size_px", 0.0)))
 		var reticle := view.get("scope_reticle_layer") as TextureRect

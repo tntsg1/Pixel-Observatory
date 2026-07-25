@@ -7,15 +7,19 @@ extends SceneTree
 # contract (card select != observe; only Observe starts the pipeline).
 
 var failures := 0
+var had_save := false
+var saved_bytes := PackedByteArray()
 
 
 func _initialize() -> void:
+	_backup_save()
 	await process_frame
 	root.size = Vector2i(1024, 768)
 	await process_frame
 	var gm: Node = root.get_node_or_null("/root/GameManager")
 	if gm == null:
 		print("SPACE OBSERVATION TEST FAIL: GameManager missing")
+		_restore_save()
 		quit(1)
 		return
 
@@ -26,7 +30,23 @@ func _initialize() -> void:
 	await _test_legacy(gm)
 
 	print("SPACE OBSERVATION TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
+	_restore_save()
 	quit(0 if failures == 0 else 1)
+
+
+func _backup_save() -> void:
+	had_save = FileAccess.file_exists("user://savegame.json")
+	if had_save:
+		saved_bytes = FileAccess.get_file_as_bytes("user://savegame.json")
+
+
+func _restore_save() -> void:
+	if had_save:
+		var save_file := FileAccess.open("user://savegame.json", FileAccess.WRITE)
+		if save_file != null:
+			save_file.store_buffer(saved_bytes)
+	elif FileAccess.file_exists("user://savegame.json"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://savegame.json"))
 
 
 # ---- L66-75 no longer reuse the collimation optical minigame; routing is new
@@ -65,27 +85,43 @@ func _test_model() -> void:
 		_check(m.deploy(step), "deploy. %s deploys in order" % step)
 	_check(m.fully_deployed(), "deploy. full sequence latches the observatory")
 
-	# thermal_safety: sun inside 85-135 is safe; outside heats the cold side
+	# thermal_safety: every target has a narrower roll corridor inside the global
+	# sunshield cone, plus a short thermal settling hold.
 	m.rotate_to(40.0)
 	_check(not m.sun_safe(), "thermal. sun at 40 deg is unsafe")
 	_check(not m.safe_to_observe(), "thermal. cannot observe in an unsafe attitude")
-	m.rotate_to(110.0)
-	_check(m.sun_safe(), "thermal. sun at 110 deg is inside the safe zone")
+	m.rotate_to(m.thermal_target_deg)
+	_settle_thermal(m)
+	_check(m.sun_safe(), "thermal. target roll is inside the global safe zone")
+	_check(m.attitude_in_corridor(), "thermal. target roll is inside this observation's corridor")
 	_check(m.cold_side_temp <= m.COLD_TARGET + 4.0, "thermal. safe attitude keeps the optics cold")
-	_check(m.safe_to_observe(), "thermal. safe attitude allows observation")
+	_check(m.thermal_locked, "thermal. a stable hold acquires thermal lock")
+	_check(m.safe_to_observe(), "thermal. target-specific safe attitude allows observation")
 	# MIRI needs a tighter cold ceiling
 	m.instrument = "miri"
-	m.rotate_to(90.0)
+	m.thermal_locked = false
+	m.thermal_hold_progress = 0.0
+	m.rotate_to(m.thermal_target_deg)
+	_settle_thermal(m)
 	_check(m.thermal_ok(), "thermal. MIRI ok when coldest")
 	m.instrument = "nircam"
 
-	# guide_star: a dim/off-field star cannot lock; a good one does after settling
-	_check(not m.choose_guide_star(0), "guide. the dim guide star (GS-1) cannot lock")
-	_check(m.choose_guide_star(1), "guide. a bright, well-placed star (GS-2) is acquired")
+	# guide_star: the answer varies by observation; rejected and usable stars
+	# still follow the same real acquisition rules.
+	var rejected_index := -1
+	var usable_index := -1
+	for guide_index in range(m.guide_stars.size()):
+		var guide: Dictionary = m.guide_stars[guide_index]
+		if bool(guide.get("usable", false)) and usable_index < 0:
+			usable_index = guide_index
+		elif not bool(guide.get("usable", false)) and rejected_index < 0:
+			rejected_index = guide_index
+	_check(rejected_index >= 0 and not m.choose_guide_star(rejected_index), "guide. an unsuitable guide star cannot lock")
+	_check(usable_index >= 0 and m.choose_guide_star(usable_index), "guide. a bright, well-placed star is acquired")
 	for _i in range(240):
 		m.step_guiding(1.0 / 60.0)
 	_check(m.guide_locked, "guide. fine guidance locks after settling")
-	_check(m.guide_quality() > 0.6, "guide. good guide quality with GS-2")
+	_check(m.guide_quality() > 0.5, "guide. the selected guide produces useful lock quality")
 
 	# mirror_alignment: wavefront error falls as segments align; PSF sharpens
 	_check(not m.wavefront_ok(), "align. starts with a large wavefront error")
@@ -107,18 +143,17 @@ func _test_model() -> void:
 		if bool(fr["cosmic_ray"]):
 			has_cr = true
 	_check(has_cr, "expose. cosmic rays appear in some frames")
+	_check(_distinct_frame_events(m.frames) >= 4, "expose. the raw integration contains multiple event types")
 
 	# multi_frame_processing: SNR rises through the pipeline and with kept frames
 	var snr_raw := m.snr()
+	_review_frames(m)
+	_check(m.frame_review_ready(), "process. clean/repairable frames are kept and unusable smears are dropped")
 	m.align_frames(); m.remove_cosmic_rays(); m.subtract_background(); m.stack()
 	var snr_proc := m.snr()
 	_check(snr_proc > snr_raw, "process. aligning/CR/background/stack raises SNR (%.1f>%.1f)" % [snr_proc, snr_raw])
 	_check(m.processing_ready(), "process. all four steps make the image ready")
-	# dropping a cosmic-ray frame improves rejection
-	for i in range(m.frames.size()):
-		if bool(m.frames[i]["cosmic_ray"]):
-			m.toggle_keep(i, false)
-	_check(m.cosmic_ray_rejection() > 0.7, "process. dropping CR frames improves rejection")
+	_check(m.frame_selection_quality() >= 0.99, "process. frame selection contributes to final quality")
 
 	# filter_mapping: needs three distinct channels; wrong science is rejected
 	_check(not m.mapping_complete(), "filter. no mapping at the start")
@@ -141,11 +176,24 @@ func _test_model() -> void:
 	m2.configure({"target_id": "andromeda", "best_instrument": "nircam", "best_filter": "near_infrared", "science": "dust_rich"})
 	m2.instrument = "fgs_niriss"; m2.filter = "emission_line"
 	m2.exposure_time = 400.0; m2.integrations = 5
-	m2.rotate_to(110.0); m2.choose_guide_star(1)
+	m2.rotate_to(m2.thermal_target_deg); _settle_thermal(m2); m2.choose_guide_star(1)
 	for _i in range(240): m2.step_guiding(1.0/60.0)
 	for _i in range(12): m2.align_step(0.09)
-	m2.acquire(); m2.align_frames(); m2.remove_cosmic_rays(); m2.subtract_background(); m2.stack()
+	m2.acquire(); _review_frames(m2); m2.align_frames(); m2.remove_cosmic_rays(); m2.subtract_background(); m2.stack()
 	_check(m2.snr() < m.snr(), "science. a poor instrument+filter choice yields lower SNR")
+
+
+func _review_frames(model: SpaceObservationModel) -> void:
+	for index in range(model.frames.size()):
+		var frame: Dictionary = model.frames[index]
+		model.toggle_keep(index, model.frame_should_keep(frame))
+
+
+func _distinct_frame_events(frames: Array) -> int:
+	var kinds := {}
+	for frame_value in frames:
+		kinds[str((frame_value as Dictionary).get("event_type", "clean"))] = true
+	return kinds.size()
 
 
 # ---- scene: staged flow, card select != observe, only Observe/Submit completes
@@ -154,6 +202,8 @@ func _test_scene(gm: Node) -> void:
 	gm.progress["space_deployed"] = false
 	gm.progress["space_intro_seen"] = false
 	gm.debug_jump_to_level(66, true)
+	for part_type in gm.space_segmented_install_types():
+		gm.install_part(part_type, 0)
 
 	# route: space_segmented telescope level opens the space pipeline, NOT the
 	# optical telescope view or the evidence desk
@@ -222,30 +272,57 @@ func _test_scene(gm: Node) -> void:
 	await process_frame
 	_check(str(scene.call("_key")) == "thermal", "plan. a valid plan advances to thermal")
 
-	# thermal: unsafe attitude blocks; safe advances
+	# thermal: unsafe attitude blocks; the target-specific corridor must be held
+	# long enough to cool before confirmation advances.
 	m.rotate_to(40.0)
 	scene.call("_confirm_thermal")
 	await process_frame
 	_check(str(scene.call("_key")) == "thermal", "thermal. an unsafe attitude blocks observation")
-	m.rotate_to(110.0)
+	m.rotate_to(m.thermal_target_deg)
+	_settle_thermal(m)
 	scene.call("_confirm_thermal")
 	await process_frame
-	_check(str(scene.call("_key")) == "guide", "thermal. a safe attitude advances to guiding")
+	_check(str(scene.call("_key")) == "guide", "thermal. a held target attitude advances to guiding")
+	var thermal_chain := scene.get_node_or_null("OperationChainFeedback")
+	_check(thermal_chain != null, "thermal. success explains the physical effect and reveals guiding")
 
 	# guide: no lock blocks; a good star locks
 	scene.call("_confirm_guide")
 	await process_frame
 	_check(str(scene.call("_key")) == "guide", "guide. cannot advance without a lock")
-	m.choose_guide_star(1)
+	var scene_guide_index := -1
+	for guide_index in range(m.guide_stars.size()):
+		if bool((m.guide_stars[guide_index] as Dictionary).get("usable", false)):
+			scene_guide_index = guide_index
+			break
+	_check(scene_guide_index >= 0, "guide. this target provides at least one usable guide star")
+	m.choose_guide_star(scene_guide_index)
 	for _i in range(240):
 		m.step_guiding(1.0 / 60.0)
 	scene.call("_confirm_guide")
 	await process_frame
 	_check(str(scene.call("_key")) == "wavefront", "guide. a stable lock advances to alignment")
+	var guide_chain := scene.get_node_or_null("OperationChainFeedback")
+	_check(guide_chain != null, "guide. success reveals wavefront alignment without optical-telescope wording")
 
-	# wavefront
-	for _i in range(12):
-		m.align_step(0.09)
+	# wavefront: coarse and fine are intentionally different controls. Coarse
+	# moves quickly but stops short of the science threshold; fine phasing must
+	# close the remaining split peaks.
+	for _i in range(4):
+		scene.call("_animate_wavefront_step", 0.18, "COARSE")
+		await create_timer(0.50).timeout
+	_check(m.segment_alignment <= 0.821 and not m.wavefront_ok(),
+		"align. coarse bank actuation stops before precision completion")
+	var coarse_button := scene.find_child("CoarseWavefrontAlign", true, false) as Button
+	var fine_button := scene.find_child("FineWavefrontAlign", true, false) as Button
+	_check(coarse_button != null and coarse_button.disabled,
+		"align. coarse control visibly yields at its travel limit")
+	_check(fine_button != null and not fine_button.disabled,
+		"align. fine single-segment control remains available")
+	for _i in range(2):
+		scene.call("_animate_wavefront_step", 0.07, "FINE")
+		await create_timer(0.36).timeout
+	_check(m.wavefront_ok(), "align. fine phasing reaches the <150 nm threshold")
 	scene.call("_confirm_wavefront")
 	await process_frame
 	_check(str(scene.call("_key")) == "expose", "align. good wavefront advances to exposure")
@@ -261,6 +338,13 @@ func _test_scene(gm: Node) -> void:
 	_check(str(scene.call("_key")) == "process", "expose. after acquisition comes processing")
 
 	# process: needs all steps + SNR
+	# The event profile can contain unrecoverable guide smears or saturated
+	# frames. Review those before testing the numbered processing pipeline,
+	# exactly as the player must do in the UI.
+	_review_frames(m)
+	scene.call("_build_stage")
+	await process_frame
+	_check(m.frame_review_ready(), "process. detector frames are reviewed before the pipeline starts")
 	scene.call("_confirm_process")
 	await process_frame
 	_check(str(scene.call("_key")) == "process", "process. cannot generate the image before all steps")
@@ -303,10 +387,14 @@ func _test_scene(gm: Node) -> void:
 		"science. report decodes all nine telemetry rows")
 	_check(not _completed(gm), "science. reaching the report does not auto-complete")
 	scene.call("_submit")
-	for _i in range(3):
-		await process_frame
+	await process_frame
+	_check(scene.find_child("SpaceConsoleShutdown", true, false) != null,
+		"science. Submit Report plays the console shutdown transition")
+	await create_timer(1.75).timeout
+	await process_frame
 	_check(_completed(gm), "science. Submit Report completes the mission")
-	scene.queue_free()
+	if is_instance_valid(scene):
+		scene.queue_free()
 	await process_frame
 
 
@@ -315,6 +403,16 @@ func _test_hall_console(gm: Node) -> void:
 	gm.progress["space_intro_seen"] = true
 	gm.progress["space_deployed"] = true
 	gm.debug_jump_to_level(66, true)
+	# This case verifies the post-briefing console transition. The first-entry
+	# Maya lesson is covered separately above, so mark its story event seen.
+	var story := root.get_node_or_null("/root/StoryManager")
+	if story != null:
+		var seen_events: Array = gm.progress.get("seen_story_events", [])
+		for event_value in story.pending_skill_events("before_observation", 66, gm.progress):
+			var event_id := str(event_value)
+			if event_id != "" and not seen_events.has(event_id):
+				seen_events.append(event_id)
+		gm.progress["seen_story_events"] = seen_events
 	var route: Dictionary = gm.current_room_route()
 	_check(str(route.get("target", "")) == "computer", "hall. space chapter route points to the bottom-right console")
 	var room: Node = load("res://scenes/observatory_room.tscn").instantiate()
@@ -333,6 +431,13 @@ func _test_hall_console(gm: Node) -> void:
 		"hall. the hall-to-console zoom/scan transition is visible")
 	room.queue_free()
 	await process_frame
+
+
+func _settle_thermal(model: SpaceObservationModel) -> void:
+	for _i in range(480):
+		model.step_thermal(1.0 / 60.0)
+		if model.thermal_locked:
+			return
 
 
 func _tree_has_label(node: Node, needle: String) -> bool:

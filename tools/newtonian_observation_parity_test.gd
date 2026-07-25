@@ -73,9 +73,21 @@ func _initialize() -> void:
 
 	var dialogue: Array = story_manager.get_dialogue("level_26_before_assembly")
 	_check(dialogue.size() >= 3, "L26 explanation precedes Newtonian assembly")
-	_check(str(dialogue[0].get("text_en", "")).contains("colored fringes"), "dialogue explains refractor chromatic aberration")
-	_check(str(dialogue[1].get("text_en", "")).contains("Newtonian reflector"), "dialogue introduces the Newtonian solution")
-	_check(str(dialogue[2].get("text_en", "")).contains("primary mirror"), "dialogue explains the Newtonian light path")
+	var dialogue_en := ""
+	for line_value in dialogue:
+		dialogue_en += " " + str(line_value.get("text_en", ""))
+	_check(
+		dialogue_en.contains("chromatic aberration") or dialogue_en.contains("colored fringes"),
+		"dialogue explains refractor chromatic aberration"
+	)
+	_check(
+		dialogue_en.contains("Newtonian") and dialogue_en.contains("mirror"),
+		"dialogue introduces the Newtonian solution"
+	)
+	_check(
+		dialogue_en.contains("primary mirror") and dialogue_en.contains("secondary"),
+		"dialogue explains the Newtonian light path"
+	)
 
 	gm.debug_jump_to_level(27, true)
 	level = gm.current_level()

@@ -2,6 +2,7 @@ extends Control
 
 const SpaceDeploymentVisualScript := preload("res://scripts/ui/space_deployment_visual.gd")
 const SpaceGuideFieldScript := preload("res://scripts/ui/space_guide_field.gd")
+const SpaceGuideAttitudeDisplayScript := preload("res://scripts/ui/space_guide_attitude_display.gd")
 const SpaceWavefrontDisplayScript := preload("res://scripts/ui/space_wavefront_display.gd")
 
 # JWST-class space infrared observation. A staged science pipeline that works in
@@ -44,13 +45,32 @@ var acquiring := false
 var deploy_animating := false
 var deployment_visual: Control
 var attitude_tween: Tween
+var thermal_confirm_button: Button
+var thermal_refresh_elapsed := 0.0
 var guide_candidate := -1
 var guide_field: Control
 var guide_lock_logged := false
+var guide_attitude_display: Control
+var guide_acquire_button: Button
+var guide_confirm_button: Button
+var guide_slew_active := false
+var guide_pending_index := -1
 var wavefront_animating := false
 var wavefront_display: Control
 var process_animating := false
 var filter_animating := false
+var process_tutorial_overlay: Control
+var process_tutorial_highlight: Panel
+var process_tutorial_copy: Label
+var process_tutorial_portrait: TextureRect
+var process_tutorial_next_button: Button
+var process_tutorial_step := 0
+var process_tutorial_steps: Array = []
+var process_step_buttons: Dictionary = {}
+var process_generate_button: Button
+var shutdown_overlay: Control
+var shutdown_status_label: Label
+var shutdown_phase := ""
 
 
 func _ready() -> void:
@@ -97,32 +117,116 @@ func _boot_animation() -> void:
 		_log_line("DISPLAY", "READY"))
 
 
-func _power_down(then: Callable) -> void:
-	# Collapse the picture to a thin white line, then to a dot - a tube switching
-	# off - before we actually change scene.
-	_log_line("SESSION CLOSE", "SAVE")
-	var cover := ColorRect.new()
-	cover.color = Color(0, 0, 0, 0)
-	cover.size = Vector2(1024, 768)
-	cover.z_index = 390
-	cover.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(cover)
-	var line := ColorRect.new()
-	line.color = Color(1, 1, 1, 1)
-	line.size = Vector2(1024, 384)
-	line.position = Vector2(0, 192)
-	line.pivot_offset = Vector2(512, 192)
-	line.z_index = 391
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(line)
-	var tw := create_tween().bind_node(cover)
-	tw.tween_property(cover, "color:a", 1.0, 0.12)
-	tw.parallel().tween_property(line, "size:y", 2.0, 0.12)
-	tw.parallel().tween_property(line, "position:y", 383.0, 0.12)
-	tw.tween_property(line, "size:x", 4.0, 0.08)
-	tw.parallel().tween_property(line, "position:x", 510.0, 0.08)
-	tw.tween_property(line, "modulate:a", 0.0, 0.06)
-	tw.tween_callback(then)
+func _power_down(then: Callable, observation_complete := false) -> void:
+	if shutdown_overlay != null and is_instance_valid(shutdown_overlay):
+		return
+	running = true
+	var reduced := InteractionFeedback.is_reduced_motion()
+	var beat := 0.06 if reduced else 0.22
+	_log_line("SCIENCE ARCHIVE" if observation_complete else "SESSION CLOSE", "RUN")
+
+	shutdown_overlay = Control.new()
+	shutdown_overlay.name = "SpaceConsoleShutdown"
+	shutdown_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	shutdown_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	shutdown_overlay.z_index = 900
+	add_child(shutdown_overlay)
+
+	var dim := ColorRect.new()
+	dim.name = "ShutdownDim"
+	dim.color = Color(0.0, 0.0, 0.0, 0.0)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shutdown_overlay.add_child(dim)
+
+	var scan := ColorRect.new()
+	scan.name = "ShutdownScan"
+	scan.color = Color(0.92, 0.96, 1.0, 0.82)
+	scan.position = Vector2(0, 92)
+	scan.size = Vector2(1024, 2)
+	scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	shutdown_overlay.add_child(scan)
+
+	var status_panel := Panel.new()
+	status_panel.name = "ShutdownStatusPanel"
+	status_panel.position = Vector2(276, 282)
+	status_panel.size = Vector2(472, 154)
+	status_panel.modulate.a = 0.0
+	status_panel.add_theme_stylebox_override(
+		"panel", _flat(Color(0.015, 0.025, 0.035, 0.98), Color(0.72, 0.78, 0.82), 2))
+	shutdown_overlay.add_child(status_panel)
+	_label_to(
+		status_panel,
+		GameManager.text("OBSERVATION SESSION COMPLETE", "观测会话完成") if observation_complete
+			else GameManager.text("CLOSING OBSERVATORY LINK", "正在关闭天文台链路"),
+		Vector2(18, 14), Vector2(436, 26), 17, P_HOT, HORIZONTAL_ALIGNMENT_CENTER)
+	shutdown_status_label = _label_to(
+		status_panel, "", Vector2(24, 50), Vector2(424, 48), 13, P_BRIGHT,
+		HORIZONTAL_ALIGNMENT_CENTER)
+	shutdown_status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	var meter_bg := ColorRect.new()
+	meter_bg.color = Color(0.08, 0.10, 0.12, 1.0)
+	meter_bg.position = Vector2(34, 112)
+	meter_bg.size = Vector2(404, 10)
+	status_panel.add_child(meter_bg)
+	var meter := ColorRect.new()
+	meter.name = "ShutdownProgress"
+	meter.color = Color(0.78, 0.84, 0.88, 1.0)
+	meter.position = Vector2(34, 112)
+	meter.size = Vector2(0, 10)
+	status_panel.add_child(meter)
+
+	var top_shutter := ColorRect.new()
+	top_shutter.name = "ShutdownTopShutter"
+	top_shutter.color = Color.BLACK
+	top_shutter.position = Vector2(0, 0)
+	top_shutter.size = Vector2(1024, 0)
+	shutdown_overlay.add_child(top_shutter)
+	var bottom_shutter := ColorRect.new()
+	bottom_shutter.name = "ShutdownBottomShutter"
+	bottom_shutter.color = Color.BLACK
+	bottom_shutter.position = Vector2(0, 768)
+	bottom_shutter.size = Vector2(1024, 0)
+	shutdown_overlay.add_child(bottom_shutter)
+	status_panel.move_to_front()
+
+	var tw := create_tween().bind_node(shutdown_overlay)
+	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_callback(_set_shutdown_phase.bind(
+		"archive",
+		GameManager.text("REPORT ARCHIVED  ·  CHECKSUM VERIFIED", "报告已归档  ·  校验完成")))
+	tw.tween_property(status_panel, "modulate:a", 1.0, beat * 0.65)
+	tw.parallel().tween_property(dim, "color:a", 0.62, beat * 0.9)
+	tw.parallel().tween_property(scan, "position:y", 610.0, beat * 1.8)
+	tw.tween_property(meter, "size:x", 142.0, beat)
+	tw.tween_callback(_set_shutdown_phase.bind(
+		"detectors",
+		GameManager.text("DETECTORS SAFE  ·  CRYOGENIC HOLD", "探测器已保护  ·  低温系统保持")))
+	tw.tween_property(meter, "size:x", 286.0, beat)
+	tw.tween_callback(_set_shutdown_phase.bind(
+		"link",
+		GameManager.text("HIGH-GAIN LINK CLOSED  ·  RETURNING TO CLUB ARCHIVE", "高增益链路已关闭  ·  正在返回社团档案")))
+	tw.tween_property(meter, "size:x", 404.0, beat)
+	tw.tween_interval(beat * 0.45)
+	tw.tween_property(status_panel, "modulate:a", 0.0, beat * 0.55)
+	tw.tween_callback(_set_shutdown_phase.bind("collapse", ""))
+	tw.tween_property(top_shutter, "size:y", 382.0, beat)
+	tw.parallel().tween_property(bottom_shutter, "position:y", 386.0, beat)
+	tw.parallel().tween_property(bottom_shutter, "size:y", 382.0, beat)
+	tw.tween_property(scan, "position:y", 383.0, beat * 0.35)
+	tw.parallel().tween_property(scan, "size:x", 4.0, beat * 0.35)
+	tw.parallel().tween_property(scan, "position:x", 510.0, beat * 0.35)
+	tw.tween_property(scan, "modulate:a", 0.0, beat * 0.25)
+	tw.tween_callback(func() -> void:
+		shutdown_phase = "complete"
+		then.call())
+
+
+func _set_shutdown_phase(phase_name: String, message: String) -> void:
+	shutdown_phase = phase_name
+	if shutdown_status_label != null and is_instance_valid(shutdown_status_label):
+		shutdown_status_label.text = message
 
 
 func _leave_observatory() -> void:
@@ -133,9 +237,12 @@ func _leave_observatory() -> void:
 
 func _profile() -> Dictionary:
 	var level := GameManager.current_level()
-	var prof: Dictionary = level.get("space_profile", {})
+	var prof: Dictionary = (level.get("space_profile", {}) as Dictionary).duplicate(true)
 	if prof.is_empty():
 		prof = {"target_id": GameManager.current_target_object_id()}
+	# Mission number participates in the deterministic guide-field seed. Repeated
+	# targets in later lessons still require a fresh search and a different slew.
+	prof["guide_seed"] = int(level.get("level_number", GameManager.progress.get("current_level", 1)))
 	return prof
 
 
@@ -189,6 +296,12 @@ func _process(delta: float) -> void:
 				"Guide lock acquired. The bite marks have closed and drift is flat.",
 				"导星锁定完成。锁定标记已经咬合，漂移曲线已拉平。"), GREEN)
 			InteractionFeedback.success(self)
+	if _key() == "thermal":
+		model.step_thermal(delta)
+		thermal_refresh_elapsed += delta
+		if thermal_refresh_elapsed >= 0.08:
+			thermal_refresh_elapsed = 0.0
+			_refresh_thermal()
 	if _key() == "expose" and acquiring:
 		elapsed += delta
 		_refresh_expose()
@@ -244,7 +357,7 @@ func _stage_tip() -> String:
 		"guide": return GameManager.text("A guide star is a steady reference star, not the target. Avoid dim or off-field stars.", "导星是一颗稳定的参考星，不是观测目标本身。避开太暗或偏离视场的星。")
 		"wavefront": return GameManager.text("Nudge the 18 segments until the split star images merge into one small, sharp point.", "微调 18 块镜片，直到分裂的星点合并成一个又小又锐的点。")
 		"expose": return GameManager.text("Photons build up frame by frame. Too short = weak signal; too long = heat noise and cosmic rays.", "光子逐帧累积。太短信号弱；太长热噪声和宇宙线增多。")
-		"process": return GameManager.text("Drop cosmic-ray frames, then align, remove CR, subtract background and stack. Watch the image clean up.", "剔除宇宙线帧，再对齐、去宇宙线、扣背景、叠加。观察图像逐步变干净。")
+		"process": return GameManager.text("Drop saturated frames, keep repairable cosmic-ray hits, then run steps 1-4 in order. Target SNR is 10.", "剔除饱和帧，保留可修复的宇宙线击中帧，再按顺序完成第 1-4 步。目标信噪比为 10。")
 		"filter": return GameManager.text("Map each filter to R/G/B, then read the structure to choose the science interpretation.", "把每个滤镜映射到 R/G/B，再根据结构选择科学解释。")
 		"report": return GameManager.text("Review the real numbers, then Submit Report to finish the observation.", "查看真实数据，再点击提交报告完成观测。")
 	return ""
@@ -352,7 +465,7 @@ func _build_intro() -> void:
 	intro_page = clampi(intro_page, 0, total - 1)
 	var board := _panel_to(content, Vector2(112, 6), Vector2(800, 456), Color("0b1830"), GOLD, "")
 	if intro_page == 0:
-		_label_to(board, GameManager.text("Maya - Observatory Club", "Maya - 天文社"), Vector2(0, 14), Vector2(800, 28), 20, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		_label_to(board, GameManager.text("Maya - Observatory Club", "玛雅 - 天文社"), Vector2(0, 14), Vector2(800, 28), 20, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 		_label_to(board, GameManager.text("Why we need a space telescope", "我们为什么需要一台太空望远镜"), Vector2(0, 46), Vector2(800, 24), 15, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 		_intro_diagram(board, "jwst_segmented_mirror")
 		var maya := GameManager.text(
@@ -402,6 +515,8 @@ class AttitudeGimbal extends Control:
 	var sun_angle := 40.0     # the value the model cares about
 	var safe_min := 85.0
 	var safe_max := 135.0
+	var target_angle := 108.0
+	var hold_ratio := 0.0
 	var dragging := false
 	var on_changed: Callable
 
@@ -418,6 +533,7 @@ class AttitudeGimbal extends Control:
 			var mm := event as InputEventMouseMotion
 			sun_angle = clampf(sun_angle + mm.relative.x * 0.45, 0.0, 180.0)
 			pitch = clampf(pitch + mm.relative.y * 0.006, -1.1, 0.35)
+			yaw = deg_to_rad((sun_angle - 90.0) * 0.18)
 			if on_changed.is_valid():
 				on_changed.call(sun_angle)
 			queue_redraw()
@@ -426,6 +542,7 @@ class AttitudeGimbal extends Control:
 			var sd := event as InputEventScreenDrag
 			sun_angle = clampf(sun_angle + sd.relative.x * 0.45, 0.0, 180.0)
 			pitch = clampf(pitch + sd.relative.y * 0.006, -1.1, 0.35)
+			yaw = deg_to_rad((sun_angle - 90.0) * 0.18)
 			if on_changed.is_valid():
 				on_changed.call(sun_angle)
 			queue_redraw()
@@ -478,6 +595,15 @@ class AttitudeGimbal extends Control:
 				var e := deg_to_rad(edge)
 				pts3.append(_project(Vector3(cos(e), sin(e) * cos(a3), sin(e) * sin(a3))))
 			draw_polyline(pts3, safe_col * Color(1, 1, 1, 0.85), 2.0)
+		# The target marker changes for every observation. It is the roll solution
+		# the player is trying to bring the Sun vector onto, not a fixed answer.
+		var target_radians := deg_to_rad(target_angle)
+		var target_v := Vector3(cos(target_radians), sin(target_radians), 0.0)
+		var target_pos := _project(target_v * 1.7)
+		var target_col := Color(0.62, 0.90, 1.0, 0.78 + hold_ratio * 0.22)
+		draw_arc(target_pos, 14.0 + hold_ratio * 4.0, 0.0, TAU, 28, target_col, 2.0)
+		draw_line(target_pos + Vector2(-20, 0), target_pos + Vector2(-8, 0), target_col, 2.0)
+		draw_line(target_pos + Vector2(8, 0), target_pos + Vector2(20, 0), target_col, 2.0)
 		# boresight (where the telescope looks) - always +X
 		var o := _project(Vector3.ZERO)
 		draw_line(o, _project(Vector3(1.45, 0, 0)), green, 3.0)
@@ -510,6 +636,42 @@ func _draw_target_image(parent: Control, rect: Rect2, detail: float, tint: Color
 	var cx := rect.position.x + rect.size.x * 0.5
 	var cy := rect.position.y + rect.size.y * 0.5
 	_rect_to(parent, rect.position, rect.size, Color("04080f"))
+	var science_image_path := str(_profile().get("science_image_path", ""))
+	if science_image_path != "" and ResourceLoader.exists(science_image_path):
+		# Dedicated infrared targets use their own science frame. Exposure and
+		# processing still control how much of that frame is visible; the art is
+		# not a renamed optical stand-in.
+		var image_rect := TextureRect.new()
+		image_rect.name = "InfraredScienceTarget"
+		image_rect.custom_minimum_size = Vector2.ZERO
+		image_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		image_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		image_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		image_rect.texture = load(science_image_path)
+		image_rect.position = rect.position
+		image_rect.size = rect.size
+		var reveal := lerpf(0.16, 1.0, d)
+		image_rect.modulate = Color(reveal, reveal, reveal, lerpf(0.38, 1.0, d))
+		image_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		parent.add_child(image_rect)
+		if d < 0.92:
+			_rect_to(parent, rect.position, rect.size, Color(0.01, 0.015, 0.025, (1.0 - d) * 0.58))
+		if ghost:
+			var ghost_rect := TextureRect.new()
+			ghost_rect.custom_minimum_size = Vector2.ZERO
+			ghost_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			ghost_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+			ghost_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			ghost_rect.texture = image_rect.texture
+			ghost_rect.position = rect.position + Vector2(10, 6)
+			ghost_rect.size = rect.size
+			ghost_rect.modulate = Color(0.45, 0.70, 1.0, 0.16)
+			ghost_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			parent.add_child(ghost_rect)
+		if cosmic:
+			_line_to(parent, Vector2(rect.position.x + 18, rect.position.y + 20),
+				Vector2(rect.end.x - 26, rect.end.y - 34), Color(1, 1, 1, 0.92))
+		return
 	# faint background field stars (always sparse, never the subject)
 	var rnd := 1237
 	for i in range(46):
@@ -802,6 +964,10 @@ func _choice_row(title: String, options: Array, current: String, pos: Vector2, f
 		elif recommended:
 			b.add_theme_stylebox_override("normal", _flat(Color("161616"), P_BRIGHT, 2))
 			b.add_theme_color_override("font_color", P_HOT)
+		if field == "instrument":
+			var block_reason := GameManager.space_instrument_block_reason(str(opt))
+			b.disabled = block_reason != ""
+			b.tooltip_text = block_reason
 		b.pressed.connect(func() -> void: _set_plan(field, str(opt)))
 		content.add_child(b)
 		x += 136.0
@@ -856,6 +1022,11 @@ func _refresh_plan() -> void:
 
 
 func _confirm_plan() -> void:
+	if not GameManager.space_instrument_is_installed(model.instrument):
+		var block_reason := GameManager.space_instrument_block_reason(model.instrument)
+		_say(block_reason, RED)
+		InteractionFeedback.error(self)
+		return
 	if model.underexposed():
 		_say(GameManager.text("Total exposure too low. Raise exposure time or integrations.", "总曝光太低。请提高曝光时间或积分次数。"), RED)
 		InteractionFeedback.error(self)
@@ -866,40 +1037,70 @@ func _confirm_plan() -> void:
 
 # ============================================================ THERMAL
 func _build_thermal() -> void:
+	thermal_refresh_elapsed = 0.0
 	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("THERMAL & SAFE ATTITUDE", "热控与安全姿态"))
 	scope = Control.new(); scope.position = Vector2(40, 8); scope.size = Vector2(600, 500)
 	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(scope)
 	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("ATTITUDE CONTROL", "姿态控制"))
-	readout = _label_to(pad, "", Vector2(16, 44), Vector2(284, 150), 13, TEXT)
+	readout = _label_to(pad, "", Vector2(16, 42), Vector2(284, 146), 11, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	# 3D gimbal: grab the globe and turn the observatory. Replaces the slider so
 	# the player is orienting a spacecraft, not scrubbing a value.
-	_label_to(pad, GameManager.text("Drag the globe to re-point", "拖动球体调整指向"), Vector2(16, 196), Vector2(284, 20), 12, GOLD)
+	_label_to(pad, GameManager.text("Drag to slew; use fine trim near the marker", "拖动进行转向，接近标记后使用微调"), Vector2(16, 188), Vector2(284, 20), 11, GOLD)
 	var gimbal := AttitudeGimbal.new()
 	gimbal.name = "AttitudeGimbal"
-	gimbal.position = Vector2(22, 216)
-	gimbal.size = Vector2(272, 190)
+	gimbal.position = Vector2(22, 206)
+	gimbal.size = Vector2(272, 188)
 	gimbal.sun_angle = model.attitude_deg
-	gimbal.safe_min = model.SAFE_MIN
-	gimbal.safe_max = model.SAFE_MAX
+	gimbal.safe_min = model.thermal_corridor_min()
+	gimbal.safe_max = model.thermal_corridor_max()
+	gimbal.target_angle = model.thermal_target_deg
+	gimbal.hold_ratio = model.thermal_hold_ratio()
 	gimbal.on_changed = func(v: float) -> void:
 		model.rotate_to(v)
 		_refresh_thermal()
 	pad.add_child(gimbal)
-	# Touch-friendly nudge buttons (mobile): rotate the attitude without a slider.
-	var rot_minus := _button("−10°", Vector2(16, 412), Vector2(132, 36), Color("143247"))
-	rot_minus.name = "AttitudeMinus"
-	rot_minus.pressed.connect(func() -> void: _animate_attitude_to(model.attitude_deg - 10.0))
-	pad.add_child(rot_minus)
-	var rot_plus := _button("+10°", Vector2(152, 412), Vector2(132, 36), Color("143247"))
-	rot_plus.name = "AttitudePlus"
-	rot_plus.pressed.connect(func() -> void: _animate_attitude_to(model.attitude_deg + 10.0))
-	pad.add_child(rot_plus)
+	# Coarse buttons cover large slews; fine buttons make the final roll solution
+	# readable and controllable on both mouse and touch.
+	var adjustments := [
+		[-10.0, "-10°", "AttitudeCoarseMinus"],
+		[-2.0, "-2°", "AttitudeFineMinus"],
+		[2.0, "+2°", "AttitudeFinePlus"],
+		[10.0, "+10°", "AttitudeCoarsePlus"],
+	]
+	for index in range(adjustments.size()):
+		var adjustment: Array = adjustments[index]
+		var amount := float(adjustment[0])
+		var rotate_button := _button(str(adjustment[1]), Vector2(16 + index * 69, 402), Vector2(64, 38), Color("143247"))
+		rotate_button.name = str(adjustment[2])
+		rotate_button.tooltip_text = GameManager.text(
+			"Coarse slew" if absf(amount) >= 10.0 else "Fine attitude trim",
+			"粗调转向" if absf(amount) >= 10.0 else "姿态微调"
+		)
+		rotate_button.pressed.connect(func() -> void: _animate_attitude_to(model.attitude_deg + amount))
+		pad.add_child(rotate_button)
 	var go := _button(GameManager.text("Confirm Safe Attitude", "确认安全姿态"), Vector2(16, 456), Vector2(284, 40), Color("175238"))
+	go.name = "ConfirmThermalLock"
 	go.pressed.connect(_confirm_thermal)
 	pad.add_child(go)
+	thermal_confirm_button = go
 	_refresh_thermal()
+	call_deferred("_show_thermal_tutorial", gimbal)
+
+
+func _show_thermal_tutorial(gimbal: Control) -> void:
+	if gimbal == null or not is_instance_valid(gimbal):
+		return
+	InteractionFeedback.tutorial_highlight_once(
+		gimbal,
+		"first_space_thermal_attitude",
+		GameManager.text(
+			"Maya: Every target needs a new spacecraft roll. Drag the globe for a large slew, use ±2° for fine trim, then keep the Sun marker inside this target's corridor while the cold side stabilizes.",
+			"玛雅：每个目标都需要重新调整航天器滚转姿态。拖动球体进行大幅转向，用 ±2° 微调，再让太阳标记保持在本目标的安全走廊内，直到冷端稳定。"
+		),
+		self
+	)
 
 
 func _animate_attitude_to(requested: float) -> void:
@@ -921,17 +1122,38 @@ func _refresh_thermal() -> void:
 	var g := content.find_child("AttitudeGimbal", true, false) if content != null else null
 	if g != null and is_instance_valid(g):
 		g.set("sun_angle", model.attitude_deg)
+		g.set("safe_min", model.thermal_corridor_min())
+		g.set("safe_max", model.thermal_corridor_max())
+		g.set("target_angle", model.thermal_target_deg)
+		g.set("hold_ratio", model.thermal_hold_ratio())
 		g.queue_redraw()
 	if readout == null or not is_instance_valid(readout):
 		return
+	var signed_error := model.thermal_target_deg - model.attitude_deg
+	var direction_en := "increase" if signed_error > 0.0 else "decrease"
+	var direction_zh := "增加" if signed_error > 0.0 else "降低"
 	readout.text = GameManager.text(
-		"Sun %.0f deg  %s\nEarth %.0f deg   Moon %.0f deg\nCold side %.0f K (target ~%.0f K)\nHot side %.0f K" % [
-			model.sun_angle, "SAFE" if model.sun_safe() else "DANGER", model.earth_angle, model.moon_angle,
-			model.cold_side_temp, model.COLD_TARGET, model.hot_side_temp],
-		"太阳 %.0f 度  %s\n地球 %.0f 度   月球 %.0f 度\n冷侧 %.0f K（目标约 %.0f K）\n热侧 %.0f K" % [
-			model.sun_angle, "安全" if model.sun_safe() else "危险", model.earth_angle, model.moon_angle,
-			model.cold_side_temp, model.COLD_TARGET, model.hot_side_temp])
-	readout.add_theme_color_override("font_color", GREEN if model.safe_to_observe() else RED)
+		"Sun %.1f deg  %s\nTarget %.0f deg  corridor %.0f-%.0f\n%s %.1f deg  drift %+.2f deg/s\nEarth %.0f deg  Moon %.0f deg\nCold %.1f K  Hot %.0f K\nThermal lock %.1f / %.1f s" % [
+			model.sun_angle, "GLOBAL SAFE" if model.sun_safe() else "DANGER",
+			model.thermal_target_deg, model.thermal_corridor_min(), model.thermal_corridor_max(),
+			direction_en.capitalize(), absf(signed_error), model.thermal_drift_rate,
+			model.earth_angle, model.moon_angle, model.cold_side_temp, model.hot_side_temp,
+			model.thermal_hold_progress, model.thermal_hold_required],
+		"太阳 %.1f°  %s\n目标姿态 %.0f°  走廊 %.0f-%.0f°\n需%s %.1f°  漂移 %+.2f°/秒\n地球 %.0f°  月球 %.0f°\n冷端 %.1f K  热端 %.0f K\n热稳定 %.1f / %.1f 秒" % [
+			model.sun_angle, "全局安全" if model.sun_safe() else "危险",
+			model.thermal_target_deg, model.thermal_corridor_min(), model.thermal_corridor_max(),
+			direction_zh, absf(signed_error), model.thermal_drift_rate,
+			model.earth_angle, model.moon_angle, model.cold_side_temp, model.hot_side_temp,
+			model.thermal_hold_progress, model.thermal_hold_required])
+	readout.add_theme_color_override(
+		"font_color",
+		GREEN if model.thermal_locked else (CYAN if model.attitude_in_corridor() else RED)
+	)
+	if thermal_confirm_button != null and is_instance_valid(thermal_confirm_button):
+		thermal_confirm_button.text = GameManager.text(
+			"Attitude Locked - Continue" if model.thermal_locked else "Hold Thermal Lock %.1fs" % maxf(0.0, model.thermal_hold_required - model.thermal_hold_progress),
+			"姿态已锁定 - 继续" if model.thermal_locked else "保持热稳定 %.1f 秒" % maxf(0.0, model.thermal_hold_required - model.thermal_hold_progress)
+		)
 	_draw_thermal()
 
 
@@ -948,32 +1170,57 @@ func _draw_thermal() -> void:
 	_line_to(scope, sun, Vector2(cx, cy), Color("f2c14a"))
 	_ring_to(scope, sun, 20, Color("f2c14a"))
 	_label_to(scope, GameManager.text("Sun", "太阳"), sun + Vector2(-20, 24), Vector2(40, 16), 11, Color("f2c14a"), HORIZONTAL_ALIGNMENT_CENTER)
+	var target_ang := deg_to_rad(model.thermal_target_deg)
+	var target_marker := Vector2(cx - cos(target_ang) * 180.0, cy - sin(target_ang) * 120.0)
+	_ring_to(scope, target_marker, 13.0 + model.thermal_hold_ratio() * 5.0, CYAN)
+	_label_to(scope, GameManager.text("ROLL TARGET", "姿态目标"), target_marker + Vector2(-48, -31), Vector2(96, 18), 10, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	# observatory: hot side toward sun, cold side away
 	var shield_ok := model.sun_safe()
 	_rect_to(scope, Vector2(cx - 90, cy - 8), Vector2(180, 16), ORANGE if not shield_ok else Color("2a3f5a"))
 	_hexes(scope, Vector2(cx + 40, cy - 70), 16, true)
+	# Stabilization requires holding the target-specific attitude, so the player
+	# sees a continuous result rather than an instant boolean pass.
+	_rect_to(scope, Vector2(60, 356), Vector2(480, 18), Color("102037"))
+	_rect_to(scope, Vector2(60, 356), Vector2(480 * model.thermal_hold_ratio(), 18), GREEN)
+	_label_to(scope, GameManager.text("ATTITUDE HOLD", "姿态保持"), Vector2(60, 378), Vector2(480, 18), 11, GREEN if model.attitude_in_corridor() else MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	# temperature gauge (cold side)
 	var temp_ratio := clampf((model.cold_side_temp - model.COLD_TARGET) / 120.0, 0.0, 1.0)
-	_rect_to(scope, Vector2(60, 400), Vector2(480, 22), Color("102037"))
-	_rect_to(scope, Vector2(60, 400), Vector2(480 * (1.0 - temp_ratio), 22), lerp_color(RED, CYAN, 1.0 - temp_ratio))
-	_label_to(scope, GameManager.text("Cold-side temperature (colder is better)", "冷侧温度（越冷越好）"), Vector2(60, 426), Vector2(480, 20), 11, MUTED)
-	_label_to(scope, GameManager.text("SAFE ZONE" if shield_ok else "SUN OUTSIDE SHIELD - DANGER", "安全区" if shield_ok else "太阳超出遮阳罩——危险"),
-		Vector2(60, 452), Vector2(480, 24), 14, GREEN if shield_ok else RED, HORIZONTAL_ALIGNMENT_CENTER)
+	_rect_to(scope, Vector2(60, 406), Vector2(480, 18), Color("102037"))
+	_rect_to(scope, Vector2(60, 406), Vector2(480 * (1.0 - temp_ratio), 18), lerp_color(RED, CYAN, 1.0 - temp_ratio))
+	_label_to(scope, GameManager.text("Cold-side temperature", "冷端温度"), Vector2(60, 428), Vector2(480, 18), 11, MUTED)
+	_label_to(scope, GameManager.text("THERMAL LOCKED" if model.thermal_locked else ("HOLD TARGET ATTITUDE" if model.attitude_in_corridor() else "SLEW SUN MARKER TO TARGET"),
+			"热控已锁定" if model.thermal_locked else ("保持目标姿态" if model.attitude_in_corridor() else "将太阳标记转向姿态目标")),
+		Vector2(60, 452), Vector2(480, 24), 14,
+		GREEN if model.thermal_locked else (ORANGE if model.attitude_in_corridor() else RED),
+		HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _confirm_thermal() -> void:
-	if not model.safe_to_observe():
-		_say(GameManager.text("Unsafe attitude. Rotate so the sun stays 85-135 deg off boresight and the optics stay cold.",
-			"姿态不安全。请旋转使太阳保持在视轴 85-135 度之间，让光学部分保持低温。"), RED)
+	if not model.thermal_locked:
+		var remaining := maxf(0.0, model.thermal_hold_required - model.thermal_hold_progress)
+		_say(GameManager.text(
+			"Thermal lock incomplete. Put the Sun marker inside %.0f-%.0f deg, fine-trim against drift, and hold for %.1f more seconds." % [
+				model.thermal_corridor_min(), model.thermal_corridor_max(), remaining],
+			"热控尚未锁定。请将太阳标记保持在 %.0f-%.0f° 走廊内，用微调抵消漂移，并再稳定 %.1f 秒。" % [
+				model.thermal_corridor_min(), model.thermal_corridor_max(), remaining]
+		), RED)
 		InteractionFeedback.error(self)
 		return
 	_log("THERMAL SYSTEM ONLINE")
 	_say(GameManager.text("Thermally safe. Lock a guide star next.", "热安全。下一步锁定导星。"), GREEN)
 	_advance()
+	_space_operation_chain(
+		GameManager.text("Held a safe Sun angle", "保持安全太阳夹角"),
+		GameManager.text("The sunshield protected the cold optical side", "遮阳罩保护了低温光学面"),
+		GameManager.text("Guide-star acquisition is now available", "导星捕获现已可用")
+	)
 
 
 # ============================================================ GUIDE
 func _build_guide() -> void:
+	guide_slew_active = false
+	guide_pending_index = -1
+	guide_candidate = -1
 	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("STAR FIELD & GUIDING", "星场与导星"))
 	guide_field = SpaceGuideFieldScript.new()
 	guide_field.name = "GuideField"
@@ -984,29 +1231,43 @@ func _build_guide() -> void:
 	content.add_child(guide_field)
 	scope = guide_field
 	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("FINE GUIDANCE", "精细导星"))
-	readout = _label_to(pad, "", Vector2(16, 40), Vector2(284, 190), 13, TEXT)
+	readout = _label_to(pad, "", Vector2(16, 40), Vector2(284, 104), 12, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guide_attitude_display = SpaceGuideAttitudeDisplayScript.new()
+	guide_attitude_display.name = "GuideAttitudeDisplay"
+	guide_attitude_display.position = Vector2(16, 150)
+	guide_attitude_display.size = Vector2(284, 170)
+	guide_attitude_display.slew_finished.connect(_on_guide_slew_finished)
+	pad.add_child(guide_attitude_display)
 	_label_to(pad, GameManager.text(
-		"Drag the box over a bright star. Acquire it, then watch the lock ring close and the drift trace flatten.",
-		"拖动搜索框覆盖明亮恒星，捕获后观察锁定环收缩咬合，漂移曲线逐渐拉平。"),
-		Vector2(16, 238), Vector2(284, 66), 11, MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		"Acquire a bright star.\nThe observatory slews first; guidance locks after it settles.",
+		"捕获明亮恒星。\n天文台先转向并稳定，之后导星系统才会锁定。"),
+		Vector2(16, 316), Vector2(284, 46), 10, MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var acquire := _button(GameManager.text("Acquire Highlighted Star", "捕获搜索框中的导星"), Vector2(16, 314), Vector2(284, 44), Color("143247"))
 	acquire.name = "AcquireGuideCandidate"
 	acquire.pressed.connect(_acquire_guide_candidate)
+	acquire.position = Vector2(16, 366)
+	acquire.size = Vector2(284, 42)
 	pad.add_child(acquire)
 	var go := _button(GameManager.text("Confirm Lock", "确认锁定"), Vector2(16, 440), Vector2(284, 44), Color("175238"))
 	go.pressed.connect(_confirm_guide)
+	go.name = "ConfirmGuideLock"
 	pad.add_child(go)
+	guide_acquire_button = acquire
+	guide_confirm_button = go
 	_refresh_guide()
 
 
 func _on_guide_candidate_changed(index: int) -> void:
+	if guide_slew_active:
+		return
 	guide_candidate = index
 	if index >= 0 and index < model.guide_stars.size():
 		var star: Dictionary = model.guide_stars[index]
 		_log_line("FGS SEARCH WINDOW", "CANDIDATE", str(star.get("id", "GS")))
 	else:
 		_log_line("FGS SEARCH WINDOW", "SCANNING")
+	_update_guide_attitude_candidate()
 	_refresh_guide()
 
 
@@ -1021,32 +1282,90 @@ func _acquire_guide_candidate() -> void:
 
 
 func _choose_guide(index: int) -> void:
-	if model.choose_guide_star(index):
-		guide_lock_logged = false
-		_log_line("FGS ACQUIRE", "TRACK", str(model.guide_stars[index].get("id", "GS")))
-		_say(GameManager.text("Guide star acquired. Waiting for fine-guidance lock...", "已选定导星。等待精细导星锁定……"), CYAN)
-	else:
-		_log_line("FGS ACQUIRE", "REJECT", str(model.guide_stars[index].get("id", "GS")))
-		_say(GameManager.text("That star is too dim or too far off the detector - it cannot hold a lock.", "该导星太暗或偏离探测器太远——无法保持锁定。"), RED)
+	if guide_slew_active or index < 0 or index >= model.guide_stars.size():
+		return
+	var star: Dictionary = model.guide_stars[index]
+	if not bool(star.get("usable", false)):
+		_log_line("FGS ACQUIRE", "REJECT", str(star.get("id", "GS")))
+		_say(GameManager.text(
+			"That star is too dim or too far off the detector - it cannot hold a lock.",
+			"这颗导星太暗或偏离探测器太远，无法维持锁定。"), RED)
 		InteractionFeedback.error(content)
+		_refresh_guide()
+		return
+	guide_slew_active = true
+	guide_pending_index = index
+	guide_lock_logged = false
+	_log_line("SPACECRAFT SLEW", "RUN", str(star.get("id", "GS")))
+	_say(GameManager.text(
+		"Guide vector accepted. Reaction wheels are rotating the observatory toward the star.",
+		"导星矢量已确认。反作用轮正在转动天文台，使望远镜指向这颗恒星。"), CYAN)
+	if guide_field != null and is_instance_valid(guide_field):
+		guide_field.set_input_locked(true)
+	if guide_attitude_display != null and is_instance_valid(guide_attitude_display):
+		guide_attitude_display.begin_slew(index, guide_field.guide_direction(index), 1.55)
 	_refresh_guide()
+
+
+func _on_guide_slew_finished(index: int) -> void:
+	if not guide_slew_active or index != guide_pending_index:
+		return
+	guide_slew_active = false
+	guide_pending_index = -1
+	if guide_field != null and is_instance_valid(guide_field):
+		guide_field.set_input_locked(false)
+	if model.choose_guide_star(index):
+		_log_line("SPACECRAFT SLEW", "HOLD", "YAW/PITCH SETTLED")
+		_log_line("FGS ACQUIRE", "TRACK", str(model.guide_stars[index].get("id", "GS")))
+		_say(GameManager.text(
+			"Attitude hold reached. Fine guidance is now removing the final pointing error.",
+			"姿态保持已经建立。精细导星系统正在消除最后的指向误差。"), CYAN)
+	else:
+		_say(GameManager.text(
+			"The guide vector was lost during the slew. Select another star.",
+			"姿态转向期间丢失了导星矢量。请选择另一颗恒星。"), RED)
+	_refresh_guide()
+
+
+func _update_guide_attitude_candidate() -> void:
+	if guide_attitude_display == null or not is_instance_valid(guide_attitude_display):
+		return
+	if guide_candidate < 0 or guide_candidate >= model.guide_stars.size():
+		guide_attitude_display.set_candidate(-1, Vector2.ZERO, false)
+		return
+	var star: Dictionary = model.guide_stars[guide_candidate]
+	guide_attitude_display.set_candidate(
+		guide_candidate,
+		guide_field.guide_direction(guide_candidate),
+		bool(star.get("usable", false)))
 
 
 func _refresh_guide() -> void:
 	if readout == null or not is_instance_valid(readout):
 		return
+	var guidance_state := "SLEWING" if guide_slew_active else ("LOCKED" if model.guide_locked else ("stabilizing" if model.chosen_guide >= 0 else "searching"))
+	var guidance_state_zh := "姿态转向中" if guide_slew_active else ("已锁定" if model.guide_locked else ("稳定中" if model.chosen_guide >= 0 else "搜索中"))
 	readout.text = GameManager.text(
-		"Search candidate: %s\nPointing error %.2f arcsec\nDrift rate %.2f arcsec/s\nGuide quality %d%%\nFine guidance: %s" % [
+		"Candidate: %s\nError %.2f arcsec   Drift %.2f/s\nGuide quality %d%%\nAttitude / guidance: %s" % [
 			_guide_candidate_name(),
 			model.pointing_error, model.drift_rate, int(model.guide_quality() * 100),
-			"LOCKED" if model.guide_locked else "searching"],
+			guidance_state],
 		"搜索候选：%s\n指向误差 %.2f 角秒\n漂移速率 %.2f 角秒/秒\n导星质量 %d%%\n精细导星：%s" % [
 			_guide_candidate_name(),
 			model.pointing_error, model.drift_rate, int(model.guide_quality() * 100),
-			"已锁定" if model.guide_locked else "搜索中"])
+			guidance_state_zh])
 	readout.add_theme_color_override("font_color", GREEN if model.guide_locked else (CYAN if model.chosen_guide >= 0 else MUTED))
 	if guide_field != null and is_instance_valid(guide_field):
 		guide_field.update_metrics(model.pointing_error, model.drift_rate, model.guide_locked, model.chosen_guide)
+	if guide_attitude_display != null and is_instance_valid(guide_attitude_display):
+		guide_attitude_display.update_guidance(model.pointing_error, model.drift_rate, model.guide_locked)
+	if guide_acquire_button != null and is_instance_valid(guide_acquire_button):
+		guide_acquire_button.disabled = guide_slew_active
+		guide_acquire_button.text = GameManager.text(
+			"Slewing Observatory..." if guide_slew_active else "Begin Attitude Slew",
+			"天文台姿态转向中……" if guide_slew_active else "开始姿态转向")
+	if guide_confirm_button != null and is_instance_valid(guide_confirm_button):
+		guide_confirm_button.disabled = guide_slew_active or not model.guide_locked
 
 
 func _guide_candidate_name() -> String:
@@ -1086,6 +1405,11 @@ func _confirm_guide() -> void:
 	_log("GUIDE STAR LOCKED")
 	_say(GameManager.text("Fine-guidance locked. Align the mirror segments next.", "精细导星已锁定。下一步校准镜面分段。"), GREEN)
 	_advance()
+	_space_operation_chain(
+		GameManager.text("Locked a stable guide star", "锁定稳定导星"),
+		GameManager.text("Pointing drift collapsed inside the fine-guidance loop", "指向漂移被压入精细导星闭环"),
+		GameManager.text("Wavefront alignment can now resolve split star images", "波前校准现在可以处理分裂星像")
+	)
 
 
 # ============================================================ WAVEFRONT
@@ -1099,13 +1423,33 @@ func _build_wavefront() -> void:
 	content.add_child(wavefront_display)
 	scope = wavefront_display
 	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("SEGMENT ACTUATORS", "镜片执行器"))
-	readout = _label_to(pad, "", Vector2(16, 44), Vector2(284, 150), 13, TEXT)
+	readout = _label_to(pad, "", Vector2(16, 42), Vector2(284, 136), 13, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var coarse := _button(GameManager.text("Coarse align +", "粗对准 +"), Vector2(16, 250), Vector2(284, 44), Color("143247"))
+	var regime := _label_to(
+		pad,
+		GameManager.text(
+			"COARSE  ·  six-segment bank / fast travel\nFINE       ·  one segment / sub-wave trim",
+			"粗对准  ·  六镜片联动 / 快速大行程\n精对准  ·  单镜片微调 / 压低波前误差"
+		),
+		Vector2(16, 184), Vector2(284, 52), 10, P_MID
+	)
+	regime.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var coarse := _button(GameManager.text("COARSE · BANK ACTUATE", "粗对准 · 镜片组驱动"), Vector2(16, 250), Vector2(284, 44), Color("202020"))
+	coarse.name = "CoarseWavefrontAlign"
 	coarse.pressed.connect(_animate_wavefront_step.bind(0.18, "COARSE"))
+	coarse.disabled = model.segment_alignment >= 0.82
+	coarse.tooltip_text = GameManager.text(
+		"Moves six segments quickly. It cannot finish precision phasing.",
+		"一次快速移动六块镜片，但无法完成最终精密共相。"
+	)
 	pad.add_child(coarse)
-	var fine := _button(GameManager.text("Fine align +", "精对准 +"), Vector2(16, 306), Vector2(284, 44), Color("143247"))
+	var fine := _button(GameManager.text("FINE · SINGLE SEGMENT", "精对准 · 单镜片微调"), Vector2(16, 306), Vector2(284, 44), Color("143247"))
+	fine.name = "FineWavefrontAlign"
 	fine.pressed.connect(_animate_wavefront_step.bind(0.07, "FINE"))
+	fine.tooltip_text = GameManager.text(
+		"Trims one segment and converges the star image below 150 nm.",
+		"逐块微调，把分裂星点收敛到 150 nm 以下。"
+	)
 	pad.add_child(fine)
 	var go := _button(GameManager.text("Confirm Alignment", "确认对准"), Vector2(16, 440), Vector2(284, 44), Color("175238"))
 	go.pressed.connect(_confirm_wavefront)
@@ -1116,18 +1460,33 @@ func _build_wavefront() -> void:
 func _animate_wavefront_step(amount: float, mode: String) -> void:
 	if wavefront_animating or model.segment_alignment >= 1.0:
 		return
+	if mode == "COARSE" and model.segment_alignment >= 0.82:
+		_say(GameManager.text(
+			"Coarse banks are at their limit. Use FINE control to merge the remaining star images.",
+			"粗调镜片组已到行程极限。请改用精对准，让剩余星点合并。"
+		), CYAN)
+		InteractionFeedback.error(readout)
+		return
 	wavefront_animating = true
 	var start := model.segment_alignment
-	var target := clampf(start + amount, 0.0, 1.0)
+	var target := clampf(start + amount, 0.0, 0.82 if mode == "COARSE" else 1.0)
 	_log_line("WFS %s ACTUATION" % mode, "RUN", "%02d/18" % roundi(target * 18.0))
+	if wavefront_display != null and is_instance_valid(wavefront_display):
+		wavefront_display.flash_actuation(mode)
 	var tween := create_tween().bind_node(self)
 	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 	tween.tween_method(func(value: float) -> void:
 		model.set_segment_alignment(value)
-		_refresh_wavefront(), start, target, 0.58)
+		_refresh_wavefront(), start, target, 0.42 if mode == "COARSE" else 0.26)
 	tween.tween_callback(func() -> void:
 		wavefront_animating = false
-		_log_line("WFS %s ACTUATION" % mode, "HOLD", "%d NM" % roundi(model.wavefront_error_nm)))
+		_log_line("WFS %s ACTUATION" % mode, "HOLD", "%d NM" % roundi(model.wavefront_error_nm))
+		if mode == "COARSE" and model.segment_alignment >= 0.82:
+			_say(GameManager.text(
+				"Coarse phasing complete. Switch to FINE and close the last split peaks.",
+				"粗共相完成。切换到精对准，收拢最后的分裂峰。"
+			), CYAN)
+		_build_stage())
 
 
 func _refresh_wavefront() -> void:
@@ -1174,6 +1533,11 @@ func _confirm_wavefront() -> void:
 	_log("WAVEFRONT CONVERGED")
 	_say(GameManager.text("Optics aligned. Begin the exposure.", "光学已对准。开始曝光。"), GREEN)
 	_advance()
+	_space_operation_chain(
+		GameManager.text("Phased the mirror segments", "校准镜面分段相位"),
+		GameManager.text("Wavefront error fell and the split PSF converged", "波前误差下降，分裂点扩散函数完成会聚"),
+		GameManager.text("A sharp infrared exposure is now possible", "现在可以进行清晰的红外曝光")
+	)
 
 
 # ============================================================ EXPOSE
@@ -1286,45 +1650,338 @@ func _confirm_expose() -> void:
 		_say(GameManager.text("Start the exposure first.", "请先开始曝光。"), RED)
 		return
 	_advance()
+	_space_operation_chain(
+		GameManager.text("Integrated infrared photons", "积累红外光子"),
+		GameManager.text("Repeated frames raised signal above detector noise", "多帧积累使信号高于探测器噪声"),
+		GameManager.text("Raw structure and detector events are ready for processing", "原始结构与探测器事件现已可供处理")
+	)
 
 
 # ============================================================ PROCESS
 func _build_process() -> void:
 	process_animating = false
+	process_step_buttons.clear()
+	process_generate_button = null
 	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("FRAME PROCESSING", "数据帧处理"))
 	scope = Control.new(); scope.position = Vector2(40, 8); scope.size = Vector2(600, 500)
 	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(scope)
 	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("PROCESSING STEPS", "处理步骤"))
-	# per-frame keep toggles (drop cosmic-ray frames)
-	_label_to(pad, GameManager.text("Frames (drop bad ones):", "数据帧（剔除坏帧）："), Vector2(16, 40), Vector2(284, 20), 12, MUTED)
-	var y := 66.0
+	# Per-frame review: cosmic-ray hits are repaired later; only unusable frames should be dropped.
+	var frame_guide := _label_to(
+		pad,
+		GameManager.text(
+			"REVIEW FIRST: keep repairable · drop unusable",
+			"先审查：保留可修复帧 · 剔除不可用帧"),
+		Vector2(16, 38), Vector2(284, 24), 10, MUTED)
+	frame_guide.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var frame_y := 66.0
 	for i in range(model.frames.size()):
 		var f: Dictionary = model.frames[i]
-		var b := _button("%s #%d%s" % [GameManager.text("Frame", "帧"), i + 1, "  ☄" if bool(f["cosmic_ray"]) else ""],
-			Vector2(16, y), Vector2(284, 30), Color("143247") if bool(f["kept"]) else Color("3a2418"))
-		b.add_theme_font_size_override("font_size", 11)
-		b.pressed.connect(func() -> void: model.toggle_keep(i, not bool(model.frames[i]["kept"])); _build_stage())
+		var frame_state := _frame_event_short(f)
+		var keep_state := GameManager.text("K", "留") if bool(f["kept"]) else GameManager.text("D", "弃")
+		var frame_text := GameManager.text(
+			"F%d %s [%s]" % [i + 1, frame_state, keep_state],
+			"帧%d %s [%s]" % [i + 1, frame_state, keep_state])
+		var selected_correctly := bool(f["kept"]) == model.frame_should_keep(f)
+		var b := _button(frame_text,
+			Vector2(16 + float(i % 2) * 144.0, frame_y + float(i / 2) * 34.0),
+			Vector2(138, 30),
+			Color("173c32") if selected_correctly else Color("4a271c"))
+		b.name = "ProcessFrame_%d" % (i + 1)
+		b.add_theme_font_size_override("font_size", 9)
+		b.clip_text = true
+		b.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+		b.tooltip_text = _frame_event_help(f)
+		b.pressed.connect(_toggle_process_frame.bind(i))
 		pad.add_child(b)
-		y += 36.0
+	var frame_rows := ceili(float(model.frames.size()) / 2.0)
+	var y := frame_y + float(frame_rows) * 34.0 + 4.0
 	var steps := [
 		["align", GameManager.text("Align Frames", "对齐帧"), model.frames_aligned],
 		["cosmic", GameManager.text("Remove Cosmic Rays", "移除宇宙射线"), model.cosmic_rays_removed],
 		["background", GameManager.text("Subtract Background", "扣除背景"), model.background_subtracted],
 		["stack", GameManager.text("Stack Exposures", "叠加曝光"), model.stacked],
 	]
-	for s in steps:
+	steps[1][1] = GameManager.text("Remove Detector Events", "移除探测器异常")
+	for step_index in range(steps.size()):
+		var s: Array = steps[step_index]
 		var complete := bool(s[2])
-		var b := _button(("✓ " if complete else "") + str(s[1]), Vector2(16, y), Vector2(284, 32), Color("0d2a1c") if complete else Color("143247"))
+		var b := _button(("%d. " % (step_index + 1)) + ("✓ " if complete else "") + str(s[1]), Vector2(16, y), Vector2(284, 32), Color("0d2a1c") if complete else Color("143247"))
+		b.name = "ProcessStep_" + str(s[0])
 		b.add_theme_font_size_override("font_size", 12)
-		b.disabled = complete
+		b.disabled = complete or not _process_step_available(str(s[0]))
 		b.pressed.connect(_run_process_step.bind(str(s[0])))
 		pad.add_child(b)
+		process_step_buttons[str(s[0])] = b
 		y += 38.0
+	var next_help := _process_next_help_compact()
+	var help_label := _label_to(pad, next_help, Vector2(16, y + 2.0), Vector2(284, maxf(34.0, 424.0 - y)), 10,
+		GREEN if model.frame_review_ready() else ORANGE)
+	help_label.name = "ProcessNextInstruction"
+	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help_label.clip_text = true
+	help_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	_label_to(
+		pad,
+		GameManager.text("TARGET: SNR >= 10  ·  complete steps 1-4", "目标：信噪比 >= 10，并完成第 1-4 步"),
+		Vector2(16, 426), Vector2(284, 20), 10, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	var go := _button(GameManager.text("Generate Science Image", "生成科学图像"), Vector2(16, 452), Vector2(284, 40), Color("175238"))
+	go.name = "GenerateScienceImage"
+	go.disabled = not model.processing_ready() or model.snr() < 10.0
+	go.tooltip_text = GameManager.text(
+		"Requires all four processing steps and SNR 10 or higher.",
+		"需要完成四个处理步骤，并让信噪比达到 10 或更高。")
 	go.pressed.connect(_confirm_process)
 	pad.add_child(go)
+	process_generate_button = go
 	_refresh_process()
+	call_deferred("_show_process_tutorial_if_needed")
+
+
+func _process_step_available(step_id: String) -> bool:
+	match step_id:
+		"align":
+			return model.frame_review_ready()
+		"cosmic":
+			return model.frames_aligned
+		"background":
+			return model.frames_aligned and model.cosmic_rays_removed
+		"stack":
+			return model.frames_aligned and model.cosmic_rays_removed and model.background_subtracted
+	return false
+
+
+func _frame_event_short(frame: Dictionary) -> String:
+	match str(frame.get("event_type", "clean")):
+		"cosmic_streak": return GameManager.text("CR", "宇宙线")
+		"hot_pixels": return GameManager.text("HOT", "热点")
+		"cosmic_shower": return GameManager.text("BURST", "射线簇")
+		"amplifier_glow": return GameManager.text("GLOW", "辉光")
+		"guide_smear": return GameManager.text("SMEAR", "拖影")
+		"saturation_bloom": return GameManager.text("SAT", "饱和")
+	return GameManager.text("CLEAN", "干净")
+
+
+func _frame_event_help(frame: Dictionary) -> String:
+	match str(frame.get("event_type", "clean")):
+		"cosmic_streak", "cosmic_shower":
+			return GameManager.text(
+				"Transient cosmic-ray event. KEEP it; step 2 can identify and repair it.",
+				"瞬态宇宙线事件。应保留；第 2 步可以识别并修复。")
+		"hot_pixels":
+			return GameManager.text(
+				"Repairable detector hot pixels. KEEP this frame for the rejection pass.",
+				"可修复的探测器热点。保留此帧，交给异常值剔除处理。")
+		"amplifier_glow":
+			return GameManager.text(
+				"Smooth amplifier glow. KEEP it; background subtraction can remove it.",
+				"平滑的放大器辉光。保留此帧；扣除背景可以消除。")
+		"guide_smear":
+			return GameManager.text(
+				"Guide lock slipped during this frame. Detail is smeared and cannot be reconstructed: DROP it.",
+				"这一帧曝光时导星锁定滑脱，细节已经拖影且无法重建：应剔除。")
+		"saturation_bloom":
+			return GameManager.text(
+				"The detector clipped bright detail. DROP it, then return to Plan and shorten the exposure if every frame is saturated.",
+				"探测器亮部已经溢出。应剔除；若所有帧都饱和，请返回规划并缩短曝光。")
+	return GameManager.text(
+		"Clean science frame. KEEP it so stacking retains its photons.",
+		"干净的科学帧。应保留，让叠加继续利用其中的光子。")
+
+
+func _toggle_process_frame(index: int) -> void:
+	if index < 0 or index >= model.frames.size():
+		return
+	var frame: Dictionary = model.frames[index]
+	var new_keep := not bool(frame.get("kept", true))
+	model.toggle_keep(index, new_keep)
+	var correct := new_keep == model.frame_should_keep(frame)
+	_say(GameManager.text(
+		"Frame %d set to %s. %s" % [
+			index + 1, "KEEP" if new_keep else "DROP", _frame_event_help(frame)],
+		"第 %d 帧已设为%s。%s" % [
+			index + 1, "保留" if new_keep else "剔除", _frame_event_help(frame)]
+	), GREEN if correct else ORANGE)
+	_build_stage()
+
+
+func _process_next_help_compact() -> String:
+	if not model.frame_review_ready():
+		return GameManager.text(
+			"NEXT: REVIEW FRAMES\nKEEP CLEAN/HOT/CR · DROP SMEAR/SAT",
+			"下一步：检查每一帧\n保留干净/热像素/宇宙线帧 · 丢弃拖影/过曝帧")
+	if not model.frames_aligned:
+		return GameManager.text(
+			"NEXT 1: ALIGN FRAMES\nRegister retained stars to the same pixels.",
+			"下一步 1：对齐帧\n把保留帧中的星点配准到相同像素。")
+	if not model.cosmic_rays_removed:
+		return GameManager.text(
+			"NEXT 2: REMOVE EVENTS\nRepair cosmic rays and detector hot pixels.",
+			"下一步 2：移除异常\n修复宇宙线痕迹和探测器热像素。")
+	if not model.background_subtracted:
+		return GameManager.text(
+			"NEXT 3: SUBTRACT BACKGROUND\nRemove infrared and amplifier glow.",
+			"下一步 3：扣除背景\n移除红外背景与放大器辉光。")
+	if not model.stacked:
+		return GameManager.text(
+			"NEXT 4: STACK EXPOSURES\nCombine clean, registered photon data.",
+			"下一步 4：叠加曝光\n合并干净且已经配准的光子数据。")
+	return GameManager.text(
+		"NEXT: GENERATE SCIENCE IMAGE\nAll required processing is complete.",
+		"下一步：生成科学图像\n所有必要的数据处理已经完成。")
+
+
+func _process_next_help() -> String:
+	if not model.frame_review_ready():
+		return GameManager.text(
+			"NEXT · Inspect every frame. Keep CLEAN/FIX; drop SMEAR/SATURATED.",
+			"下一步 · 检查每一帧。保留干净/可修复帧，剔除拖影/饱和帧。")
+	if not model.frames_aligned:
+		return GameManager.text(
+			"NEXT · 1 Align Frames: register the stars to the same pixels.",
+			"下一步 · 1 对齐帧：把各帧星点配准到相同像素。")
+	if not model.cosmic_rays_removed:
+		return GameManager.text(
+			"NEXT · 2 Remove Events: reject CR lines and hot pixels.",
+			"下一步 · 2 移除事件：剔除宇宙线亮痕与热点。")
+	if not model.background_subtracted:
+		return GameManager.text(
+			"NEXT · 3 Subtract Background: remove infrared glow.",
+			"下一步 · 3 扣除背景：移除红外背景辉光。")
+	if not model.stacked:
+		return GameManager.text(
+			"NEXT · 4 Stack: combine the clean registered photons.",
+			"下一步 · 4 叠加：合并干净且已配准的光子。")
+	return GameManager.text(
+		"READY · Confirm SNR >= 10, then generate the science image.",
+		"就绪 · 确认信噪比达到 10，再生成科学图像。")
+
+
+func _show_process_tutorial_if_needed() -> void:
+	if _key() != "process" or not InteractionFeedback.guidance_highlights_enabled():
+		return
+	var seen: Array = GameManager.progress.get("seen_teaching_steps", [])
+	if seen.has("space_frame_processing_v2"):
+		return
+	if process_tutorial_overlay != null and is_instance_valid(process_tutorial_overlay) and not process_tutorial_overlay.is_queued_for_deletion():
+		return
+	var frame_height := maxf(40.0, float(ceili(float(model.frames.size()) / 2.0)) * 34.0)
+	var pipeline_y := 178.0 + frame_height
+	process_tutorial_steps = [
+		{
+			"rect": Rect2(92, 156, 496, 344),
+			"pose": MayaPortrait.EXPLAIN,
+			"en": "This is detector data, not a finished photograph. Compare the image with the telemetry: SNR is signal divided by noise, and higher values reveal fainter structure.",
+			"zh": "这不是完成的照片，而是探测器数据。请把图像与遥测数字一起看：信噪比是信号与噪声之比，数值越高，越能显出微弱结构。"
+		},
+		{
+			"rect": Rect2(676, 174, 300, frame_height + 10.0),
+			"pose": MayaPortrait.THINK,
+			"en": "Review every frame. KEEP clean frames, cosmic-ray lines, hot pixels and amplifier glow because the pipeline can repair them. DROP guide smears and saturated frames because their detail is gone.",
+			"zh": "逐帧审查：干净帧、宇宙线亮痕、热点和放大器辉光可以被流水线修复，应当保留；导星拖影和饱和帧已经丢失细节，必须剔除。"
+		},
+		{
+			"rect": Rect2(92, 514, 496, 54),
+			"pose": MayaPortrait.THINK,
+			"en": "Your numerical reference is SNR 10. Keep useful frames so stacking raises SNR; dropping good frames throws away photons.",
+			"zh": "本页最重要的数字标准是信噪比 10。保留有用帧，让叠加提高信噪比；误删好帧等于丢掉已经收集到的光子。"
+		},
+		{
+			"rect": Rect2(676, pipeline_y - 4.0, 300, 158),
+			"pose": MayaPortrait.EMPHASIZE,
+			"en": "After the frame review turns correct, process in order: 1 Align frames, 2 Remove transient events, 3 Subtract background, 4 Stack exposures. The NEXT line always tells you what to press.",
+			"zh": "帧审查正确后，按顺序处理：1 对齐帧，2 移除瞬态事件，3 扣除背景，4 叠加曝光。右侧的“下一步”会始终告诉你该按哪个按钮。"
+		},
+		{
+			"rect": Rect2(676, 554, 300, 52),
+			"pose": MayaPortrait.EMPHASIZE,
+			"en": "Generate Science Image becomes available only when steps 1-4 are complete and SNR is at least 10. Then the image is ready for filter mapping.",
+			"zh": "只有完成第 1-4 步且信噪比至少达到 10，“生成科学图像”才会启用。之后才能进行滤镜映射。"
+		}
+	]
+	_build_process_tutorial_overlay()
+	_show_process_tutorial_step(0)
+
+
+func _build_process_tutorial_overlay() -> void:
+	process_tutorial_overlay = Control.new()
+	process_tutorial_overlay.name = "MayaProcessTutorial"
+	process_tutorial_overlay.add_to_group("guidance_highlight")
+	process_tutorial_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	process_tutorial_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	process_tutorial_overlay.z_index = 520
+	add_child(process_tutorial_overlay)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.0, 0.01, 0.03, 0.68)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	process_tutorial_overlay.add_child(dim)
+
+	process_tutorial_highlight = Panel.new()
+	process_tutorial_highlight.name = "ProcessTutorialHighlight"
+	process_tutorial_highlight.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	process_tutorial_highlight.add_theme_stylebox_override(
+		"panel", _flat(Color(0.0, 0.0, 0.0, 0.03), GOLD_HI, 3))
+	process_tutorial_overlay.add_child(process_tutorial_highlight)
+
+	var teaching := Panel.new()
+	teaching.name = "MayaProcessTeachingCard"
+	teaching.position = Vector2(40, 570)
+	teaching.size = Vector2(600, 150)
+	teaching.add_theme_stylebox_override("panel", _flat(Color("071323"), GOLD, 2))
+	process_tutorial_overlay.add_child(teaching)
+
+	process_tutorial_portrait = MayaPortrait.create(
+		teaching,
+		"MayaProcessPortrait",
+		MayaPortrait.EXPLAIN,
+		Vector2(10, 8),
+		Vector2(88, 134),
+		1)
+	_label_to(
+		teaching, GameManager.text("MAYA · DATA PIPELINE", "玛雅 · 数据处理"),
+		Vector2(108, 10), Vector2(330, 24), 17, GOLD_HI)
+	process_tutorial_copy = _label_to(
+		teaching, "", Vector2(108, 36), Vector2(470, 70), 13, TEXT)
+	process_tutorial_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	process_tutorial_copy.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	process_tutorial_next_button = _button(
+		GameManager.text("Next", "下一步"), Vector2(440, 108), Vector2(138, 32), Color("175238"))
+	process_tutorial_next_button.name = "ProcessTutorialNext"
+	process_tutorial_next_button.pressed.connect(_advance_process_tutorial)
+	teaching.add_child(process_tutorial_next_button)
+
+
+func _show_process_tutorial_step(index: int) -> void:
+	process_tutorial_step = clampi(index, 0, process_tutorial_steps.size() - 1)
+	var step: Dictionary = process_tutorial_steps[process_tutorial_step]
+	process_tutorial_copy.text = GameManager.text(str(step.get("en", "")), str(step.get("zh", "")))
+	MayaPortrait.apply_to(process_tutorial_portrait, str(step.get("pose", MayaPortrait.EXPLAIN)))
+	var rect: Rect2 = (step.get("rect", Rect2(92, 156, 496, 344)) as Rect2).grow(6.0)
+	process_tutorial_highlight.position = rect.position
+	process_tutorial_highlight.size = rect.size
+	process_tutorial_next_button.text = GameManager.text(
+		"Start Processing" if process_tutorial_step == process_tutorial_steps.size() - 1 else "Next",
+		"开始处理" if process_tutorial_step == process_tutorial_steps.size() - 1 else "下一步")
+
+
+func _advance_process_tutorial() -> void:
+	if process_tutorial_step + 1 < process_tutorial_steps.size():
+		_show_process_tutorial_step(process_tutorial_step + 1)
+		return
+	var seen: Array = GameManager.progress.get("seen_teaching_steps", [])
+	if not seen.has("space_frame_processing_v2"):
+		seen.append("space_frame_processing_v2")
+		GameManager.progress["seen_teaching_steps"] = seen
+		GameManager.save()
+	if process_tutorial_overlay != null and is_instance_valid(process_tutorial_overlay):
+		process_tutorial_overlay.queue_free()
+	process_tutorial_overlay = null
+	_say(GameManager.text(
+		"Maya: Read the frame status, follow steps 1-4, and use SNR 10 as your final threshold.",
+		"玛雅：先读懂每帧状态，再按第 1-4 步处理，最后以信噪比 10 作为通过标准。"), CYAN)
 
 
 func _refresh_process() -> void:
@@ -1333,6 +1990,17 @@ func _refresh_process() -> void:
 
 func _run_process_step(step_id: String) -> void:
 	if process_animating:
+		return
+	if not _process_step_available(step_id):
+		var blocked_text := GameManager.text(
+			"That step is not ready. Complete the numbered step immediately above it first.",
+			"这一步尚未解锁。请先完成它上方紧邻的编号步骤。")
+		if not model.frame_review_ready():
+			blocked_text = GameManager.text(
+				"Review the detector frames first. KEEP clean/repairable events and DROP guide smears or saturated frames.",
+				"请先审查探测器帧。保留干净或可修复的事件，剔除导星拖影或饱和帧。")
+		_say(blocked_text, RED)
+		InteractionFeedback.error(content)
 		return
 	var before_snr := model.snr()
 	match step_id:
@@ -1357,7 +2025,7 @@ func _process_action_text(step_id: String) -> String:
 		"align":
 			return GameManager.text("Registering star centroids. Watch the four frame outlines converge.", "正在配准星点质心。观察四个帧框合拢。")
 		"cosmic":
-			return GameManager.text("Scanning transient hits. The diagonal cosmic-ray streak is being erased.", "正在扫描瞬态撞击。斜向宇宙线亮痕正在被清除。")
+			return GameManager.text("Scanning every transient event. Cosmic-ray lines, showers and hot pixels are being rejected.", "正在扫描所有瞬态事件。宇宙线亮痕、射线簇和热点正在被剔除。")
 		"background":
 			return GameManager.text("Estimating the infrared background. The noise floor is dropping.", "正在估计红外背景。噪声底正在下降。")
 		"stack":
@@ -1391,19 +2059,18 @@ func _play_process_animation(step_id: String, before_snr: float) -> void:
 				tween.tween_property(frame, "position", image_rect.position, 0.46).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 				tween.tween_property(frame, "modulate:a", 0.0, 0.54).set_delay(0.12)
 		"cosmic":
-			var hit := Line2D.new()
-			hit.width = 3.0
-			hit.default_color = P_HOT
-			hit.points = PackedVector2Array([image_rect.position + Vector2(18, 20), image_rect.end - Vector2(26, 34)])
-			overlay.add_child(hit)
-			var scan := ColorRect.new()
-			scan.color = P_HOT
-			scan.position = image_rect.position
-			scan.size = Vector2(image_rect.size.x, 2)
-			overlay.add_child(scan)
-			tween.tween_property(scan, "position:y", image_rect.end.y, 0.48).set_trans(Tween.TRANS_LINEAR)
-			tween.tween_property(hit, "modulate:a", 0.0, 0.42).set_delay(0.10)
-			tween.tween_property(scan, "modulate:a", 0.0, 0.12).set_delay(0.46)
+			var event_nodes := _create_process_event_nodes(overlay, image_rect)
+			for scan_index in range(3):
+				var scan := ColorRect.new()
+				scan.color = Color(P_HOT, 0.78 - float(scan_index) * 0.16)
+				scan.position = image_rect.position + Vector2(0, float(scan_index) * 18.0)
+				scan.size = Vector2(image_rect.size.x, 2)
+				overlay.add_child(scan)
+				tween.tween_property(scan, "position:y", image_rect.end.y, 0.46 + float(scan_index) * 0.08) \
+					.set_delay(float(scan_index) * 0.07).set_trans(Tween.TRANS_LINEAR)
+				tween.tween_property(scan, "modulate:a", 0.0, 0.12).set_delay(0.48 + float(scan_index) * 0.08)
+			for event_node in event_nodes:
+				tween.tween_property(event_node, "modulate:a", 0.0, 0.38).set_delay(0.14)
 		"background":
 			var veil := ColorRect.new()
 			veil.color = Color(1, 1, 1, 0.18)
@@ -1433,12 +2100,85 @@ func _play_process_animation(step_id: String, before_snr: float) -> void:
 	tween.chain().tween_callback(_finish_process_animation.bind(step_id, before_snr, overlay))
 
 
+func _create_process_event_nodes(parent: Control, rect: Rect2) -> Array[CanvasItem]:
+	var nodes: Array[CanvasItem] = []
+	for frame_value in model.frames:
+		var frame: Dictionary = frame_value
+		if not bool(frame.get("kept", false)):
+			continue
+		var seed := int(frame.get("event_seed", 1))
+		var event_type := str(frame.get("event_type", "clean"))
+		match event_type:
+			"cosmic_streak":
+				var line := Line2D.new()
+				line.width = 3.0
+				line.default_color = P_HOT
+				var y1 := 24.0 + float(seed % 86)
+				var y2 := rect.size.y - 28.0 - float(seed % 64)
+				line.points = PackedVector2Array([
+					rect.position + Vector2(18, y1),
+					rect.position + Vector2(rect.size.x - 24.0, y2)])
+				parent.add_child(line)
+				nodes.append(line)
+			"cosmic_shower":
+				for ray in range(3):
+					var line := Line2D.new()
+					line.width = 2.0
+					line.default_color = Color(P_HOT, 0.85)
+					var start_x := 36.0 + float((seed + ray * 73) % 250)
+					var start_y := 20.0 + float((seed + ray * 41) % 90)
+					line.points = PackedVector2Array([
+						rect.position + Vector2(start_x, start_y),
+						rect.position + Vector2(start_x + 120.0 + ray * 22.0, start_y + 76.0 + ray * 18.0)])
+					parent.add_child(line)
+					nodes.append(line)
+			"hot_pixels":
+				for pixel in range(9):
+					var hot := ColorRect.new()
+					hot.color = Color(P_HOT, 0.90)
+					hot.position = rect.position + Vector2(
+						18.0 + float((seed + pixel * 67) % int(rect.size.x - 36.0)),
+						18.0 + float((seed + pixel * 43) % int(rect.size.y - 36.0)))
+					hot.size = Vector2(3, 3)
+					parent.add_child(hot)
+					nodes.append(hot)
+	return nodes
+
+
+func _draw_processing_events(parent: Control, rect: Rect2) -> void:
+	if not model.cosmic_rays_removed:
+		for node in _create_process_event_nodes(parent, rect):
+			node.modulate.a = 0.88
+	for frame_value in model.frames:
+		var frame: Dictionary = frame_value
+		if not bool(frame.get("kept", false)):
+			continue
+		var event_type := str(frame.get("event_type", "clean"))
+		var seed := int(frame.get("event_seed", 1))
+		if event_type == "guide_smear":
+			for band in range(3):
+				var y := rect.position.y + 70.0 + float((seed + band * 57) % 150)
+				_line_to(parent,
+					Vector2(rect.position.x + 20.0, y),
+					Vector2(rect.end.x - 20.0, y + 18.0),
+					Color(0.85, 0.60, 0.40, 0.24))
+		elif event_type == "saturation_bloom":
+			_ellipse_to(parent, rect.get_center(), Vector2(72, 32), Color(1.0, 0.95, 0.82, 0.34))
+		elif event_type == "amplifier_glow" and not model.background_subtracted:
+			_ellipse_to(parent,
+				Vector2(rect.end.x - 18.0, rect.get_center().y),
+				Vector2(52, rect.size.y * 0.42),
+				Color(0.78, 0.50, 0.32, 0.15))
+
+
 func _finish_process_animation(step_id: String, before_snr: float, overlay: Control) -> void:
 	if is_instance_valid(overlay):
 		overlay.queue_free()
 	process_animating = false
 	_log_line("PIPELINE %s" % step_id.to_upper(), "COMPLETE", "SNR %.1f -> %.1f" % [before_snr, model.snr()])
 	_say(GameManager.text("Processing step complete. The image and telemetry now agree.", "处理步骤完成。图像与遥测数据已同步更新。"), GREEN)
+	var chain_copy := _space_processing_chain_copy(step_id, before_snr, model.snr())
+	_space_operation_chain(str(chain_copy[0]), str(chain_copy[1]), str(chain_copy[2]))
 	if _key() == "process":
 		_build_stage()
 
@@ -1450,15 +2190,20 @@ func _draw_process() -> void:
 		c.queue_free()
 	# The real target: each processing step visibly cleans the image.
 	var quality := clampf(model.snr() / 26.0, 0.06, 1.0)
-	_draw_target_image(scope, Rect2(60, 52, 480, 300), quality, Color(1, 1, 1),
-		not model.cosmic_rays_removed, not model.frames_aligned)
+	var image_rect := Rect2(60, 52, 480, 300)
+	_draw_target_image(scope, image_rect, quality, Color(1, 1, 1), false, not model.frames_aligned)
+	_draw_processing_events(scope, image_rect)
 	_label_to(scope, GameManager.dict_text(GameManager.current_target(), "name"),
 		Vector2(60, 358), Vector2(480, 20), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	# tell the player exactly what they are looking at right now
-	var note := GameManager.text("Raw stack: cosmic-ray streak and doubled image still present.", "原始叠加：仍有宇宙线亮线与重影。")
-	if model.cosmic_rays_removed and not model.frames_aligned:
-		note = GameManager.text("Cosmic rays gone. Frames still mis-registered - align them.", "宇宙线已去除。各帧仍未对齐——请对齐。")
-	elif model.frames_aligned and not model.background_subtracted:
+	var note := GameManager.text(
+		"Review the frames: multiple detector events and one unrecoverable smear are present.",
+		"请审查数据帧：其中包含多种探测器事件，以及一帧无法修复的拖影。")
+	if model.frame_review_ready() and not model.frames_aligned:
+		note = GameManager.text("Frame review correct. Align the retained star fields.", "帧审查正确。请对齐保留帧中的星场。")
+	elif model.frames_aligned and not model.cosmic_rays_removed:
+		note = GameManager.text("Frames aligned. Remove cosmic-ray lines, showers and hot pixels.", "各帧已对齐。请移除宇宙线亮痕、射线簇和热点。")
+	elif model.cosmic_rays_removed and not model.background_subtracted:
 		note = GameManager.text("Frames aligned. Subtract the background to drop the noise floor.", "各帧已对齐。扣除背景以降低噪声底。")
 	elif model.background_subtracted and not model.stacked:
 		note = GameManager.text("Background removed. Stack the frames to raise the signal.", "背景已扣除。叠加各帧以提升信号。")
@@ -1468,9 +2213,34 @@ func _draw_process() -> void:
 	_label_to(scope, GameManager.text("Live SNR %.1f   Kept frames %d" % [model.snr(), model.kept_frames()],
 		"实时信噪比 %.1f   保留帧 %d" % [model.snr(), model.kept_frames()]), Vector2(60, 418), Vector2(480, 22), 13,
 		GREEN if model.snr() >= 10.0 else CYAN)
+	var next_step := GameManager.text("Review frames", "审查帧")
+	if model.frame_review_ready() and not model.frames_aligned:
+		next_step = GameManager.text("Align frames", "对齐帧")
+	elif model.frames_aligned and not model.cosmic_rays_removed:
+		next_step = GameManager.text("Remove cosmic rays", "移除宇宙射线")
+	elif model.cosmic_rays_removed and not model.background_subtracted:
+		next_step = GameManager.text("Subtract background", "扣除背景")
+	elif model.background_subtracted and not model.stacked:
+		next_step = GameManager.text("Stack exposures", "叠加曝光")
+	elif model.processing_ready() and model.snr() >= 10.0:
+		next_step = GameManager.text("Generate science image", "生成科学图像")
+	_label_to(
+		scope,
+		GameManager.text(
+			"REFERENCE  SNR >= 10    NEXT  %s" % next_step,
+			"参考标准  信噪比 >= 10    下一步  %s" % next_step),
+		Vector2(60, 444), Vector2(480, 20), 11,
+		GREEN if model.processing_ready() and model.snr() >= 10.0 else GOLD,
+		HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _confirm_process() -> void:
+	if not model.frame_review_ready():
+		_say(GameManager.text(
+			"Frame review is incomplete. Keep clean/repairable frames and drop guide smears or saturation.",
+			"帧审查尚未完成。请保留干净/可修复帧，并剔除导星拖影或饱和帧。"), RED)
+		InteractionFeedback.error(self)
+		return
 	if not model.processing_ready():
 		_say(GameManager.text("Finish align, cosmic-ray removal, background and stacking first.", "请先完成对齐、移除宇宙射线、扣除背景和叠加。"), RED)
 		InteractionFeedback.error(self)
@@ -1481,6 +2251,11 @@ func _confirm_process() -> void:
 	_log("SCIENCE IMAGE RECONSTRUCTED")
 	_say(GameManager.text("Science image generated. Map the filters.", "科学图像已生成。进行滤镜映射。"), GREEN)
 	_advance()
+	_space_operation_chain(
+		GameManager.text("Completed the processing pipeline", "完成图像处理流水线"),
+		GameManager.text("Aligned frames, removed events, lowered background, and stacked photons", "对齐帧、移除事件、降低背景并堆叠光子"),
+		GameManager.text("Faint infrared structure is now scientifically readable", "微弱红外结构现在可以进行科学判读")
+	)
 
 
 # ============================================================ FILTER
@@ -1757,7 +2532,9 @@ func _submit() -> void:
 		"feedback_en": "Infrared science image confirmed the target's structure.",
 		"feedback_zh": "红外科学图像确认了目标的结构。",
 	}
-	GameManager.complete_current_mission(GameManager.current_target_object_id(), observation)
+	_power_down(func() -> void:
+		GameManager.complete_current_mission(GameManager.current_target_object_id(), observation),
+		true)
 
 
 func _quality(v: float) -> String:
@@ -1765,6 +2542,53 @@ func _quality(v: float) -> String:
 	if v >= 16.0: return "Good"
 	if v >= 10.0: return "Fair"
 	return "Poor"
+
+
+func _space_operation_chain(action_text: String, effect_text: String, reveal_text: String) -> void:
+	var chain := InteractionFeedback.operation_chain(
+		self,
+		action_text,
+		effect_text,
+		reveal_text,
+		null,
+		CYAN,
+		2.7
+	)
+	if chain != null:
+		chain.position.y = 538.0
+
+
+func _space_processing_chain_copy(step_id: String, before_snr: float, after_snr: float) -> Array[String]:
+	match step_id:
+		"align":
+			return [
+				GameManager.text("Aligned retained frames", "对齐保留的数据帧"),
+				GameManager.text("Stars landed on the same detector coordinates", "恒星落到相同探测器坐标"),
+				GameManager.text("Real structure stopped doubling", "真实结构不再出现重影"),
+			]
+		"cosmic":
+			return [
+				GameManager.text("Removed cosmic-ray events", "移除宇宙射线事件"),
+				GameManager.text("Transient streaks and hot pixels were rejected", "瞬态亮痕与热像素被剔除"),
+				GameManager.text("Persistent target detail remained", "持续存在的目标细节被保留下来"),
+			]
+		"background":
+			return [
+				GameManager.text("Subtracted the infrared background", "扣除红外背景"),
+				GameManager.text("The noise floor fell from the photon stack", "光子堆栈的噪声底下降"),
+				GameManager.text("Faint outer structure separated from the sky", "微弱外围结构从天空背景中分离"),
+			]
+		"stack":
+			return [
+				GameManager.text("Stacked the clean exposures", "堆叠干净曝光帧"),
+				GameManager.text("SNR rose from %.1f to %.1f" % [before_snr, after_snr], "信噪比从 %.1f 提升到 %.1f" % [before_snr, after_snr]),
+				GameManager.text("The science image gained stable depth", "科学图像获得了稳定的深层细节"),
+			]
+	return [
+		GameManager.text("Processed one detector stage", "完成一个探测器处理步骤"),
+		GameManager.text("Image data and telemetry became more consistent", "图像数据与遥测结果更加一致"),
+		GameManager.text("The next processing decision is now available", "下一个处理决策现已可用"),
+	]
 
 
 # ============================================================ helpers

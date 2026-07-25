@@ -28,6 +28,7 @@
   {
     "id": "starter_tube",
     "type": "tube",
+    "telescope_family": "refractor",
     "name_en": "Starter Telescope Tube",
     "name_zh": "入门镜筒",
     "alignment_quality": 55,
@@ -41,6 +42,7 @@
   {
     "id": "objective_60mm",
     "type": "objective",
+    "telescope_family": "refractor",
     "name_en": "60mm Starter Lens",
     "name_zh": "60mm 入门物镜",
     "aperture_mm": 60,
@@ -96,6 +98,7 @@
   {
     "id": "objective_100mm",
     "type": "objective",
+    "telescope_family": "refractor",
     "name_en": "100mm Wide Aperture Lens",
     "name_zh": "100mm 大口径物镜",
     "aperture_mm": 100,
@@ -137,6 +140,7 @@
   {
     "id": "basic_focus_knob",
     "type": "focus_knob",
+    "telescope_family": "refractor",
     "name_en": "Basic Focus Knob",
     "name_zh": "基础调焦旋钮",
     "focus_sensitivity": 0.7,

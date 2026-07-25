@@ -89,7 +89,7 @@ func _check_sky_selection_ownership() -> void:
 	root.add_child(sky)
 	await process_frame
 	_check(str(sky.get("selected_object_id")) == str(sky.get("target_id")), "new mission clears an old free selection")
-	_check(sky.get_node_or_null("ChangeSiteButton") != null, "Location entry exists inside Sky Observation")
+	_check(sky.get_node_or_null("ChangeSiteButton") == null, "L1 hides Location until Maya teaches site selection")
 	var level_number := int(gm.progress.get("current_level", 1))
 	gm.selected_object_id = "jupiter"
 	gm.selected_object_level = level_number
@@ -101,6 +101,14 @@ func _check_sky_selection_ownership() -> void:
 	await process_frame
 	_check(str(returned_sky.get("selected_object_id")) == "jupiter", "same-mission map/telescope return preserves selection")
 	returned_sky.queue_free()
+	await process_frame
+	gm.debug_jump_to_level(11, false)
+	gm.suppress_next_world_map_redirect = true
+	var later_sky: Node = load("res://scenes/sky_observation.tscn").instantiate()
+	root.add_child(later_sky)
+	await process_frame
+	_check(later_sky.get_node_or_null("ChangeSiteButton") != null, "Location entry appears in Sky Observation after L10")
+	later_sky.queue_free()
 	await process_frame
 
 

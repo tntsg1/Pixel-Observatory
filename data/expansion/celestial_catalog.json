@@ -161,5 +161,23 @@
     "apparent_magnitude": 9.6,
     "ra_hours": 12.6058,
     "dec_degrees": 25.9877
+  },
+  {
+    "id": "carina_cosmic_cliffs",
+    "fallback_altitude": 42,
+    "fallback_azimuth": 168,
+    "naked_eye_visible": false,
+    "apparent_magnitude": 7.3,
+    "ra_hours": 10.7431,
+    "dec_degrees": -59.553
+  },
+  {
+    "id": "horsehead_nebula_infrared",
+    "fallback_altitude": 38,
+    "fallback_azimuth": 142,
+    "naked_eye_visible": false,
+    "apparent_magnitude": 6.8,
+    "ra_hours": 5.6833,
+    "dec_degrees": -2.45
   }
 ]

@@ -49,7 +49,25 @@ func _type_label(part_type: String, field: String) -> String:
 		"objective": {"en": "Objective Lens", "zh": "物镜", "role_en": "Collects light", "role_zh": "集光", "category": "Optics"},
 		"eyepiece": {"en": "Eyepiece", "zh": "目镜", "role_en": "Magnifies the image", "role_zh": "放大", "category": "Optics"},
 		"finder_scope": {"en": "Finder Scope", "zh": "寻星镜", "role_en": "Aims before high power", "role_zh": "寻星", "category": "Aiming"},
-		"focus_knob": {"en": "Focus Knob", "zh": "调焦旋钮", "role_en": "Sharpens the image", "role_zh": "调清图像", "category": "Control"}
+		"focus_knob": {"en": "Focus Knob", "zh": "调焦旋钮", "role_en": "Sharpens the image", "role_zh": "调清图像", "category": "Control"},
+		"primary_mirror": {"en": "Primary Mirror", "zh": "主镜", "role_en": "Collects infrared light", "role_zh": "收集红外光", "category": "Optics"},
+		"secondary_mirror": {"en": "Secondary Mirror", "zh": "副镜", "role_en": "Returns the beam to the instruments", "role_zh": "把光束送回仪器", "category": "Optics"},
+		"steering_mirror": {"en": "Steering Mirror", "zh": "精细转向镜", "role_en": "Removes fine pointing error", "role_zh": "消除精细指向误差", "category": "Aiming"},
+		"tertiary_mirror": {"en": "Tertiary Mirror", "zh": "第三反射镜", "role_en": "Feeds the instrument bay", "role_zh": "把光束送入仪器舱", "category": "Optics"},
+		"detector": {"en": "Detector Package", "zh": "探测器总成", "role_en": "Converts infrared photons to data", "role_zh": "把红外光子转换为数据", "category": "Control"},
+		"sunshield": {"en": "Sunshield", "zh": "遮阳罩", "role_en": "Keeps the cold side in shadow", "role_zh": "让低温侧保持阴影", "category": "Support"},
+		"spacecraft_bus": {"en": "Spacecraft Bus", "zh": "航天器平台", "role_en": "Power, control and station keeping", "role_zh": "供电、控制与轨道维持", "category": "Support"},
+		"deployable_tower": {"en": "Deployable Tower", "zh": "可展开塔架", "role_en": "Separates cold optics from the warm bus", "role_zh": "分隔低温光学与温热平台", "category": "Support"},
+		"deployment_hinges": {"en": "Deployment Hinges", "zh": "展开铰链", "role_en": "Unfolds mirror wings and sunshield", "role_zh": "展开镜翼与遮阳罩", "category": "Support"},
+		"solar_array": {"en": "Solar Array", "zh": "太阳能电池阵", "role_en": "Powers the observatory", "role_zh": "为天文台供电", "category": "Support"},
+		"antenna": {"en": "Communication Antenna", "zh": "通信天线", "role_en": "Downlinks science data", "role_zh": "向地面回传科学数据", "category": "Control"},
+		"radiator": {"en": "Thermal Radiator", "zh": "热辐射散热器", "role_en": "Rejects instrument heat", "role_zh": "排出仪器热量", "category": "Support"},
+		"instrument_bay": {"en": "Instrument Bay", "zh": "仪器舱", "role_en": "Holds the cold science instruments", "role_zh": "承载低温科学仪器", "category": "Control"},
+		"detector_module": {"en": "Detector Module", "zh": "探测器模块", "role_en": "Reads the instrument focal planes", "role_zh": "读取仪器焦平面", "category": "Control"},
+		"nircam": {"en": "NIRCam", "zh": "NIRCam 近红外相机", "role_en": "Near-infrared imaging", "role_zh": "近红外成像", "category": "Control"},
+		"nirspec": {"en": "NIRSpec", "zh": "NIRSpec 近红外光谱仪", "role_en": "Infrared spectroscopy", "role_zh": "红外光谱分析", "category": "Control"},
+		"miri": {"en": "MIRI", "zh": "MIRI 中红外仪器", "role_en": "Cold dust and molecular imaging", "role_zh": "冷尘埃与分子成像", "category": "Control"},
+		"fgs_niriss": {"en": "FGS/NIRISS", "zh": "FGS/NIRISS 导星仪", "role_en": "Fine guidance and niche imaging", "role_zh": "精细导星与专用成像", "category": "Aiming"}
 	}
 	var entry: Dictionary = labels.get(part_type, {"en": part_type, "zh": part_type, "role_en": "", "role_zh": "", "category": "Control"})
 	if field == "category":
@@ -168,22 +186,33 @@ func _show_auto_equip_preview() -> void:
 	auto_equip_popup.add_child(panel)
 	_label_to(panel, GameManager.text("Auto Equip Preview", "一键装备预览"), Vector2(20, 14), Vector2(520, 26), 18, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	_label_to(panel, GameManager.text("Chosen for the current target. Confirm to equip.", "已按当前目标选择。确认后才会装备。"), Vector2(20, 44), Vector2(520, 18), 11, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
-	var y := 72.0
+	var preview_scroll := ScrollContainer.new()
+	preview_scroll.position = Vector2(20, 72)
+	preview_scroll.size = Vector2(520, height - 140)
+	preview_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	preview_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	panel.add_child(preview_scroll)
+	var preview_rows := VBoxContainer.new()
+	preview_rows.custom_minimum_size = Vector2(496, 0)
+	preview_rows.add_theme_constant_override("separation", 4)
+	preview_scroll.add_child(preview_rows)
 	for entry_value in plan:
 		var entry: Dictionary = entry_value
 		var changed := bool(entry.get("changed", false))
 		var pinned := bool(entry.get("pinned", false))
+		var row := Control.new()
+		row.custom_minimum_size = Vector2(496, 44)
+		preview_rows.add_child(row)
 		var row_text := GameManager.text(str(entry.get("name_en", "")), str(entry.get("name_zh", "")))
 		if pinned:
 			row_text += GameManager.text("  [lesson-required]", "【本关指定】")
 		else:
 			row_text += GameManager.text("  (change)", "（更换）") if changed else GameManager.text("  (kept)", "（保持）")
-		_label_to(panel, row_text, Vector2(34, y), Vector2(500, 20), 12, WARNING if pinned else (GOLD if changed else Color(0.72, 0.80, 0.86)))
+		_label_to(row, row_text, Vector2(8, 0), Vector2(480, 20), 12, WARNING if pinned else (GOLD if changed else Color(0.72, 0.80, 0.86)))
 		var reason := GameManager.text(str(entry.get("reason_en", "")), str(entry.get("reason_zh", "")))
 		if reason != "":
-			var reason_label := _label_to(panel, GameManager.text("Why: ", "原因：") + reason, Vector2(50, y + 20), Vector2(492, 18), 10, Color(0.62, 0.72, 0.80))
+			var reason_label := _label_to(row, GameManager.text("Why: ", "原因：") + reason, Vector2(24, 21), Vector2(464, 18), 10, Color(0.62, 0.72, 0.80))
 			reason_label.clip_text = true
-		y += 48.0
 	var confirm := _button(GameManager.text("Confirm", "确认装备"), Vector2(120, height - 56), Vector2(140, 38))
 	confirm.pressed.connect(func() -> void:
 		var applied: int = GameManager.apply_auto_equip(plan)
@@ -258,7 +287,7 @@ func _draw_empty_eye_stage() -> void:
 	_panel(Vector2(202, 282), Vector2(620, 194), PANEL, BRASS)
 	_label_to(
 		self,
-		GameManager.text("No telescope parts yet. Finish the naked-eye observations first.", "还没有望远镜零件。先完成肉眼观测，Maya 很快会解锁第一套折射镜组件。"),
+		GameManager.text("No telescope parts yet. Finish the naked-eye observations first.", "还没有望远镜零件。先完成肉眼观测，玛雅很快会解锁第一套折射镜组件。"),
 		Vector2(244, 312),
 		Vector2(536, 122),
 		16,
@@ -282,8 +311,8 @@ func _draw_summary_panel() -> void:
 	_label_to(self, GameManager.text("Club Credits: %d", "社团积分: %d") % int(GameManager.progress.get("credits", 0)) + "\n" + GameManager.text("Unlocked: %d / %d", "已解锁: %d / %d") % [_unlocked_count(), GameManager.parts_data.size()], Vector2(748, 124), Vector2(214, 42), 12, GOLD, HORIZONTAL_ALIGNMENT_RIGHT)
 
 	if feedback_text != "":
-		var chip := _badge_to(self, feedback_text, Vector2(624, 140), Vector2(342, 24), feedback_color, HORIZONTAL_ALIGNMENT_RIGHT)
-		chip.add_theme_font_size_override("font_size", 11)
+		var chip := _badge_to(self, feedback_text, Vector2(624, 164), Vector2(342, 20), feedback_color, HORIZONTAL_ALIGNMENT_RIGHT)
+		chip.add_theme_font_size_override("font_size", 10)
 
 
 func _draw_parts_list() -> void:
@@ -335,7 +364,13 @@ func _part_card(part: Dictionary) -> Control:
 	var equipped := GameManager.equipped_part_id(part_type) == part_id
 	var exact_required_id := _required_id_for_type(part_type)
 	var exact_required := exact_required_id == part_id
-	var required_for_mission := GameManager.required_part_types_for_current_level().has(part_type)
+	var required_for_mission := (
+		GameManager.required_part_types_for_current_level().has(part_type)
+		or (
+			str(GameManager.current_level().get("telescope_family", "")) == "space_segmented"
+			and GameManager.space_segmented_install_types().has(part_type)
+		)
+	)
 	var incompatible_equipped := equipped and exact_required_id != "" and not exact_required
 	var recommended := _is_recommended(part)
 	var is_next_step := part_type == next_step_part_type
@@ -589,7 +624,13 @@ func _category_index(category: String) -> int:
 
 
 func _type_rank(part_type: String) -> int:
-	var order := ["tripod", "mount", "tube", "objective", "eyepiece", "finder_scope", "focus_knob"]
+	var order := [
+		"tripod", "mount", "tube", "objective", "eyepiece", "finder_scope", "focus_knob",
+		"primary_mirror", "secondary_mirror", "steering_mirror", "tertiary_mirror",
+		"detector", "sunshield", "spacecraft_bus", "deployable_tower", "deployment_hinges",
+		"solar_array", "antenna", "radiator", "instrument_bay", "detector_module",
+		"nircam", "nirspec", "miri", "fgs_niriss",
+	]
 	var index := order.find(part_type)
 	return index if index >= 0 else 99
 
@@ -610,6 +651,11 @@ func _is_recommended(part: Dictionary) -> bool:
 	var part_id := str(part.get("id", ""))
 	var part_type := str(part.get("type", ""))
 	var level := GameManager.current_level()
+	if (
+		str(level.get("telescope_family", "")) == "space_segmented"
+		and GameManager.space_segmented_install_types().has(part_type)
+	):
+		return _is_unlocked(part_id)
 	var exact_required_id := _required_id_for_type(part_type)
 	# A prescribed experiment takes priority over generic target advice. Do
 	# not mark a higher-stat mount as recommended when this level explicitly

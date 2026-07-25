@@ -6,6 +6,9 @@ const CATALOG_PATH := "res://data/celestial_catalog.json"
 const EXPANSION_CATALOG_PATH := "res://data/expansion/celestial_catalog.json"
 const API_KEYS_PATH := "res://data/local_api_keys.json"
 const ASTRONOMY_API_URL := "https://api.astronomyapi.com/api/v2/bodies/positions"
+const ONLINE_SOLAR_SYSTEM_IDS := [
+	"moon", "mercury", "venus", "mars", "jupiter", "saturn", "uranus", "neptune"
+]
 
 var config: Dictionary = {}
 var catalog: Array = []
@@ -77,8 +80,8 @@ func get_sky_positions(screen_rect: Rect2, utc_datetime: Dictionary = {}, lat_ov
 			item["direction_text"] = direction_text(float(alt_az["azimuth"]))
 			item["source"] = "calculated"
 		# Otherwise keep the fallback item: it already carries the catalog's
-		# fallback alt/az estimate and source "fallback". Online data (Moon,
-		# Mars, Jupiter) replaces it later via request_online_planet_data().
+		# fallback alt/az estimate and source "fallback". Valid AstronomyAPI
+		# solar-system rows can replace it later.
 		result[id] = item
 	# Surface-feature entries (lunar craters, maria, terminator) ride their
 	# parent body's live position instead of a private frozen fallback.
@@ -452,7 +455,7 @@ func _parse_astronomy_api_positions(payload: Dictionary, screen_rect: Rect2) -> 
 			continue
 		var entry: Dictionary = row.get("entry", {})
 		var object_id: String = str(entry.get("id", "")).to_lower()
-		if not ["moon", "mars", "jupiter"].has(object_id):
+		if not ONLINE_SOLAR_SYSTEM_IDS.has(object_id):
 			continue
 		var cells: Array = row.get("cells", [])
 		if cells.is_empty() or not cells[0] is Dictionary:
@@ -489,7 +492,7 @@ func _parse_astronomy_api_positions(payload: Dictionary, screen_rect: Rect2) -> 
 func _parse_astronomy_api_row(row: Dictionary, screen_rect: Rect2) -> Dictionary:
 	var body: Dictionary = row.get("body", {})
 	var object_id: String = str(body.get("id", "")).to_lower()
-	if not ["moon", "mars", "jupiter"].has(object_id):
+	if not ONLINE_SOLAR_SYSTEM_IDS.has(object_id):
 		return {}
 	var positions: Array = row.get("positions", [])
 	if positions.is_empty() or not positions[0] is Dictionary:

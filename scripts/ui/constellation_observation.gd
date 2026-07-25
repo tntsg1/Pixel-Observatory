@@ -190,7 +190,7 @@ func _build() -> void:
 	# ---- right panel: mission / step / what-to-do / progress / actions ----
 	var panel_x := 700.0
 	var panel_w := 306.0
-	_add_label(GameManager.text("MISSION / 任务", "任务 / MISSION"), Vector2(panel_x + 16, 100), Vector2(panel_w - 32, 22), 14, GOLD)
+	_add_label(GameManager.text("MISSION", "任务"), Vector2(panel_x + 16, 100), Vector2(panel_w - 32, 22), 14, GOLD)
 	_add_label(target_name, Vector2(panel_x + 16, 124), Vector2(panel_w - 32, 24), 16, TEXT)
 	_add_label(GameManager.text("Type: Constellation (naked eye)", "类型：星座（肉眼观测）"), Vector2(panel_x + 16, 150), Vector2(panel_w - 32, 20), 11, DIM)
 	var tip := _add_label(GameManager.dict_text(constellation, "navigation_tip"), Vector2(panel_x + 16, 172), Vector2(panel_w - 32, 40), 11, DIM)
@@ -200,7 +200,7 @@ func _build() -> void:
 	todo_label = _add_label("", Vector2(panel_x + 16, 248), Vector2(panel_w - 32, 84), 15, TEXT)
 	todo_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	_add_label(GameManager.text("PROGRESS / 进度", "进度 / PROGRESS"), Vector2(panel_x + 16, 340), Vector2(panel_w - 32, 20), 13, GOLD)
+	_add_label(GameManager.text("PROGRESS", "进度"), Vector2(panel_x + 16, 340), Vector2(panel_w - 32, 20), 13, GOLD)
 	var progress_rows := ["shape", "edges", "azimuth", "altitude", "season"]
 	for i in range(progress_rows.size()):
 		progress_labels[progress_rows[i]] = _add_label("", Vector2(panel_x + 16, 364 + i * 22), Vector2(panel_w - 32, 20), 12, TEXT)
@@ -241,7 +241,7 @@ func _bilingual_name(item: Dictionary) -> String:
 		return zh
 	if zh == "" or en == zh:
 		return en
-	return en + " / " + zh
+	return GameManager.text(en, zh)
 
 
 func _build_shape_choices() -> void:
@@ -383,7 +383,7 @@ func _update_status() -> void:
 
 	var block := _record_block_reason()
 	record_button.disabled = block != ""
-	record_button.text = GameManager.text("Record / 记录观测", "记录观测 / Record")
+	record_button.text = GameManager.text("Record Observation", "记录观测")
 	record_reason.text = block
 	if block == "" and phase == Phase.READY:
 		record_reason.text = GameManager.text("All conditions met - the button is live.", "全部条件满足，按钮已点亮。")

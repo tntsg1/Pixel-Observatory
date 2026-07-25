@@ -3,7 +3,7 @@
     "id": "mercury_twilight",
     "title_en": "Mercury at Twilight",
     "title_zh": "暮光中的水星",
-    "image": "",
+    "image": "res://assets/telescope_view/expansion/mercury.svg",
     "text_en": "Mercury stays close to the Sun. Observe during the brief twilight window, keep power moderate, and expect severe low-altitude turbulence.",
     "text_zh": "水星总在太阳附近。应抓住短暂暮光窗口，使用适中倍率，并预期低空会有强烈大气扰动。"
   },
@@ -11,7 +11,7 @@
     "id": "venus_phase_exposure",
     "title_en": "Venus: Phase and Exposure",
     "title_zh": "金星：月相与曝光",
-    "image": "",
+    "image": "res://assets/telescope_view/expansion/venus.svg",
     "text_en": "Venus is bright enough to wash out its own crescent. Reduce exposure and avoid unnecessary magnification before identifying the phase.",
     "text_zh": "金星亮得足以淹没自身弯月轮廓。识别月相前应降低曝光，避免不必要的高倍率。"
   },
@@ -19,7 +19,7 @@
     "id": "saturn_rings_seeing",
     "title_en": "Saturn's Rings and Seeing",
     "title_zh": "土星环与视宁度",
-    "image": "",
+    "image": "res://assets/telescope_view/expansion/saturn.svg",
     "text_en": "Ring detail depends on steady air and mounting. Wait through poor moments instead of assuming more power always helps.",
     "text_zh": "土星环细节取决于稳定大气和支架。应等待扰动减弱，而不是认为倍率越高越好。"
   },
@@ -27,7 +27,7 @@
     "id": "ice_giant_disks",
     "title_en": "Resolving the Ice Giants",
     "title_zh": "分辨冰巨星圆面",
-    "image": "",
+    "image": "res://assets/telescope_view/expansion/uranus.svg",
     "text_en": "Uranus requires precise high-power focus; Neptune adds finder navigation, aperture, and patient integration.",
     "text_zh": "天王星需要精准高倍调焦；海王星还需要寻星定位、口径和耐心积累微光。"
   },
@@ -35,7 +35,7 @@
     "id": "lunar_feature_scale",
     "title_en": "Lunar Features at Two Scales",
     "title_zh": "两种尺度下的月面",
-    "image": "",
+    "image": "res://assets/learning_diagrams/moon_crater_impact.png",
     "text_en": "Low power explains where a feature lies; high power reveals crater walls and terminator relief. Compare rather than assuming one eyepiece is always best.",
     "text_zh": "低倍率说明地貌位置，高倍率显示环壁和终结线起伏。要做比较，而不是认定一种目镜永远最好。"
   },
@@ -43,7 +43,7 @@
     "id": "double_cluster_framing",
     "title_en": "Resolution and Framing",
     "title_zh": "分辨率与取景",
-    "image": "",
+    "image": "res://assets/telescope_view/temporary/double_cluster.svg",
     "text_en": "Double stars benefit from higher power, while open clusters need low power and a wide field. Match scale to structure.",
     "text_zh": "双星受益于高倍率，疏散星团则需要低倍率和宽视野。应让尺度匹配结构。"
   },
@@ -51,7 +51,7 @@
     "id": "faint_object_techniques",
     "title_en": "Faint-Object Techniques",
     "title_zh": "暗弱天体观测技巧",
-    "image": "",
+    "image": "res://assets/learning_diagrams/averted_vision_eye.png",
     "text_en": "Aperture gathers light; dark adaptation protects sensitivity; averted vision uses the retina away from its color-rich center; filters can raise nebular contrast.",
     "text_zh": "口径负责集光；暗适应保护灵敏度；侧视法利用视网膜中心以外区域；滤镜可提高星云对比度。"
   },
@@ -59,7 +59,7 @@
     "id": "constellation_ursa_major",
     "title_en": "Big Dipper: Shape and Navigation",
     "title_zh": "北斗七星：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_ursa_major.svg",
     "text_en": "Use the bowl's pointer stars to find Polaris. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "利用斗口两颗指极星寻找北极星。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -67,7 +67,7 @@
     "id": "constellation_cassiopeia",
     "title_en": "Cassiopeia: Shape and Navigation",
     "title_zh": "仙后座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_cassiopeia.svg",
     "text_en": "Recognize the W shape opposite the Big Dipper. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "辨认与北斗七星隔北极星相望的 W 形。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -75,7 +75,7 @@
     "id": "constellation_cygnus",
     "title_en": "Cygnus: Shape and Navigation",
     "title_zh": "天鹅座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_cygnus.svg",
     "text_en": "Follow the Northern Cross through the Milky Way. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "沿银河辨认北十字。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -83,7 +83,7 @@
     "id": "constellation_lyra",
     "title_en": "Lyra: Shape and Navigation",
     "title_zh": "天琴座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_lyra.svg",
     "text_en": "Start at bright Vega, then trace the small parallelogram. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "从明亮织女星开始，再描出小平行四边形。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -91,7 +91,7 @@
     "id": "constellation_aquila",
     "title_en": "Aquila: Shape and Navigation",
     "title_zh": "天鹰座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_aquila.svg",
     "text_en": "Use Altair as the center of the Summer Triangle route. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "以牛郎星为夏季大三角导航中心。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -99,7 +99,7 @@
     "id": "constellation_taurus",
     "title_en": "Taurus: Shape and Navigation",
     "title_zh": "金牛座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_taurus.svg",
     "text_en": "Trace the V-shaped Hyades and then locate the Pleiades. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "描出毕宿星团的 V 形，再定位昴星团。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -107,7 +107,7 @@
     "id": "constellation_scorpius",
     "title_en": "Scorpius: Shape and Navigation",
     "title_zh": "天蝎座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_scorpius.svg",
     "text_en": "Follow the curved tail from red Antares near the horizon. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "从低空红色心宿二沿弯曲蝎尾追踪。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -115,7 +115,7 @@
     "id": "constellation_orion_constellation",
     "title_en": "Orion: Shape and Navigation",
     "title_zh": "猎户座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_orion.svg",
     "text_en": "Use the three belt stars to orient the hourglass. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "用腰带三星确定沙漏形方向。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   },
@@ -123,7 +123,7 @@
     "id": "constellation_leo",
     "title_en": "Leo: Shape and Navigation",
     "title_zh": "狮子座：形状与导航",
-    "image": "",
+    "image": "res://assets/learning_diagrams/constellation_leo.svg",
     "text_en": "Find the sickle first, then extend east along the body. Connect the key stars in order, then verify season, azimuth, and altitude.",
     "text_zh": "先找到镰刀形，再向东延伸狮身。 按顺序连接关键恒星，再核对季节、方位角与俯仰角。"
   }

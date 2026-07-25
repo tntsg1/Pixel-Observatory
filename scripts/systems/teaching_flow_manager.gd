@@ -56,7 +56,17 @@ func _fallback_steps(level: Dictionary) -> Array:
 	if card_id == "":
 		return []
 	var trigger := "before_assembly"
-	if str(level.get("observation_mode", "")) == "naked_eye":
+	var story_manager: Node = get_node_or_null("/root/StoryManager")
+	var registered_trigger := ""
+	var level_number := int(level.get("level_number", 0))
+	if level_number > 0 and story_manager != null and story_manager.has_method("skill_trigger_for_card"):
+		registered_trigger = str(story_manager.skill_trigger_for_card(
+			card_id,
+			level_number
+		))
+	if registered_trigger != "":
+		trigger = registered_trigger
+	elif str(level.get("observation_mode", "")) == "naked_eye":
 		trigger = "before_observation"
 	elif bool(level.get("requires_focus", false)):
 		trigger = "before_focus"
@@ -221,5 +231,3 @@ func reset_flow() -> void:
 
 func _game_manager() -> Node:
 	return get_node_or_null("/root/GameManager")
-
-

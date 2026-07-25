@@ -151,28 +151,28 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "This is a refractor telescope. The front lens collects light.",
-      "text_zh": "这是一台折射望远镜。前端的物镜收集光线。"
+      "text_en": "In L1 the Moon was our baseline: bright and obvious, but its dark plains and crater rims blurred together. Tonight we keep the target and change only the instrument.",
+      "text_zh": "L1 的月球是我们的基线：明亮、显眼，但暗色月海与撞击坑边缘混在一起。今晚保留同一个目标，只更换观测工具。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The eyepiece helps your eye inspect the image. Let's build it together.",
-      "text_zh": "目镜帮助眼睛观察被放大的图像。我们一起把它装起来。"
+      "text_en": "The front objective forms a larger, better-resolved image; the eyepiece lets your eye inspect it. Build the refractor, then compare it with your first log entry.",
+      "text_zh": "前端物镜形成更大、分辨率更高的像，目镜让眼睛检查它。先组装折射镜，再与第一条日志做对比。"
     }
   ],
   "level_3_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You just built your first telescope.",
-      "text_zh": "你刚刚组装了第一台望远镜。"
+      "text_en": "Now the repetition has a result: the dark maria separate from the brighter highlands, and crater rims cast readable edges.",
+      "text_zh": "这次重复观测得出了结果：暗色月海与明亮高地区分开来，撞击坑边缘也变得清楚可辨。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Now look at the Moon again. Same Moon, better tool.",
-      "text_zh": "现在再看看月亮。同一个月亮，不同的工具。"
+      "text_en": "That is why the Club Logbook keeps both sessions. Astronomy advances by comparing evidence, not by collecting two identical check marks.",
+      "text_zh": "这就是俱乐部日志保留两次记录的原因。天文学靠比较证据推进，而不是收集两个一模一样的勾。"
     }
   ],
   "level_4_before_focus": [

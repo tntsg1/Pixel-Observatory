@@ -79,7 +79,12 @@ func _run_real_l66() -> void:
 	# walk plan -> thermal -> guide -> wavefront
 	m.instrument = "nircam"; m.filter = "near_infrared"; m.exposure_time = 400.0; m.integrations = 4
 	scene.call("_confirm_plan"); await _f(4)
-	m.rotate_to(110.0); scene.call("_confirm_thermal"); await _f(4)
+	m.rotate_to(m.thermal_target_deg)
+	for _i in range(600):
+		m.step_thermal(1.0 / 60.0)
+		if m.thermal_locked:
+			break
+	scene.call("_confirm_thermal"); await _f(4)
 	m.choose_guide_star(1)
 	for _i in range(240):
 		m.step_guiding(1.0 / 60.0)
@@ -123,17 +128,18 @@ func _run_real_l66() -> void:
 	var sig_raw := _image_signature()
 	_expect(t_raw.contains("宇宙线"), "6. raw stage explains the cosmic-ray state", "6. raw stage does not explain cosmic rays")
 
+	_review_frames(m)
+	m.align_frames(); scene.call("_build_stage"); await _f(4)
+	await _shot("06b_process_aligned.png")
+	var sig_al := _image_signature()
+	_expect(sig_al != sig_raw, "6. aligning frames changed the image (ghost gone)", "6. aligning did not change the image")
+
 	m.remove_cosmic_rays(); scene.call("_build_stage"); await _f(4)
-	await _shot("06b_process_cr_removed.png")
+	await _shot("06c_process_events_removed.png")
 	var sig_cr := _image_signature()
 	var t_cr := _all_text(scene)
-	_expect(sig_cr != sig_raw, "6. removing cosmic rays changed the image", "6. cosmic-ray removal did not change the image")
-	_expect(t_cr.contains("对齐"), "6. next step (align) is explained", "6. after CR removal the next step is not explained")
-
-	m.align_frames(); scene.call("_build_stage"); await _f(4)
-	await _shot("06c_process_aligned.png")
-	var sig_al := _image_signature()
-	_expect(sig_al != sig_cr, "6. aligning frames changed the image (ghost gone)", "6. aligning did not change the image")
+	_expect(sig_cr != sig_al, "6. removing multiple detector events changed the image", "6. event removal did not change the image")
+	_expect(t_cr.contains("背景"), "6. next step (background) is explained", "6. after event removal the next step is not explained")
 
 	m.subtract_background(); m.stack(); scene.call("_build_stage"); await _f(4)
 	await _shot("06d_process_stacked.png")
@@ -141,7 +147,6 @@ func _run_real_l66() -> void:
 	_expect(sig_st != sig_al, "6. background+stack changed the image", "6. stacking did not change the image")
 	_expect(_all_text(scene).contains("显现"), "6. stacked stage says faint structure is now visible", "6. stacked stage gives no explanation")
 	_audit_ui("processing")
-
 	# ---- (7) RGB mapping drives the final image
 	print("\n--- (7) FALSE-COLOUR MAPPING ---")
 	scene.call("_confirm_process"); await _f(6)
@@ -184,6 +189,12 @@ func _run_real_l66() -> void:
 	_expect(card_text.contains("第 67 关"), "1. it names the real next level (67)", "1. the next level shown is wrong")
 	_audit_ui("mission_complete")
 	scene.queue_free(); await _f(2)
+
+
+func _review_frames(model: SpaceObservationModel) -> void:
+	for index in range(model.frames.size()):
+		var frame: Dictionary = model.frames[index]
+		model.toggle_keep(index, model.frame_should_keep(frame))
 
 
 # ============================================================ (2) lobby

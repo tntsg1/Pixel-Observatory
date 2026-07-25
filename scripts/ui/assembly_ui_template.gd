@@ -95,7 +95,7 @@ static func add_inspector_shell(
 	status_box.size = Vector2(200, 56)
 	status_box.add_theme_stylebox_override("panel", _style(Color(0.020, 0.045, 0.030, 0.96), Color(0.30, 0.55, 0.34), 2, 4))
 	parent.add_child(status_box)
-	var status := _add_label(parent, "ASSEMBLING", Vector2(812, 142), Vector2(128, 28), 18, Color(0.95, 0.78, 0.35))
+	var status := _add_label(parent, GameManager.text("ASSEMBLING", "组装中"), Vector2(812, 142), Vector2(128, 28), 18, Color(0.95, 0.78, 0.35))
 	var dot := Panel.new()
 	dot.position = Vector2(946, 146)
 	dot.size = Vector2(24, 24)

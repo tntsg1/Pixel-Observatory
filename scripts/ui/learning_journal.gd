@@ -129,7 +129,7 @@ func _build_entry_card(index: int, entry: Dictionary) -> Control:
 	_add_record_line(card, GameManager.text("Result", "结果"), result, y, accent)
 	_add_record_line(card, GameManager.text("New knowledge", "本次新知识"), knowledge, y + 24.0, Color(0.98, 0.89, 0.55))
 	if maya != "":
-		_add_record_line(card, GameManager.text("Maya's summary", "Maya 总结"), "\"" + maya + "\"", y + 48.0, Color(0.72, 0.94, 0.86))
+		_add_record_line(card, GameManager.text("Maya's summary", "玛雅总结"), "\"" + maya + "\"", y + 48.0, Color(0.72, 0.94, 0.86))
 	return card
 
 

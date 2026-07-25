@@ -183,8 +183,10 @@
     "intro": {
       "from": "observatory_room",
       "to": "observation_pad",
-      "action_en": "Use the central Observation Pad to establish a naked-eye baseline.",
-      "action_zh": "前往中央观测台，建立肉眼观测基线。"
+      "reason_en": "A naked-eye record gives the later telescope view a meaningful comparison.",
+      "reason_zh": "先留下肉眼记录，之后的望远镜观测才有可比较的依据。",
+      "action_en": "Walk to the central Observation Pad, press E, and center the Moon with A/D and W/S.",
+      "action_zh": "走到中央观测台，按 E 互动，再用 A/D 与 W/S 把月球移到中央。"
     },
     "first_tube_subassembly": {
       "from": "assembly_table",

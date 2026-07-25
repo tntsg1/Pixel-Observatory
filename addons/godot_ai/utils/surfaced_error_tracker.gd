@@ -176,13 +176,35 @@ func record_synthetic_error(entry: Dictionary) -> void:
 	_trim_promoted_debugger_key_counts()
 
 
+## Monotonicity contract (#767): run_seq and the session-scoped components
+## (editor_ring, debugger_promoted, editor_ring_warn) must NEVER decrease
+## within an editor session, and the per-run components (game_error_warn,
+## game_warn) must never decrease within a run — they may reset only when
+## run_seq increments in the same stamp (the run boundary that rotates the
+## game buffer's counters). Released servers diff consecutive stamps
+## (websocket.py::_sync_error_watermark_for_session) and treat any other
+## decrease as a counter reset, counting the FULL current value as new — one
+## dip makes every old server out there over-report errors. Any future
+## hold/classification feature must therefore DEFER an increment until its
+## entry is released, never subtract an already-stamped one: a stamp like
+## `raw_total - currently_held_entries` is exactly the regression this
+## guards against. Producer-side coverage:
+## test_editor.gd::test_surfaced_error_tracker_watermark_components_never_decrease.
 func watermark(force_debugger_scan: bool = false) -> Dictionary:
 	refresh_debugger_errors(force_debugger_scan)
 	return {
 		"run_seq": _run_seq,
 		"editor_ring": _error_appended_total(),
 		"debugger_promoted": _debugger_promoted_total,
+		## Historically misnamed: carries game-process ERROR counts only.
 		"game_error_warn": _game_error_total(),
+		## Warn-level components, parallel to the error counts above. The server
+		## diffs these into `new_warnings_since_last_call` so a warning-only run
+		## surfaces instead of reading as clean. Debugger Errors-tab warning rows
+		## are not promoted here yet (buffers cover push_warning from the game and
+		## editor parse/@tool warnings) — tracked as a follow-up.
+		"editor_ring_warn": _warn_appended_total(),
+		"game_warn": _game_warn_total(),
 	}
 
 
@@ -529,6 +551,22 @@ func _game_error_total() -> int:
 		return 0
 	if _game_log_buffer.has_method("error_total"):
 		return int(_game_log_buffer.call("error_total"))
+	return 0
+
+
+func _warn_appended_total() -> int:
+	if _editor_log_buffer == null:
+		return 0
+	if _editor_log_buffer.has_method("warn_appended_total"):
+		return int(_editor_log_buffer.call("warn_appended_total"))
+	return 0
+
+
+func _game_warn_total() -> int:
+	if _game_log_buffer == null:
+		return 0
+	if _game_log_buffer.has_method("warn_total"):
+		return int(_game_log_buffer.call("warn_total"))
 	return 0
 
 

@@ -1,6 +1,7 @@
 extends Node
 
 signal reduced_motion_changed(enabled: bool)
+signal guidance_highlights_changed(enabled: bool)
 signal feedback_sfx_requested(event_name: String)
 
 const CONFIG_PATH := "user://accessibility.cfg"
@@ -10,6 +11,7 @@ const GREEN := Color(0.42, 0.96, 0.58, 1.0)
 const ERROR := Color(1.0, 0.42, 0.32, 1.0)
 
 var reduced_motion := false
+var guidance_highlights := true
 var _tutorial_seen: Dictionary = {}
 var _bound_buttons: Array[BaseButton] = []
 var _bound_sliders: Array[Slider] = []
@@ -45,6 +47,7 @@ func _load_settings() -> void:
 	if config.load(CONFIG_PATH) != OK:
 		return
 	reduced_motion = bool(config.get_value("accessibility", "reduced_motion", false))
+	guidance_highlights = bool(config.get_value("accessibility", "guidance_highlights", true))
 	var seen_value: Variant = config.get_value("tutorials", "seen", {})
 	if seen_value is Dictionary:
 		_tutorial_seen = seen_value
@@ -62,9 +65,26 @@ func is_reduced_motion() -> bool:
 	return reduced_motion
 
 
+func set_guidance_highlights_enabled(enabled: bool) -> void:
+	if guidance_highlights == enabled:
+		return
+	guidance_highlights = enabled
+	_save_settings()
+	if not enabled and is_inside_tree():
+		for overlay in get_tree().get_nodes_in_group("guidance_highlight"):
+			if overlay != null and is_instance_valid(overlay):
+				overlay.queue_free()
+	guidance_highlights_changed.emit(enabled)
+
+
+func guidance_highlights_enabled() -> bool:
+	return guidance_highlights
+
+
 func _save_settings() -> void:
 	var config := ConfigFile.new()
 	config.set_value("accessibility", "reduced_motion", reduced_motion)
+	config.set_value("accessibility", "guidance_highlights", guidance_highlights)
 	config.set_value("tutorials", "seen", _tutorial_seen)
 	config.save(CONFIG_PATH)
 
@@ -241,13 +261,18 @@ func _button_down(button: BaseButton, border: Panel) -> void:
 	if button.disabled:
 		return
 	button.pivot_offset = button.size * 0.5
-	_tween_property(border, "modulate:a", 0.9, 0.08, "feedback_border")
+	_tween_property(border, "modulate:a", 1.0, 0.06, "feedback_border")
 	if reduced_motion:
 		return
-	_tween_property(button, "scale", Vector2.ONE * 0.965, 0.075, "feedback_press", Tween.TRANS_QUAD, Tween.EASE_OUT)
+	# A real key has travel. Four percent is still restrained, but reads
+	# immediately even on a busy pixel-art screen.
+	_tween_property(button, "scale", Vector2.ONE * 0.955, 0.065, "feedback_press", Tween.TRANS_QUAD, Tween.EASE_OUT)
 	var shadow := button.get_node_or_null("InteractionFeedbackShadow") as Panel
 	if shadow != null:
-		_tween_property(shadow, "position:y", 1.0, 0.075, "feedback_shadow_press", Tween.TRANS_QUAD, Tween.EASE_OUT)
+		_tween_property(shadow, "position:y", 0.0, 0.065, "feedback_shadow_press", Tween.TRANS_QUAD, Tween.EASE_OUT)
+	var shine := button.get_node_or_null("InteractionFeedbackShine") as ColorRect
+	if shine != null:
+		_tween_property(shine, "color:a", 0.86, 0.055, "feedback_shine")
 
 
 func _button_up(button: BaseButton, border: Panel) -> void:
@@ -267,7 +292,8 @@ func _button_complete(button: BaseButton, border: Panel) -> void:
 	if button.disabled:
 		return
 	_spawn_click_echo(button)
-	flash_border(button, GOLD, 0.38, border)
+	_spawn_click_sweep(button)
+	flash_border(button, GOLD, 0.48, border)
 	feedback_sfx_requested.emit("ui_confirm")
 
 
@@ -364,6 +390,33 @@ func _spawn_click_echo(button: BaseButton) -> void:
 	tween.tween_property(echo, "scale", Vector2.ONE * 1.055, 0.22 if not reduced_motion else 0.08).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 	tween.tween_property(echo, "modulate:a", 0.0, 0.22 if not reduced_motion else 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 	tween.chain().tween_callback(echo.queue_free)
+
+
+func _spawn_click_sweep(button: BaseButton) -> void:
+	# A short warm scan across the control confirms the command without a
+	# large flash or modal interruption. It is clipped by the button bounds.
+	var clip := Control.new()
+	clip.name = "InteractionFeedbackClickSweepClip"
+	clip.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	clip.clip_contents = true
+	clip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	clip.z_index = 23
+	button.add_child(clip)
+	var sweep := ColorRect.new()
+	sweep.name = "InteractionFeedbackClickSweep"
+	sweep.position = Vector2(-button.size.x * 0.34, 2.0)
+	sweep.size = Vector2(maxf(18.0, button.size.x * 0.22), maxf(1.0, button.size.y - 4.0))
+	sweep.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sweep.color = Color(1.0, 0.88, 0.46, 0.34)
+	clip.add_child(sweep)
+	if reduced_motion:
+		sweep.modulate.a = 0.0
+		clip.queue_free()
+		return
+	var tween := create_tween().bind_node(sweep).set_parallel(true)
+	tween.tween_property(sweep, "position:x", button.size.x * 1.08, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(sweep, "modulate:a", 0.0, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(clip.queue_free)
 
 
 func flash_border(control: Control, color: Color = GOLD, duration := 0.42, existing_border: Panel = null) -> void:
@@ -513,13 +566,161 @@ func fly_texture(texture: Texture2D, from_global: Rect2, to_global: Rect2, paren
 	return tween
 
 
+func mechanical_snap(card: Control, slot: Control, event_name := "assembly_part_installed") -> void:
+	if card != null and is_instance_valid(card):
+		flash_border(card, GOLD, 0.34)
+		if not reduced_motion:
+			card.pivot_offset = card.size * 0.5
+			var card_tween := _replace_tween(card, "feedback_part_lock")
+			card_tween.tween_property(card, "scale", Vector2.ONE * 0.985, 0.08).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+			card_tween.tween_property(card, "scale", Vector2.ONE, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	if slot == null or not is_instance_valid(slot):
+		return
+	flash_border(slot, CYAN, 0.46)
+	slot.pivot_offset = slot.size * 0.5
+	if not reduced_motion:
+		var snap_tween := _replace_tween(slot, "feedback_mechanical_snap")
+		slot.scale = Vector2.ONE * 0.94
+		snap_tween.tween_property(slot, "scale", Vector2.ONE * 1.025, 0.13).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		snap_tween.tween_property(slot, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	_alignment_pulse(slot)
+	feedback_sfx_requested.emit(event_name)
+
+
+func _alignment_pulse(control: Control) -> void:
+	if control == null or not is_instance_valid(control):
+		return
+	var pulse_frame := Panel.new()
+	pulse_frame.name = "OperationChainAlignmentPulse"
+	pulse_frame.position = -Vector2(6, 6)
+	pulse_frame.size = control.size + Vector2(12, 12)
+	pulse_frame.pivot_offset = pulse_frame.size * 0.5
+	pulse_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pulse_frame.z_index = 86
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color.TRANSPARENT
+	style.border_color = CYAN
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(5)
+	pulse_frame.add_theme_stylebox_override("panel", style)
+	control.add_child(pulse_frame)
+	if reduced_motion:
+		pulse_frame.modulate.a = 0.0
+		pulse_frame.queue_free()
+		return
+	pulse_frame.scale = Vector2.ONE * 0.82
+	var tween := create_tween().bind_node(pulse_frame).set_parallel(true)
+	tween.tween_property(pulse_frame, "scale", Vector2.ONE * 1.18, 0.38).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.tween_property(pulse_frame, "modulate:a", 0.0, 0.42).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(pulse_frame.queue_free)
+
+
+func operation_chain(
+	parent: Control,
+	action_text: String,
+	effect_text: String,
+	reveal_text: String,
+	next_control: Control = null,
+	accent: Color = CYAN,
+	duration := 2.8
+) -> Control:
+	if parent == null or not is_instance_valid(parent):
+		return null
+	var existing := parent.get_node_or_null("OperationChainFeedback")
+	if existing != null:
+		parent.remove_child(existing)
+		existing.queue_free()
+	var panel := Panel.new()
+	panel.name = "OperationChainFeedback"
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.z_index = 840
+	var parent_size := parent.size
+	if parent_size.x < 1.0 or parent_size.y < 1.0:
+		parent_size = parent.get_viewport_rect().size
+	var compact := parent_size.x < 560.0
+	var panel_width := clampf(parent_size.x - 32.0, 320.0, 820.0)
+	var panel_height := 112.0 if compact else 66.0
+	panel.position = Vector2((parent_size.x - panel_width) * 0.5, maxf(8.0, parent_size.y - panel_height - 12.0))
+	panel.size = Vector2(panel_width, panel_height)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.018, 0.035, 0.060, 0.97)
+	style.border_color = accent
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(5)
+	panel.add_theme_stylebox_override("panel", style)
+	parent.add_child(panel)
+
+	var steps := [
+		[GameManager.text("ACTION", "操作"), action_text],
+		[GameManager.text("PHYSICAL EFFECT", "物理效果"), effect_text],
+		[GameManager.text("NOW VISIBLE", "现在可见"), reveal_text],
+	]
+	for index in range(steps.size()):
+		var cell := Label.new()
+		var heading: String = str(steps[index][0])
+		var body: String = str(steps[index][1])
+		cell.text = heading + "\n" + body
+		cell.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cell.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		cell.add_theme_font_size_override("font_size", 11 if not compact else 10)
+		cell.add_theme_color_override("font_color", Color(0.92, 0.94, 0.90))
+		cell.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
+		cell.add_theme_constant_override("shadow_offset_x", 1)
+		cell.add_theme_constant_override("shadow_offset_y", 1)
+		if compact:
+			cell.position = Vector2(12, 6 + index * 34)
+			cell.size = Vector2(panel_width - 24, 31)
+		else:
+			var cell_width := (panel_width - 48.0) / 3.0
+			cell.position = Vector2(12 + index * (cell_width + 12.0), 6)
+			cell.size = Vector2(cell_width, panel_height - 12)
+		panel.add_child(cell)
+		if not compact and index < steps.size() - 1:
+			var arrow := Label.new()
+			arrow.text = ">"
+			arrow.position = Vector2(cell.position.x + cell.size.x, 20)
+			arrow.size = Vector2(12, 24)
+			arrow.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			arrow.add_theme_font_size_override("font_size", 14)
+			arrow.add_theme_color_override("font_color", accent)
+			panel.add_child(arrow)
+	if next_control != null and is_instance_valid(next_control):
+		pulse(next_control, accent, 0.52)
+	if reduced_motion:
+		panel.modulate.a = 1.0
+	else:
+		panel.modulate.a = 0.0
+		panel.position.y += 8.0
+		var rest_y := panel.position.y - 8.0
+		var enter := create_tween().bind_node(panel).set_parallel(true)
+		enter.tween_property(panel, "position:y", rest_y, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		enter.tween_property(panel, "modulate:a", 1.0, 0.16)
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.wait_time = maxf(duration, 0.8)
+	timer.timeout.connect(func() -> void:
+		if not is_instance_valid(panel):
+			return
+		if reduced_motion:
+			panel.queue_free()
+			return
+		var exit := create_tween().bind_node(panel)
+		exit.tween_property(panel, "modulate:a", 0.0, 0.18)
+		exit.tween_callback(panel.queue_free)
+	)
+	panel.add_child(timer)
+	timer.start()
+	return panel
+
+
 func tutorial_highlight_once(target: Control, key: String, text: String, parent: Control) -> Control:
-	if target == null or parent == null or bool(_tutorial_seen.get(key, false)):
+	if not guidance_highlights or target == null or parent == null or bool(_tutorial_seen.get(key, false)):
 		return null
 	_tutorial_seen[key] = true
 	_save_settings()
 	var overlay := Control.new()
 	overlay.name = "TutorialHighlight_%s" % key
+	overlay.add_to_group("guidance_highlight")
 	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.z_index = 900
@@ -542,27 +743,48 @@ func tutorial_highlight_once(target: Control, key: String, text: String, parent:
 	style.set_corner_radius_all(5)
 	frame.add_theme_stylebox_override("panel", style)
 	overlay.add_child(frame)
+	var parent_size := parent.size
+	var bubble_size := Vector2(clampf(parent_size.x - 40.0, 300.0, 430.0), 116.0)
+	var bubble_x := frame.position.x + frame.size.x * 0.5 - bubble_size.x * 0.5
+	if frame.position.x > parent_size.x * 0.58:
+		bubble_x = frame.position.x - bubble_size.x - 18.0
+	elif frame.position.x + frame.size.x < parent_size.x * 0.42:
+		bubble_x = frame.position.x + frame.size.x + 18.0
+	bubble_x = clampf(bubble_x, 20.0, maxf(20.0, parent_size.x - bubble_size.x - 20.0))
+	var bubble_y := frame.position.y - bubble_size.y - 10.0
+	if bubble_y < 20.0:
+		bubble_y = frame.position.y + frame.size.y + 10.0
+	bubble_y = clampf(bubble_y, 20.0, maxf(20.0, parent_size.y - bubble_size.y - 20.0))
+	var bubble := Panel.new()
+	bubble.name = "MayaTutorialBubble"
+	bubble.position = Vector2(bubble_x, bubble_y)
+	bubble.size = bubble_size
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var bubble_style := StyleBoxFlat.new()
+	bubble_style.bg_color = Color(0.025, 0.045, 0.080, 0.98)
+	bubble_style.border_color = GOLD
+	bubble_style.set_border_width_all(2)
+	bubble_style.set_corner_radius_all(5)
+	bubble.add_theme_stylebox_override("panel", bubble_style)
+	overlay.add_child(bubble)
+	MayaPortrait.create(
+		bubble,
+		"MayaTutorialPortrait",
+		MayaPortrait.tutorial_pose(key, text),
+		Vector2(6, 6),
+		Vector2(76, 104),
+		1
+	)
 	var label := Label.new()
 	label.text = text
-	var parent_size := parent.size
-	var label_size := Vector2(minf(340.0, parent_size.x - 60.0), 52.0)
-	var label_x := frame.position.x + frame.size.x * 0.5 - label_size.x * 0.5
-	if frame.position.x > parent_size.x * 0.58:
-		label_x = frame.position.x - label_size.x - 18.0
-	elif frame.position.x + frame.size.x < parent_size.x * 0.42:
-		label_x = frame.position.x + frame.size.x + 18.0
-	label_x = clampf(label_x, 30.0, parent_size.x - label_size.x - 30.0)
-	var label_y := frame.position.y - label_size.y - 10.0
-	if label_y < 24.0:
-		label_y = frame.position.y + frame.size.y + 10.0
-	label.position = Vector2(label_x, clampf(label_y, 24.0, parent_size.y - label_size.y - 24.0))
-	label.size = label_size
+	label.position = Vector2(88, 10)
+	label.size = Vector2(bubble_size.x - 98.0, bubble_size.y - 20.0)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 16)
+	label.add_theme_font_size_override("font_size", 14)
 	label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.68))
-	overlay.add_child(label)
+	bubble.add_child(label)
 	if not reduced_motion:
 		var tween := _replace_tween(frame, "feedback_tutorial")
 		tween.set_loops(3)

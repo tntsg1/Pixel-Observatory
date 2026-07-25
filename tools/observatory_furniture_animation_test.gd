@@ -15,9 +15,14 @@ const FURNITURE_IDS := [
 var failures := 0
 var room: Control
 var animator: ObservatoryFurnitureAnimator
+var had_save := false
+var saved_bytes := PackedByteArray()
 
 
 func _initialize() -> void:
+	had_save = FileAccess.file_exists("user://savegame.json")
+	if had_save:
+		saved_bytes = FileAccess.get_file_as_bytes("user://savegame.json")
 	await process_frame
 	await process_frame
 	var scene: PackedScene = load("res://scenes/observatory_room.tscn")
@@ -35,6 +40,9 @@ func _initialize() -> void:
 		_check(animator.has_rig(id), "%s has an animation rig" % id)
 	_check(not animator.has_rig("telescope"), "central telescope is intentionally untouched")
 	_check(animator.rigs.size() == FURNITURE_IDS.size(), "only the six non-telescope stations are animated")
+	var assembly_rig: Dictionary = animator.rigs.get("assembly", {})
+	_check(str(assembly_rig.get("mode", "")) == "workbench", "assembly uses a dedicated workbench activation instead of a drawer")
+	_check(assembly_rig.get("focus_frame") is Control, "assembly activation includes a blueprint focus frame")
 
 	await _check_open_close_cycle()
 	await _check_repeated_input_guard()
@@ -100,8 +108,12 @@ func _check_return_close_cycle() -> void:
 	root.add_child(room)
 	await process_frame
 	animator = room.get_node("FurnitureAnimator") as ObservatoryFurnitureAnimator
+	var rig: Dictionary = animator.rigs.get("assembly", {})
+	var workbench := (rig.get("doors", []) as Array)[0] as Control
+	var closed_position := workbench.position
 	await create_timer(0.12).timeout
-	_check(animator.is_animating("assembly"), "returning from assembly visibly closes its drawers")
+	_check(animator.is_animating("assembly"), "returning from assembly visibly powers down its work surface")
+	_check(workbench.position.is_equal_approx(closed_position), "workbench feedback never pulls the furniture outward")
 	await create_timer(0.36).timeout
 	_check(not animator.is_open("assembly") and not animator.is_animating("assembly"), "return close cycle finishes cleanly")
 
@@ -115,6 +127,12 @@ func _check(condition: bool, label: String) -> void:
 
 
 func _finish() -> void:
+	if had_save:
+		var save_file := FileAccess.open("user://savegame.json", FileAccess.WRITE)
+		if save_file != null:
+			save_file.store_buffer(saved_bytes)
+	elif FileAccess.file_exists("user://savegame.json"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://savegame.json"))
 	if failures == 0:
 		print("OBSERVATORY FURNITURE ANIMATION TEST PASS")
 		quit(0)

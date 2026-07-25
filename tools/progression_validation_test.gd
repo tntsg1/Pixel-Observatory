@@ -24,6 +24,8 @@ func _initialize() -> void:
 	campaign_order_integrity_test(mm)
 	assembly_gate_test(gm)
 	finder_scope_progression_test(gm, mm)
+	space_unlock_installation_test(gm, mm)
+	early_moon_comparison_test(mm)
 	_restore_save()
 	if failures == 0:
 		print("PROGRESSION VALIDATION TEST PASS")
@@ -67,6 +69,14 @@ func old_save_migration_test(gm: Node) -> void:
 	gm.progress["current_level"] = 999
 	gm._normalize_progress()
 	_check(int(gm.progress.get("current_level", 0)) == 3, "old_save_migration_test: invalid current level safely returns to the next legal lesson")
+	gm.progress = gm.default_progress()
+	gm.progress["campaign_version"] = int(gm.CAMPAIGN_VERSION)
+	gm.progress["current_level"] = 1
+	gm.progress["completed_levels"] = [1]
+	gm.progress["credits"] = 77
+	gm._normalize_progress()
+	_check(int(gm.progress.get("current_level", 0)) == 2, "old_save_migration_test: completed L1 cursor resumes at L2")
+	_check(int(gm.progress.get("credits", 0)) == 77, "old_save_migration_test: interrupted completion repair grants no duplicate credits")
 
 
 func campaign_order_integrity_test(mm: Node) -> void:
@@ -104,6 +114,41 @@ func finder_scope_progression_test(gm: Node, mm: Node) -> void:
 	_check(str(finder_lesson.get("variation", "")) == "finder_calibration", "finder_scope_progression_test: L6 begins finder calibration")
 	var finder_steps: Array = finder_lesson.get("teaching_steps", [])
 	_check(not finder_steps.is_empty() and str((finder_steps[0] as Dictionary).get("trigger", "")) == "before_assembly", "finder_scope_progression_test: finder principle appears before installation")
+
+
+func space_unlock_installation_test(gm: Node, mm: Node) -> void:
+	gm.new_game()
+	gm.progress["current_level"] = 66
+	var intro_rewards: Array = mm.get_level(55).get("unlock_parts", [])
+	for part_id_value in intro_rewards:
+		var part_id := str(part_id_value)
+		if not (gm.progress.get("unlocked_parts", []) as Array).has(part_id):
+			gm.progress["unlocked_parts"].append(part_id)
+	gm.reset_assembly()
+	_check(str(gm.current_room_route().get("target", "")) == "cabinet",
+		"space_unlock_installation_test: newly unlocked space parts route to the cabinet")
+	for part_id_value in gm.current_level().get("required_part_ids", []):
+		_check(gm.equip_part(str(part_id_value)), "space_unlock_installation_test: required space part can be equipped")
+	_check(str(gm.current_room_route().get("target", "")) == "assembly",
+		"space_unlock_installation_test: equipped space parts must still be installed")
+	for part_type_value in gm.current_level().get("required_parts", []):
+		_check(gm.install_part(str(part_type_value), 0) >= 0,
+			"space_unlock_installation_test: %s installs on the space blueprint" % str(part_type_value))
+	_check(str(gm.current_room_route().get("target", "")) == "computer",
+		"space_unlock_installation_test: console opens only after installation")
+
+
+func early_moon_comparison_test(mm: Node) -> void:
+	var first_view: Dictionary = mm.get_level(1)
+	var refractor_view: Dictionary = mm.get_level(3)
+	_check(str(first_view.get("target_object_id", "")) == "moon" and str(first_view.get("observation_mode", "")) == "naked_eye",
+		"early_moon_comparison_test: L1 establishes the naked-eye Moon baseline")
+	_check(str(refractor_view.get("target_object_id", "")) == "moon"
+		and str(refractor_view.get("variation", "")) == "lunar_detail_comparison",
+		"early_moon_comparison_test: L3 is an explicit lunar-detail comparison")
+	_check(str(refractor_view.get("hint_text_en", "")).to_lower().contains("crater")
+		and str(refractor_view.get("hint_text_zh", "")).contains("撞击坑"),
+		"early_moon_comparison_test: L3 tells the player what new detail to inspect")
 
 
 func _check(condition: bool, label: String) -> void:

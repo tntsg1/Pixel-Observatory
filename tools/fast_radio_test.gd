@@ -140,6 +140,7 @@ func _test_scene(gm: Node) -> void:
 	scene.call("_try_lock")
 	await process_frame
 	_check(int(scene.get("stage")) == 1, "5. locking advances to Tune")
+	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. feed-cabin lock reveals receiver tuning through radio-specific feedback")
 
 	# tune on source, confirm
 	m.window_center_mhz = m.true_center_mhz
@@ -147,6 +148,7 @@ func _test_scene(gm: Node) -> void:
 	scene.call("_confirm_tune")
 	await process_frame
 	_check(int(scene.get("stage")) == 2, "5. good tuning advances to RFI")
+	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. tuning feedback explains passband and RFI classification")
 
 	# misclassify -> blocked; fix -> advances
 	for i in range(m.rfi_peaks.size()):

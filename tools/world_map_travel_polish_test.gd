@@ -13,7 +13,7 @@ func _initialize() -> void:
 		quit(1)
 		return
 	gm.new_game()
-	gm.debug_jump_to_level(5, true)
+	gm.debug_jump_to_level(11, true)
 	_force_below_horizon(gm)
 	var original_site: Dictionary = gm.observing_location().duplicate(true)
 

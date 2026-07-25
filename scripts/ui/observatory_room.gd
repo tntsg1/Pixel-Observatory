@@ -23,6 +23,7 @@ const NAVY_SOFT := Color(0.050, 0.075, 0.120, 0.82)
 const WARM_TEXT := Color(0.96, 0.91, 0.78)
 const BRASS := Color(0.90, 0.63, 0.28)
 const CYAN := Color(0.52, 0.86, 1.00)
+const COMPUTER_MODAL_LAYER := 1100
 
 var player: Sprite2D
 var player_atlas: AtlasTexture
@@ -35,6 +36,7 @@ var credits_value_label: Label
 var telescope_status_label: Label
 var guidance_overlay: Control
 var guidance_panel: Panel
+var guidance_maya_portrait: TextureRect
 var guidance_title_label: Label
 var guidance_hint_label: Label
 var guidance_action_label: Label
@@ -60,12 +62,20 @@ var player_anim_frame := 0
 var player_anim_time := 0.0
 var player_is_moving := false
 var room_transition_active := false
+var room_guidance_suspended := false
+var pending_remote_console_scene := ""
 var furniture_interaction_active := false
 var arrival_furniture_id := ""
 
 
 func _ready() -> void:
 	GameManager.language_changed.connect(_on_language_changed)
+	InteractionFeedback.guidance_highlights_changed.connect(_on_guidance_highlights_changed)
+	# A completed save that closed on the result card still receives its
+	# one-time ceremony on the next lobby visit.
+	if GameManager.graduation_pending():
+		GameManager.call_deferred("go", "graduation")
+		return
 	# room_guidance_target is runtime-only state that used to be written ONLY by
 	# the Mission Complete "Continue" button. Any other way of reaching the lobby
 	# - quitting and relaunching, loading a save, backing out of a screen - left
@@ -87,18 +97,48 @@ func _ready() -> void:
 	call_deferred("_animate_arrival_furniture_close")
 	call_deferred("_maybe_show_unlock_popup")
 	call_deferred("_show_room_tutorial")
+	call_deferred("_show_assembly_return_chain", arrival_id)
 
 
 func _show_room_tutorial() -> void:
-	if guidance_panel == null:
+	# The persistent Maya route card already explains the next action. Do not
+	# stack a second tutorial bubble on top of it or on top of a modal.
+	if guidance_panel == null or unlock_popup != null or mission_board_popup != null \
+			or stats_terminal_popup != null or room_guidance_suspended:
 		return
-	var family := str(GameManager.current_level().get("telescope_family", "refractor"))
-	InteractionFeedback.tutorial_highlight_once(
-		guidance_panel,
-		"first_observatory_%s" % family,
-		GameManager.text("Follow the highlighted destination, then press E to interact.", "前往高亮目标，然后按 E 互动。"),
-		self
+	InteractionFeedback.success(guidance_panel)
+
+
+func _show_assembly_return_chain(arrival_id: String) -> void:
+	if arrival_id != "assembly" or not GameManager.telescope_is_ready():
+		return
+	GameManager.update_room_guidance_for_level()
+	_update_room_guidance_panel()
+	var route := GameManager.current_room_route()
+	var route_target := str(route.get("target", "telescope"))
+	var destination := _get_interactable(route_target)
+	var destination_glow := destination.get("glow") as Control
+	var destination_name := str(destination.get("name", GameManager.text("Observation Pad", "观测台")))
+	_show_feedback(
+		GameManager.text(
+			"Telescope Ready. Follow the highlighted route to %s." % destination_name,
+			"望远镜已就绪。沿高亮路线前往%s。" % destination_name
+		),
+		3200
 	)
+	if destination_glow != null:
+		InteractionFeedback.success(destination_glow, "assembly_route_ready")
+	var chain := InteractionFeedback.operation_chain(
+		self,
+		GameManager.text("Assembly complete", "装配完成"),
+		GameManager.text("The telescope passed its readiness check", "望远镜已通过就绪检查"),
+		GameManager.text("%s is now active" % destination_name, "%s现已启用" % destination_name),
+		destination_glow,
+		Color(0.42, 0.96, 0.58),
+		3.2
+	)
+	if chain != null:
+		chain.position.y = 636.0
 
 
 func _process(delta: float) -> void:
@@ -106,6 +146,9 @@ func _process(delta: float) -> void:
 		_update_hud()
 		return
 	if unlock_popup != null:
+		_update_hud()
+		return
+	if stats_terminal_popup != null:
 		_update_hud()
 		return
 	_move_player(delta)
@@ -116,6 +159,12 @@ func _process(delta: float) -> void:
 
 func _input(event: InputEvent) -> void:
 	if room_transition_active:
+		return
+	if stats_terminal_popup != null:
+		if event is InputEventKey:
+			var terminal_key := event as InputEventKey
+			if terminal_key.pressed and not terminal_key.echo and terminal_key.keycode == KEY_ESCAPE:
+				_toggle_stats_terminal()
 		return
 	if furniture_interaction_active:
 		return
@@ -216,27 +265,54 @@ func _animate_arrival_furniture_close() -> void:
 
 
 func _space_console_active() -> bool:
+	return _remote_console_kind() != ""
+
+
+func _remote_console_kind() -> String:
 	var level := GameManager.current_level()
-	return str(level.get("telescope_family", "")) == "space_segmented" \
-		or str(level.get("observation_mode", "")) == "space_infrared"
+	var family := str(level.get("telescope_family", ""))
+	var mode := str(level.get("observation_mode", ""))
+	if family == "space_segmented" or mode == "space_infrared":
+		return "space"
+	if family == "fast_radio" or mode == "radio":
+		return "radio"
+	return ""
+
+
+func _remote_console_destination() -> String:
+	return "radio_observation" if _remote_console_kind() == "radio" else "space_observation"
 
 
 func _draw_space_console_overlay() -> void:
-	# The existing bottom-right furniture becomes the mission console in the
-	# space chapter. This is a compact phosphor insert, not a second room HUD.
-	var screen := Panel.new()
+	# The furniture art already contains a complete green monitor. Add only a
+	# clipped status strip inside its glass; a second framed panel would cover
+	# the original display and read as a broken foreground layer.
+	var screen := Control.new()
 	screen.name = "SpaceConsoleScreen"
-	screen.position = Vector2(738, 492)
-	screen.size = Vector2(138, 112)
+	screen.position = Vector2(737, 489)
+	screen.size = Vector2(112, 88)
+	screen.clip_contents = true
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	screen.add_theme_stylebox_override("panel", _style(Color(0.01, 0.01, 0.01, 0.94), Color(0.90, 0.90, 0.90, 0.92), 1, 0))
 	add_child(screen)
-	_board_label(screen, "SPACE LINK", Vector2(8, 8), Vector2(122, 18), 11, Color(0.96, 0.96, 0.96), HORIZONTAL_ALIGNMENT_CENTER)
-	for row in range(4):
-		var width := 108.0 - float(row % 3) * 18.0
-		_rect_to(screen, Vector2(14, 34 + row * 13), Vector2(width, 2), Color(0.54, 0.54, 0.54, 0.78))
-	_rect_to(screen, Vector2(14, 90), Vector2(78, 1), Color(0.28, 0.28, 0.28, 0.9))
-	_board_label(screen, "L2 BUS READY", Vector2(14, 92), Vector2(110, 14), 8, Color(0.72, 0.72, 0.72))
+	var radio_console := _remote_console_kind() == "radio"
+	var status_strip := Panel.new()
+	status_strip.position = Vector2(2, 68)
+	status_strip.size = Vector2(108, 16)
+	status_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	status_strip.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.002, 0.018, 0.018, 0.70), Color(0.22, 0.56, 0.50, 0.46), 1, 0)
+	)
+	screen.add_child(status_strip)
+	_board_label(
+		status_strip,
+		("FAST LINK / ARRAY READY" if radio_console else "L2 LINK / BUS READY"),
+		Vector2(2, 1),
+		Vector2(104, 13),
+		7,
+		Color(0.56, 0.92, 0.82),
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
 
 
 func _register_hitboxes() -> void:
@@ -250,9 +326,15 @@ func _register_hitboxes() -> void:
 		_register_interactable("telescope", GameManager.text("Constellation Search", "星座搜寻"), GameManager.text("Use the observation pad to locate the complete star pattern, then study it through the telescope.", "使用观测台定位完整星群，再通过望远镜观察它。"), Rect2(455, 398, 120, 124))
 	else:
 		_register_interactable("telescope", GameManager.text("Telescope Observation Pad", "望远镜观测台"), GameManager.text("Open-air quick setup: carry your telescope out and observe right away. Same sky as the dome.", "露天快速架设：把你组装的望远镜搬出来立刻观测。与圆顶观星站看同一片天空。"), Rect2(455, 398, 120, 124))
-	_register_interactable("journal", GameManager.text("Learning Journal", "学习日志"), GameManager.text("Review completed observations and learning cards.", "查看已完成的观测和学习卡。"), Rect2(96, 476, 214, 132))
-	if _space_console_active():
+	# The logbook is opened from the chair-side/lower edge of the desk. Keeping
+	# the interaction center there also makes the route cue say "lower-left"
+	# from the room's central telescope instead of incorrectly pointing upward.
+	_register_interactable("journal", GameManager.text("Learning Journal", "学习日志"), GameManager.text("Review completed observations and learning cards.", "查看已完成的观测和学习卡。"), Rect2(96, 506, 214, 132))
+	var remote_console := _remote_console_kind()
+	if remote_console == "space":
 		_register_interactable("computer", GameManager.text("Space Telescope Console", "空间望远镜控制台"), GameManager.text("Open the segmented infrared observatory command link.", "打开分段式红外空间望远镜指挥链路。"), Rect2(730, 492, 146, 116))
+	elif remote_console == "radio":
+		_register_interactable("computer", GameManager.text("FAST Radio Telescope Console", "FAST 射电望远镜控制台"), GameManager.text("Open the FAST radio telescope command link.", "打开 FAST 射电望远镜指挥链路。"), Rect2(730, 492, 146, 116))
 	else:
 		_register_interactable("computer", GameManager.text("Stats Terminal", "统计终端"), GameManager.text("Check telescope performance and readiness.", "查看望远镜性能和就绪状态。"), Rect2(730, 492, 146, 116))
 
@@ -344,20 +426,30 @@ func _draw_hud_lower() -> void:
 	guidance_overlay = Control.new()
 	guidance_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	guidance_overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guidance_overlay.visible = false
 	add_child(guidance_overlay)
 
 	guidance_panel = Panel.new()
 	guidance_panel.position = Vector2(222, 76)
 	guidance_panel.size = Vector2(580, 170)
 	guidance_panel.add_theme_stylebox_override("panel", _style(Color(0.030, 0.045, 0.080, 0.96), BRASS, 3, 6))
+	guidance_panel.visible = InteractionFeedback.guidance_highlights_enabled()
 	add_child(guidance_panel)
 	_corner_pins(guidance_panel)
-	guidance_title_label = _label_to(guidance_panel, "", Vector2(24, 14), Vector2(532, 30), 22, HORIZONTAL_ALIGNMENT_CENTER)
-	guidance_hint_label = _label_to(guidance_panel, "", Vector2(32, 48), Vector2(516, 52), 15, HORIZONTAL_ALIGNMENT_CENTER)
+	guidance_maya_portrait = MayaPortrait.create(
+		guidance_panel,
+		"MayaRoomGuidancePortrait",
+		MayaPortrait.EXPLAIN,
+		Vector2(20, 28),
+		Vector2(64, 104),
+		1
+	)
+	guidance_title_label = _label_to(guidance_panel, "", Vector2(94, 14), Vector2(466, 30), 22, HORIZONTAL_ALIGNMENT_CENTER)
+	guidance_hint_label = _label_to(guidance_panel, "", Vector2(98, 48), Vector2(458, 52), 15, HORIZONTAL_ALIGNMENT_CENTER)
 	guidance_hint_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guidance_action_label = _label_to(guidance_panel, "", Vector2(32, 106), Vector2(516, 22), 14, HORIZONTAL_ALIGNMENT_CENTER)
+	guidance_action_label = _label_to(guidance_panel, "", Vector2(98, 106), Vector2(458, 22), 14, HORIZONTAL_ALIGNMENT_CENTER)
 	guidance_action_label.add_theme_color_override("font_color", Color(0.52, 0.86, 1.0))
-	guidance_outcome_label = _label_to(guidance_panel, "", Vector2(32, 136), Vector2(516, 20), 12, HORIZONTAL_ALIGNMENT_CENTER)
+	guidance_outcome_label = _label_to(guidance_panel, "", Vector2(98, 136), Vector2(458, 20), 12, HORIZONTAL_ALIGNMENT_CENTER)
 	guidance_outcome_label.add_theme_color_override("font_color", Color(0.86, 0.78, 0.52))
 
 	# Persistent route cue: compact enough to leave the room visible, but it
@@ -520,7 +612,7 @@ func _update_nearby() -> void:
 		var id := str(data["id"])
 		if id == nearby_id:
 			frame.modulate.a = 0.82
-		elif id == GameManager.room_guidance_target:
+		elif id == GameManager.room_guidance_target and InteractionFeedback.guidance_highlights_enabled():
 			frame.modulate.a = 0.72 + 0.18 * sin(float(Time.get_ticks_msec()) / 220.0)
 		else:
 			frame.modulate.a = 0.0
@@ -541,7 +633,7 @@ func _update_hud() -> void:
 		focus_label.text = GameManager.text("Move around the observatory room", "在观测室里移动")
 		if _has_feedback_override():
 			InteractionFeedback.crossfade_text(feedback_label, feedback_override)
-		elif GameManager.room_guidance_target != "":
+		elif GameManager.room_guidance_target != "" and InteractionFeedback.guidance_highlights_enabled():
 			InteractionFeedback.crossfade_text(feedback_label, GameManager.room_guidance_hint)
 		elif active_guidance == "ready_to_observe":
 			feedback_label.text = GameManager.text(
@@ -692,12 +784,19 @@ func _enter_space_console() -> void:
 			str(gate.get("reason_en", "Finish assembling the space observatory before opening the command link.")),
 			str(gate.get("reason_zh", "请先完成空间望远镜组装，再打开指挥链路。"))), 3600)
 		return
+	var destination := _remote_console_destination()
+	if GameManager.try_story_for_trigger("before_observation", destination):
+		return
+	if GameManager.try_teaching_intercept("before_observation", destination):
+		return
+	_suspend_room_guidance_for_modal()
+	pending_remote_console_scene = destination
 	room_transition_active = true
 	var overlay := Control.new()
 	overlay.name = "SpaceConsoleTransition"
 	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
-	overlay.z_index = 500
+	overlay.z_index = COMPUTER_MODAL_LAYER
 	add_child(overlay)
 	var dim := ColorRect.new()
 	dim.color = Color(0, 0, 0, 0)
@@ -709,7 +808,8 @@ func _enter_space_console() -> void:
 	terminal.pivot_offset = terminal.size * 0.5
 	terminal.add_theme_stylebox_override("panel", _style(Color(0.005, 0.005, 0.005, 0.98), Color.WHITE, 2, 0))
 	overlay.add_child(terminal)
-	_board_label(terminal, "UPLINK / L2", Vector2(8, 8), Vector2(122, 18), 10, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
+	var radio_console := _remote_console_kind() == "radio"
+	_board_label(terminal, "UPLINK / FAST" if radio_console else "UPLINK / L2", Vector2(8, 8), Vector2(122, 18), 10, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	for row in range(5):
 		_rect_to(terminal, Vector2(12, 34 + row * 12), Vector2(110 - row * 9, 2), Color(0.72, 0.72, 0.72, 0.82))
 	var scan := ColorRect.new()
@@ -718,7 +818,9 @@ func _enter_space_console() -> void:
 	scan.size = Vector2(138, 2)
 	terminal.add_child(scan)
 	var status := _board_label(overlay,
-		GameManager.text("ESTABLISHING DEEP-SPACE COMMAND LINK", "正在建立深空指挥链路"),
+		GameManager.text(
+			"ESTABLISHING RADIO TELESCOPE LINK" if radio_console else "ESTABLISHING DEEP-SPACE COMMAND LINK",
+			"正在建立射电望远镜链路" if radio_console else "正在建立深空指挥链路"),
 		Vector2(240, 650), Vector2(544, 24), 14, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	status.modulate.a = 0.0
 	var tween := create_tween().bind_node(overlay).set_parallel(true)
@@ -732,7 +834,10 @@ func _enter_space_console() -> void:
 
 func _finish_space_console_transition() -> void:
 	GameManager.clear_room_guidance()
-	GameManager.go("space_observation")
+	var destination := pending_remote_console_scene
+	if destination == "":
+		destination = _remote_console_destination()
+	GameManager.go(destination)
 
 
 func _enter_sky_or_relocate(spawn: String) -> void:
@@ -749,6 +854,10 @@ func _toggle_mission_board() -> void:
 
 
 func _open_mission_board() -> void:
+	if GameManager.campaign_completed():
+		_open_graduated_mission_board()
+		return
+	_suspend_room_guidance_for_modal()
 	var level := GameManager.current_level()
 	var target := GameManager.current_target()
 	var route := _mission_board_route()
@@ -786,7 +895,7 @@ func _open_mission_board() -> void:
 	var route_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("MISSION ROUTE", "任务路线"))
 	_build_mission_checklist(route_panel, route)
 
-	var info_panel := _board_section(panel, Vector2(550, 128), Vector2(382, 326), GameManager.text("MAYA'S NOTE", "Maya 的提示"))
+	var info_panel := _board_section(panel, Vector2(550, 128), Vector2(382, 326), GameManager.text("MAYA'S NOTE", "玛雅的提示"))
 	_build_mission_info_panel(info_panel, level, route)
 	_build_mission_reward_preview(panel, level)
 
@@ -807,6 +916,65 @@ func _open_mission_board() -> void:
 	), mission_board_popup)
 
 
+func _open_graduated_mission_board() -> void:
+	_suspend_room_guidance_for_modal()
+	mission_board_popup = Control.new()
+	mission_board_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mission_board_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(mission_board_popup)
+	InteractionFeedback.page_enter(mission_board_popup, Vector2(0, 8))
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	mission_board_popup.add_child(dim)
+
+	var panel := Panel.new()
+	panel.name = "GraduatedMissionBoardPanel"
+	panel.position = Vector2(112, 82)
+	panel.size = Vector2(800, 602)
+	panel.add_theme_stylebox_override("panel", _style(Color(0.035, 0.050, 0.090, 0.99), BRASS, 3, 5))
+	mission_board_popup.add_child(panel)
+	_corner_pins(panel)
+
+	_board_label(panel, GameManager.text("ASTRONOMY CLUB RECORD", "天文俱乐部记录"), Vector2(28, 20), Vector2(744, 24), 13, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
+	_board_label(panel, GameManager.text("PROGRAM COMPLETE", "课程全部完成"), Vector2(28, 54), Vector2(744, 42), 29, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	_board_label(panel, GameManager.text("YOUNG OBSERVER", "青年观测员"), Vector2(28, 102), Vector2(744, 24), 15, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	_rect_to(panel, Vector2(36, 140), Vector2(728, 1), Color(0.72, 0.50, 0.22, 0.85))
+
+	var completed_count := (GameManager.progress.get("completed_levels", []) as Array).size()
+	var observed_count := (GameManager.progress.get("observed_objects", []) as Array).size()
+	var journal_count := (GameManager.progress.get("journal_entries", []) as Array).size()
+	var credits := int(GameManager.progress.get("credits", 0))
+	var stats := GameManager.text(
+		"Lessons %d    Objects %d    Log entries %d    Club Credits %d" % [completed_count, observed_count, journal_count, credits],
+		"课程 %d    天体 %d    日志 %d    社团积分 %d" % [completed_count, observed_count, journal_count, credits]
+	)
+	_board_label(panel, stats, Vector2(40, 166), Vector2(720, 28), 15, Color(0.70, 0.92, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
+
+	var note_panel := _board_section(panel, Vector2(54, 216), Vector2(692, 226), GameManager.text("MAYA'S GRADUATION NOTE", "玛雅的毕业寄语"))
+	var note := _board_label(note_panel, GameManager.text(
+		"You learned to read the sky, build and align real instruments, judge observing conditions, and choose the right method instead of chasing a score. The last lesson is complete. From tonight onward, the questions are yours.",
+		"你已经学会读懂天空、组装并校准真实仪器、判断观测条件，也懂得为目标选择正确方法，而不是只追逐分数。最后一课已经完成。从今晚起，问题由你来提出。"
+	), Vector2(28, 52), Vector2(636, 118), 17, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_board_label(note_panel, GameManager.text(
+		"Completed missions are archived. Opening this board will never restart the final lesson.",
+		"已完成的任务已归档；再次打开任务板不会重启最后一课。"
+	), Vector2(28, 176), Vector2(636, 28), 13, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+
+	var ceremony_text := GameManager.text("Attend Ceremony", "参加毕业典礼") if GameManager.graduation_pending() \
+		else GameManager.text("Replay Ceremony", "回看毕业典礼")
+	var ceremony_button := _board_button(panel, ceremony_text, Vector2(82, 500), Vector2(210, 46), Color(0.34, 0.22, 0.07), Color(1.0, 0.78, 0.30))
+	ceremony_button.name = "GraduationCeremonyButton"
+	ceremony_button.pressed.connect(func() -> void: GameManager.go("graduation"))
+	var log_button := _board_button(panel, GameManager.text("Open Logbook", "打开观测日志"), Vector2(306, 500), Vector2(210, 46), Color(0.06, 0.18, 0.34), Color(0.42, 0.74, 1.0))
+	log_button.pressed.connect(_open_logbook_from_mission_board)
+	var close_button := _board_button(panel, GameManager.text("Close", "关闭"), Vector2(530, 500), Vector2(188, 46), Color(0.12, 0.15, 0.22), Color(0.54, 0.62, 0.74))
+	close_button.pressed.connect(func() -> void: _close_mission_board(true))
+
+
 func _close_mission_board(show_guidance: bool) -> void:
 	if mission_board_popup != null:
 		var popup := mission_board_popup
@@ -818,7 +986,7 @@ func _close_mission_board(show_guidance: bool) -> void:
 		var route := _mission_board_route()
 		GameManager.set_room_guidance(str(route.get("target", "")), str(route.get("title", "")), str(route.get("hint", "")))
 		active_guidance = "room_guidance"
-		_update_room_guidance_panel()
+		_resume_room_guidance_after_modal()
 
 
 func _open_logbook_from_mission_board() -> void:
@@ -878,7 +1046,7 @@ func _mission_missing_names() -> Array[String]:
 func _mission_board_checklist(route: Dictionary) -> Array:
 	var level := GameManager.current_level()
 	var rows: Array = []
-	rows.append({"label": GameManager.text("Read Maya's note", "阅读 Maya 的提示"), "done": true})
+	rows.append({"label": GameManager.text("Read Maya's note", "阅读玛雅的提示"), "done": true})
 	if not GameManager.current_requires_telescope():
 		rows.append({"label": GameManager.text("Start naked-eye observation", "开始肉眼观测"), "done": false})
 	else:
@@ -989,7 +1157,10 @@ func _mission_step_label(level: Dictionary, step: Dictionary) -> String:
 
 
 func _build_mission_checklist(parent: Control, route: Dictionary) -> void:
-	var route_text := _board_label(parent, GameManager.text("Follow the highlighted route in the observatory.", "跟随大厅中高亮的路线。"), Vector2(14, 30), Vector2(482, 18), 10, Color(0.62, 0.73, 0.85))
+	var route_copy := GameManager.text("Follow the highlighted route in the observatory.", "跟随大厅中高亮的路线。") \
+		if InteractionFeedback.guidance_highlights_enabled() \
+		else GameManager.text("Guidance highlights are off. Use the room labels and explore freely.", "高光引导已关闭；请查看房间标签并自由探索。")
+	var route_text := _board_label(parent, route_copy, Vector2(14, 30), Vector2(482, 18), 10, Color(0.62, 0.73, 0.85))
 	route_text.clip_text = true
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(12, 56)
@@ -1035,7 +1206,15 @@ func _build_mission_info_panel(parent: Control, level: Dictionary, route: Dictio
 		note_text = GameManager.dict_text(level, "description")
 	if lesson_hint != "" and not note_text.contains(lesson_hint):
 		note_text += "\n" + lesson_hint
-	var maya_note := _board_label(parent, "\"" + note_text + "\"", Vector2(14, 32), Vector2(354, 62), 11, Color(0.98, 0.85, 0.58))
+	MayaPortrait.create(
+		parent,
+		"MayaMissionNotePortrait",
+		MayaPortrait.tutorial_pose("mission_%s" % str(route.get("target", "")), note_text),
+		Vector2(12, 32),
+		Vector2(76, 68),
+		1
+	)
+	var maya_note := _board_label(parent, "\"" + note_text + "\"", Vector2(94, 32), Vector2(274, 62), 11, Color(0.98, 0.85, 0.58))
 	maya_note.max_lines_visible = 4
 	_rect_to(parent, Vector2(14, 102), Vector2(354, 1), Color(0.30, 0.40, 0.55, 0.70))
 	_board_label(parent, GameManager.text("REQUIRED EQUIPMENT", "所需设备"), Vector2(14, 112), Vector2(354, 16), 11, CYAN)
@@ -1168,24 +1347,7 @@ func _mission_reward_preview_items(level: Dictionary) -> Array:
 
 
 func _mission_badge_text(badge: String) -> String:
-	if GameManager.language_mode != "zh":
-		return badge
-	var names := {
-		"First Look": "初见星空",
-		"Star Spotter": "寻星者",
-		"First Light": "第一缕星光",
-		"Sharp Eye": "锐眼",
-		"Power User": "倍率掌握者",
-		"Finder Scope": "寻星镜大师",
-		"Mirror Master": "反射镜大师",
-		"Nebula Hunter": "星云猎手",
-		"Deep Sky Explorer": "深空探索者",
-		"Magnification Mastery": "倍率掌握",
-		"Sky Navigator": "天空导航员",
-		"Deep Sky Observer": "深空观测员",
-		"Senior Observer": "高级观测员"
-	}
-	return str(names.get(badge, badge))
+	return GameManager.badge_display_name(badge)
 
 
 func _board_section(parent: Control, pos: Vector2, section_size: Vector2, title: String) -> Panel:
@@ -1226,8 +1388,12 @@ func _maybe_show_unlock_popup() -> void:
 	if pending.is_empty():
 		return
 
+	_suspend_room_guidance_for_modal()
 	unlock_popup = Control.new()
+	unlock_popup.name = "EquipmentUnlockPopup"
 	unlock_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	unlock_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	unlock_popup.z_index = COMPUTER_MODAL_LAYER
 	add_child(unlock_popup)
 
 	var dim := ColorRect.new()
@@ -1243,14 +1409,14 @@ func _maybe_show_unlock_popup() -> void:
 	panel.add_theme_stylebox_override("panel", _style(Color(0.040, 0.055, 0.100, 0.98), Color(0.98, 0.80, 0.36), 3, 6))
 	unlock_popup.add_child(panel)
 
-	var portrait := TextureRect.new()
-	portrait.texture = load("res://assets/characters/maya_portrait.png")
-	portrait.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	portrait.stretch_mode = TextureRect.STRETCH_SCALE
-	portrait.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	portrait.position = panel.position + Vector2(24, 40)
-	portrait.size = Vector2(96, 96)
-	unlock_popup.add_child(portrait)
+	MayaPortrait.create(
+		unlock_popup,
+		"MayaEquipmentUnlockPortrait",
+		MayaPortrait.DISCOVER,
+		panel.position + Vector2(28, 48),
+		Vector2(72, 112),
+		1
+	)
 
 	var x_text := panel.position.x + 140.0
 	var y := panel.position.y + 18.0
@@ -1272,17 +1438,43 @@ func _maybe_show_unlock_popup() -> void:
 		Vector2(x_text, y), Vector2(360, 40), 11, Color(0.78, 0.86, 0.92))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	var ok := Button.new()
-	ok.text = GameManager.text("Got it!", "知道了！").replace("\n", " · ")
-	ok.position = Vector2(432, panel.position.y + panel_height - 52.0)
-	ok.size = Vector2(160, 38)
-	ok.add_theme_font_size_override("font_size", 14)
-	ok.pressed.connect(func() -> void:
-		if unlock_popup != null:
-			unlock_popup.queue_free()
-			unlock_popup = null
+	var later := Button.new()
+	later.text = GameManager.text("Later", "稍后")
+	later.position = Vector2(350, panel.position.y + panel_height - 52.0)
+	later.size = Vector2(132, 38)
+	later.add_theme_font_size_override("font_size", 13)
+	later.pressed.connect(func() -> void:
+		_close_unlock_popup(true)
 	)
-	unlock_popup.add_child(ok)
+	unlock_popup.add_child(later)
+
+	var equip_now := Button.new()
+	equip_now.text = GameManager.text("Equip New Parts", "前往装备新零件")
+	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
+	equip_now.size = Vector2(220, 38)
+	equip_now.add_theme_font_size_override("font_size", 13)
+	equip_now.pressed.connect(func() -> void:
+		_close_unlock_popup(false)
+		GameManager.set_room_guidance(
+			"cabinet",
+			GameManager.text("Maya: Equip the New Parts", "玛雅：装备新零件"),
+			GameManager.text(
+				"Choose the newly unlocked parts here. After equipping them, the route continues to the Assembly Table.",
+				"在零件柜选择刚解锁的部件；装备后，引导会继续带你前往组装台安装。"
+			)
+		)
+		GameManager.go("parts")
+	)
+	unlock_popup.add_child(equip_now)
+
+
+func _close_unlock_popup(resume_guidance: bool) -> void:
+	if unlock_popup != null:
+		var popup := unlock_popup
+		unlock_popup = null
+		InteractionFeedback.fade_then(popup, popup.queue_free)
+	if resume_guidance:
+		_resume_room_guidance_after_modal()
 
 
 func _popup_label_on(parent: Control, text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
@@ -1303,13 +1495,17 @@ func _toggle_stats_terminal() -> void:
 	if stats_terminal_popup != null:
 		stats_terminal_popup.queue_free()
 		stats_terminal_popup = null
+		_resume_room_guidance_after_modal()
 		if furniture_animator != null:
 			furniture_animator.play_close("computer")
 		return
 	var stats := GameManager.calculate_stats()
 
+	_suspend_room_guidance_for_modal()
 	stats_terminal_popup = Control.new()
 	stats_terminal_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_terminal_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	stats_terminal_popup.z_index = COMPUTER_MODAL_LAYER
 	add_child(stats_terminal_popup)
 
 	var dim := ColorRect.new()
@@ -1472,8 +1668,42 @@ func _has_feedback_override() -> bool:
 	return false
 
 
+func _suspend_room_guidance_for_modal() -> void:
+	room_guidance_suspended = true
+	if guidance_panel != null:
+		guidance_panel.visible = false
+	if route_edge_indicator != null:
+		route_edge_indicator.visible = false
+	if guidance_overlay != null:
+		_clear(guidance_overlay)
+		guidance_overlay.visible = false
+	# One-shot Maya bubbles use a global z-index of 900. They belong to the
+	# lobby, so dismiss only bubbles parented under this room before showing a
+	# computer modal at the dedicated computer layer.
+	for overlay in get_tree().get_nodes_in_group("guidance_highlight"):
+		if overlay != null and is_instance_valid(overlay) and is_ancestor_of(overlay):
+			overlay.queue_free()
+
+
+func _resume_room_guidance_after_modal() -> void:
+	room_guidance_suspended = false
+	_update_room_guidance_panel()
+
+
 func _update_room_guidance_panel() -> void:
 	if guidance_panel == null:
+		return
+	if room_guidance_suspended:
+		guidance_panel.visible = false
+		if route_edge_indicator != null:
+			route_edge_indicator.visible = false
+		_update_guidance_overlay({})
+		return
+	if not InteractionFeedback.guidance_highlights_enabled():
+		guidance_panel.visible = false
+		if route_edge_indicator != null:
+			route_edge_indicator.visible = false
+		_update_guidance_overlay({})
 		return
 	if GameManager.room_guidance_target == "":
 		guidance_panel.visible = false
@@ -1492,6 +1722,11 @@ func _update_room_guidance_panel() -> void:
 			tween.tween_property(guidance_panel, "position", rest, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 			tween.tween_property(guidance_panel, "modulate:a", 1.0, 0.18)
 	guidance_panel.visible = true
+	if guidance_maya_portrait != null:
+		MayaPortrait.apply_to(
+			guidance_maya_portrait,
+			MayaPortrait.tutorial_pose(GameManager.room_guidance_target, GameManager.room_guidance_hint)
+		)
 	guidance_title_label.text = GameManager.room_guidance_title
 	var target_name := ""
 	var item := _get_interactable(GameManager.room_guidance_target)
@@ -1520,7 +1755,7 @@ func _update_guidance_overlay(item: Dictionary) -> void:
 	if guidance_overlay == null:
 		return
 	_clear(guidance_overlay)
-	if item.is_empty():
+	if room_guidance_suspended or item.is_empty() or not InteractionFeedback.guidance_highlights_enabled():
 		guidance_overlay.visible = false
 		return
 	guidance_overlay.visible = true
@@ -1556,7 +1791,7 @@ func _update_guidance_overlay(item: Dictionary) -> void:
 func _update_route_edge_indicator(delta: Vector2, target_name: String, distance: int) -> void:
 	if route_edge_indicator == null:
 		return
-	if delta.length() < 1.0:
+	if delta.length() < 1.0 or not InteractionFeedback.guidance_highlights_enabled():
 		route_edge_indicator.visible = false
 		return
 	route_edge_indicator.visible = true
@@ -1790,3 +2025,15 @@ func _setup_label(label: Label, text: String, font_size: int, align: HorizontalA
 
 func _on_language_changed() -> void:
 	_build()
+
+
+func _on_guidance_highlights_changed(enabled: bool) -> void:
+	if guidance_overlay != null and not enabled:
+		_clear(guidance_overlay)
+		guidance_overlay.visible = false
+	if route_edge_indicator != null and not enabled:
+		route_edge_indicator.visible = false
+	if guidance_panel != null:
+		guidance_panel.visible = enabled and GameManager.room_guidance_target != ""
+	if enabled:
+		_update_room_guidance_panel()

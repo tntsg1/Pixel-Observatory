@@ -88,7 +88,11 @@ func _initialize() -> void:
 	_check(m.attitude_deg != before, "4. touch tapping the attitude button changed the attitude")
 
 	# 5. expose + process reachable by touch
-	m.rotate_to(110.0)
+	m.rotate_to(m.thermal_target_deg)
+	for _i in range(600):
+		m.step_thermal(1.0 / 60.0)
+		if m.thermal_locked:
+			break
 	scene.call("_confirm_thermal")
 	await process_frame
 	m.choose_guide_star(1)

@@ -148,6 +148,48 @@ class ConstellationField extends Control:
 			draw_circle(position, radius * 2.5, Color(0.58, 0.78, 1.0, 0.15))
 			draw_circle(position, radius, Color(0.97, 0.98, 1.0, 0.98))
 
+
+class AvertedVisionGuide extends Control:
+	var target_position := Vector2.ZERO
+	var enabled := false
+	var active := false
+	var adaptation := 0.0
+	var hold_visual := 0.0
+	var phase := 0.0
+
+	func _process(delta: float) -> void:
+		if not enabled:
+			return
+		phase += delta
+		queue_redraw()
+
+	func _draw() -> void:
+		if not enabled:
+			return
+		var offset_direction := Vector2(0.84, -0.54)
+		var gaze_position := target_position + offset_direction * 58.0
+		var guide_color := Color(0.38, 0.86, 1.0, 0.72) if not active else Color(1.0, 0.76, 0.30, 0.94)
+		var start := target_position + offset_direction * 17.0
+		var end := gaze_position - offset_direction * 17.0
+		for index in range(5):
+			var t0 := float(index) / 5.0
+			var t1 := minf(1.0, t0 + 0.10)
+			var alpha := 0.24 + float(index) * 0.08
+			draw_line(start.lerp(end, t0), start.lerp(end, t1), Color(guide_color.r, guide_color.g, guide_color.b, alpha), 1.0)
+		var pulse := 1.0 if InteractionFeedback.is_reduced_motion() else 1.0 + sin(phase * 3.4) * 0.08
+		var marker_radius := 15.0 * pulse
+		draw_arc(gaze_position, marker_radius, 0.0, TAU, 28, guide_color, 1.5)
+		for angle in [0.0, PI * 0.5, PI, PI * 1.5]:
+			var direction := Vector2.RIGHT.rotated(angle)
+			draw_line(gaze_position + direction * 19.0, gaze_position + direction * 25.0, guide_color, 1.5)
+		draw_arc(gaze_position, marker_radius + 5.0, -PI * 0.5, -PI * 0.5 + TAU * hold_visual, 32, Color(0.42, 1.0, 0.62, 0.94), 2.0)
+		if active:
+			for index in range(3):
+				var angle := phase * (0.35 + float(index) * 0.08) + float(index) * TAU / 3.0
+				var radius := 26.0 + adaptation * 9.0
+				draw_circle(target_position + Vector2.RIGHT.rotated(angle) * radius, 1.5, Color(0.50, 1.0, 0.72, 0.46))
+
+
 var feedback_label: Label
 var quality_label: Label
 var mission_step_label: Label
@@ -158,6 +200,7 @@ var quiz_brief_overlay: Control
 var quiz_brief_dismissed := false
 var is_free_observation := false
 var free_result_label: Label
+var mission_return_in_progress := false
 var observation: Dictionary
 var selected_object: Dictionary
 
@@ -221,6 +264,8 @@ const AVERTED_VISION_ALPHA_BONUS := 0.10
 const AVERTED_VISION_BRIGHTEN := 1.06
 var dark_adaptation := 0.0
 var averted_vision_active := false
+var averted_hold_visual := 0.0
+var averted_vision_guide: AvertedVisionGuide
 var dark_adaptation_label: Label
 var averted_vision_label: Label
 var exposure_value := 0.5
@@ -228,6 +273,7 @@ var active_filter := "none"
 var observation_elapsed := 0.0
 var technique_reevaluate_timer := 0.0
 var technique_status_label: Label
+var technique_filter_button: Button
 var star_layer_nodes: Array[ColorRect] = []
 var star_layer_container: Control
 
@@ -309,14 +355,37 @@ func _ready() -> void:
 	_check_mission_step_progress()
 	_build()
 	InteractionFeedback.page_enter(self)
-	if requires_focus and focus_slider != null:
-		call_deferred("_show_focus_tutorial")
+	call_deferred("_show_focus_tutorial")
 
 
 func _show_focus_tutorial() -> void:
 	# The object guide is modal. Queue first-use focus/weather/tracking help
 	# until it closes so the shared tutorial layer cannot pierce the dialog.
 	if quiz_brief_overlay != null and is_instance_valid(quiz_brief_overlay):
+		return
+	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	if requirements.has("filter") and not InteractionFeedback.was_tutorial_seen("first_nebula_filter"):
+		InteractionFeedback.tutorial_highlight_once(
+			technique_filter_button,
+			"first_nebula_filter",
+			GameManager.text(
+				"A nebula filter is not an automatic upgrade: it darkens part of the sky glow so emission nebulae stand out. Click FILTER: OFF to switch it to NEBULA before observing.",
+				"星云滤镜不是自动加成：它会压暗部分天空背景，让发射星云更容易分辨。观测前点击“滤镜：关闭”，把它切换为“星云”。"
+			),
+			self
+		)
+		return
+	if bool(requirements.get("require_averted_vision", false)) and not InteractionFeedback.was_tutorial_seen("first_averted_vision"):
+		var technique_target: Control = averted_vision_guide if averted_vision_guide != null else technique_status_label
+		InteractionFeedback.tutorial_highlight_once(
+			technique_target,
+			"first_averted_vision",
+			GameManager.text(
+				"Do not stare at the faint object. Hold SHIFT: the side marker shows where to rest your gaze, while peripheral vision reveals the target.",
+				"不要直盯暗弱天体。按住 SHIFT，把视线放在旁边的侧视标记上；周边视觉会逐渐显出目标。"
+			),
+			self
+		)
 		return
 	if drift_enabled and not InteractionFeedback.was_tutorial_seen("first_earth_drift"):
 		var drift_target: Control = tracking_slider if tracking_slider != null else drift_label
@@ -507,6 +576,7 @@ func _process(delta: float) -> void:
 	focus_missing_feedback_cooldown = maxf(0.0, focus_missing_feedback_cooldown - delta)
 	if _is_dark_adaptation_target():
 		_advance_dark_adaptation(delta)
+		_update_averted_vision_guide(delta)
 	if technique_reevaluate_timer >= 0.25 and not GameManager.current_level().get("observation_requirements", {}).is_empty():
 		technique_reevaluate_timer = 0.0
 		observation = _evaluate()
@@ -655,11 +725,28 @@ func _advance_dark_adaptation(delta: float) -> void:
 		for star_rect in star_layer_nodes:
 			star_rect.modulate.a = lerpf(1.0, 0.55, eased)
 		if dark_adaptation_label != null:
-			dark_adaptation_label.text = "Dark adaptation: %d%%" % int(round(eased * 100.0))
+			dark_adaptation_label.text = GameManager.text(
+				"Dark adaptation: %d%%",
+				"暗适应：%d%%"
+			) % int(round(eased * 100.0))
 		if averted_vision_label != null:
 			averted_vision_label.text = GameManager.text("Averted vision: Active", "侧视：启用") if averted_vision_active else GameManager.text("Averted vision: Inactive", "侧视：未启用")
 			averted_vision_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.62) if averted_vision_active else Color(0.66, 0.72, 0.80))
 		_update_target_visuals()
+
+
+func _update_averted_vision_guide(delta: float) -> void:
+	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	if not bool(requirements.get("require_averted_vision", false)):
+		return
+	averted_hold_visual = move_toward(averted_hold_visual, 1.0 if averted_vision_active else 0.0, delta * (1.8 if averted_vision_active else 2.8))
+	if averted_vision_guide != null:
+		averted_vision_guide.enabled = true
+		averted_vision_guide.active = averted_vision_active
+		averted_vision_guide.adaptation = _eased_dark_adaptation()
+		averted_vision_guide.hold_visual = averted_hold_visual
+		averted_vision_guide.target_position = visual_target_center
+		averted_vision_guide.queue_redraw()
 
 
 func _eased_dark_adaptation() -> float:
@@ -1088,7 +1175,10 @@ func _missing_required_parts_text() -> String:
 func _quality_shortfall_text() -> String:
 	var technique_failure: Dictionary = observation.get("technique_failure", {})
 	if not technique_failure.is_empty():
-		return GameManager.text(str(technique_failure.get("en", "Technique not ready.")), str(technique_failure.get("zh", "观测技巧尚未达到要求。")))
+		return GameManager.text(
+			str(technique_failure.get("en", "Complete the observing method shown below.")),
+			str(technique_failure.get("zh", "请完成下方标出的观测方法。"))
+		)
 	# Focus is fine - name the REAL limiting factor so the player never
 	# blames the wrong thing (audit: story must match the mechanic).
 	# Priority: focus (already excluded by caller) > collimation > cloud >
@@ -1157,7 +1247,7 @@ func _build() -> void:
 	else:
 		_title_bar(GameManager.text("Telescope View", "望远镜视野"))
 	_build_observation_panel()
-	if not GameManager.current_level().get("observation_requirements", {}).is_empty():
+	if _uses_observation_method(GameManager.current_level().get("observation_requirements", {})):
 		_build_technique_panel()
 	if drift_enabled:
 		_build_drift_panel()
@@ -1324,6 +1414,7 @@ func _build_observation_panel() -> void:
 		GameManager.go("observatory")
 	)
 	bottom.add_child(back)
+	_add_change_equipment_button()
 
 	if quiz_brief_dismissed:
 		_set_identify_choices_visible(true)
@@ -1332,30 +1423,132 @@ func _build_observation_panel() -> void:
 
 
 func _build_free_observation_panel() -> void:
-	# Non-mission target: no identify quiz. A short result readout + "Add to
-	# Club Logbook" / "Back to Sky", so the player enjoys the real optics
-	# without any risk of completing or failing tonight's mission.
+	# Non-mission target: no identify quiz. The player can log the result, return
+	# directly to the mission target, or leave for the wider sky view.
 	identify_title_label = _plabel(GameManager.text("Free Observation", "自由观测"), Vector2(CONTENT_X, 414), Vector2(CONTENT_W, 22), 17, Color(0.42, 0.82, 1.0))
 	var name_line := GameManager.dict_text(selected_object, "name")
 	_plabel(name_line + "  ·  " + GameManager.dict_text(selected_object, "type"), Vector2(CONTENT_X, 440), Vector2(CONTENT_W, 20), 13, COL_TEXT)
 	var q := str(observation.get("quality", "Good"))
 	_plabel(GameManager.text("Quality: ", "观测质量：") + q, Vector2(CONTENT_X, 466), Vector2(CONTENT_W, 20), 13, COL_GOLD_LIGHT)
-	var learn := _plabel(GameManager.dict_text(selected_object, "learning_text") if selected_object.has("learning_text_en") else GameManager.dict_text(selected_object, "short_hint"), Vector2(CONTENT_X, 492), Vector2(CONTENT_W, 78), 12, Color(0.82, 0.88, 0.92))
+	var learn := _plabel(GameManager.dict_text(selected_object, "learning_text") if selected_object.has("learning_text_en") else GameManager.dict_text(selected_object, "short_hint"), Vector2(CONTENT_X, 492), Vector2(CONTENT_W, 54), 12, Color(0.82, 0.88, 0.92))
 	learn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	learn.max_lines_visible = 4
-	free_result_label = _plabel("", Vector2(CONTENT_X, 574), Vector2(CONTENT_W, 20), 12, Color(0.55, 1.0, 0.68))
+	learn.max_lines_visible = 3
+	free_result_label = _plabel("", Vector2(CONTENT_X, 548), Vector2(CONTENT_W, 18), 11, Color(0.55, 1.0, 0.68))
+
+	var mission_id := GameManager.current_target_object_id()
+	var mission_object: Dictionary = GameManager.get_object(mission_id)
+	var mission_name := GameManager.dict_text(mission_object, "name")
+	var mission_button := _pixel_button(GameManager.text("Return to Mission", "返回任务目标"), Vector2(CONTENT_W, 34), 12)
+	mission_button.name = "FreeObservationMissionButton"
+	mission_button.position = Vector2(CONTENT_X, 572)
+	mission_button.tooltip_text = GameManager.text(
+		"Continue observing %s without leaving the telescope view." % mission_name,
+		"不退出望远镜界面，继续观测任务目标%s。" % mission_name
+	)
+	mission_button.disabled = mission_id == "" or mission_object.is_empty()
+	mission_button.pressed.connect(_return_to_mission_target)
+	add_child(mission_button)
 
 	var bottom := HBoxContainer.new()
-	bottom.position = Vector2(CONTENT_X, 600)
-	bottom.size = Vector2(CONTENT_W, 40)
-	bottom.add_theme_constant_override("separation", 8)
+	bottom.position = Vector2(CONTENT_X, 614)
+	bottom.size = Vector2(CONTENT_W, 34)
+	var button_gap := 8.0
+	var button_width := (CONTENT_W - button_gap) * 0.5
+	bottom.add_theme_constant_override("separation", int(button_gap))
 	add_child(bottom)
-	var log_btn := _pixel_button(GameManager.text("Add to Logbook", "加入日志"), Vector2(150, 40), 13)
+	var log_btn := _pixel_button(GameManager.text("Add to Logbook", "加入日志"), Vector2(button_width, 34), 11)
+	log_btn.name = "FreeObservationLogButton"
+	log_btn.tooltip_text = GameManager.text("Record this observation in the Club Logbook.", "将本次观测记录到俱乐部日志。")
 	log_btn.pressed.connect(_add_free_observation_to_logbook)
 	bottom.add_child(log_btn)
-	var back := _pixel_button(GameManager.text("Back to Sky", "返回星图"), Vector2(120, 40), 13)
+	var back := _pixel_button(GameManager.text("Back to Sky", "返回星图"), Vector2(button_width, 34), 11)
+	back.name = "FreeObservationBackButton"
 	back.pressed.connect(func() -> void: GameManager.go("sky"))
 	bottom.add_child(back)
+	_add_change_equipment_button(656.0, 30.0)
+
+
+func _add_change_equipment_button(y := 650.0, height := 34.0) -> void:
+	if observation_mode == "naked_eye":
+		return
+	var equipment := _pixel_button(GameManager.text("Change Equipment", "更换装备"), Vector2(CONTENT_W, height), 12)
+	equipment.position = Vector2(CONTENT_X, y)
+	equipment.tooltip_text = GameManager.text(
+		"Open the Parts Cabinet. Reassemble after changing a component.",
+		"打开零件柜。更换零件后需要重新组装。"
+	)
+	equipment.pressed.connect(func() -> void:
+		GameManager.set_observatory_spawn("cabinet")
+		GameManager.go("parts")
+	)
+	add_child(equipment)
+
+
+func _return_to_mission_target() -> void:
+	if mission_return_in_progress:
+		return
+	var mission_id := GameManager.current_target_object_id()
+	var mission_object: Dictionary = GameManager.get_object(mission_id)
+	if mission_id == "" or mission_object.is_empty():
+		InteractionFeedback.error(free_result_label if free_result_label != null else self)
+		return
+
+	mission_return_in_progress = true
+	GameManager.selected_object_id = mission_id
+	GameManager.selected_object_level = int(GameManager.progress.get("current_level", 1))
+
+	# The sky view publishes one canonical position per object. Reusing it here
+	# lets the player continue immediately without a detour through the sky map.
+	var sky_position: Dictionary = GameManager.current_sky_position(mission_id)
+	if not sky_position.is_empty():
+		var azimuth := float(sky_position.get("azimuth", NAN))
+		var altitude := float(sky_position.get("altitude", NAN))
+		if is_finite(azimuth) and is_finite(altitude):
+			GameManager.last_sky_aim = {
+				"valid": true,
+				"azimuth": wrapf(azimuth, 0.0, 360.0),
+				"altitude": clampf(altitude, 0.0, 90.0),
+				"view_mode": observation_mode
+			}
+
+	if InteractionFeedback.is_reduced_motion():
+		_activate_mission_target_in_place()
+		return
+	var fade_out := create_tween()
+	fade_out.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	fade_out.tween_property(self, "modulate:a", 0.0, 0.10)
+	fade_out.tween_callback(_activate_mission_target_in_place)
+
+
+func _activate_mission_target_in_place() -> void:
+	selected_object = GameManager.get_object(GameManager.current_target_object_id())
+	is_free_observation = false
+	observation_mode = GameManager.current_observation_mode()
+	requires_focus = observation_mode == "telescope" and GameManager.current_requires_focus()
+	allow_focus_input = _focus_knob_installed()
+	observation_elapsed = 0.0
+	dark_adaptation = 0.0
+	averted_vision_active = false
+	averted_hold_visual = 0.0
+	identify_transition_active = false
+	quiz_brief_dismissed = false
+	focus_lock_feedback_played = false
+	_init_drift()
+	if requires_focus:
+		_init_focus()
+	observation = _evaluate()
+	_build()
+	modulate.a = 0.0 if not InteractionFeedback.is_reduced_motion() else 1.0
+	mission_return_in_progress = false
+	if InteractionFeedback.is_reduced_motion():
+		InteractionFeedback.success(identify_title_label if identify_title_label != null else self, "mission_target_restored")
+		return
+	var fade_in := create_tween()
+	fade_in.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	fade_in.tween_property(self, "modulate:a", 1.0, 0.16)
+	fade_in.tween_callback(func() -> void:
+		InteractionFeedback.success(identify_title_label if identify_title_label != null else self, "mission_target_restored")
+	)
 
 
 func _add_free_observation_to_logbook() -> void:
@@ -1365,7 +1558,12 @@ func _add_free_observation_to_logbook() -> void:
 			free_result_label.text = GameManager.text("Already logged with this setup. Change eyepiece or family for a new record.", "该设备下已记录。换目镜或望远镜类型可添加新记录。")
 			free_result_label.add_theme_color_override("font_color", Color(0.86, 0.78, 0.52))
 		else:
-			free_result_label.text = GameManager.text("New observation record added (+5 credits).", "已新增观测记录（+5 积分）。")
+			var awarded := int(result.get("credits_awarded", 0))
+			var total := int(result.get("credits_total", GameManager.progress.get("credits", 0)))
+			free_result_label.text = GameManager.text(
+				"New observation record added (+%d credits, total %d)." % [awarded, total],
+				"已新增观测记录（+%d 积分，共 %d）。" % [awarded, total]
+			)
 			free_result_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.68))
 			InteractionFeedback.success(free_result_label, "free_observation_logged")
 
@@ -1523,7 +1721,7 @@ func _build_technique_panel() -> void:
 	var panel_pos := Vector2(54, 614)
 	var panel_size := Vector2(680, 44)
 	_pixel_panel(self, panel_pos, panel_size, COL_NAVY, COL_BRASS)
-	_plabel(GameManager.text("TECHNIQUE", "观测技巧"), panel_pos + Vector2(10, 5), Vector2(82, 16), 10, COL_GOLD_LIGHT)
+	_plabel(GameManager.text("METHOD", "观测方法"), panel_pos + Vector2(10, 5), Vector2(82, 16), 10, COL_GOLD_LIGHT)
 	var x := panel_pos.x + 92.0
 	if requirements.has("exposure_min") or requirements.has("exposure_max"):
 		_plabel(GameManager.text("Exposure", "曝光"), Vector2(x, panel_pos.y + 5), Vector2(58, 14), 9, COL_TEXT)
@@ -1543,32 +1741,102 @@ func _build_technique_panel() -> void:
 		add_child(slider)
 		x += 190.0
 	if requirements.has("filter"):
-		var filter_button := _pixel_button(GameManager.text("Filter: Off", "滤镜：关闭"), Vector2(112, 26), 9)
-		filter_button.position = Vector2(x, panel_pos.y + 4)
-		filter_button.pressed.connect(func() -> void:
+		technique_filter_button = _pixel_button(GameManager.text("Filter: Off", "滤镜：关闭"), Vector2(112, 26), 9)
+		technique_filter_button.position = Vector2(x, panel_pos.y + 4)
+		technique_filter_button.tooltip_text = GameManager.text(
+			"Nebula filter: reduces part of the sky glow to improve emission-nebula contrast. Click to toggle.",
+			"星云滤镜：削弱部分天空背景光，提高发射星云的对比度。点击切换。"
+		)
+		technique_filter_button.pressed.connect(func() -> void:
 			active_filter = "nebula" if active_filter == "none" else "none"
-			filter_button.text = GameManager.text("Filter: Nebula", "滤镜：星云") if active_filter == "nebula" else GameManager.text("Filter: Off", "滤镜：关闭")
+			technique_filter_button.text = GameManager.text("Filter: Nebula", "滤镜：星云") if active_filter == "nebula" else GameManager.text("Filter: Off", "滤镜：关闭")
 			observation = _evaluate()
 			_refresh_target_sprite()
 			_refresh_technique_status()
 		)
-		add_child(filter_button)
+		add_child(technique_filter_button)
 		x += 122.0
+	if bool(requirements.get("require_averted_vision", false)):
+		var shift_hint := _plabel(
+			GameManager.text("Hold SHIFT + use side marker", "按住 SHIFT，看侧视标记"),
+			Vector2(x, panel_pos.y + 4), Vector2(172, 14), 9,
+			Color(0.48, 0.88, 1.0)
+		)
+		shift_hint.autowrap_mode = TextServer.AUTOWRAP_OFF
+		shift_hint.clip_text = true
+		x += 178.0
 	technique_status_label = _plabel("", Vector2(x, panel_pos.y + 4), Vector2(panel_pos.x + panel_size.x - x - 8, 32), 9, Color(0.74, 0.86, 0.96))
 	technique_status_label.max_lines_visible = 2
 	_refresh_technique_status()
 
 
+func _uses_observation_method(requirements: Dictionary) -> bool:
+	for key in ["exposure_min", "exposure_max", "filter", "dark_adaptation_min", "require_averted_vision", "seeing_patience"]:
+		if requirements.has(key):
+			return true
+	return false
+
+
 func _refresh_technique_status() -> void:
 	if technique_status_label == null:
 		return
-	var failure: Dictionary = observation.get("technique_failure", {})
-	if failure.is_empty():
-		technique_status_label.text = GameManager.text("Technique ready", "观测技巧已就绪")
-		technique_status_label.add_theme_color_override("font_color", Color(0.48, 0.96, 0.60))
-	else:
-		technique_status_label.text = GameManager.text(str(failure.get("en", "Adjust technique.")), str(failure.get("zh", "请调整观测技巧。")))
+	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var pending: Array[String] = []
+	var ready: Array[String] = []
+	if requirements.has("filter"):
+		var required_filter := str(requirements.get("filter", "nebula"))
+		if active_filter != required_filter:
+			pending.append(GameManager.text("Click to enable the nebula filter", "点击开启星云滤镜"))
+		else:
+			ready.append(GameManager.text("Nebula filter ON", "星云滤镜：已开启"))
+	if requirements.has("exposure_min") or requirements.has("exposure_max"):
+		var exposure_low := float(requirements.get("exposure_min", 0.0))
+		var exposure_high := float(requirements.get("exposure_max", 1.0))
+		if exposure_value < exposure_low:
+			pending.append(GameManager.text("Raise exposure", "提高曝光"))
+		elif exposure_value > exposure_high:
+			pending.append(GameManager.text("Reduce exposure", "降低曝光"))
+		else:
+			ready.append(GameManager.text("Exposure %d%%" % roundi(exposure_value * 100.0), "曝光：%d%%" % roundi(exposure_value * 100.0)))
+	var required_adaptation := float(requirements.get("dark_adaptation_min", 0.0))
+	if dark_adaptation + 0.001 < required_adaptation:
+		pending.append(GameManager.text(
+			"Dark adapt %d / %d%%" % [roundi(dark_adaptation * 100.0), roundi(required_adaptation * 100.0)],
+			"暗适应 %d / %d%%" % [roundi(dark_adaptation * 100.0), roundi(required_adaptation * 100.0)]
+		))
+	elif required_adaptation > 0.0:
+		ready.append(GameManager.text(
+			"Dark adapted %d%%" % roundi(dark_adaptation * 100.0),
+			"暗适应：%d%% 已达标" % roundi(dark_adaptation * 100.0)
+		))
+	if bool(requirements.get("require_averted_vision", false)):
+		if not averted_vision_active:
+			pending.append(GameManager.text("Averted vision: hold SHIFT, look beside target", "侧视法：按住 SHIFT，看目标旁的标记"))
+		else:
+			ready.append(GameManager.text("Averted vision active", "侧视法：已生效"))
+	if requirements.has("seeing_patience"):
+		var steady_seconds := 4.0 + float(requirements.get("seeing_patience", 0.0)) * 4.0
+		if observation_elapsed + 0.001 < steady_seconds:
+			pending.append(GameManager.text(
+				"Hold steady %.1f / %.1fs" % [observation_elapsed, steady_seconds],
+				"等待视宁度稳定 %.1f / %.1f 秒" % [observation_elapsed, steady_seconds]
+			))
+		else:
+			ready.append(GameManager.text("Seeing window found", "已等到稳定视宁度"))
+	if not pending.is_empty():
+		technique_status_label.text = " · ".join(pending)
 		technique_status_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.36))
+		return
+	var failure: Dictionary = observation.get("technique_failure", {})
+	if not failure.is_empty():
+		technique_status_label.text = GameManager.text(
+			str(failure.get("en", "Complete the highlighted observing method.")),
+			str(failure.get("zh", "请完成高亮显示的观测方法。"))
+		)
+		technique_status_label.add_theme_color_override("font_color", Color(1.0, 0.72, 0.36))
+		return
+	technique_status_label.text = " · ".join(ready)
+	technique_status_label.add_theme_color_override("font_color", Color(0.48, 0.96, 0.60))
 
 
 func _build_drift_panel() -> void:
@@ -1871,7 +2139,7 @@ func _add_dark_adaptation_row(y: float) -> float:
 	if not _is_dark_adaptation_target():
 		return y
 	dark_adaptation_label = _plabel(
-		"Dark adaptation: %d%%" % int(round(dark_adaptation * 100.0)),
+		GameManager.text("Dark adaptation: %d%%", "暗适应：%d%%") % int(round(dark_adaptation * 100.0)),
 		Vector2(CONTENT_X, y), Vector2(CONTENT_W, CONDITION_ROW_H), 8, Color(0.70, 0.82, 0.98)
 	)
 	averted_vision_label = _plabel(
@@ -1974,34 +2242,62 @@ func _show_pre_quiz_guide() -> void:
 	add_child(quiz_brief_overlay)
 	InteractionFeedback.page_enter(quiz_brief_overlay, Vector2(0, 8))
 
-	_rect(quiz_brief_overlay, Vector2.ZERO, Vector2(1024, 768), Color(0.0, 0.0, 0.0, 0.78))
-	_styled_panel(quiz_brief_overlay, Vector2(154, 72), Vector2(716, 624), Color(0.025, 0.040, 0.072, 0.99), COL_GOLD, 3, 5, true)
-	_plabel_on(quiz_brief_overlay, GameManager.text("Object Field Guide", "天体辨识指南"), Vector2(184, 96), Vector2(656, 34), 24, COL_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	_rect(quiz_brief_overlay, Vector2.ZERO, Vector2(1024, 768), Color(0.0, 0.0, 0.0, 0.82))
+	_styled_panel(quiz_brief_overlay, Vector2(132, 62), Vector2(760, 642), Color(0.018, 0.032, 0.058, 0.995), COL_GOLD, 3, 2, true)
+	_rect(quiz_brief_overlay, Vector2(152, 82), Vector2(720, 2), COL_GOLD.darkened(0.45))
+	_plabel_on(quiz_brief_overlay, "OBSERVATORY FIELD MANUAL  //  01", Vector2(162, 88), Vector2(700, 16), 9, Color(0.50, 0.68, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
+	_plabel_on(quiz_brief_overlay, GameManager.text("Object Field Guide", "天体辨识指南"), Vector2(164, 108), Vector2(696, 32), 23, COL_GOLD_LIGHT, HORIZONTAL_ALIGNMENT_CENTER)
+	_rect(quiz_brief_overlay, Vector2(180, 146), Vector2(664, 1), Color(COL_GOLD.r, COL_GOLD.g, COL_GOLD.b, 0.48))
 	var intro := _plabel_on(
 		quiz_brief_overlay,
 		GameManager.text(
-			"Review the candidates before the identification question. Match shape, color, brightness, and object type to what you observed.",
-			"答题前先复习候选天体。把形状、颜色、亮度和天体类型与刚才的观测结果进行比较。"
+			"Compare the observed silhouette with these reference records: shape, colour, brightness and object class.",
+			"把刚才看到的轮廓与参考记录比较：形状、颜色、亮度和天体类别。"
 		),
-		Vector2(198, 138), Vector2(628, 46), 12, Color(0.78, 0.86, 0.94), HORIZONTAL_ALIGNMENT_CENTER
+		Vector2(178, 154), Vector2(668, 38), 11, Color(0.74, 0.84, 0.91), HORIZONTAL_ALIGNMENT_CENTER
 	)
-	intro.max_lines_visible = 3
+	intro.max_lines_visible = 2
 
 	for index in range(identify_choice_ids.size()):
 		var id := identify_choice_ids[index]
 		var obj := GameManager.get_object(id)
 		var column := index % 2
 		var row := index / 2
-		var card_pos := Vector2(184 + column * 326, 204 + row * 168)
-		_styled_panel(quiz_brief_overlay, card_pos, Vector2(306, 148), Color(0.045, 0.070, 0.115, 1.0), COL_BLUE_BORDER, 2, 3, false)
+		var card_pos := Vector2(164 + column * 354, 202 + row * 174)
+		var card := _styled_panel(quiz_brief_overlay, card_pos, Vector2(338, 156), Color(0.035, 0.060, 0.096, 1.0), Color(0.24, 0.43, 0.62), 2, 1, false)
+		_corner(card, Vector2(0, 0), Color(0.44, 0.72, 0.88))
+		_corner(card, Vector2(324, 142), Color(0.44, 0.72, 0.88))
+		_rect(card, Vector2(10, 36), Vector2(318, 1), Color(0.24, 0.43, 0.62, 0.74))
 		var name_text := "%s. %s" % [String.chr(65 + index), GameManager.dict_text(obj, "name").replace("\n", " · ")]
-		_plabel_on(quiz_brief_overlay, name_text, card_pos + Vector2(14, 10), Vector2(278, 24), 15, COL_GOLD_LIGHT)
+		_plabel_on(card, name_text, Vector2(14, 8), Vector2(306, 24), 14, COL_GOLD_LIGHT)
+		var thumbnail_well := _styled_panel(card, Vector2(12, 48), Vector2(76, 94), Color(0.006, 0.014, 0.030, 1.0), Color(0.18, 0.34, 0.50), 1, 0, false)
+		var thumbnail_path := _guide_thumbnail_path(id)
+		if thumbnail_path != "" and ResourceLoader.exists(thumbnail_path):
+			var thumbnail := TextureRect.new()
+			thumbnail.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			thumbnail.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			thumbnail.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			thumbnail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			thumbnail.texture = load(thumbnail_path) as Texture2D
+			thumbnail.position = Vector2(7, 8)
+			thumbnail.size = Vector2(62, 62)
+			thumbnail_well.add_child(thumbnail)
+		_plabel_on(thumbnail_well, GameManager.dict_text(obj, "type").to_upper(), Vector2(4, 72), Vector2(68, 16), 7, Color(0.52, 0.78, 0.90), HORIZONTAL_ALIGNMENT_CENTER)
 		var feature := _object_guide_text(obj)
-		var feature_label := _plabel_on(quiz_brief_overlay, feature, card_pos + Vector2(14, 40), Vector2(278, 96), 10, COL_TEXT)
-		feature_label.max_lines_visible = 6
+		var feature_label := _plabel_on(card, feature, Vector2(98, 47), Vector2(226, 98), 9, COL_TEXT)
+		feature_label.max_lines_visible = 7
+		if not InteractionFeedback.is_reduced_motion():
+			var final_pos := card.position
+			card.position = final_pos + Vector2(0, 8)
+			card.modulate.a = 0.0
+			var reveal := create_tween().bind_node(card)
+			reveal.tween_interval(0.05 + float(index) * 0.055)
+			reveal.set_parallel(true)
+			reveal.tween_property(card, "position", final_pos, 0.20).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			reveal.tween_property(card, "modulate:a", 1.0, 0.16)
 
 	var start_button := _pixel_button(GameManager.text("Start Identification", "开始识别"), Vector2(250, 42), 14)
-	start_button.position = Vector2(387, 634)
+	start_button.position = Vector2(387, 646)
 	start_button.pressed.connect(_dismiss_pre_quiz_guide)
 	quiz_brief_overlay.add_child(start_button)
 	start_button.grab_focus()
@@ -2014,6 +2310,12 @@ func _object_guide_text(obj: Dictionary) -> String:
 	return GameManager.text("Type: %s\n%s\n%s", "类型：%s\n%s\n%s") % [type_text, clue, learning]
 
 
+func _guide_thumbnail_path(object_id: String) -> String:
+	if STATE_TEXTURES.has(object_id):
+		return str((STATE_TEXTURES[object_id] as Dictionary).get("clear", ""))
+	return str(SPRITE_MAP.get(object_id, ""))
+
+
 func _dismiss_pre_quiz_guide() -> void:
 	quiz_brief_dismissed = true
 	if quiz_brief_overlay != null:
@@ -2021,8 +2323,7 @@ func _dismiss_pre_quiz_guide() -> void:
 		quiz_brief_overlay = null
 		InteractionFeedback.fade_then(overlay, func() -> void:
 			overlay.queue_free()
-			if requires_focus and focus_slider != null:
-				call_deferred("_show_focus_tutorial")
+			call_deferred("_show_focus_tutorial")
 		)
 	_set_identify_choices_visible(true)
 
@@ -2036,6 +2337,8 @@ func _identify(choice_id: String) -> void:
 	# Concept brief tied to the identification moment (e.g. chromatic
 	# aberration on L25): explain what the player is looking at, then let
 	# them come back and answer.
+	if GameManager.try_story_for_trigger("before_identify", "telescope"):
+		return
 	if GameManager.try_teaching_intercept("before_identify", "telescope"):
 		return
 	if requires_focus and not allow_focus_input:
@@ -2140,6 +2443,7 @@ func _scope_visual() -> Control:
 		_add_cloud_layer(root, center)
 	_add_quality_noise(root, center)
 	_add_optical_lens_effect(root, center)
+	_add_averted_vision_guide(root)
 	if observation_mode != "naked_eye":
 		# Ring occluder ABOVE all lens content: clips drifting sprites /
 		# clouds / stars to the circle by repainting the barrel on top.
@@ -2187,13 +2491,37 @@ func _add_optical_lens_effect(parent: Control, center: Vector2) -> void:
 		material.set_shader_parameter("vignette_strength", 0.075)
 		material.set_shader_parameter("chroma_px", 0.06)
 		material.set_shader_parameter("glass_highlight", 0.024)
+		material.set_shader_parameter("edge_bloom", 0.025)
+		material.set_shader_parameter("scanline_strength", 0.004)
+		material.set_shader_parameter("lens_rim_strength", 0.028)
+		material.set_shader_parameter("lens_caustic_strength", 0.018)
 	else:
-		material.set_shader_parameter("curvature", 0.060)
-		material.set_shader_parameter("vignette_strength", 0.18)
-		material.set_shader_parameter("chroma_px", 0.25)
-		material.set_shader_parameter("glass_highlight", 0.055)
+		material.set_shader_parameter("curvature", 0.088)
+		material.set_shader_parameter("vignette_strength", 0.22)
+		material.set_shader_parameter("chroma_px", 0.32)
+		material.set_shader_parameter("glass_highlight", 0.074)
+		material.set_shader_parameter("edge_bloom", 0.12)
+		material.set_shader_parameter("scanline_strength", 0.016)
+		material.set_shader_parameter("lens_rim_strength", 0.19)
+		material.set_shader_parameter("lens_caustic_strength", 0.13)
 	overlay.material = material
 	parent.add_child(overlay)
+
+
+func _add_averted_vision_guide(parent: Control) -> void:
+	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	if not bool(requirements.get("require_averted_vision", false)) or not _is_diffuse_target():
+		return
+	averted_vision_guide = AvertedVisionGuide.new()
+	averted_vision_guide.name = "AvertedVisionGuide"
+	averted_vision_guide.size = Vector2(640, 620)
+	averted_vision_guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	averted_vision_guide.enabled = true
+	averted_vision_guide.active = averted_vision_active
+	averted_vision_guide.adaptation = _eased_dark_adaptation()
+	averted_vision_guide.hold_visual = averted_hold_visual
+	averted_vision_guide.target_position = target_center
+	parent.add_child(averted_vision_guide)
 
 
 func _is_constellation_observation() -> bool:
@@ -2229,11 +2557,10 @@ func _add_observation_reticle(parent: Control, center: Vector2) -> void:
 
 func _add_sky_background(parent: Control, center: Vector2) -> void:
 	# Light-pollution background fill, clipped to the inner scope circle.
-	# dark = pure black (no fill needed) / suburban / city get a lifted tint.
+	# Even a dark site keeps a faint navy glass floor so the curved lens and
+	# full-colour rim remain visible instead of reading as a flat black disc.
 	var lift := _target_sky_lift()
-	if lift <= 0.0:
-		return
-	var color := Color(0.020, 0.024, 0.036).lerp(Color(0.045, 0.052, 0.075), lift)
+	var color := Color(0.004, 0.008, 0.020).lerp(Color(0.045, 0.052, 0.075), lift)
 	var panel := Panel.new()
 	panel.position = center - Vector2(218, 218)
 	panel.size = Vector2(436, 436)
@@ -2435,7 +2762,7 @@ func _naked_eye_scale(id: String) -> float:
 	# No magnification: the Moon is small, planets are just points of light.
 	match id:
 		"moon":
-			return 0.55
+			return 0.34
 		"mars", "jupiter":
 			return 0.28
 		"orion_nebula", "andromeda":
@@ -2861,6 +3188,11 @@ func _mystery_description(obj: Dictionary) -> Dictionary:
 		return {"en": "a complete pattern of bright field stars", "zh": "一整组明亮的星群图形"}
 	match id:
 		"moon":
+			if str(GameManager.current_level().get("variation", "")) == "lunar_detail_comparison":
+				return {
+					"en": "a resolved lunar disk with dark maria and a cratered bright rim",
+					"zh": "能分辨暗色月海与明亮撞击坑边缘的月面圆盘"
+				}
 			return {"en": "bright round object", "zh": "明亮圆形目标"}
 		"mars", "jupiter":
 			return {"en": "small disk-like object", "zh": "小圆盘状目标"}

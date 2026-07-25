@@ -102,6 +102,7 @@ var inspector_body: Label
 var feedback_label: Label
 var stats_list: Control
 var ready_dot: Panel
+var finish_button: Button
 var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
@@ -201,7 +202,7 @@ func _build_blueprint_panel() -> void:
 	_panel(AssemblyUITemplate.BLUEPRINT_PANEL_RECT.position, AssemblyUITemplate.BLUEPRINT_PANEL_RECT.size, Color(0.020, 0.045, 0.095, 0.98), Color(0.78, 0.56, 0.28))
 	# Gold nameplate header (mockup style).
 	_dark_panel_add(Vector2(452, 80), Vector2(196, 34), Color(0.10, 0.13, 0.075, 0.96), Color(0.82, 0.62, 0.30))
-	var heading := _label(GameManager.text("BLUEPRINT · 蓝图", "BLUEPRINT · 蓝图"), 16, Color(0.96, 0.82, 0.42))
+	var heading := _label(GameManager.text("BLUEPRINT", "蓝图"), 16, Color(0.96, 0.82, 0.42))
 	heading.position = Vector2(452, 88)
 	heading.size = Vector2(196, 24)
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -277,6 +278,7 @@ func _build_inspector_panel() -> void:
 	feedback_label = shell["feedback"]
 	stats_list = shell["stats"]
 	ready_dot = shell["ready_dot"]
+	finish_button = shell["finish"]
 	return
 	_panel(Vector2(776, 74), Vector2(232, 636), Color(0.045, 0.065, 0.115, 0.98), Color(0.78, 0.56, 0.28))
 	_dark_panel_add(Vector2(812, 80), Vector2(160, 34), Color(0.10, 0.13, 0.075, 0.96), Color(0.82, 0.62, 0.30))
@@ -327,7 +329,7 @@ func _build_inspector_panel() -> void:
 
 	_dashed_divider(Vector2(792, 566), 200)
 
-	var finish := _button(GameManager.text("✦  FINISH  完成", "✦  FINISH  完成"), Vector2(792, 584), Vector2(200, 54))
+	var finish := _button(GameManager.text("✦  FINISH", "✦  完成"), Vector2(792, 584), Vector2(200, 54))
 	finish.add_theme_font_size_override("font_size", 18)
 	var fnormal := StyleBoxFlat.new()
 	fnormal.bg_color = Color(0.10, 0.14, 0.085)
@@ -938,9 +940,9 @@ func _select_part(part_type: String) -> void:
 func _try_install(slot_type: String) -> void:
 	if install_animation_active:
 		return
-	call_deferred("_animate_install_error_if_idle", slot_type)
 	if selected_part_type == "":
 		feedback_label.text = GameManager.text("Select a part card from the left first.", "请先从左侧选择零件卡。")
+		InteractionFeedback.error(slot_controls.get(slot_type) as Control if slot_controls.has(slot_type) else feedback_label)
 		return
 	if _is_installed(slot_type):
 		# Allow REPLACING with a different part: the same part is a no-op, a
@@ -950,10 +952,16 @@ func _try_install(slot_type: String) -> void:
 		var picked_id := selected_part_id if selected_part_id != "" else str(_part_for_type(slot_type).get("id", ""))
 		if selected_part_type != slot_type or picked_id == installed_id:
 			feedback_label.text = str(_part_label(slot_type, "short")) + " " + GameManager.text("is already installed. Pick a different part to replace it.", "已安装。选择另一个零件可替换。")
+			InteractionFeedback.error(slot_controls.get(slot_type) as Control if slot_controls.has(slot_type) else feedback_label)
 			return
 	if selected_part_type != slot_type:
 		wrong_attempts[selected_part_type] = int(wrong_attempts.get(selected_part_type, 0)) + 1
 		feedback_label.text = _wrong_feedback(selected_part_type, slot_type)
+		var selected_card := part_card_controls.get(selected_part_type) as Control
+		InteractionFeedback.error(selected_card if selected_card != null else feedback_label)
+		var wrong_slot := slot_controls.get(slot_type) as Control
+		if wrong_slot != null:
+			InteractionFeedback.flash_border(wrong_slot, Color(1.0, 0.53, 0.23), 0.32)
 		_refresh_all()
 		return
 
@@ -961,6 +969,7 @@ func _try_install(slot_type: String) -> void:
 	if not bool(order_check.get("ok", false)):
 		wrong_attempts[selected_part_type] = int(wrong_attempts.get(selected_part_type, 0)) + 1
 		feedback_label.text = _order_feedback(slot_type)
+		InteractionFeedback.error(part_card_controls.get(selected_part_type) as Control if part_card_controls.has(selected_part_type) else feedback_label)
 		_refresh_all()
 		return
 
@@ -1006,8 +1015,51 @@ func _play_part_animation(animation: Dictionary) -> void:
 
 func _finish_install_feedback(part_type: String) -> void:
 	var target := slot_controls.get(part_type) as Control
-	if target != null:
-		InteractionFeedback.success(target, "assembly_part_installed")
+	var card := part_card_controls.get(part_type) as Control
+	InteractionFeedback.mechanical_snap(card, target)
+	var reason := _part_operation_effect(part_type)
+	feedback_label.text = reason
+	var next_part := _next_installable_part()
+	var next_card := part_card_controls.get(next_part) as Control
+	var next_slot := slot_controls.get(next_part) as Control
+	if next_card != null:
+		InteractionFeedback.pulse(next_card, Color(0.96, 0.70, 0.24), 0.58)
+	if next_part == "":
+		InteractionFeedback.operation_chain(
+			self,
+			GameManager.text("Installed %s" % _part_label(part_type, "short"), "已安装%s" % _part_label(part_type, "short")),
+			reason,
+			GameManager.text("Assembly check is ready", "装配检查已就绪"),
+			finish_button,
+			Color(0.42, 0.96, 0.58)
+		)
+	else:
+		InteractionFeedback.operation_chain(
+			self,
+			GameManager.text("Installed %s" % _part_label(part_type, "short"), "已安装%s" % _part_label(part_type, "short")),
+			reason,
+			GameManager.text("Next: %s" % _part_label(next_part, "short"), "下一步：%s" % _part_label(next_part, "short")),
+			next_slot
+		)
+
+
+func _part_operation_effect(part_type: String) -> String:
+	match part_type:
+		"tripod":
+			return GameManager.text("The load now has a stable base.", "载荷现在有了稳定基座。")
+		"mount":
+			return GameManager.text("The tube can now aim and hold position.", "镜筒现在可以转向并保持位置。")
+		"tube":
+			return GameManager.text("The optical path is enclosed and aligned.", "光路现在被封闭并保持对齐。")
+		"objective":
+			return GameManager.text("Incoming light is gathered into the focal plane.", "入射光现在会聚到焦平面。")
+		"eyepiece":
+			return GameManager.text("The focal image can now be magnified for the eye.", "焦平面图像现在可以放大供肉眼观察。")
+		"focus_knob":
+			return GameManager.text("The focal plane can now be moved into sharp focus.", "焦平面现在可以调到清晰位置。")
+		"finder_scope":
+			return GameManager.text("Wide-field aiming can now guide the narrow main view.", "宽视场瞄准现在可以引导狭窄的主镜视野。")
+	return GameManager.text("The optical chain gained its next working stage.", "光学链路完成了下一个工作环节。")
 
 
 func _animate_install_error_if_idle(part_type: String) -> void:

@@ -25,10 +25,10 @@ const SPECS := {
 		"mode": "shutter",
 	},
 	"assembly": {
-		"rect": Rect2(777, 342, 168, 72),
-		"interior_source": Rect2(88, 211, 212, 76),
-		"mode": "drawer",
-		"travel": 8.0,
+		"rect": Rect2(782, 214, 170, 160),
+		"interior_source": Rect2(782, 214, 170, 160),
+		"mode": "workbench",
+		"focus_rect": Rect2(10, 5, 112, 88),
 	},
 	"journal": {
 		"rect": Rect2(82, 568, 225, 68),
@@ -84,6 +84,10 @@ func open_immediately(id: String) -> void:
 			door.position = base_position + Vector2(0, float(rig.get("travel", 8.0)))
 			door.scale = Vector2(1.025, 1.08)
 			door.modulate = Color(1.08, 1.03, 0.93, 1.0)
+		elif mode == "workbench":
+			door.position = base_position
+			door.scale = Vector2(1.008, 1.008)
+			door.modulate = Color(1.08, 1.045, 0.94, 1.0)
 		elif mode == "screen":
 			door.position = base_position
 			door.scale = Vector2(1.012, 1.012)
@@ -94,7 +98,7 @@ func open_immediately(id: String) -> void:
 			door.modulate = Color(0.82, 0.84, 0.88, 0.94)
 	var glow := rig.get("glow") as ColorRect
 	if glow != null:
-		glow.color.a = 0.30 if mode == "screen" else 0.17
+		glow.color.a = 0.30 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
 	for mote_value in rig.get("motes", []):
 		var mote := mote_value as ColorRect
 		if mote != null:
@@ -103,8 +107,16 @@ func open_immediately(id: String) -> void:
 			mote.color.a = 0.62
 	var scanline := rig.get("scanline") as ColorRect
 	if scanline != null:
-		scanline.position.y = maxf(8.0, scanline.get_parent().size.y - 9.0)
-		scanline.color.a = 0.72
+		if mode == "workbench":
+			scanline.position.x = maxf(8.0, scanline.get_parent().size.x - scanline.size.x - 8.0)
+			scanline.color.a = 0.58
+		else:
+			scanline.position.y = maxf(8.0, scanline.get_parent().size.y - 9.0)
+			scanline.color.a = 0.72
+	var focus_frame := rig.get("focus_frame") as Control
+	if focus_frame != null:
+		focus_frame.modulate.a = 0.92
+		focus_frame.scale = Vector2.ONE
 	states[id] = "open"
 
 
@@ -133,6 +145,11 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 			tween.tween_property(door, "position", base_position + Vector2(0, travel), duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			tween.tween_property(door, "scale", Vector2(1.025, 1.08), duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
 			tween.tween_property(door, "modulate", Color(1.08, 1.03, 0.93, 1.0), duration * 0.72).set_trans(Tween.TRANS_SINE)
+		elif mode == "workbench":
+			# The workbench stays physically planted. Feedback comes from its
+			# blueprint and tools waking up, not from furniture sliding outward.
+			tween.tween_property(door, "scale", Vector2(1.008, 1.008), duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
+			tween.tween_property(door, "modulate", Color(1.08, 1.045, 0.94, 1.0), duration * 0.66).set_trans(Tween.TRANS_SINE)
 		elif mode == "screen":
 			tween.tween_property(door, "scale", Vector2(1.012, 1.012), duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 			tween.tween_property(door, "modulate", Color(0.66, 1.05, 0.76, 1.0), duration * 0.72).set_trans(Tween.TRANS_SINE)
@@ -141,13 +158,24 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 			tween.tween_property(door, "modulate", Color(0.82, 0.84, 0.88, 0.94), duration * 0.72).set_trans(Tween.TRANS_SINE)
 	var glow := rig.get("glow") as ColorRect
 	if glow != null:
-		var glow_alpha := 0.30 if mode == "screen" else 0.17
+		var glow_alpha := 0.30 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
 		tween.tween_property(glow, "color:a", glow_alpha, duration * 0.72).set_trans(Tween.TRANS_SINE)
 	var scanline := rig.get("scanline") as ColorRect
 	if scanline != null:
-		scanline.position.y = 7.0
-		tween.tween_property(scanline, "position:y", maxf(8.0, scanline.get_parent().size.y - 9.0), duration).set_trans(Tween.TRANS_LINEAR)
-		tween.tween_property(scanline, "color:a", 0.72, duration * 0.22)
+		if mode == "workbench":
+			scanline.position.x = 10.0
+			tween.tween_property(scanline, "position:x", maxf(10.0, scanline.get_parent().size.x - scanline.size.x - 10.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
+			tween.tween_property(scanline, "color:a", 0.58, duration * 0.20)
+		else:
+			scanline.position.y = 7.0
+			tween.tween_property(scanline, "position:y", maxf(8.0, scanline.get_parent().size.y - 9.0), duration).set_trans(Tween.TRANS_LINEAR)
+			tween.tween_property(scanline, "color:a", 0.72, duration * 0.22)
+	var focus_frame := rig.get("focus_frame") as Control
+	if focus_frame != null:
+		focus_frame.modulate.a = 0.0
+		focus_frame.scale = Vector2(0.965, 0.965)
+		tween.tween_property(focus_frame, "modulate:a", 0.92, duration * 0.52).set_trans(Tween.TRANS_SINE)
+		tween.tween_property(focus_frame, "scale", Vector2.ONE, duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	for mote_value in rig.get("motes", []):
 		var mote := mote_value as ColorRect
 		if mote == null:
@@ -198,6 +226,10 @@ func play_close(id: String, finished: Callable = Callable()) -> void:
 	var scanline := rig.get("scanline") as ColorRect
 	if scanline != null:
 		tween.tween_property(scanline, "color:a", 0.0, duration * 0.24)
+	var focus_frame := rig.get("focus_frame") as Control
+	if focus_frame != null:
+		tween.tween_property(focus_frame, "modulate:a", 0.0, duration * 0.44)
+		tween.tween_property(focus_frame, "scale", Vector2(0.98, 0.98), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN)
 	tween.chain().tween_callback(func() -> void:
 		states[id] = "closed"
 		active_tweens.erase(id)
@@ -227,6 +259,10 @@ func close_all_immediately() -> void:
 		var scanline := rig.get("scanline") as ColorRect
 		if scanline != null:
 			scanline.color.a = 0.0
+		var focus_frame := rig.get("focus_frame") as Control
+		if focus_frame != null:
+			focus_frame.modulate.a = 0.0
+			focus_frame.scale = Vector2.ONE
 		states[id] = "closed"
 
 
@@ -237,7 +273,7 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	rig_root.name = "%sFurnitureRig" % id.capitalize()
 	rig_root.position = rect.position
 	rig_root.size = rect.size
-	rig_root.clip_contents = mode in ["hinge", "shutter", "screen"]
+	rig_root.clip_contents = mode in ["hinge", "shutter", "screen", "workbench"]
 	rig_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(rig_root)
 
@@ -258,7 +294,7 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	interior.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rig_root.add_child(interior)
 
-	if mode != "drawer":
+	if mode not in ["drawer", "workbench"]:
 		var inner_frame := Panel.new()
 		inner_frame.position = Vector2(2, 2)
 		inner_frame.size = rect.size - Vector2(4, 4)
@@ -268,8 +304,15 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 
 	var glow := ColorRect.new()
 	glow.name = "WarmInteriorGlow"
-	glow.position = Vector2(5, 2) if mode == "drawer" else Vector2(5, 5)
-	glow.size = Vector2(rect.size.x - 10, 10) if mode == "drawer" else rect.size - Vector2(10, 10)
+	if mode == "drawer":
+		glow.position = Vector2(5, 2)
+		glow.size = Vector2(rect.size.x - 10, 10)
+	elif mode == "workbench":
+		glow.position = Vector2(7, 5)
+		glow.size = Vector2(rect.size.x - 14, 88)
+	else:
+		glow.position = Vector2(5, 5)
+		glow.size = rect.size - Vector2(10, 10)
 	glow.color = Color(0.95, 0.61, 0.20, 0.0) if mode != "screen" else Color(0.24, 1.0, 0.48, 0.0)
 	glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	rig_root.add_child(glow)
@@ -291,7 +334,7 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 
 	var scanline: ColorRect
 	var doors: Array = []
-	if mode in ["hinge", "drawer", "screen"]:
+	if mode in ["hinge", "drawer", "screen", "workbench"]:
 		var door := _door_piece(rect, rect, Vector2.ZERO)
 		door.pivot_offset = Vector2(0, rect.size.y * 0.5) if mode == "hinge" else rect.size * 0.5
 		rig_root.add_child(door)
@@ -309,7 +352,27 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		rig_root.add_child(right)
 		doors.append(right)
 
-	if mode == "screen":
+	var focus_frame: Panel
+	if mode == "workbench":
+		scanline = ColorRect.new()
+		scanline.name = "BlueprintLightSweep"
+		scanline.position = Vector2(10, 8)
+		scanline.size = Vector2(3, 84)
+		scanline.color = Color(0.60, 0.91, 1.0, 0.0)
+		scanline.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		rig_root.add_child(scanline)
+
+		focus_frame = Panel.new()
+		focus_frame.name = "BlueprintFocusFrame"
+		var focus_rect: Rect2 = spec.get("focus_rect", Rect2(8, 6, rect.size.x - 16, rect.size.y * 0.55))
+		focus_frame.position = focus_rect.position
+		focus_frame.size = focus_rect.size
+		focus_frame.pivot_offset = focus_frame.size * 0.5
+		focus_frame.modulate.a = 0.0
+		focus_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		focus_frame.add_theme_stylebox_override("panel", _workbench_focus_style())
+		rig_root.add_child(focus_frame)
+	elif mode == "screen":
 		scanline = ColorRect.new()
 		scanline.name = "CRTScanline"
 		scanline.position = Vector2(6, 7)
@@ -330,6 +393,7 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		"mode": mode,
 		"travel": float(spec.get("travel", 0.0)),
 		"scanline": scanline,
+		"focus_frame": focus_frame,
 	}
 	states[id] = "closed"
 
@@ -358,6 +422,18 @@ func _interior_style() -> StyleBoxFlat:
 	style.bg_color = Color(0.015, 0.022, 0.032, 0.34)
 	style.border_color = Color(BRASS.r, BRASS.g, BRASS.b, 0.72)
 	style.set_border_width_all(2)
+	style.corner_radius_top_left = 1
+	style.corner_radius_top_right = 1
+	style.corner_radius_bottom_left = 1
+	style.corner_radius_bottom_right = 1
+	return style
+
+
+func _workbench_focus_style() -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.03, 0.14, 0.20, 0.08)
+	style.border_color = Color(0.48, 0.86, 0.96, 0.82)
+	style.set_border_width_all(1)
 	style.corner_radius_top_left = 1
 	style.corner_radius_top_right = 1
 	style.corner_radius_bottom_left = 1

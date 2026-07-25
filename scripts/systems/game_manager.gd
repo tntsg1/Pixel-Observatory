@@ -14,6 +14,60 @@ const EXPANSION_DIR := "res://data/expansion/"
 const CAMPAIGN_VERSION := 94
 const FINAL_CAMPAIGN_LEVEL := 85
 const RETIRED_POST_FAST_LEVEL := 86
+const FREE_OBSERVATION_CREDITS := 5
+const SPACE_SEGMENTED_INSTALL_ORDER := [
+	"primary_mirror",
+	"secondary_mirror",
+	"detector",
+	"sunshield",
+	"spacecraft_bus",
+	"deployable_tower",
+	"deployment_hinges",
+	"solar_array",
+	"antenna",
+	"radiator",
+	"steering_mirror",
+	"tertiary_mirror",
+	"instrument_bay",
+	"detector_module",
+	"nircam",
+	"nirspec",
+	"miri",
+	"fgs_niriss",
+]
+const SPACE_INSTRUMENT_PART_TYPES := {
+	"nircam": "nircam",
+	"nirspec": "nirspec",
+	"miri": "miri",
+	"fgs_niriss": "fgs_niriss",
+}
+# The first chapter teaches the room, naked-eye aiming, refractor assembly,
+# focus, magnification and the finder. These supervised sessions are scheduled
+# for a real time when the lesson target is above the club's home horizon, so a
+# new player is not diverted into the site-map system before L11.
+const FOUNDATION_TRAINING_MAX_LEVEL := 10
+const BADGE_NAMES_ZH := {
+	"First Look": "初见星空",
+	"Star Spotter": "寻星者",
+	"First Light": "第一缕星光",
+	"Sharp Eye": "锐眼",
+	"Power User": "倍率掌握者",
+	"Finder Scope": "寻星镜大师",
+	"Mirror Master": "反射镜大师",
+	"Nebula Hunter": "星云猎手",
+	"Deep Sky Explorer": "深空探索者",
+	"Magnification Mastery": "倍率掌握",
+	"Sky Navigator": "天空导航员",
+	"Deep Sky Observer": "深空观测员",
+	"Senior Observer": "高级观测员",
+	"Reflector Graduate": "反射式望远镜毕业章",
+	"Dobsonian Graduate": "多布森望远镜毕业章",
+	"Cassegrain Graduate": "卡塞格林望远镜毕业章",
+	"Gregorian Graduate": "格里高利望远镜毕业章",
+	"Infrared Graduate": "红外观测毕业章",
+	"Radio Graduate": "射电观测毕业章",
+	"Young Observer": "青年观测员"
+}
 # Gregorian family (levels 56-65) removed 2026-07-22. A save parked on one of
 # these migrates forward to the first Infrared/Space level.
 const DEPRECATED_GREGORIAN_LEVELS := [56, 57, 58, 59, 60, 61, 62, 63, 64, 65]
@@ -39,7 +93,8 @@ const SCENES := {
 	"telescope": "res://scenes/telescope_view.tscn",
 	"journal": "res://scenes/learning_journal.tscn",
 	"card": "res://scenes/learning_card.tscn",
-	"story": "res://scenes/story_dialogue.tscn"
+	"story": "res://scenes/story_dialogue.tscn",
+	"graduation": "res://scenes/graduation_ceremony.tscn"
 }
 
 var parts_data: Array = []
@@ -82,6 +137,7 @@ var last_sky_aim: Dictionary = {"valid": false}
 # remembers the player's explicit selection without rewriting level data.
 var assembly_family_id := ""
 var developer_console: Control
+var foundation_training_time_cache: Dictionary = {}
 
 
 func _ready() -> void:
@@ -151,6 +207,7 @@ func debug_jump_to_level(level_number: int, prepare_equipment: bool = false) -> 
 	selected_object_level = int(progress.get("current_level", 1))
 	current_sky_positions.clear()
 	current_sky_location_id = ""
+	foundation_training_time_cache.clear()
 	last_observation = {}
 	last_learning_card = {}
 	last_sky_aim = {"valid": false}
@@ -301,6 +358,9 @@ func default_progress() -> Dictionary:
 		"selected_telescope_family": "refractor",
 		"credits": 0,
 		"completed_levels": [],
+		"program_completed": false,
+		"graduation_pending": false,
+		"graduation_seen": false,
 		"unlocked_parts": ["basic_tripod", "basic_mount", "starter_tube", "objective_60mm", "eyepiece_20mm"],
 		"selected_parts": {
 			"tripod": "basic_tripod",
@@ -345,6 +405,7 @@ func new_game() -> void:
 	suppress_next_world_map_redirect = false
 	current_sky_positions.clear()
 	current_sky_location_id = ""
+	foundation_training_time_cache.clear()
 	last_observation = {}
 	last_learning_card = {}
 	last_guidance = ""
@@ -556,7 +617,7 @@ func is_part_compatible_with_current_level(part: Dictionary) -> bool:
 	if part.is_empty():
 		return false
 	var part_family := str(part.get("telescope_family", ""))
-	var level_family := str(current_level().get("telescope_family", ""))
+	var level_family := str(current_level().get("telescope_family", "refractor"))
 	return part_family == "" or part_family == level_family
 
 
@@ -722,11 +783,13 @@ func is_at_home_location() -> bool:
 
 func set_observing_location(location: Dictionary) -> void:
 	progress["observing_location"] = location.duplicate(true)
+	foundation_training_time_cache.clear()
 	save()
 
 
 func reset_observing_location() -> void:
 	progress["observing_location"] = home_location().duplicate(true)
+	foundation_training_time_cache.clear()
 	save()
 
 
@@ -735,6 +798,10 @@ func current_target_radec() -> Dictionary:
 
 
 func object_radec(object_id: String) -> Dictionary:
+	return object_radec_at(object_id, Time.get_datetime_dict_from_system(true))
+
+
+func object_radec_at(object_id: String, utc_datetime: Dictionary) -> Dictionary:
 	# Resolve any catalog object through the same local ephemeris used by the
 	# mission target. This keeps free observation and the map on one data source.
 	if object_id == "":
@@ -747,7 +814,7 @@ func object_radec(object_id: String) -> Dictionary:
 		if entry.has("ra_hours") and entry.has("dec_degrees"):
 			return {"ra_hours": float(entry["ra_hours"]), "dec_degrees": float(entry["dec_degrees"])}
 		if entry.has("planet_body"):
-			var eph: Dictionary = service.planet_ra_dec(str(entry["planet_body"]), Time.get_datetime_dict_from_system(true))
+			var eph: Dictionary = service.planet_ra_dec(str(entry["planet_body"]), utc_datetime)
 			if not eph.is_empty():
 				return {"ra_hours": float(eph["ra_hours"]), "dec_degrees": float(eph["dec_degrees"])}
 	# Constellations carry their anchor coordinates separately.
@@ -755,6 +822,68 @@ func object_radec(object_id: String) -> Dictionary:
 	if constellation.has("ra_hours") and constellation.has("dec_degrees"):
 		return {"ra_hours": float(constellation["ra_hours"]), "dec_degrees": float(constellation["dec_degrees"])}
 	return {}
+
+
+func uses_foundation_training_schedule() -> bool:
+	var level_number := int(current_level().get("level_number", progress.get("current_level", 1)))
+	return level_number >= 1 and level_number <= FOUNDATION_TRAINING_MAX_LEVEL
+
+
+func observation_utc_datetime(object_id: String = "") -> Dictionary:
+	var now := Time.get_datetime_dict_from_system(true)
+	if not uses_foundation_training_schedule():
+		return now
+	var target_id := object_id if object_id != "" else current_target_object_id()
+	var location := observing_location()
+	var cache_key := "%d|%s|%s|%04d-%02d-%02d" % [
+		int(current_level().get("level_number", progress.get("current_level", 1))),
+		target_id,
+		str(location.get("id", "home")),
+		int(now.get("year", 0)),
+		int(now.get("month", 0)),
+		int(now.get("day", 0))
+	]
+	if foundation_training_time_cache.has(cache_key):
+		return (foundation_training_time_cache[cache_key] as Dictionary).duplicate(true)
+
+	var service := SkyPositionService.new()
+	var latitude := float(location.get("lat", 34.0522))
+	var longitude := float(location.get("lon", -118.2437))
+	var start_jd := service.julian_date(now)
+	var best_time := now.duplicate(true)
+	var best_altitude := -90.0
+	# Search the next six months in two-hour steps, but only accept local night.
+	# Return the earliest comfortable session instead of silently moving the
+	# observatory to another continent during the foundation chapter.
+	for sample in range(180 * 12):
+		var candidate := service.datetime_from_julian(start_jd + float(sample) * (2.0 / 24.0))
+		var local_hour := fposmod(
+			float(candidate.get("hour", 0)) + float(candidate.get("minute", 0)) / 60.0 + longitude / 15.0,
+			24.0
+		)
+		if local_hour > 6.0 and local_hour < 18.0:
+			continue
+		var radec := object_radec_at(target_id, candidate)
+		if radec.is_empty():
+			break
+		var alt_az := service.calculate_alt_az_from_ra_dec(
+			float(radec["ra_hours"]),
+			float(radec["dec_degrees"]),
+			latitude,
+			longitude,
+			candidate
+		)
+		var altitude := float(alt_az.get("altitude", -90.0))
+		if altitude > best_altitude:
+			best_altitude = altitude
+			best_time = candidate.duplicate(true)
+		if altitude >= 28.0:
+			best_time["foundation_training"] = true
+			foundation_training_time_cache[cache_key] = best_time.duplicate(true)
+			return best_time
+	best_time["foundation_training"] = true
+	foundation_training_time_cache[cache_key] = best_time.duplicate(true)
+	return best_time
 
 
 func target_visibility() -> Dictionary:
@@ -775,15 +904,19 @@ func object_visibility(object_id: String) -> Dictionary:
 			"direction_text": str(shared.get("direction_text", "")),
 			"source": str(shared.get("source", "calculated"))
 		}
-	var radec := object_radec(object_id)
+	var observation_time := observation_utc_datetime()
+	var radec := object_radec_at(object_id, observation_time)
 	if radec.is_empty():
 		return {"has_coords": false, "visible": true, "below_horizon": false}
 	var loc := observing_location()
 	var service := SkyPositionService.new()
 	var vis: Dictionary = service.visibility_at(
 		float(radec["ra_hours"]), float(radec["dec_degrees"]),
-		float(loc.get("lat", 34.0522)), float(loc.get("lon", -118.2437)))
+		float(loc.get("lat", 34.0522)), float(loc.get("lon", -118.2437)),
+		observation_time)
 	vis["has_coords"] = true
+	if uses_foundation_training_schedule():
+		vis["source"] = "scheduled_calculation"
 	return vis
 
 
@@ -836,7 +969,9 @@ func position_source_label(source: String) -> String:
 	# Local calculation is a FEATURE, never an error state.
 	match source:
 		"online":
-			return text("Live calculation", "实时计算")
+			return text("AstronomyAPI live", "AstronomyAPI 实时数据")
+		"scheduled_calculation":
+			return text("Club training schedule", "俱乐部训练时刻")
 		"cached":
 			return text("Local calculation", "本地计算")
 		"calculated", "constellation", "planet", "moon", "planet_ephemeris":
@@ -895,6 +1030,7 @@ func object_detail(object_id: String) -> Dictionary:
 	}
 	# RA/Dec plus the exact alt/az snapshot currently used by Sky Observation.
 	var service := SkyPositionService.new()
+	var observation_time := observation_utc_datetime()
 	var ra := NAN
 	var dec := NAN
 	for entry_value in service.catalog:
@@ -905,7 +1041,7 @@ func object_detail(object_id: String) -> Dictionary:
 			ra = float(entry["ra_hours"])
 			dec = float(entry["dec_degrees"])
 		elif entry.has("planet_body"):
-			var eph: Dictionary = service.planet_ra_dec(str(entry["planet_body"]), Time.get_datetime_dict_from_system(true))
+			var eph: Dictionary = service.planet_ra_dec(str(entry["planet_body"]), observation_time)
 			if not eph.is_empty():
 				ra = float(eph["ra_hours"])
 				dec = float(eph["dec_degrees"])
@@ -923,7 +1059,11 @@ func object_detail(object_id: String) -> Dictionary:
 			detail["below_horizon"] = bool(shared_position.get("below_horizon", float(shared_position.get("altitude", 0.0)) < 0.0))
 			detail["direction_text"] = str(shared_position.get("direction_text", ""))
 		else:
-			var vis := service.visibility_at(ra, dec, float(loc.get("lat", 34.0522)), float(loc.get("lon", -118.2437)))
+			var vis := service.visibility_at(
+				ra, dec,
+				float(loc.get("lat", 34.0522)),
+				float(loc.get("lon", -118.2437)),
+				observation_time)
 			detail["altitude"] = float(vis["altitude"])
 			detail["azimuth"] = float(vis["azimuth"])
 			detail["visible"] = bool(vis["visible"])
@@ -931,15 +1071,15 @@ func object_detail(object_id: String) -> Dictionary:
 			detail["direction_text"] = str(vis["direction_text"])
 	detail["location_en"] = str(dict_text_for(loc, "name", "en"))
 	detail["location_zh"] = str(dict_text_for(loc, "name", "zh"))
-	detail["local_time"] = service.local_time_string(float(loc.get("lon", -118.2437)))
+	detail["local_time"] = service.local_time_string(float(loc.get("lon", -118.2437)), observation_time)
 	# Data provenance (separate from the astronomy itself): planets/Moon use the
 	# local ephemeris; catalog stars use local RA/Dec math; anything without
 	# coordinates falls back to a teaching position.
 	var src := str(shared_position.get("source", "calculated" if detail["has_coords"] else "fallback"))
 	detail["position_source_en"] = position_source_label_for(src, "en")
 	detail["position_source_zh"] = position_source_label_for(src, "zh")
-	detail["weather_source_en"] = "Local model" if bool(_sky_service_offline()) else "Local model (weather API optional)"
-	detail["weather_source_zh"] = "本地模型" if bool(_sky_service_offline()) else "本地模型（天气 API 可选）"
+	detail["weather_source_en"] = "Mission scenario data"
+	detail["weather_source_zh"] = "关卡环境数据"
 	var now := Time.get_datetime_dict_from_system(false)
 	detail["last_updated"] = "%02d:%02d" % [int(now.get("hour", 0)), int(now.get("minute", 0))]
 	return detail
@@ -990,9 +1130,11 @@ func record_free_observation(object_id: String, observation: Dictionary) -> Dict
 	# mission or unlocks anything; a small credit reward is granted once per
 	# distinct (object + equipment + quality) combination.
 	_ensure_progress_array("journal_entries")
+	_ensure_progress_array("observed_objects")
 	var stats := calculate_stats()
 	var eyepiece := get_part(equipped_part_id("eyepiece"))
-	var signature := "%s|%s|%s|%d" % [object_id, str(current_level().get("telescope_family", "refractor")), str(observation.get("quality", "")), int(round(float(stats.get("magnification", 0.0))))]
+	var family := assembly_family()
+	var signature := "%s|%s|%s|%d" % [object_id, family, str(observation.get("quality", "")), int(round(float(stats.get("magnification", 0.0))))]
 	var repeat := false
 	for entry_value in progress["journal_entries"]:
 		var entry: Dictionary = entry_value
@@ -1000,7 +1142,12 @@ func record_free_observation(object_id: String, observation: Dictionary) -> Dict
 			repeat = true
 			break
 	if repeat:
-		return {"new_record": false, "repeat": true}
+		return {
+			"new_record": false,
+			"repeat": true,
+			"credits_awarded": 0,
+			"credits_total": int(progress.get("credits", 0))
+		}
 	var obj := get_object(object_id)
 	progress["journal_entries"].append({
 		"object_id": object_id,
@@ -1012,7 +1159,7 @@ func record_free_observation(object_id: String, observation: Dictionary) -> Dict
 		"signature": signature,
 		"observation_quality": str(observation.get("quality", "Good")),
 		"observation_mode": "free",
-		"telescope_family": str(current_level().get("telescope_family", "refractor")),
+		"telescope_family": family,
 		"eyepiece_focal_length_mm": int(eyepiece.get("focal_length_mm", 0)),
 		"magnification": float(stats.get("magnification", 0.0)),
 		"location_en": str(dict_text_for(observing_location(), "name", "en")),
@@ -1020,9 +1167,22 @@ func record_free_observation(object_id: String, observation: Dictionary) -> Dict
 		"learning_text_en": str(obj.get("learning_text_en", "")),
 		"learning_text_zh": str(obj.get("learning_text_zh", ""))
 	})
-	progress["credits"] = int(progress.get("credits", 0)) + 5
+	if not progress["observed_objects"].has(object_id):
+		progress["observed_objects"].append(object_id)
+	progress["credits"] = int(progress.get("credits", 0)) + FREE_OBSERVATION_CREDITS
 	save()
-	return {"new_record": true, "repeat": false}
+	return {
+		"new_record": true,
+		"repeat": false,
+		"credits_awarded": FREE_OBSERVATION_CREDITS,
+		"credits_total": int(progress.get("credits", 0))
+	}
+
+
+func badge_display_name(badge: String) -> String:
+	if language_mode == "zh":
+		return str(BADGE_NAMES_ZH.get(badge, badge))
+	return badge
 
 
 func dict_text_for(d: Dictionary, key: String, locale: String) -> String:
@@ -1055,13 +1215,14 @@ func go_to_observation(spawn: String) -> void:
 	# Observation doors always enter Sky Observation. Sky owns the decision to
 	# offer relocation; the base/lobby never opens or controls the world map.
 	set_observatory_spawn(spawn)
+	_select_current_mission_target()
 	go("sky")
 
 
 func open_world_map(return_scene_key := "sky") -> void:
 	# The map never owns mission progression. It only changes an observing site
 	# after a deliberate confirmation. It is a child workflow of Sky Observation.
-	if return_scene_key != "sky":
+	if return_scene_key != "sky" or uses_foundation_training_schedule():
 		return
 	world_map_return_scene = "sky"
 	go("world_map")
@@ -1073,6 +1234,8 @@ func return_from_world_map() -> void:
 
 
 func target_requires_relocation() -> bool:
+	if uses_foundation_training_schedule():
+		return false
 	# True only when the target genuinely cannot be observed from here now AND a
 	# reachable site exists where it IS up - otherwise we never dead-end a
 	# lesson, and the sky view keeps its teaching-fallback position.
@@ -1176,7 +1339,7 @@ func best_part_for_type(part_type: String) -> Dictionary:
 	var profile := _task_profile()
 	var best: Dictionary = {}
 	var best_score := -1.0
-	var current_family := str(current_level().get("telescope_family", ""))
+	var current_family := str(current_level().get("telescope_family", "refractor"))
 	for option_value in unlocked_parts_by_type(part_type):
 		var option: Dictionary = option_value
 		var part_family := str(option.get("telescope_family", ""))
@@ -1301,6 +1464,51 @@ func update_room_guidance_for_level() -> void:
 	)
 
 
+func campaign_completed() -> bool:
+	return bool(progress.get("program_completed", false))
+
+
+func graduation_pending() -> bool:
+	return campaign_completed() and bool(progress.get("graduation_pending", false)) \
+		and not bool(progress.get("graduation_seen", false))
+
+
+func mark_graduation_presented() -> void:
+	if not campaign_completed():
+		return
+	progress["graduation_seen"] = true
+	progress["graduation_pending"] = false
+	save()
+
+
+func postgraduate_room_route() -> Dictionary:
+	if graduation_pending():
+		return {
+			"target": "mission",
+			"title": text("Maya: Graduation Ceremony", "玛雅：毕业典礼"),
+			"hint": text(
+				"The observing program is complete. Your graduation ceremony is ready.",
+				"观测课程已经全部完成。你的毕业典礼已经准备好了。"
+			),
+			"action": text("Attend the Graduation Ceremony", "参加毕业典礼"),
+			"outcome": text("Receive the Young Observer badge and review your full record.", "领取青年观测员徽章，并回顾完整的观测记录。"),
+			"ready": true,
+			"completed": true
+		}
+	return {
+		"target": "journal",
+		"title": text("Maya: Program Complete", "玛雅：课程已完成"),
+		"hint": text(
+			"You have graduated from the club program. The observatory and your logbook remain open for independent observing.",
+			"你已经从俱乐部课程毕业。天文台与观测日志仍会开放，可继续自主观测。"
+		),
+		"action": text("Review the Club Logbook", "查看俱乐部观测日志"),
+		"outcome": text("Completed missions remain archived and will not restart automatically.", "已完成任务会永久归档，不会自动重新开始。"),
+		"ready": true,
+		"completed": true
+	}
+
+
 func route_outcome_text() -> String:
 	# "What happens after": the reward the guided step leads to.
 	var pieces: Array[String] = []
@@ -1358,6 +1566,8 @@ func _required_equipment_route(required_missing: Array) -> Dictionary:
 func current_room_route() -> Dictionary:
 	# The observatory, mission board, result card, and route indicator all use
 	# this one decision. It keeps the next physical action consistent.
+	if campaign_completed():
+		return postgraduate_room_route()
 	var target_name := dict_text(current_target(), "name")
 	if current_observation_mode() == "naked_eye":
 		return _with_site_route_status({
@@ -1396,14 +1606,20 @@ func current_room_route() -> Dictionary:
 				install_names.append(part_name)
 		var install_text := ", ".join(install_names)
 		var focus_missing := assembly_missing.has("focus_knob")
-		var hint := text("Install " + install_text + " at the Assembly Table.", "在组装台安装" + install_text + "。")
+		var hint := text(
+			"Prepare %s by installing %s at the Assembly Table." % [target_name, install_text],
+			"为观测%s做准备：请在组装台安装%s。" % [target_name, install_text]
+		)
 		if focus_missing:
-			hint = text("Install the Focus Knob near the eyepiece before focus training.", "开始调焦训练前，请在目镜附近安装调焦旋钮。")
+			hint = text(
+				"Before observing %s, install the Focus Knob near the eyepiece." % target_name,
+				"观测%s之前，请在目镜附近安装调焦旋钮。" % target_name
+			)
 		return {
 			"target": "assembly",
 			"title": text("Maya: Assembly Table", "Maya：组装台"),
 			"hint": hint,
-			"action": text("Install " + install_text, "安装" + install_text),
+			"action": text("Prepare %s: install %s" % [target_name, install_text], "准备观测%s：安装%s" % [target_name, install_text]),
 			"outcome": text("A finished telescope unlocks the Observation Pad.", "望远镜组装完成后，观测台即可使用。"),
 			"ready": false,
 			"missing": assembly_missing
@@ -1444,6 +1660,18 @@ func current_room_route() -> Dictionary:
 			"outcome": route_outcome_text(),
 			"ready": true
 		})
+	if str(current_level().get("telescope_family", "")) == "fast_radio" \
+			or str(current_level().get("observation_mode", "")) == "radio":
+		return _with_site_route_status({
+			"target": "computer",
+			"title": text("Maya: FAST Radio Telescope Console", "Maya：FAST 射电望远镜控制台"),
+			"hint": text(
+				"FAST is ready for %s. Use the bottom-right console to open the radio command link." % target_name,
+				"FAST 已准备观测%s。使用右下角控制台打开射电指挥链路。" % target_name),
+			"action": text("Command the radio observation of " + target_name, "指挥射电观测" + target_name),
+			"outcome": route_outcome_text(),
+			"ready": true
+		})
 	return _with_site_route_status({
 		"target": "telescope",
 		"title": text("Maya: Observation Pad", "Maya：观测台"),
@@ -1463,9 +1691,10 @@ func _with_site_route_status(route: Dictionary) -> Dictionary:
 	# "travel to a visible site" would be both wrong and unfollowable. Space
 	# levels use their own attitude / sun-angle constraints inside the space
 	# observation screen instead.
-	if str(current_level().get("telescope_family", "")) == "space_segmented":
+	if str(current_level().get("telescope_family", "")) in ["space_segmented", "fast_radio"]:
 		route["needs_site_change"] = false
-		route["space_constraints"] = true
+		route["remote_instrument"] = true
+		route["space_constraints"] = str(current_level().get("telescope_family", "")) == "space_segmented"
 		return route
 	var visibility := target_visibility()
 	var altitude := float(visibility.get("altitude", 0.0))
@@ -1732,7 +1961,7 @@ func _has_compatible_part_before_level(part_type: String, level: Dictionary, lev
 
 func _part_family_matches_level(part: Dictionary, level: Dictionary) -> bool:
 	var part_family := str(part.get("telescope_family", ""))
-	var level_family := str(level.get("telescope_family", ""))
+	var level_family := str(level.get("telescope_family", "refractor"))
 	return part_family == "" or part_family == level_family
 
 
@@ -1764,6 +1993,52 @@ func unlocked_parts_by_type(part_type: String) -> Array:
 		if str(part.get("type", "")) == part_type and unlocked.has(str(part.get("id", ""))):
 			result.append(part)
 	return result
+
+
+func space_segmented_install_types() -> Array[String]:
+	# The space observatory is a system, not only four optical components.
+	# Every component unlocked by the current chapter gets a real assembly slot;
+	# later unlocks therefore become usable instead of remaining cabinet-only.
+	var result: Array[String] = []
+	var unlocked: Array = progress.get("unlocked_parts", [])
+	for part_type_value in SPACE_SEGMENTED_INSTALL_ORDER:
+		var part_type := str(part_type_value)
+		for part_value in parts_data:
+			var part: Dictionary = part_value
+			if (
+				str(part.get("telescope_family", "")) == "space_segmented"
+				and str(part.get("type", "")) == part_type
+				and unlocked.has(str(part.get("id", "")))
+			):
+				result.append(part_type)
+				break
+	return result
+
+
+func space_instrument_is_installed(instrument_id: String) -> bool:
+	var part_type := str(SPACE_INSTRUMENT_PART_TYPES.get(instrument_id, ""))
+	if part_type == "":
+		return false
+	var entry: Dictionary = progress.get("assembly_state", {}).get(part_type, {})
+	return bool(entry.get("installed", false))
+
+
+func space_instrument_block_reason(instrument_id: String) -> String:
+	var part_type := str(SPACE_INSTRUMENT_PART_TYPES.get(instrument_id, ""))
+	if part_type == "":
+		return text("Unknown science instrument.", "未知科学仪器。")
+	var options := unlocked_parts_by_type(part_type)
+	if options.is_empty():
+		return text(
+			"%s has not been unlocked yet." % instrument_id.to_upper(),
+			"%s 尚未解锁。" % instrument_id.to_upper()
+		)
+	if not space_instrument_is_installed(instrument_id):
+		return text(
+			"Equip %s in the Parts Cabinet, then install it on the Instruments blueprint." % instrument_id.to_upper(),
+			"请先在零件柜装备 %s，再到“科学仪器”蓝图页安装。" % instrument_id.to_upper()
+		)
+	return ""
 
 
 func reset_assembly() -> void:
@@ -1846,7 +2121,7 @@ func install_part_block_reason(part_type: String, part_id: String = "") -> Strin
 	# 2. Incompatible telescope family.
 	if not is_part_compatible_with_current_level(part):
 		var fam := _family_display_name(str(part.get("telescope_family", "")))
-		var cur := _family_display_name(str(current_level().get("telescope_family", "")))
+		var cur := _family_display_name(str(current_level().get("telescope_family", "refractor")))
 		return text("This part belongs to the %s telescope; tonight's mission uses a %s telescope." % [fam, cur],
 			"该零件属于%s望远镜，当前任务使用%s望远镜。" % [fam, cur])
 	# 3. Pinned: mission demands a specific part for this slot.
@@ -1893,7 +2168,7 @@ func equip_part(part_id: String) -> bool:
 	if not progress.get("unlocked_parts", []).has(part_id):
 		return false
 	var part_family := str(part.get("telescope_family", ""))
-	var current_family := str(current_level().get("telescope_family", ""))
+	var current_family := str(current_level().get("telescope_family", "refractor"))
 	if part_family != "" and part_family != current_family:
 		return false
 	if str(progress["selected_parts"].get(part_type, "")) == part_id:
@@ -1925,6 +2200,8 @@ func _effective_required_parts() -> Array:
 	# subassembly, so the late-night pattern lessons remain playable.
 	if current_observation_mode() == "constellation":
 		return ["tripod", "mount", "tube", "objective", "eyepiece", "finder_scope"]
+	if str(current_level().get("telescope_family", "")) == "space_segmented":
+		return space_segmented_install_types()
 	if not _uses_tube_subassembly():
 		return current_level().get("required_parts", [])
 	if str(current_level().get("telescope_family", "")) == "dobsonian":
@@ -2296,18 +2573,43 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		return false
 	var level_number: int = int(level.get("level_number", progress.get("current_level", 1)))
 	var already_completed: bool = progress["completed_levels"].has(level_number)
+	var credits_before := int(progress.get("credits", 0))
+	var credits_awarded := 0
+	var badges_awarded: Array[String] = []
 	if already_completed:
+		# A result screen can be closed, a browser tab can be suspended, or an
+		# older save can be written after completed_levels was updated but before
+		# current_level advanced. Treat that as an interrupted handoff: repair
+		# the campaign cursor without awarding credits or writing a duplicate
+		# journal entry.
+		var completion_manager: Variant = _mission_manager()
+		if completion_manager != null and completion_manager.is_final_level(level_number):
+			progress["program_completed"] = true
+			if not bool(progress.get("graduation_seen", false)):
+				progress["graduation_pending"] = true
+			update_room_guidance_for_level()
+			save()
+			if graduation_pending():
+				go("graduation")
+			else:
+				go("observatory")
+			return true
+		_advance_past_completed_current_level()
 		set_room_guidance(
-			"journal",
-			"Maya: Already Logged",
-			"This observation is already complete. Open the Club Logbook or keep exploring."
+			str(current_room_route().get("target", "telescope")),
+			text("Maya: Continue the Program", "Maya：继续课程"),
+			text(
+				"This observation was already logged. The next unfinished lesson is ready.",
+				"这次观测已经记入日志。下一项未完成课程已准备好。"
+			)
 		)
 		save()
 		go("observatory")
 		return true
 	if not already_completed:
 		progress["completed_levels"].append(level_number)
-		progress["credits"] = int(progress.get("credits", 0)) + int(level.get("reward_credits", 0))
+		credits_awarded = int(level.get("reward_credits", 0))
+		progress["credits"] = credits_before + credits_awarded
 		for part_id in level.get("unlock_parts", []):
 			if not progress["unlocked_parts"].has(part_id):
 				progress["unlocked_parts"].append(part_id)
@@ -2315,6 +2617,7 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		var badge: String = str(level.get("badge", ""))
 		if badge != "" and not progress["badges"].has(badge):
 			progress["badges"].append(badge)
+			badges_awarded.append(badge)
 	var concept_card_id := str(level.get("required_concept_card", ""))
 	if concept_card_id != "":
 		if not progress.has("completed_concept_cards"):
@@ -2328,20 +2631,23 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		if not progress["unlocked_equipment_stages"].has(stage):
 			progress["unlocked_equipment_stages"].append(stage)
 	_add_journal_entry(object_id, observation)
-	var payload: Dictionary = TeachingFlowManager.make_mission_complete_payload(
-		level, get_object(object_id), observation, calculate_stats()
-	)
 	var mission_manager: Variant = _mission_manager()
 	if mission_manager != null and mission_manager.is_final_level(level_number):
 		# Finishing the whole club program earns the final story badge.
 		if not progress["badges"].has("Young Observer"):
 			progress["badges"].append("Young Observer")
+			badges_awarded.append("Young Observer")
 		progress["program_completed"] = true
-		set_room_guidance(
-			"journal",
-			"Maya: Program Complete",
-			"Great work. Open the Club Logbook to review your discoveries."
-		)
+		progress["graduation_pending"] = not bool(progress.get("graduation_seen", false))
+	var payload: Dictionary = TeachingFlowManager.make_mission_complete_payload(
+		level, get_object(object_id), observation, calculate_stats()
+	)
+	payload["reward_summary"] = {
+		"credits_before": credits_before,
+		"credits_awarded": credits_awarded,
+		"credits_total": int(progress.get("credits", 0)),
+		"badges_awarded": badges_awarded
+	}
 	if mission_manager != null and not mission_manager.is_final_level(level_number):
 		# Campaign-order progression is the sole authority for the mainline.
 		# Skip only levels already completed in an older save; a side or stale
@@ -2351,11 +2657,40 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		if completed_index >= 0 and completed_index >= current_index:
 			progress["current_level"] = mission_manager.next_incomplete_level_number(level_number, progress["completed_levels"])
 			_unlock_parts_for_current_level()
+			_select_current_mission_target()
 	save()
 	# Point the player at the next step for the (possibly new) level.
 	update_room_guidance_for_level()
 	show_mission_complete_card(payload)
 	return true
+
+
+func _advance_past_completed_current_level() -> bool:
+	var mission_manager: Variant = _mission_manager()
+	if mission_manager == null:
+		return false
+	var current := int(progress.get("current_level", 1))
+	var completed: Array = progress.get("completed_levels", [])
+	if not completed.has(current):
+		return false
+	var next_level := int(mission_manager.next_incomplete_level_number(current, completed))
+	if next_level <= 0 or next_level == current:
+		return false
+	progress["current_level"] = next_level
+	_unlock_parts_for_current_level()
+	_select_current_mission_target()
+	update_room_guidance_for_level()
+	return true
+
+
+func _select_current_mission_target() -> void:
+	# A completed lesson may leave a free-observation body selected. The next
+	# lesson starts with its own target while keeping the previous camera aim,
+	# so the edge navigator can immediately show the player where to turn.
+	selected_object_id = current_target_object_id()
+	selected_object_level = int(progress.get("current_level", 1))
+	current_sky_positions.clear()
+	current_sky_location_id = ""
 
 
 func _mission_manager() -> Variant:
@@ -2684,8 +3019,11 @@ func _repair_campaign_progress() -> void:
 	var furthest_completed := 0
 	for completed_value in valid_completed:
 		furthest_completed = maxi(furthest_completed, int(completed_value))
+	# A campaign cursor that still points at a completed lesson is an
+	# interrupted completion handoff, not a plausible resume position.
 	var saved_is_plausible: bool = mission_manager.has_level(previous_level) \
-		and previous_level <= maxi(furthest_completed + 1, repaired_level)
+		and previous_level <= maxi(furthest_completed + 1, repaired_level) \
+		and not valid_completed.has(previous_level)
 	if saved_is_plausible:
 		repaired_level = previous_level
 	var changed_level: bool = previous_level != repaired_level
@@ -2712,6 +3050,7 @@ func _repair_campaign_progress() -> void:
 	var final_level: int = mission_manager.campaign_order[-1] if not mission_manager.campaign_order.is_empty() else FINAL_CAMPAIGN_LEVEL
 	if valid_completed.has(final_level):
 		progress["program_completed"] = true
+		progress["graduation_pending"] = not bool(progress.get("graduation_seen", false))
 		if not progress["badges"].has("Young Observer"):
 			progress["badges"].append("Young Observer")
 	if changed_level or inventory_changed:

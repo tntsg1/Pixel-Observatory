@@ -21,8 +21,23 @@ extends Control
 
 const MAP_TEXTURE := "res://assets/world_map/world_map_base.png"
 const MAP_SIZE := Vector2(1672.0, 941.0)
-const MAP_INNER := Rect2(161.0, 96.0, 1349.0, 742.0)
 const MAP_AREA := Rect2(0.0, 92.0, 764.0, 600.0)
+
+# The authored map is not a full-frame equirectangular image. Its decorative
+# frame extends well beyond the actual graticule, and the northern/southern
+# halves use slightly different spacing. Keep astronomy on true lat/lon, then
+# register those coordinates to the painted graticule here.
+const MAP_PRIME_MERIDIAN_X := 772.0
+const MAP_EQUATOR_Y := 551.0
+const MAP_WEST_PX_PER_DEGREE := 3.525
+const MAP_EAST_PX_PER_DEGREE := 3.600
+const MAP_FAR_WEST_LONGITUDE := -140.0
+const MAP_FAR_WEST_X := 278.5
+const MAP_DATE_LINE_X := 208.0
+const MAP_NORTH_PX_PER_DEGREE := 3.700
+const MAP_SOUTH_PX_PER_DEGREE := 4.050
+const MAP_NORTH_LATITUDE := 90.0
+const MAP_SOUTH_LATITUDE := -60.0
 
 const GOLD := Color("e0aa46")
 const GOLD_BRIGHT := Color("ffd27a")
@@ -114,12 +129,14 @@ var travel_progress_bar: ProgressBar
 var panel_rows: Array = []   # [{labels:[Label], order:int}] for staggered reveal
 var tutorial_overlay: Control
 var tutorial_highlight: Panel
+var tutorial_maya_portrait: TextureRect
 var tutorial_copy: Label
 var tutorial_step := 0
 var tutorial_steps: Array = []
 
 
 func _ready() -> void:
+	InteractionFeedback.guidance_highlights_changed.connect(_on_guidance_highlights_changed)
 	utc = Time.get_datetime_dict_from_system(true)
 	home_site = GameManager.home_location()
 	current_site = GameManager.observing_location()
@@ -262,10 +279,34 @@ func _image_to_screen(p: Vector2) -> Vector2:
 	return map_origin + p * map_scale
 
 
+func _geo_to_image(lat: float, lon: float) -> Vector2:
+	var wrapped_lon := fposmod(lon + 180.0, 360.0) - 180.0
+	# Preserve +180 at the map's right edge instead of wrapping it to -180.
+	if is_equal_approx(lon, 180.0):
+		wrapped_lon = 180.0
+	var ix := MAP_PRIME_MERIDIAN_X
+	if wrapped_lon < MAP_FAR_WEST_LONGITUDE:
+		var pacific_t := inverse_lerp(-180.0, MAP_FAR_WEST_LONGITUDE, wrapped_lon)
+		ix = lerpf(MAP_DATE_LINE_X, MAP_FAR_WEST_X, pacific_t)
+	elif wrapped_lon < 0.0:
+		ix += wrapped_lon * MAP_WEST_PX_PER_DEGREE
+	else:
+		ix += wrapped_lon * MAP_EAST_PX_PER_DEGREE
+	var registered_lat := clampf(lat, MAP_SOUTH_LATITUDE, MAP_NORTH_LATITUDE)
+	var iy := MAP_EQUATOR_Y
+	if registered_lat >= 0.0:
+		iy -= registered_lat * MAP_NORTH_PX_PER_DEGREE
+	else:
+		iy -= registered_lat * MAP_SOUTH_PX_PER_DEGREE
+	return Vector2(ix, iy)
+
+
 func _project(lat: float, lon: float) -> Vector2:
-	var ix := MAP_INNER.position.x + (lon + 180.0) / 360.0 * MAP_INNER.size.x
-	var iy := MAP_INNER.position.y + (90.0 - lat) / 180.0 * MAP_INNER.size.y
-	return _image_to_screen(Vector2(ix, iy))
+	return _image_to_screen(_geo_to_image(lat, lon))
+
+
+func debug_image_position_for_coordinates(lat: float, lon: float) -> Vector2:
+	return _geo_to_image(lat, lon)
 
 
 # --------------------------------------------------------------- build
@@ -434,19 +475,21 @@ func _build_travel_hud() -> void:
 
 
 func _show_first_map_tutorial() -> void:
+	if not InteractionFeedback.guidance_highlights_enabled():
+		return
 	var seen: Array = GameManager.progress.get("seen_teaching_steps", [])
 	if seen.has("world_map_controls_v1") or not is_inside_tree():
 		return
 	# Maya explains the existing map controls in place. This temporary overlay
 	# disappears after the lesson and does not become another information panel.
 	tutorial_steps = [
-		{"rect": MAP_AREA, "en": "This map chooses where you observe. Earth's rotation and latitude decide whether a target has risen.", "zh": "世界地图用于选择观测地点。地球自转和纬度会决定目标是否已经升起。"},
-		{"kind": "current", "en": "The blue pulse marks your current observing site.", "zh": "蓝色脉冲标记表示当前观测地点。"},
-		{"kind": "recommended", "en": "The gold pulse marks a recommended site where the target is visible. The arc shows the travel direction.", "zh": "金色脉冲表示目标可见的推荐地点，弧线表示移动方向。"},
-		{"rect": MAP_AREA, "en": "Drag the map to pan. Use the mouse wheel or a two-finger pinch to zoom.", "zh": "拖动地图可以平移；使用鼠标滚轮或双指手势可以缩放。"},
-		{"kind": "info", "en": "The site panel shows latitude, longitude, target altitude, azimuth, local time, visibility window and conditions.", "zh": "右侧地点栏显示经纬度、目标高度角、方位角、当地时间、可见时段和观测条件。"},
-		{"kind": "confirm", "en": "Select a site, then confirm it. The sky will be recalculated and you will return to Observation.", "zh": "选择地点后点击确认。系统会重新计算天空位置并返回观星界面。"},
-		{"kind": "back", "en": "Back cancels without changing location. Return Home selects the default observing site.", "zh": "返回会取消选择且不改变地点；返回默认地点会切回基地观测点。"}
+		{"rect": MAP_AREA, "pose": MayaPortrait.EXPLAIN, "en": "This map chooses where you observe. Earth's rotation and latitude decide whether a target has risen.", "zh": "世界地图用于选择观测地点。地球自转和纬度会决定目标是否已经升起。"},
+		{"kind": "current", "pose": MayaPortrait.DISCOVER, "en": "The blue pulse marks your current observing site.", "zh": "蓝色脉冲标记表示当前观测地点。"},
+		{"kind": "recommended", "pose": MayaPortrait.DISCOVER, "en": "The gold pulse marks a recommended site where the target is visible. The arc shows the travel direction.", "zh": "金色脉冲表示目标可见的推荐地点，弧线表示移动方向。"},
+		{"rect": MAP_AREA, "pose": MayaPortrait.EMPHASIZE, "en": "Drag the map to pan. Use the mouse wheel or a two-finger pinch to zoom.", "zh": "拖动地图可以平移；使用鼠标滚轮或双指手势可以缩放。"},
+		{"kind": "info", "pose": MayaPortrait.THINK, "en": "The site panel shows latitude, longitude, target altitude, azimuth, local time, visibility window and conditions.", "zh": "右侧地点栏显示经纬度、目标高度角、方位角、当地时间、可见时段和观测条件。"},
+		{"kind": "confirm", "pose": MayaPortrait.EMPHASIZE, "en": "Select a site, then confirm it. The sky will be recalculated and you will return to Observation.", "zh": "选择地点后点击确认。系统会重新计算天空位置并返回观星界面。"},
+		{"kind": "back", "pose": MayaPortrait.EXPLAIN, "en": "Back cancels without changing location. Return Home selects the default observing site.", "zh": "返回会取消选择且不改变地点；返回默认地点会切回基地观测点。"}
 	]
 	_build_map_tutorial_overlay()
 	_show_map_tutorial_step(0)
@@ -455,6 +498,7 @@ func _show_first_map_tutorial() -> void:
 func _build_map_tutorial_overlay() -> void:
 	tutorial_overlay = Control.new()
 	tutorial_overlay.name = "MayaMapTutorial"
+	tutorial_overlay.add_to_group("guidance_highlight")
 	tutorial_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	tutorial_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	tutorial_overlay.z_index = 500
@@ -483,16 +527,24 @@ func _build_map_tutorial_overlay() -> void:
 	ts.set_corner_radius_all(5)
 	teaching.add_theme_stylebox_override("panel", ts)
 	tutorial_overlay.add_child(teaching)
+	tutorial_maya_portrait = MayaPortrait.create(
+		teaching,
+		"MayaTutorialPortrait",
+		MayaPortrait.EXPLAIN,
+		Vector2(10, 8),
+		Vector2(88, 146),
+		1
+	)
 	var maya := Label.new()
-	maya.text = "MAYA"
-	maya.position = Vector2(20, 12)
+	maya.text = GameManager.text("MAYA", "玛雅")
+	maya.position = Vector2(104, 10)
 	maya.size = Vector2(100, 26)
 	maya.add_theme_font_size_override("font_size", 20)
 	maya.add_theme_color_override("font_color", GOLD_BRIGHT)
 	teaching.add_child(maya)
 	tutorial_copy = Label.new()
-	tutorial_copy.position = Vector2(20, 42)
-	tutorial_copy.size = Vector2(584, 66)
+	tutorial_copy.position = Vector2(104, 40)
+	tutorial_copy.size = Vector2(500, 68)
 	tutorial_copy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	tutorial_copy.add_theme_font_size_override("font_size", 15)
 	tutorial_copy.add_theme_color_override("font_color", TEXT)
@@ -522,6 +574,8 @@ func _show_map_tutorial_step(index: int) -> void:
 	tutorial_step = clampi(index, 0, tutorial_steps.size() - 1)
 	var step: Dictionary = tutorial_steps[tutorial_step]
 	tutorial_copy.text = GameManager.text(str(step.get("en", "")), str(step.get("zh", "")))
+	if tutorial_maya_portrait != null:
+		MayaPortrait.apply_to(tutorial_maya_portrait, str(step.get("pose", MayaPortrait.EXPLAIN)))
 	var rect := _tutorial_rect(step).grow(6.0)
 	tutorial_highlight.position = rect.position
 	tutorial_highlight.size = rect.size
@@ -538,6 +592,14 @@ func _advance_map_tutorial() -> void:
 		GameManager.record_horizon_lesson_if_first()
 		GameManager.save()
 	if tutorial_overlay != null:
+		tutorial_overlay.queue_free()
+	tutorial_overlay = null
+
+
+func _on_guidance_highlights_changed(enabled: bool) -> void:
+	if enabled or tutorial_overlay == null:
+		return
+	if is_instance_valid(tutorial_overlay):
 		tutorial_overlay.queue_free()
 	tutorial_overlay = null
 
@@ -662,9 +724,7 @@ func _pan_to_center(id: String) -> Vector2:
 
 func _pan_to_coordinates(lat: float, lon: float) -> Vector2:
 	# pan so the destination sits at the middle of the map area
-	var target_img := Vector2(
-		MAP_INNER.position.x + (lon + 180.0) / 360.0 * MAP_INNER.size.x,
-		MAP_INNER.position.y + (90.0 - lat) / 180.0 * MAP_INNER.size.y)
+	var target_img := _geo_to_image(lat, lon)
 	var centre := MAP_AREA.position + MAP_AREA.size * 0.5
 	var drawn := MAP_SIZE * map_scale
 	var origin_wanted := centre - target_img * map_scale

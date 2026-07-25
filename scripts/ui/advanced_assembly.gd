@@ -38,6 +38,39 @@ const CASSEGRAIN_MAIN_SOURCE_SLOTS := {
 	"mount": Rect2(195.0, 322.0, 108.0, 120.0),
 	"tripod": Rect2(389.0, 624.0, 162.0, 150.0),
 }
+const SPACE_SEGMENTED_BLUEPRINT := "res://assets/assembly/space_segmented_blueprint_cropped.png"
+const SPACE_SEGMENTED_SOURCE_SIZE := Vector2(758.0, 944.0)
+const SPACE_SEGMENTED_SOURCE_SLOTS := {
+	"secondary_mirror": Rect2(224.0, 74.0, 111.0, 104.0),
+	"primary_mirror": Rect2(453.0, 215.0, 118.0, 111.0),
+	"detector": Rect2(281.0, 462.0, 141.0, 113.0),
+	"sunshield": Rect2(332.0, 611.0, 118.0, 106.0),
+}
+const SPACE_SEGMENTED_LABEL_RECTS := {
+	"secondary_mirror": Rect2(8.0, 48.0, 124.0, 32.0),
+	"primary_mirror": Rect2(306.0, 112.0, 116.0, 32.0),
+	"detector": Rect2(292.0, 234.0, 126.0, 32.0),
+	"sunshield": Rect2(8.0, 310.0, 124.0, 32.0),
+}
+const SPACE_CORE_TYPES := ["primary_mirror", "secondary_mirror", "detector", "sunshield"]
+const SPACE_DEPLOYMENT_TYPES := [
+	"spacecraft_bus",
+	"deployable_tower",
+	"deployment_hinges",
+	"solar_array",
+	"antenna",
+	"radiator",
+]
+const SPACE_INSTRUMENT_TYPES := [
+	"steering_mirror",
+	"tertiary_mirror",
+	"instrument_bay",
+	"detector_module",
+	"nircam",
+	"nirspec",
+	"miri",
+	"fgs_niriss",
+]
 
 var selected_type := ""
 var order: Array[String] = []
@@ -55,6 +88,7 @@ var template_finish: Button
 var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
+var space_blueprint_page := "core"
 
 
 func _ready() -> void:
@@ -66,6 +100,17 @@ func _ready() -> void:
 
 func _show_assembly_tutorial() -> void:
 	var target: Control = template_blueprint_layer if template_blueprint_layer != null else blueprint
+	if _family() == "space_segmented":
+		InteractionFeedback.tutorial_highlight_once(
+			target,
+			"first_space_system_assembly",
+			GameManager.text(
+				"Maya: This observatory has three systems. Install the light path, deployment hardware, and science instruments on their blueprint pages. Install Equipped Set completes the unlocked loadout for you.",
+				"玛雅：这座天文台分成三套系统。请在“光路核心、展开与供电、科学仪器”三页蓝图中安装组件；“安装已装备组件”可以完成当前已解锁的整套配置。"
+			),
+			self
+		)
+		return
 	InteractionFeedback.tutorial_highlight_once(target, "first_advanced_assembly", GameManager.text(
 		"Select a real part card, then click its matching blueprint slot.",
 		"先选择真实零件卡片，再点击蓝图中的对应槽位。"
@@ -85,7 +130,12 @@ func _build() -> void:
 		_build_nested_main()
 		return
 	order.clear()
-	for type_value in GameManager.current_level().get("assembly_order", []):
+	var install_order: Array = (
+		GameManager.space_segmented_install_types()
+		if _family() == "space_segmented"
+		else GameManager.current_level().get("assembly_order", [])
+	)
+	for type_value in install_order:
 		order.append(str(type_value))
 	_rect(Vector2.ZERO, Vector2(1024, 768), BG)
 	_label(_flat_bench_title(), Vector2(20, 14), Vector2(984, 32), 25, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
@@ -114,7 +164,16 @@ func _build() -> void:
 
 	var inspector := _panel(Vector2(782, 88), Vector2(222, 614), GameManager.text("ASSEMBLY CHECK", "组装检查"))
 	var level := GameManager.current_level()
-	inspector.add_child(_label(GameManager.dict_text(level, "title"), Vector2(12, 40), Vector2(198, 40), 15, TEXT, HORIZONTAL_ALIGNMENT_CENTER))
+	var mission_title := _label(
+		GameManager.dict_text(level, "title"),
+		Vector2(12, 38),
+		Vector2(198, 42),
+		13,
+		TEXT,
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
+	mission_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	inspector.add_child(mission_title)
 	# Inspector detail: name + purpose + status of the SELECTED part.
 	var detail_box := Panel.new()
 	detail_box.position = Vector2(12, 84)
@@ -125,9 +184,30 @@ func _build() -> void:
 	flat_inspector_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	flat_inspector_detail.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	detail_box.add_child(flat_inspector_detail)
-	status_label = _label(_status_text(), Vector2(14, 244), Vector2(194, 120), 12, TEXT)
+	status_label = Label.new()
+	status_label.position = Vector2(14, 244)
+	status_label.size = Vector2(194, 120)
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	status_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	status_label.clip_text = false
+	status_label.add_theme_font_size_override("font_size", 12)
+	status_label.add_theme_color_override("font_color", TEXT)
+	status_label.text = _status_text()
 	inspector.add_child(status_label)
+	if _family() == "space_segmented":
+		var install_set := _button(
+			GameManager.text("Install Equipped Set", "安装已装备组件"),
+			Vector2(14, 448),
+			Vector2(194, 42),
+			Color(0.08, 0.20, 0.31)
+		)
+		install_set.name = "InstallEquippedSpaceSet"
+		install_set.tooltip_text = GameManager.text(
+			"Installs every unlocked, equipped space component in dependency order.",
+			"按照依赖顺序安装所有已解锁且已装备的空间望远镜组件。"
+		)
+		install_set.pressed.connect(_install_all_space_parts)
+		inspector.add_child(install_set)
 	var finish := _button(GameManager.text("Finish Assembly", "完成组装"), Vector2(14, 500), Vector2(194, 42), Color(0.10, 0.30, 0.20))
 	finish.pressed.connect(_finish)
 	inspector.add_child(finish)
@@ -712,7 +792,7 @@ func _newtonian_reference_slot(parent: Control, part_type: String, rect: Rect2) 
 				installed_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 				installed_texture.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 				installed_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
-				installed_texture.texture = loaded_texture
+				installed_texture.texture = _trim_transparent_texture(loaded_texture)
 				installed_texture.position = Vector2.ZERO
 				installed_texture.size = rect.size
 				installed_texture.modulate = Color.WHITE
@@ -796,6 +876,21 @@ func _newtonian_reference_slot(parent: Control, part_type: String, rect: Rect2) 
 			return
 		_install_main_part(part_type)
 	)
+
+
+func _trim_transparent_texture(texture: Texture2D) -> Texture2D:
+	var image := texture.get_image()
+	if image == null or image.is_empty():
+		return texture
+	var used_rect := image.get_used_rect()
+	if used_rect.size.x <= 0 or used_rect.size.y <= 0:
+		return texture
+	if used_rect.position == Vector2i.ZERO and used_rect.size == image.get_size():
+		return texture
+	var atlas := AtlasTexture.new()
+	atlas.atlas = texture
+	atlas.region = Rect2(used_rect)
+	return atlas
 
 
 func _main_parts() -> Array[String]:
@@ -911,7 +1006,6 @@ func _draw_main_slot(part_type: String, rect: Rect2) -> void:
 func _install_main_part(part_type: String) -> void:
 	if install_animation_active:
 		return
-	call_deferred("_animate_install_error_if_idle", part_type)
 	if _installed(part_type):
 		status_label.text = GameManager.text("This main component is already installed.", "该主组件已经安装。")
 		return
@@ -936,6 +1030,7 @@ func _install_main_part(part_type: String) -> void:
 	install_animation_active = false
 	_build()
 	_play_part_animation(animation)
+	call_deferred("_finish_advanced_install_feedback", part_type, true)
 
 
 func _main_status_text() -> String:
@@ -965,13 +1060,13 @@ func _part_texture_control(part: Dictionary, bounds: Rect2) -> TextureRect:
 	if texture == null:
 		return null
 	var icon := TextureRect.new()
-	icon.texture = texture
-	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	icon.position = bounds.position
-	icon.size = bounds.size
 	icon.custom_minimum_size = Vector2.ZERO
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	icon.texture = texture
+	icon.position = bounds.position
+	icon.size = bounds.size
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return icon
 
@@ -1010,6 +1105,8 @@ func _select_flat_part(part_type: String) -> void:
 	# Selection only: highlight, update the inspector, and mark the blueprint
 	# slot. Explicitly does NOT install, observe, log, score or save.
 	selected_type = part_type
+	if _family() == "space_segmented":
+		space_blueprint_page = _space_page_for_part(part_type)
 	_build()  # rebuild recreates the cards/labels and re-applies the gold border
 	var part := _part_for_type(part_type)
 	status_label.text = GameManager.text(
@@ -1025,18 +1122,34 @@ func _family() -> String:
 
 func _draw_specialized_blueprint() -> void:
 	var family := _family()
+	if family == "space_segmented":
+		_draw_space_blueprint_page()
+		return
 	var art := TextureRect.new()
 	art.texture = _family_art_texture(family)
 	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	art.position = Vector2(40, 30)
-	art.size = Vector2(348, 300)
 	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if family == "space_segmented":
+		var layout := _space_segmented_blueprint_layout()
+		art.position = layout["display_rect"].position
+		art.size = layout["display_rect"].size
+	else:
+		art.position = Vector2(40, 30)
+		art.size = Vector2(348, 300)
 	blueprint.add_child(art)
 	var placements := _specialized_slot_positions(family)
-	for part_type in order:
-		_draw_slot(part_type, placements.get(part_type, Rect2(156, 388, 116, 42)))
+	if family == "space_segmented":
+		for part_type in order:
+			_draw_space_blueprint_slot(
+				part_type,
+				placements.get(part_type, Rect2(156, 388, 116, 42)),
+				SPACE_SEGMENTED_LABEL_RECTS.get(part_type, Rect2(8, 360, 124, 32))
+			)
+	else:
+		for part_type in order:
+			_draw_slot(part_type, placements.get(part_type, Rect2(156, 388, 116, 42)))
 	# Caption sits in its own strip BELOW the slots, on a solid backing, so it can
 	# never overlap the green install frames or the art.
 	var caption_bg := Panel.new()
@@ -1047,6 +1160,247 @@ func _draw_specialized_blueprint() -> void:
 	blueprint.add_child(caption_bg)
 	var caption := _label_to(blueprint, _family_caption(family), Vector2(22, 458), Vector2(384, 28), 13, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+func _draw_space_blueprint_page() -> void:
+	if space_blueprint_page == "core":
+		var art := TextureRect.new()
+		art.name = "SpaceCoreBlueprintArt"
+		art.texture = _family_art_texture("space_segmented")
+		art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var layout := _space_segmented_blueprint_layout()
+		art.position = layout["display_rect"].position
+		art.size = layout["display_rect"].size
+		blueprint.add_child(art)
+		var placements := _specialized_slot_positions("space_segmented")
+		for part_type in SPACE_CORE_TYPES:
+			if not order.has(part_type):
+				continue
+			_draw_space_blueprint_slot(
+				part_type,
+				placements.get(part_type, Rect2(156, 388, 116, 42)),
+				SPACE_SEGMENTED_LABEL_RECTS.get(part_type, Rect2(8, 360, 124, 32))
+			)
+	elif space_blueprint_page == "deployment":
+		_draw_space_module_page(
+			GameManager.text("DEPLOYMENT, POWER & THERMAL", "展开、供电与热控"),
+			GameManager.text(
+				"Unfolds and powers the observatory.\nCommunicates with Earth and removes heat.",
+				"这些系统负责展开天文台、供电、与地球通信，并把仪器热量排向深空。"
+			),
+			SPACE_DEPLOYMENT_TYPES
+		)
+	else:
+		_draw_space_module_page(
+			GameManager.text("COLD SCIENCE INSTRUMENT BAY", "低温科学仪器舱"),
+			GameManager.text(
+				"Mirrors steer light into the cold instrument bay.\nOnly installed instruments appear at the console.",
+				"反射镜把光束送入低温仪器舱；只有已经安装的仪器才会在空间控制台中可用。"
+			),
+			SPACE_INSTRUMENT_TYPES
+		)
+	_draw_space_blueprint_tabs()
+
+
+func _draw_space_blueprint_tabs() -> void:
+	var tabs := [
+		["core", GameManager.text("Light Path", "光路核心")],
+		["deployment", GameManager.text("Deploy & Power", "展开与供电")],
+		["instruments", GameManager.text("Instruments", "科学仪器")],
+	]
+	var x := 4.0
+	for tab_value in tabs:
+		var tab_id := str(tab_value[0])
+		var tab := _button(str(tab_value[1]), Vector2(x, 458), Vector2(136, 34), Color(0.07, 0.12, 0.20))
+		tab.name = "SpaceBlueprintTab_%s" % tab_id
+		if tab_id == space_blueprint_page:
+			tab.add_theme_stylebox_override("normal", _style(Color(0.12, 0.20, 0.23), GOLD, 2))
+			tab.add_theme_color_override("font_color", GOLD)
+		tab.pressed.connect(_set_space_blueprint_page.bind(tab_id))
+		blueprint.add_child(tab)
+		x += 142.0
+
+
+func _set_space_blueprint_page(page_id: String) -> void:
+	space_blueprint_page = page_id
+	_build()
+
+
+func _space_page_for_part(part_type: String) -> String:
+	if SPACE_CORE_TYPES.has(part_type):
+		return "core"
+	if SPACE_DEPLOYMENT_TYPES.has(part_type):
+		return "deployment"
+	return "instruments"
+
+
+func _draw_space_module_page(title_text: String, explanation: String, part_types: Array) -> void:
+	var header := _label(title_text, Vector2(14, 10), Vector2(400, 24), 15, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	blueprint.add_child(header)
+	var help := _label(explanation, Vector2(20, 38), Vector2(388, 42), 10, Color(0.66, 0.78, 0.84), HORIZONTAL_ALIGNMENT_CENTER)
+	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	blueprint.add_child(help)
+	var visible_types: Array[String] = []
+	for part_type_value in part_types:
+		var part_type := str(part_type_value)
+		if order.has(part_type):
+			visible_types.append(part_type)
+	for index in range(visible_types.size()):
+		var column := index % 2
+		var row := index / 2
+		_draw_space_module_slot(
+			visible_types[index],
+			Rect2(12.0 + column * 204.0, 88.0 + row * 86.0, 196.0, 76.0)
+		)
+	if visible_types.is_empty():
+		var locked_note := _label(
+			GameManager.text(
+				"No components in this system have been unlocked yet.",
+				"这套系统的组件尚未解锁。"
+			),
+			Vector2(32, 208),
+			Vector2(364, 48),
+			13,
+			Color(0.58, 0.66, 0.72),
+			HORIZONTAL_ALIGNMENT_CENTER
+		)
+		locked_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		blueprint.add_child(locked_note)
+
+
+func _draw_space_module_slot(part_type: String, rect: Rect2) -> void:
+	var installed := _installed(part_type)
+	var active := selected_type == part_type and not installed
+	var color := GREEN if installed else (GOLD if active else Color(0.35, 0.84, 1.0))
+	var slot := Panel.new()
+	slot.name = "SpaceModuleSlot_%s" % part_type
+	slot.position = rect.position
+	slot.size = rect.size
+	slot.clip_contents = true
+	slot.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.025, 0.06, 0.10, 0.96), color, 3 if active else 2)
+	)
+	blueprint.add_child(slot)
+	slot_controls[part_type] = slot
+	var part := _part_for_type(part_type)
+	var icon := _part_texture_control(part, Rect2(6, 8, 56, 56))
+	if icon != null:
+		icon.name = "SpaceModuleTexture_%s" % part_type
+		slot.add_child(icon)
+	var name_label := _label(
+		_short_type(part_type),
+		Vector2(68, 8),
+		Vector2(120, 34),
+		11,
+		color
+	)
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	slot.add_child(name_label)
+	slot.add_child(_label(
+		GameManager.text("INSTALLED", "已安装") if installed else GameManager.text("CLICK TO INSTALL", "点击安装"),
+		Vector2(68, 49),
+		Vector2(120, 16),
+		9,
+		GREEN if installed else CYAN
+	))
+	var hit := Button.new()
+	hit.flat = true
+	hit.position = Vector2.ZERO
+	hit.size = rect.size
+	hit.pressed.connect(func() -> void: _install_at_slot(part_type))
+	slot.add_child(hit)
+
+
+func _space_segmented_blueprint_layout() -> Dictionary:
+	return _calculate_blueprint_layout(
+		SPACE_SEGMENTED_SOURCE_SIZE,
+		Rect2(Vector2.ZERO, SPACE_SEGMENTED_SOURCE_SIZE),
+		Rect2(0, 0, blueprint.size.x, 452)
+	)
+
+
+func _draw_space_blueprint_slot(part_type: String, target_rect: Rect2, label_rect: Rect2) -> void:
+	var installed := _installed(part_type)
+	var active := selected_type == part_type and not installed
+	var color := GREEN if installed else (GOLD if active else Color(0.35, 0.84, 1.0, 0.92))
+
+	var label_anchor := label_rect.get_center()
+	var target_anchor := target_rect.get_center()
+	if label_anchor.x < target_anchor.x:
+		label_anchor.x = label_rect.end.x
+	else:
+		label_anchor.x = label_rect.position.x
+	var connector := Line2D.new()
+	connector.name = "SpaceSlotConnector_%s" % part_type
+	connector.points = PackedVector2Array([label_anchor, target_anchor])
+	connector.width = 1.0
+	connector.default_color = Color(color.r, color.g, color.b, 0.72)
+	connector.antialiased = false
+	blueprint.add_child(connector)
+
+	var target := Control.new()
+	target.name = "SpaceSlot_%s" % part_type
+	target.position = target_rect.position
+	target.size = target_rect.size
+	target.clip_contents = true
+	blueprint.add_child(target)
+	slot_controls[part_type] = target
+
+	# Installed art lives in the slot's local coordinate space and is clipped by
+	# the printed cyan box. This prevents large source PNGs from escaping into
+	# the inspector or covering the telescope.
+	if installed:
+		var installed_icon := _part_texture_control(
+			_part_for_type(part_type),
+			Rect2(Vector2(3, 3), target_rect.size - Vector2(6, 6))
+		)
+		if installed_icon != null:
+			installed_icon.name = "SpaceInstalledTexture_%s" % part_type
+			target.add_child(installed_icon)
+
+	var target_frame := Panel.new()
+	target_frame.position = Vector2.ZERO
+	target_frame.size = target_rect.size
+	target_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	target_frame.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.02, 0.10, 0.15, 0.08 if not active else 0.20), color, 3 if active else 2)
+	)
+	target.add_child(target_frame)
+	if installed:
+		var ok := _label("OK", Vector2(target_rect.size.x - 28, 2), Vector2(24, 16), 10, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		target.add_child(ok)
+	var target_hit := Button.new()
+	target_hit.flat = true
+	target_hit.position = Vector2.ZERO
+	target_hit.size = target_rect.size
+	target_hit.pressed.connect(func() -> void: _install_at_slot(part_type))
+	target.add_child(target_hit)
+
+	var label_panel := Panel.new()
+	label_panel.name = "SpaceSlotLabel_%s" % part_type
+	label_panel.position = label_rect.position
+	label_panel.size = label_rect.size
+	label_panel.add_theme_stylebox_override("panel", _style(Color(0.025, 0.055, 0.09, 0.94), color, 1))
+	blueprint.add_child(label_panel)
+	var label_text := _short_type(part_type)
+	if installed:
+		label_text += "  OK"
+	var label := _label(label_text, Vector2(4, 2), label_rect.size - Vector2(8, 4), 10, color, HORIZONTAL_ALIGNMENT_CENTER)
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label_panel.add_child(label)
+	var label_hit := Button.new()
+	label_hit.flat = true
+	label_hit.position = Vector2.ZERO
+	label_hit.size = label_rect.size
+	label_hit.pressed.connect(func() -> void: _install_at_slot(part_type))
+	label_panel.add_child(label_hit)
 
 
 func _family_caption(family: String) -> String:
@@ -1066,18 +1420,24 @@ func _specialized_slot_positions(family: String) -> Dictionary:
 		"cassegrain", "gregorian":
 			return {"mount": Rect2(140, 290, 140, 48), "reflector_tube": Rect2(88, 138, 176, 48), "primary_mirror": Rect2(272, 138, 122, 48), "secondary_mirror": Rect2(108, 102, 126, 34), "focuser": Rect2(280, 90, 110, 34), "eyepiece": Rect2(288, 54, 94, 30)}
 		"space_segmented":
-			return {"primary_mirror": Rect2(128, 114, 170, 44), "secondary_mirror": Rect2(146, 70, 134, 34), "detector": Rect2(118, 238, 170, 42), "sunshield": Rect2(88, 286, 234, 44)}
+			var layout := _space_segmented_blueprint_layout()
+			var converted := {}
+			for part_type in SPACE_SEGMENTED_SOURCE_SLOTS:
+				converted[part_type] = _source_rect_to_blueprint(SPACE_SEGMENTED_SOURCE_SLOTS[part_type], layout)
+			return converted
 		"fast_radio":
 			return {"radio_dish": Rect2(94, 136, 220, 54), "receiver": Rect2(144, 82, 128, 38), "signal_processor": Rect2(120, 276, 172, 46)}
 	return {}
 
 
 func _family_art_texture(family: String) -> Texture2D:
-	var image := Image.load_from_file(ADVANCED_FAMILY_ATLAS)
-	if image == null or image.is_empty():
+	if family == "space_segmented":
+		return load(SPACE_SEGMENTED_BLUEPRINT) as Texture2D
+	var source_texture := load(ADVANCED_FAMILY_ATLAS) as Texture2D
+	if source_texture == null:
 		return null
 	var atlas := AtlasTexture.new()
-	atlas.atlas = ImageTexture.create_from_image(image)
+	atlas.atlas = source_texture
 	match family:
 		"dobsonian": atlas.region = Rect2(0, 0, 626, 630)
 		"cassegrain": atlas.region = Rect2(628, 0, 626, 630)
@@ -1115,15 +1475,22 @@ func _draw_slot(part_type: String, rect: Rect2) -> void:
 func _install_at_slot(slot_type: String) -> void:
 	if install_animation_active:
 		return
-	call_deferred("_animate_install_error_if_idle", slot_type)
 	if selected_type == "":
 		status_label.text = GameManager.text("Select a reflector part first.", "请先选择一个反射镜零件。")
 		return
 	if selected_type != slot_type:
 		status_label.text = GameManager.text("That part does not belong there. Newtonian optics must follow the reflected light path.", "该零件不属于这里。牛顿镜光学部件必须遵循反射光路。")
 		return
+	if _family() == "space_segmented":
+		var prerequisite := _space_part_prerequisite(slot_type)
+		if prerequisite != "" and order.has(prerequisite) and not _installed(prerequisite):
+			status_label.text = GameManager.text(
+				"Install %s first; it physically supports this component." % _short_type(prerequisite),
+				"请先安装%s；它是当前组件的物理支撑。" % _short_type(prerequisite)
+			)
+			return
 	var index := order.find(slot_type)
-	if index > 0 and not _installed(order[index - 1]):
+	if _family() != "space_segmented" and index > 0 and not _installed(order[index - 1]):
 		status_label.text = GameManager.text("Install " + _short_type(order[index - 1]) + " first.", "请先安装" + _short_type(order[index - 1]) + "。")
 		return
 	install_animation_active = true
@@ -1137,6 +1504,120 @@ func _install_at_slot(slot_type: String) -> void:
 	status_label.text = GameManager.text("Installed. The reflected light path is taking shape.", "已安装，反射光路正在成形。")
 	_build()
 	_play_part_animation(animation)
+	call_deferred("_finish_advanced_install_feedback", slot_type, false)
+
+
+func _finish_advanced_install_feedback(part_type: String, main_mode: bool) -> void:
+	var card := part_card_controls.get(part_type) as Control
+	var slot := slot_controls.get(part_type) as Control
+	InteractionFeedback.mechanical_snap(card, slot)
+	var reason := _advanced_part_operation_effect(part_type)
+	if flat_inspector_detail != null:
+		flat_inspector_detail.text = "%s\n%s" % [_short_type(part_type), reason]
+	status_label.text = reason
+	var next_part := _next_advanced_install_part(_main_parts() if main_mode else order)
+	var next_card := part_card_controls.get(next_part) as Control
+	var next_slot := slot_controls.get(next_part) as Control
+	if next_card != null:
+		InteractionFeedback.pulse(next_card, Color(0.96, 0.70, 0.24), 0.58)
+	InteractionFeedback.operation_chain(
+		self,
+		GameManager.text("Installed %s" % _short_type(part_type), "已安装%s" % _short_type(part_type)),
+		reason,
+		GameManager.text(
+			"Assembly check is ready" if next_part == "" else "Next: %s" % _short_type(next_part),
+			"装配检查已就绪" if next_part == "" else "下一步：%s" % _short_type(next_part)
+		),
+		next_slot,
+		Color(0.42, 0.96, 0.58) if next_part == "" else Color(0.32, 0.86, 1.0)
+	)
+
+
+func _next_advanced_install_part(part_types: Array) -> String:
+	for part_type_value in part_types:
+		var part_type := str(part_type_value)
+		if _installed(part_type):
+			continue
+		if _family() == "space_segmented":
+			var prerequisite := _space_part_prerequisite(part_type)
+			if prerequisite != "" and not _installed(prerequisite):
+				continue
+		return part_type
+	return ""
+
+
+func _advanced_part_operation_effect(part_type: String) -> String:
+	match part_type:
+		"primary_mirror":
+			return GameManager.text("The collecting area now gathers faint incoming light.", "主镜集光面积现在可以收集微弱入射光。")
+		"secondary_mirror":
+			return GameManager.text("The reflected beam now reaches the instrument path.", "反射光束现在可以进入仪器光路。")
+		"detector", "detector_module", "nircam", "nirspec", "miri":
+			return GameManager.text("The focused infrared signal can now become science data.", "聚焦后的红外信号现在可以转化为科学数据。")
+		"sunshield", "radiator":
+			return GameManager.text("Thermal radiation is now kept away from the cold optics.", "热辐射现在会被隔离在低温光学系统之外。")
+		"spacecraft_bus":
+			return GameManager.text("Power, control and telemetry now have a stable platform.", "供电、控制与遥测现在有了稳定平台。")
+		"deployable_tower", "deployment_hinges":
+			return GameManager.text("The observatory can now unfold into its observing geometry.", "天文台现在可以展开到观测构型。")
+		"radio_dish":
+			return GameManager.text("The collecting surface now concentrates radio waves.", "反射面现在可以汇聚射电波。")
+		"receiver":
+			return GameManager.text("The focused radio signal can now be converted electrically.", "聚焦后的射电信号现在可以转换为电信号。")
+		"signal_processor":
+			return GameManager.text("Noise rejection and pulse analysis are now available.", "噪声抑制与脉冲分析现在可以工作。")
+		"mount", "tripod":
+			return GameManager.text("The optical assembly now has stable mechanical support.", "光学组件现在有了稳定机械支撑。")
+		"optical_tube_assembly":
+			return GameManager.text("The completed internal light path is now seated on the mount.", "完整的内部光路现在已经固定到支架上。")
+		"finder_scope":
+			return GameManager.text("Wide-field aiming can now guide the main telescope.", "宽视场瞄准现在可以引导主望远镜。")
+	return GameManager.text("This component completes the next physical stage.", "该组件完成了下一个物理工作环节。")
+
+
+func _space_part_prerequisite(part_type: String) -> String:
+	var prerequisites := {
+		"secondary_mirror": "primary_mirror",
+		"detector": "secondary_mirror",
+		"sunshield": "detector",
+		"deployable_tower": "spacecraft_bus",
+		"deployment_hinges": "deployable_tower",
+		"solar_array": "spacecraft_bus",
+		"antenna": "spacecraft_bus",
+		"radiator": "sunshield",
+		"steering_mirror": "primary_mirror",
+		"tertiary_mirror": "secondary_mirror",
+		"instrument_bay": "detector",
+		"detector_module": "instrument_bay",
+		"nircam": "instrument_bay",
+		"nirspec": "instrument_bay",
+		"miri": "radiator",
+		"fgs_niriss": "steering_mirror",
+	}
+	return str(prerequisites.get(part_type, ""))
+
+
+func _install_all_space_parts() -> void:
+	if install_animation_active:
+		return
+	install_animation_active = true
+	var installed_count := 0
+	for part_type in order:
+		if _installed(part_type):
+			continue
+		var part := _part_for_type(part_type)
+		if part.is_empty():
+			continue
+		if GameManager.install_part(part_type, 0, str(part.get("id", ""))) >= 0:
+			installed_count += 1
+	install_animation_active = false
+	selected_type = ""
+	status_label.text = GameManager.text(
+		"Installed %d components across all three blueprint systems." % installed_count,
+		"已在三套蓝图系统中安装 %d 件组件。" % installed_count
+	)
+	InteractionFeedback.success(self)
+	_build()
 
 
 func _capture_part_animation(part_type: String) -> Dictionary:
@@ -1170,6 +1651,10 @@ func _animate_install_error_if_idle(part_type: String) -> void:
 
 func _finish() -> void:
 	if not GameManager.telescope_is_ready():
+		if _family() == "space_segmented":
+			status_label.text = _status_text()
+			InteractionFeedback.error(status_label)
+			return
 		status_label.text = GameManager.text("Install every marked reflector component first.", "请先安装全部标记的反射镜组件。")
 		return
 	if bool(GameManager.current_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable():
@@ -1220,9 +1705,50 @@ func _installed(part_type: String) -> bool:
 
 func _status_text() -> String:
 	var missing: Array = GameManager.missing_parts()
+	if _family() == "space_segmented":
+		if missing.is_empty():
+			return GameManager.text(
+				"All observatory systems installed. Press Finish Assembly.",
+				"天文台全部系统均已安装。请点击“完成组装”。"
+			)
+		var core_total := _space_group_available_count(SPACE_CORE_TYPES)
+		var deployment_total := _space_group_available_count(SPACE_DEPLOYMENT_TYPES)
+		var instrument_total := _space_group_available_count(SPACE_INSTRUMENT_TYPES)
+		return GameManager.text(
+			"Assembly progress\nLight path: %d/%d\nDeploy & power: %d/%d\nScience instruments: %d/%d\n\nSelect a card or install the equipped set." % [
+				_space_group_installed_count(SPACE_CORE_TYPES), core_total,
+				_space_group_installed_count(SPACE_DEPLOYMENT_TYPES), deployment_total,
+				_space_group_installed_count(SPACE_INSTRUMENT_TYPES), instrument_total,
+			],
+			"组装进度\n光路核心：%d/%d\n展开与供电：%d/%d\n科学仪器：%d/%d\n\n请选择零件，或安装已装备组件。" % [
+				_space_group_installed_count(SPACE_CORE_TYPES), core_total,
+				_space_group_installed_count(SPACE_DEPLOYMENT_TYPES), deployment_total,
+				_space_group_installed_count(SPACE_INSTRUMENT_TYPES), instrument_total,
+			]
+		)
 	if missing.is_empty():
 		return GameManager.text("All parts installed. Press Finish Assembly.", "全部零件已安装。点击“完成组装”。")
-	return GameManager.text("Still missing: ", "尚缺零件：") + ", ".join(missing)
+	var missing_lines: Array[String] = []
+	for part_type_value in missing:
+		missing_lines.append("- " + _short_type(str(part_type_value)))
+	return GameManager.text("Still missing:\n", "尚缺零件：\n") + "\n".join(missing_lines)
+
+
+func _space_group_available_count(group: Array) -> int:
+	var count := 0
+	for part_type_value in group:
+		if order.has(str(part_type_value)):
+			count += 1
+	return count
+
+
+func _space_group_installed_count(group: Array) -> int:
+	var count := 0
+	for part_type_value in group:
+		var part_type := str(part_type_value)
+		if order.has(part_type) and _installed(part_type):
+			count += 1
+	return count
 
 
 # --- family-aware bench copy (the flat bench serves space_segmented + fast_radio,
@@ -1280,6 +1806,20 @@ func _short_type(part_type: String) -> String:
 		"secondary_mirror": return GameManager.text("Secondary Mirror", "副镜")
 		"detector": return GameManager.text("Detector", "探测器")
 		"sunshield": return GameManager.text("Sunshield", "遮阳罩")
+		"spacecraft_bus": return GameManager.text("Spacecraft Bus", "航天器平台")
+		"deployable_tower": return GameManager.text("Deployable Tower", "可展开塔架")
+		"deployment_hinges": return GameManager.text("Deployment Hinges", "展开铰链")
+		"solar_array": return GameManager.text("Solar Array", "太阳能电池阵")
+		"antenna": return GameManager.text("Antenna", "通信天线")
+		"radiator": return GameManager.text("Thermal Radiator", "热辐射散热器")
+		"steering_mirror": return GameManager.text("Steering Mirror", "精细转向镜")
+		"tertiary_mirror": return GameManager.text("Tertiary Mirror", "第三反射镜")
+		"instrument_bay": return GameManager.text("Instrument Bay", "仪器舱")
+		"detector_module": return GameManager.text("Detector Module", "探测器模块")
+		"nircam": return GameManager.text("NIRCam", "NIRCam 近红外相机")
+		"nirspec": return GameManager.text("NIRSpec", "NIRSpec 近红外光谱仪")
+		"miri": return GameManager.text("MIRI", "MIRI 中红外仪器")
+		"fgs_niriss": return GameManager.text("FGS/NIRISS", "FGS/NIRISS 导星仪")
 		"reflector_tube": return GameManager.text("Reflector Tube", "镜筒")
 		"focuser": return GameManager.text("Focuser", "调焦座")
 		"eyepiece": return GameManager.text("Eyepiece", "目镜")

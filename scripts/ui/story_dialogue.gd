@@ -11,10 +11,7 @@ const NAME_COLOR := Color(0.98, 0.82, 0.50)
 const TEXT_COLOR := Color(0.94, 0.94, 0.90)
 const MUTED := Color(0.66, 0.74, 0.84)
 
-const PORTRAITS := {
-	"maya": "res://assets/characters/maya_portrait.png",
-	"player": "res://assets/characters/player_portrait.png"
-}
+const PLAYER_PORTRAIT := "res://assets/characters/player_portrait.png"
 
 const TARGET_VISUALS := {
 	"moon": "res://assets/telescope_view/moon_large.png",
@@ -31,6 +28,7 @@ var line_index := 0
 var speaker_label: Label
 var text_label: Label
 var counter_label: Label
+var portrait_frame: Panel
 var portrait_rect: TextureRect
 var next_button: Button
 var diagram_rect: TextureRect
@@ -39,6 +37,8 @@ var default_visual_rect: TextureRect
 var chapter_label: Label
 var reason_label: Label
 var route_label: Label
+var club_label: Label
+var continue_hint_label: Label
 
 
 func _ready() -> void:
@@ -74,8 +74,14 @@ func _build() -> void:
 	plaque.add_theme_stylebox_override("panel", _style(Color(0.16, 0.11, 0.05, 0.96), BORDER, 3, 4))
 	plaque.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(plaque)
-	_label("ASTRONOMY CLUB", Vector2(342, 70), Vector2(340, 26), 20, NAME_COLOR, HORIZONTAL_ALIGNMENT_CENTER)
-	_label("天文俱乐部", Vector2(342, 96), Vector2(340, 22), 14, Color(0.88, 0.80, 0.62), HORIZONTAL_ALIGNMENT_CENTER)
+	club_label = _label(
+		GameManager.text("ASTRONOMY CLUB", "天文俱乐部"),
+		Vector2(342, 76),
+		Vector2(340, 36),
+		22,
+		NAME_COLOR,
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
 
 	# dialogue panel
 	var panel := Panel.new()
@@ -101,20 +107,36 @@ func _build() -> void:
 	route_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	route_label.max_lines_visible = 3
 
-	portrait_rect = TextureRect.new()
-	portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	portrait_rect.stretch_mode = TextureRect.STRETCH_SCALE
-	portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	portrait_rect.position = Vector2(96, 544)
-	portrait_rect.size = Vector2(140, 140)
-	portrait_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(portrait_rect)
+	# Maya belongs to the dialogue, not to the sky. The clipped portrait well
+	# presents a readable head-and-torso crop while keeping the supplied PNG
+	# untouched and preserving her face and both gesturing hands.
+	portrait_frame = Panel.new()
+	portrait_frame.name = "DialoguePortraitFrame"
+	portrait_frame.position = Vector2(92, 538)
+	portrait_frame.size = Vector2(132, 156)
+	portrait_frame.clip_contents = true
+	portrait_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait_frame.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.018, 0.030, 0.060, 0.98), Color(0.34, 0.70, 0.86), 2, 3)
+	)
+	add_child(portrait_frame)
 
-	speaker_label = _label("", Vector2(262, 540), Vector2(300, 28), 19, NAME_COLOR)
-	text_label = _label("", Vector2(262, 574), Vector2(650, 100), 16, TEXT_COLOR)
+	portrait_rect = TextureRect.new()
+	portrait_rect.name = "CharacterPortrait"
+	portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	portrait_rect.position = Vector2(-24, -18)
+	portrait_rect.size = Vector2(180, 270)
+	portrait_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	portrait_frame.add_child(portrait_rect)
+
+	speaker_label = _label("", Vector2(244, 540), Vector2(420, 28), 19, NAME_COLOR)
+	text_label = _label("", Vector2(244, 574), Vector2(668, 82), 16, TEXT_COLOR)
 	text_label.max_lines_visible = 4
 
-	counter_label = _label("", Vector2(96, 686), Vector2(120, 20), 11, MUTED)
+	counter_label = _label("", Vector2(244, 682), Vector2(120, 20), 11, MUTED)
 
 	# Per-line learning diagram overlay. Sized to fit within the upper play
 	# area without covering the dialogue panel (which starts at y=520) or
@@ -124,8 +146,8 @@ func _build() -> void:
 	diagram_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	diagram_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	diagram_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	diagram_rect.position = Vector2(152, 136)
-	diagram_rect.size = Vector2(720, 280)
+	diagram_rect.position = Vector2(278, 136)
+	diagram_rect.size = Vector2(594, 280)
 	diagram_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	diagram_rect.modulate = Color(1, 1, 1, 0)
 	add_child(diagram_rect)
@@ -137,8 +159,8 @@ func _build() -> void:
 	next_button.pressed.connect(_advance)
 	add_child(next_button)
 
-	var hint := _label(GameManager.text("Space / Enter / Click to continue", "空格 / 回车 / 点击继续"), Vector2(262, 682), Vector2(420, 24), 9, MUTED)
-	hint.max_lines_visible = 2
+	continue_hint_label = _label(GameManager.text("Space / Enter / Click to continue", "空格 / 回车 / 点击继续"), Vector2(382, 682), Vector2(390, 24), 9, MUTED)
+	continue_hint_label.max_lines_visible = 2
 
 
 func _draw_night_sky() -> void:
@@ -180,14 +202,29 @@ func _show_line() -> void:
 	var speaker := str(line.get("speaker", "Maya"))
 	if speaker == "You":
 		speaker_label.text = GameManager.text("You", "你")
+	elif speaker.to_lower() == "maya":
+		speaker_label.text = GameManager.text("Maya", "玛雅")
 	else:
 		speaker_label.text = speaker
 	text_label.text = GameManager.text(str(line.get("text_en", "")), str(line.get("text_zh", "")))
 	counter_label.text = "%d / %d" % [line_index + 1, StoryManager.active_lines.size()]
-	var portrait_path: String = PORTRAITS.get(str(line.get("portrait", "maya")), "")
-	if portrait_path != "" and ResourceLoader.exists(portrait_path):
-		portrait_rect.texture = load(portrait_path)
+	var portrait_id := str(line.get("portrait", "maya")).to_lower()
+	if portrait_id == "maya" or speaker.to_lower() == "maya":
+		var pose := MayaPortrait.story_pose(
+			line,
+			StoryManager.active_event_id,
+			line_index,
+			StoryManager.active_lines.size()
+		)
+		MayaPortrait.apply_to(portrait_rect, pose)
+	elif portrait_id in ["player", "you"] and ResourceLoader.exists(PLAYER_PORTRAIT):
+		portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		portrait_rect.texture = load(PLAYER_PORTRAIT)
 		portrait_rect.visible = true
+		portrait_rect.set_meta("maya_pose", "")
+		portrait_rect.set_meta("maya_source_path", "")
 	else:
 		portrait_rect.visible = false
 	if line_index >= StoryManager.active_lines.size() - 1:
@@ -289,5 +326,9 @@ func _label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Co
 	return label
 
 func _on_language_changed() -> void:
+	if club_label != null:
+		club_label.text = GameManager.text("ASTRONOMY CLUB", "天文俱乐部")
+	if continue_hint_label != null:
+		continue_hint_label.text = GameManager.text("Space / Enter / Click to continue", "空格 / 回车 / 点击继续")
 	if not StoryManager.active_lines.is_empty():
 		_show_line()

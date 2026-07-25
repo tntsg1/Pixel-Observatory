@@ -184,7 +184,7 @@ static func _evaluate_telescope(stats: Dictionary, celestial_object: Dictionary,
 	elif not requirement_failure.is_empty():
 		visual_effect = str(requirement_failure.get("visual_effect", "clear"))
 		feedback_en = str(requirement_failure.get("en", "The observing technique is not ready."))
-		feedback_zh = str(requirement_failure.get("zh", "观测技巧尚未达到要求。"))
+		feedback_zh = str(requirement_failure.get("zh", "请完成当前关卡标出的观测方法。"))
 	elif light_ratio < clarity_ratio and light_ratio < stability_ratio:
 		visual_effect = "dim"
 		feedback_en = "This object is dim with the current telescope. A larger objective lens would collect more light."

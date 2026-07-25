@@ -9,6 +9,11 @@ var wavefront_error_nm := 900.0:
 	set(value):
 		wavefront_error_nm = value
 		queue_redraw()
+var actuation_mode := ""
+var actuation_pulse := 0.0:
+	set(value):
+		actuation_pulse = value
+		queue_redraw()
 
 const HOT := Color(0.96, 0.96, 0.96)
 const MID := Color(0.58, 0.58, 0.58)
@@ -31,6 +36,45 @@ func _draw() -> void:
 	_draw_segments(Vector2(176, 230))
 	_draw_psf(Vector2(430, 220))
 	_draw_waveform(Rect2(330, 332, 200, 78))
+	_draw_actuation_feedback()
+
+
+func flash_actuation(mode: String) -> void:
+	actuation_mode = mode
+	actuation_pulse = 1.0
+	if InteractionFeedback.is_reduced_motion():
+		actuation_pulse = 0.0
+		return
+	var tween := create_tween().bind_node(self)
+	tween.tween_property(self, "actuation_pulse", 0.0, 0.42 if mode == "COARSE" else 0.28).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+
+
+func _draw_actuation_feedback() -> void:
+	if actuation_pulse <= 0.001:
+		return
+	if actuation_mode == "COARSE":
+		# Coarse control moves a six-segment bank at once: a broad mechanical
+		# impulse crosses the primary and visibly shifts the PSF cluster.
+		var radius := lerpf(42.0, 112.0, 1.0 - actuation_pulse)
+		draw_arc(Vector2(176, 230), radius, 0.0, TAU, 48, Color(HOT, actuation_pulse * 0.62), 3.0)
+		for index in range(6):
+			var angle := TAU * float(index) / 6.0
+			var start := Vector2(176, 230) + Vector2(cos(angle), sin(angle)) * 30.0
+			draw_line(start, start + Vector2(cos(angle), sin(angle)) * 38.0, Color(HOT, actuation_pulse * 0.76), 3.0)
+	else:
+		# Fine control works one segment / one wavefront peak at a time. The
+		# tight brackets make it read differently from the coarse shock ring.
+		var focus := Vector2(430, 220)
+		var half := lerpf(30.0, 18.0, actuation_pulse)
+		var color := Color(HOT, actuation_pulse * 0.84)
+		draw_line(focus + Vector2(-half, -half), focus + Vector2(-half + 12, -half), color, 2.0)
+		draw_line(focus + Vector2(-half, -half), focus + Vector2(-half, -half + 12), color, 2.0)
+		draw_line(focus + Vector2(half, -half), focus + Vector2(half - 12, -half), color, 2.0)
+		draw_line(focus + Vector2(half, -half), focus + Vector2(half, -half + 12), color, 2.0)
+		draw_line(focus + Vector2(-half, half), focus + Vector2(-half + 12, half), color, 2.0)
+		draw_line(focus + Vector2(-half, half), focus + Vector2(-half, half - 12), color, 2.0)
+		draw_line(focus + Vector2(half, half), focus + Vector2(half - 12, half), color, 2.0)
+		draw_line(focus + Vector2(half, half), focus + Vector2(half, half - 12), color, 2.0)
 
 
 func _draw_segments(center: Vector2) -> void:

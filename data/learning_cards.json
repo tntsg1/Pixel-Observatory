@@ -147,7 +147,7 @@
     "id": "dobsonian_manual_altaz",
     "title_en": "The Dobsonian: Big Mirror, Simple Box",
     "title_zh": "多布森：大主镜，简单摇箱",
-    "image": "",
+    "image": "res://assets/assembly/dobsonian_main_blueprint.png",
     "text_en": "A Dobsonian mounts a Newtonian tube on a simple rocker box: swivel for azimuth, tilt for altitude. It is stable and cheap, but nothing tracks the sky - you keep the target centered with gentle hand nudges.",
     "text_zh": "多布森把牛顿式镜筒放在简单的摇箱上：左右旋转控制方位，上下俯仰控制高度。它稳定又便宜，但没有任何自动追踪——你要用手轻推镜筒，让目标保持居中。"
   },
@@ -155,7 +155,7 @@
     "id": "cassegrain_folded_path",
     "title_en": "The Cassegrain: A Folded Light Path",
     "title_zh": "卡塞格林：折叠的光路",
-    "image": "",
+    "image": "res://assets/assembly/cassegrain_main_blueprint_cropped.png",
     "text_en": "The concave primary mirror reflects light to a convex secondary, which sends it back through a hole in the primary. Folding packs a long focal length into a short tube: high magnification, but a narrow field of view that is sensitive to shaking and seeing.",
     "text_zh": "凹面主镜把光反射给凸面副镜，副镜再把光送回、穿过主镜中央的开孔。折叠让长焦距装进短镜筒：倍率更高，但视场狭窄，对抖动和视宁度更敏感。"
   },
@@ -163,7 +163,7 @@
     "id": "gregorian_concave_secondary",
     "title_en": "The Gregorian: Focus Before the Secondary",
     "title_zh": "格里高利：先聚焦，再反射",
-    "image": "",
+    "image": "res://assets/learning_diagrams/gregorian_folded_path.svg",
     "text_en": "In a Gregorian, light passes through a real focal point BEFORE reaching the concave secondary mirror. This gives an upright image, but the two curved mirrors and the mid-air focus must be aligned much more strictly than in a Newtonian.",
     "text_zh": "在格里高利式中，光线先穿过一个真实的焦点，然后才到达凹面副镜。这带来正立的成像，但两面曲面镜和悬在半空的焦点必须比牛顿式对得更严格。"
   },
@@ -171,7 +171,7 @@
     "id": "infrared_space_observing",
     "title_en": "Infrared: Seeing Heat from Space",
     "title_zh": "红外观测：从太空看见热",
-    "image": "",
+    "image": "res://assets/assembly/space_main_blueprint.png",
     "text_en": "An infrared space telescope detects heat radiation instead of visible light. Infrared passes through dust that blocks visible light, revealing newborn stars - but the telescope must stay extremely cold behind its sunshield, or its own heat drowns the signal.",
     "text_zh": "红外空间望远镜探测的是热辐射而不是可见光。红外线能穿透挡住可见光的尘埃，揭示新生的恒星——但望远镜必须躲在遮阳板后保持极低温度，否则自身的热量就会淹没信号。"
   },
@@ -179,7 +179,7 @@
     "id": "radio_signal_observing",
     "title_en": "Radio Astronomy: Data Instead of Images",
     "title_zh": "射电天文：数据就是观测",
-    "image": "",
+    "image": "res://assets/assembly/fast_main_blueprint.png",
     "text_en": "A radio telescope has no eyepiece. Its dish collects radio waves onto a receiver, and a processor records signal strength over time. You tune a frequency band, watch for repeating pulses, and measure peaks and periods - the data trace IS the observation.",
     "text_zh": "射电望远镜没有目镜。反射面把无线电波汇聚到接收机上，处理器记录信号强度随时间的变化。你要调谐频段、寻找重复脉冲、测量峰值和周期——数据轨迹本身就是观测结果。"
   },
@@ -187,7 +187,7 @@
     "id": "multi_wavelength_evidence",
     "title_en": "One Target, Many Kinds of Light",
     "title_zh": "同一目标，多种光",
-    "image": "",
+    "image": "res://assets/learning_diagrams/jwst_false_colour_diagram.png",
     "text_en": "Visible light shows stars, infrared reveals warm dust, radio traces cold gas. No single instrument sees everything. Modern astronomy compares evidence from several wavelength windows and builds one conclusion supported by all of them.",
     "text_zh": "可见光展示恒星，红外揭示温暖的尘埃，无线电描出寒冷的气体。没有一台仪器能看到全部。现代天文学比较多个波段窗口的证据，得出被所有证据共同支持的结论。"
   },

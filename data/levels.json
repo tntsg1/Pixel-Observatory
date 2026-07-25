@@ -61,9 +61,10 @@
     "level_number": 3,
     "title_en": "Build a Simple Refractor",
     "title_zh": "组装简单折射望远镜",
-    "description_en": "Assemble your first refractor: objective lens in front, eyepiece at the back. Then observe the Moon again.",
-    "description_zh": "组装第一台折射望远镜：前端物镜、后端目镜。然后再次观察月球。",
+    "description_en": "Build your first refractor, then revisit the Moon as a controlled comparison. This time resolve dark maria and crater rims that were only vague patches to the naked eye.",
+    "description_zh": "组装第一台折射望远镜，再用月球做一次对照实验。这次要分辨肉眼下只是模糊斑块的暗色月海和撞击坑边缘。",
     "observation_mode": "telescope",
+    "variation": "lunar_detail_comparison",
     "equipment_stage": "refractor_basic",
     "requires_telescope": true,
     "requires_focus": false,
@@ -86,10 +87,10 @@
       "eyepiece"
     ],
     "required_assembly_score": 70,
-    "hint_text_en": "The Moon looks completely different through a telescope.",
-    "hint_text_zh": "通过望远镜看到的月球完全不同。",
-    "success_text_en": "The objective collects light, the eyepiece magnifies the image.",
-    "success_text_zh": "物镜收集光线，目镜放大图像。",
+    "hint_text_en": "Compare the dark lava plains and bright crater rims with your L1 naked-eye record.",
+    "hint_text_zh": "把暗色熔岩平原和明亮撞击坑边缘，与 L1 的肉眼记录进行比较。",
+    "success_text_en": "The same Moon now shows structure: the objective resolves detail and the eyepiece makes it inspectable.",
+    "success_text_zh": "同一个月球现在显出了结构：物镜分辨细节，目镜让细节可供观察。",
     "reward_credits": 50,
     "unlock_parts": [
       "basic_focus_knob"

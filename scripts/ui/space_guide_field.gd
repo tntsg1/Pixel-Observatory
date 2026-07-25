@@ -10,6 +10,7 @@ var pointing_error := 8.0
 var drift_rate := 0.9
 var locked := false
 var dragging := false
+var input_locked := false
 var search_center := Vector2(118, 322)
 var history: Array[float] = []
 
@@ -20,6 +21,7 @@ const STAR_POSITIONS := [
 const HOT := Color(0.96, 0.96, 0.96)
 const MID := Color(0.58, 0.58, 0.58)
 const DIM := Color(0.28, 0.28, 0.28)
+const GRAPH_HEADER_HEIGHT := 19.0
 
 
 func _ready() -> void:
@@ -44,6 +46,9 @@ func update_metrics(error: float, drift: float, is_locked: bool, chosen_index: i
 
 
 func _gui_input(event: InputEvent) -> void:
+	if input_locked:
+		accept_event()
+		return
 	if event is InputEventMouseButton and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
 		dragging = (event as InputEventMouseButton).pressed
 		if dragging:
@@ -80,6 +85,24 @@ func _move_search(position: Vector2) -> void:
 	queue_redraw()
 
 
+func set_input_locked(value: bool) -> void:
+	input_locked = value
+	dragging = false
+	queue_redraw()
+
+
+func guide_direction(index: int) -> Vector2:
+	if index < 0 or index >= STAR_POSITIONS.size():
+		return Vector2.ZERO
+	var field_center := Vector2(size.x * 0.5, (68.0 + size.y - 82.0) * 0.5)
+	var half_extent := Vector2(maxf(1.0, size.x * 0.5 - 28.0), maxf(1.0, (size.y - 150.0) * 0.5))
+	var direction_delta: Vector2 = STAR_POSITIONS[index] - field_center
+	return Vector2(
+		clampf(direction_delta.x / half_extent.x, -1.0, 1.0),
+		clampf(direction_delta.y / half_extent.y, -1.0, 1.0)
+	)
+
+
 func _draw() -> void:
 	draw_rect(Rect2(Vector2(28, 68), Vector2(size.x - 56, size.y - 150)), Color(0.025, 0.025, 0.025), true)
 	draw_rect(Rect2(Vector2(28, 68), Vector2(size.x - 56, size.y - 150)), DIM, false, 1.0)
@@ -110,7 +133,8 @@ func _draw() -> void:
 				draw_line(p + direction * (lock_radius + 7.0), p + direction * (lock_radius - 5.0), HOT, 2.0)
 
 	var box := Rect2(search_center - Vector2(42, 32), Vector2(84, 64))
-	draw_rect(box, HOT if candidate >= 0 else MID, false, 2.0)
+	var box_color := DIM if input_locked else (HOT if candidate >= 0 else MID)
+	draw_rect(box, box_color, false, 2.0)
 	var corner := 10.0
 	for p in [box.position, Vector2(box.end.x, box.position.y), box.end, Vector2(box.position.x, box.end.y)]:
 		var sx := 1.0 if p.x == box.position.x else -1.0
@@ -118,20 +142,51 @@ func _draw() -> void:
 		draw_line(p, p + Vector2(sx * corner, 0), HOT, 3.0)
 		draw_line(p, p + Vector2(0, sy * corner), HOT, 3.0)
 
-	_draw_drift_graph(Rect2(66, size.y - 68, size.x - 132, 48))
+	_draw_drift_graph(drift_graph_rect())
+
+
+func drift_graph_rect() -> Rect2:
+	return Rect2(66, size.y - 70, size.x - 132, 50)
+
+
+func drift_plot_rect() -> Rect2:
+	var graph := drift_graph_rect()
+	return Rect2(
+		graph.position + Vector2(5, GRAPH_HEADER_HEIGHT + 2.0),
+		Vector2(graph.size.x - 10.0, graph.size.y - GRAPH_HEADER_HEIGHT - 7.0)
+	)
 
 
 func _draw_drift_graph(rect: Rect2) -> void:
 	draw_rect(rect, Color(0.02, 0.02, 0.02), true)
 	draw_rect(rect, DIM, false, 1.0)
-	draw_line(Vector2(rect.position.x, rect.get_center().y), Vector2(rect.end.x, rect.get_center().y), DIM, 1.0)
+	var header_rect := Rect2(rect.position + Vector2.ONE, Vector2(rect.size.x - 2.0, GRAPH_HEADER_HEIGHT))
+	draw_rect(header_rect, Color(0.055, 0.055, 0.055), true)
+	draw_line(
+		Vector2(rect.position.x + 1.0, rect.position.y + GRAPH_HEADER_HEIGHT),
+		Vector2(rect.end.x - 1.0, rect.position.y + GRAPH_HEADER_HEIGHT),
+		DIM, 1.0)
+	draw_string(
+		ThemeDB.fallback_font,
+		rect.position + Vector2(7, 14),
+		GameManager.text("GUIDANCE DRIFT", "导星漂移"),
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, MID)
+	draw_string(
+		ThemeDB.fallback_font,
+		rect.position + Vector2(rect.size.x - 142.0, 14),
+		"%.2f arcsec/s" % drift_rate,
+		HORIZONTAL_ALIGNMENT_RIGHT, 134, 10, HOT if locked else MID)
+
+	var plot_rect := drift_plot_rect()
+	draw_line(
+		Vector2(plot_rect.position.x, plot_rect.get_center().y),
+		Vector2(plot_rect.end.x, plot_rect.get_center().y),
+		Color(DIM, 0.55), 1.0)
 	if history.size() < 2:
 		return
 	var points := PackedVector2Array()
 	for index in range(history.size()):
-		var x := rect.position.x + float(index) / float(maxi(1, history.size() - 1)) * rect.size.x
-		var y := rect.end.y - float(history[index]) * rect.size.y
+		var x := plot_rect.position.x + float(index) / float(maxi(1, history.size() - 1)) * plot_rect.size.x
+		var y := plot_rect.end.y - float(history[index]) * plot_rect.size.y
 		points.append(Vector2(x, y))
 	draw_polyline(points, HOT if locked else MID, 2.0)
-	draw_string(ThemeDB.fallback_font, rect.position + Vector2(6, 14),
-		"DRIFT %.2f arcsec/s" % drift_rate, HORIZONTAL_ALIGNMENT_LEFT, -1, 10, MID)

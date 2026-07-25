@@ -121,8 +121,8 @@ func _on_settings() -> void:
 		settings_panel = null
 		return
 	settings_panel = Panel.new()
-	settings_panel.position = Vector2(322, 436)
-	settings_panel.size = Vector2(380, 230)
+	settings_panel.position = Vector2(322, 398)
+	settings_panel.size = Vector2(380, 282)
 	settings_panel.z_index = 100
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.025, 0.040, 0.070, 0.98)
@@ -149,9 +149,27 @@ func _on_settings() -> void:
 		_show_feedback(GameManager.text("Reduced motion updated.", "减少动画设置已更新。"))
 	)
 	settings_panel.add_child(reduced)
+	var highlights := CheckButton.new()
+	highlights.name = "GuidanceHighlightsToggle"
+	highlights.text = GameManager.text("Guidance highlights", "高光引导")
+	highlights.tooltip_text = GameManager.text(
+		"Show tutorial spotlights, route arrows, and highlighted destinations.",
+		"显示教学聚光、路线箭头和高亮目的地。"
+	)
+	highlights.position = Vector2(28, 100)
+	highlights.size = Vector2(324, 38)
+	highlights.button_pressed = InteractionFeedback.guidance_highlights_enabled()
+	highlights.toggled.connect(func(enabled: bool) -> void:
+		InteractionFeedback.set_guidance_highlights_enabled(enabled)
+		_show_feedback(GameManager.text(
+			"Guidance highlights enabled." if enabled else "Guidance highlights disabled. Explore freely.",
+			"高光引导已开启。" if enabled else "高光引导已关闭，可以自由探索。"
+		))
+	)
+	settings_panel.add_child(highlights)
 	var mobile := CheckButton.new()
 	mobile.text = GameManager.text("Mobile controls", "移动端控制")
-	mobile.position = Vector2(28, 100)
+	mobile.position = Vector2(28, 142)
 	mobile.size = Vector2(324, 38)
 	mobile.button_pressed = TouchInput.is_mobile()
 	mobile.toggled.connect(func(enabled: bool) -> void:
@@ -161,7 +179,7 @@ func _on_settings() -> void:
 	settings_panel.add_child(mobile)
 	var close := Button.new()
 	close.text = GameManager.text("Close", "关闭")
-	close.position = Vector2(110, 172)
+	close.position = Vector2(110, 226)
 	close.size = Vector2(160, 36)
 	close.pressed.connect(func() -> void:
 		if settings_panel != null:

@@ -2,13 +2,19 @@ extends SceneTree
 
 var failures := 0
 var gm: Node
+var had_save := false
+var saved_bytes := PackedByteArray()
 
 
 func _initialize() -> void:
+	had_save = FileAccess.file_exists("user://savegame.json")
+	if had_save:
+		saved_bytes = FileAccess.get_file_as_bytes("user://savegame.json")
 	await process_frame
 	gm = root.get_node_or_null("/root/GameManager")
 	_check(gm != null, "GameManager is available")
 	if gm == null:
+		_restore_save()
 		quit(1)
 		return
 	gm.new_game()
@@ -24,8 +30,20 @@ func _initialize() -> void:
 	_test_shader()
 	await _test_sky_observation()
 	await _test_telescope_view()
+	await _test_averted_vision_ui()
+	_test_newtonian_part_compatibility()
 	print("OPTICAL LENS EFFECT TEST %s" % ("PASS" if failures == 0 else "FAIL"))
+	_restore_save()
 	quit(0 if failures == 0 else 1)
+
+
+func _restore_save() -> void:
+	if had_save:
+		var save_file := FileAccess.open("user://savegame.json", FileAccess.WRITE)
+		if save_file != null:
+			save_file.store_buffer(saved_bytes)
+	elif FileAccess.file_exists("user://savegame.json"):
+		DirAccess.remove_absolute(ProjectSettings.globalize_path("user://savegame.json"))
 
 
 func _test_shader() -> void:
@@ -57,11 +75,12 @@ func _test_sky_observation() -> void:
 	var curvatures: Array[float] = []
 	for mode in ["naked_eye", "finder", "telescope"]:
 		view.call("_set_view_mode", mode)
+		await create_timer(0.32).timeout
 		var material := view.get("optical_lens_material") as ShaderMaterial
 		curvatures.append(float(material.get_shader_parameter("curvature")))
 		_check(float(material.get_shader_parameter("circular_lens")) == 0.0, "%s search view uses the rectangular observation-window lens" % mode)
 	_check(curvatures[0] < curvatures[1] and curvatures[1] < curvatures[2], "Eye < Finder < Scope optical curvature")
-	_check(float(view.get("fov_x")) == 6.0, "mode switching keeps the existing Scope FOV")
+	_check(is_equal_approx(float(view.get("fov_x")), 6.0), "mode switching keeps the existing Scope FOV target")
 	view.queue_free()
 	await process_frame
 
@@ -82,9 +101,40 @@ func _test_telescope_view() -> void:
 			" curvature=", material.get_shader_parameter("curvature") if material != null else "no material")
 		_check(material != null and float(material.get_shader_parameter("circular_lens")) == 1.0, "detailed Telescope View uses a circular lens")
 		_check(material != null and float(material.get_shader_parameter("curvature")) >= 0.05, "detailed telescope curvature is visible but restrained")
+		_check(material != null and float(material.get_shader_parameter("lens_rim_strength")) >= 0.15, "detailed telescope has a visible full-colour fisheye rim")
+		_check(material != null and float(material.get_shader_parameter("lens_caustic_strength")) >= 0.10, "detailed telescope has subtle moving lens caustics")
 		_check(overlay.mouse_filter == Control.MOUSE_FILTER_IGNORE, "detailed lens does not block controls")
 	view.queue_free()
 	await process_frame
+
+
+func _test_averted_vision_ui() -> void:
+	gm.debug_jump_to_level(31, false)
+	gm.selected_object_id = "sombrero_galaxy"
+	var view := load("res://scenes/telescope_view.tscn").instantiate() as Control
+	root.add_child(view)
+	await process_frame
+	await process_frame
+	var guide := view.find_child("AvertedVisionGuide", true, false) as Control
+	_check(guide != null and bool(guide.get("enabled")), "averted-vision lesson draws a visible side-gaze marker")
+	view.set("averted_vision_active", true)
+	view.call("_update_averted_vision_guide", 0.7)
+	_check(guide != null and bool(guide.get("active")) and float(guide.get("hold_visual")) > 0.0, "holding averted vision drives the visual progress ring")
+	var equipment_button: Button
+	for node in view.find_children("*", "Button", true, false):
+		if str((node as Button).text).contains("Change Equipment"):
+			equipment_button = node as Button
+			break
+	_check(equipment_button != null, "detailed telescope view exposes a direct Change Equipment route")
+	view.queue_free()
+	await process_frame
+
+
+func _test_newtonian_part_compatibility() -> void:
+	var objective: Dictionary = gm.get_part("objective_100mm")
+	_check(str(objective.get("telescope_family", "")) == "refractor", "100mm objective is correctly restricted to refractors")
+	gm.debug_jump_to_level(31, false)
+	_check(not gm.is_part_compatible_with_current_level(objective), "Newtonian missions reject the refractor objective lens")
 
 
 func _check(condition: bool, label: String) -> void:

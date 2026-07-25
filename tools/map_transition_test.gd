@@ -9,11 +9,11 @@ func _initialize() -> void:
 	await process_frame
 	var gm: Node = root.get_node("/root/GameManager")
 	gm.new_game()
-	gm.debug_jump_to_level(5, true)   # jupiter
+	gm.debug_jump_to_level(11, true)   # first post-foundation live-sky lesson
 	# Real time moves: park the player at a site where the target is genuinely
 	# below the horizon RIGHT NOW, so the precondition holds on any clock.
 	_force_below_horizon(gm)
-	_check(gm.target_requires_relocation(), "0. jupiter below horizon -> relocation required")
+	_check(gm.target_requires_relocation(), "0. post-foundation target below horizon -> relocation required")
 
 	var wm: Node = load("res://scenes/world_map.tscn").instantiate()
 	root.add_child(wm)
@@ -54,7 +54,7 @@ func _initialize() -> void:
 
 	# --- 4. Skip jumps presentation to READY but keeps the calculation ---
 	gm.new_game()
-	gm.debug_jump_to_level(5, true)
+	gm.debug_jump_to_level(11, true)
 	_force_below_horizon(gm)
 	var wm2: Node = load("res://scenes/world_map.tscn").instantiate()
 	root.add_child(wm2)
@@ -71,7 +71,7 @@ func _initialize() -> void:
 	# --- 5. Trigger reliability: the map opens EVERY time, not once ---
 	var story: Node = root.get_node("/root/StoryManager")
 	gm.new_game()
-	gm.debug_jump_to_level(5, true)
+	gm.debug_jump_to_level(11, true)
 	_force_below_horizon(gm)
 	var first: bool = story.begin_event("first_below_horizon", "world_map")
 	story.finish_active_event()
@@ -83,7 +83,7 @@ func _initialize() -> void:
 
 	# --- 6. Target already up -> short path, no full search ---
 	gm.new_game()
-	gm.debug_jump_to_level(3, false)   # moon, up
+	gm.debug_jump_to_level(11, false)
 	var visible_now: Dictionary = gm.target_visibility()
 	if bool(visible_now.get("visible", false)):
 		var wm3: Node = load("res://scenes/world_map.tscn").instantiate()

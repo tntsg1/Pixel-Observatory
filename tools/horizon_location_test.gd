@@ -34,7 +34,7 @@ func _initialize() -> void:
 
 	# --- 3. Integration: relocation makes the real target visible + recomputes ---
 	gm.new_game()
-	gm.debug_jump_to_level(6, false)  # Sirius
+	gm.debug_jump_to_level(11, false)  # first post-foundation live-sky lesson
 	var home_vis: Dictionary = gm.target_visibility()
 	if bool(home_vis.get("below_horizon", false)):
 		_check(gm.target_requires_relocation(), "3. below-horizon target requires relocation")
@@ -62,12 +62,12 @@ func _initialize() -> void:
 	# --- 5. Targets without sky coordinates never gate (naked-eye safety) ---
 	gm.new_game()
 	gm.debug_jump_to_level(1, false)  # L1 - simple naked-eye/basic
-	# whatever L1's target, the gate must not dead-end L1-L24
+	# The foundation chapter is deliberately scheduled at the home club.
 	var l1_requires: bool = gm.target_requires_relocation()
-	_check(l1_requires == false or not gm.recommend_observation_location().is_empty(), "5. L1 never dead-ends (either up here or a site exists)")
+	_check(not l1_requires, "5. L1 never enters the site-map workflow")
 
 	# --- 6. World map scene instantiates and binds the target ---
-	gm.debug_jump_to_level(6, false)
+	gm.debug_jump_to_level(11, false)
 	var wm: Node = load("res://scenes/world_map.tscn").instantiate()
 	root.add_child(wm)
 	await process_frame

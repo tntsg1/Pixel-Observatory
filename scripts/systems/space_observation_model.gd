@@ -28,6 +28,7 @@ var best_instrument := "nircam"
 var best_filter := "near_infrared"
 var true_science := "dust_rich"      # correct scientific interpretation
 var redshifted := false
+var observation_seed := 0
 
 # ------------------------------------------------------------------ 1. PLAN
 const INSTRUMENTS := ["nircam", "nirspec", "miri", "fgs_niriss"]
@@ -57,6 +58,12 @@ var cold_side_temp := 45.0           # K (mirror side)
 const SAFE_MIN := 85.0               # sun must stay 85..135 deg off boresight
 const SAFE_MAX := 135.0
 const COLD_TARGET := 40.0            # optics must reach ~40 K (7 K extra for MIRI)
+var thermal_target_deg := 108.0      # target-specific roll solution
+var thermal_tolerance_deg := 9.0
+var thermal_hold_required := 1.8
+var thermal_hold_progress := 0.0
+var thermal_locked := false
+var thermal_drift_rate := 0.0        # deg/s, target-specific solar-pressure drift
 
 # ------------------------------------------------------------------ 4. GUIDE
 var guide_stars: Array = []          # each {id, brightness, offset, usable}
@@ -93,6 +100,11 @@ func configure(profile: Dictionary) -> void:
 	best_filter = str(profile.get("best_filter", best_filter))
 	true_science = str(profile.get("science", true_science))
 	redshifted = bool(profile.get("redshifted", false))
+	observation_seed = int(profile.get("guide_seed", 0))
+	if observation_seed == 0:
+		for index in range(target_id.length()):
+			observation_seed += target_id.unicode_at(index) * (index + 3)
+	observation_seed = absi(observation_seed)
 	# starting (deliberately non-ideal) plan
 	instrument = str(profile.get("start_instrument", "nircam"))
 	filter = str(profile.get("start_filter", "near_infrared"))
@@ -102,8 +114,7 @@ func configure(profile: Dictionary) -> void:
 	priority = "balanced"
 	deployed.clear()
 	deploy_locked = false
-	attitude_deg = float(profile.get("start_attitude", 40.0))
-	_recompute_thermal()
+	_configure_thermal_challenge(profile)
 	_build_guide_stars(profile)
 	segment_alignment = 0.25
 	wavefront_error_nm = 900.0
@@ -211,23 +222,107 @@ func fully_deployed() -> bool:
 
 
 # ============================================================= 3. THERMAL
+func _configure_thermal_challenge(profile: Dictionary) -> void:
+	var seed := absi(target_id.hash())
+	thermal_target_deg = clampf(
+		float(profile.get("thermal_target_angle", 96.0 + float(seed % 27))),
+		92.0,
+		128.0
+	)
+	thermal_tolerance_deg = clampf(
+		float(profile.get("thermal_tolerance", 6.0 if best_instrument == "miri" else 9.0)),
+		4.0,
+		14.0
+	)
+	thermal_hold_required = clampf(float(profile.get("thermal_hold_seconds", 2.0)), 1.2, 3.5)
+	var drift_sign := -1.0 if seed % 2 == 0 else 1.0
+	thermal_drift_rate = drift_sign * (0.45 + float(seed % 5) * 0.14)
+	thermal_hold_progress = 0.0
+	thermal_locked = false
+
+	attitude_deg = clampf(float(profile.get("start_attitude", 40.0)), 0.0, 180.0)
+	# Several old profiles started inside the broad 85-135 degree safety cone,
+	# which made every later thermal stage a free confirm. Start each new target
+	# outside its narrower roll corridor while retaining the profile's direction.
+	if attitude_in_corridor(attitude_deg):
+		var side := -1.0 if seed % 2 == 0 else 1.0
+		attitude_deg = clampf(
+			thermal_target_deg + side * (thermal_tolerance_deg + 20.0 + float(seed % 8)),
+			0.0,
+			180.0
+		)
+	_recompute_thermal(true)
+
+
 func rotate_to(attitude: float) -> void:
 	attitude_deg = clampf(attitude, 0.0, 180.0)
-	_recompute_thermal()
+	if not attitude_in_corridor(attitude_deg):
+		thermal_locked = false
+	_recompute_thermal(false)
 
 
-func _recompute_thermal() -> void:
+func _recompute_thermal(snap_temperature := false) -> void:
 	sun_angle = attitude_deg
 	# earth & moon trail the sun line; they stay roughly opposite the cold side
 	earth_angle = wrapf(attitude_deg + 110.0, 0.0, 180.0)
 	moon_angle = wrapf(attitude_deg + 80.0, 0.0, 180.0)
-	# when the sunshield faces the sun (safe zone) the cold side stays cold
-	var in_zone := attitude_deg >= SAFE_MIN and attitude_deg <= SAFE_MAX
-	var penalty := 0.0
-	if not in_zone:
-		penalty = minf(absf(attitude_deg - clampf(attitude_deg, SAFE_MIN, SAFE_MAX)), 90.0)
-	cold_side_temp = COLD_TARGET + penalty * 2.4
-	hot_side_temp = 300.0 + (85.0 - absf(attitude_deg - 90.0)) * 0.4
+	if snap_temperature:
+		cold_side_temp = thermal_equilibrium_temp()
+		hot_side_temp = thermal_hot_equilibrium_temp()
+
+
+func step_thermal(delta: float) -> void:
+	if thermal_locked:
+		return
+	attitude_deg = clampf(attitude_deg + thermal_drift_rate * delta, 0.0, 180.0)
+	_recompute_thermal(false)
+	var cold_goal := thermal_equilibrium_temp()
+	var hot_goal := thermal_hot_equilibrium_temp()
+	var cold_speed := 72.0 if cold_goal < cold_side_temp else 24.0
+	cold_side_temp = move_toward(cold_side_temp, cold_goal, cold_speed * delta)
+	hot_side_temp = move_toward(hot_side_temp, hot_goal, 32.0 * delta)
+	if attitude_in_corridor() and thermal_ok():
+		thermal_hold_progress = minf(thermal_hold_required, thermal_hold_progress + delta)
+	else:
+		thermal_hold_progress = maxf(0.0, thermal_hold_progress - delta * 1.8)
+	thermal_locked = thermal_hold_progress >= thermal_hold_required
+
+
+func thermal_equilibrium_temp() -> float:
+	var global_penalty := 0.0
+	if not sun_safe():
+		global_penalty = minf(absf(attitude_deg - clampf(attitude_deg, SAFE_MIN, SAFE_MAX)), 90.0) * 2.4
+	var roll_penalty := maxf(0.0, attitude_error() - active_thermal_tolerance()) * 0.85
+	return COLD_TARGET + global_penalty + roll_penalty
+
+
+func thermal_hot_equilibrium_temp() -> float:
+	return 300.0 + (85.0 - absf(attitude_deg - 90.0)) * 0.4
+
+
+func thermal_corridor_min() -> float:
+	return maxf(SAFE_MIN, thermal_target_deg - active_thermal_tolerance())
+
+
+func thermal_corridor_max() -> float:
+	return minf(SAFE_MAX, thermal_target_deg + active_thermal_tolerance())
+
+
+func active_thermal_tolerance() -> float:
+	return minf(thermal_tolerance_deg, 6.0) if instrument == "miri" else thermal_tolerance_deg
+
+
+func attitude_error() -> float:
+	return absf(attitude_deg - thermal_target_deg)
+
+
+func attitude_in_corridor(value := NAN) -> bool:
+	var angle := attitude_deg if is_nan(value) else float(value)
+	return angle >= thermal_corridor_min() and angle <= thermal_corridor_max()
+
+
+func thermal_hold_ratio() -> float:
+	return clampf(thermal_hold_progress / maxf(thermal_hold_required, 0.01), 0.0, 1.0)
 
 
 func sun_safe() -> bool:
@@ -235,11 +330,8 @@ func sun_safe() -> bool:
 
 
 func thermal_ok() -> bool:
-	var limit := 7.0 if instrument == "miri" else COLD_TARGET + 8.0
-	if instrument == "miri":
-		# MIRI needs the extra cryocooler; model it as a tighter cold ceiling
-		return sun_safe() and cold_side_temp <= COLD_TARGET + 4.0
-	return sun_safe() and cold_side_temp <= limit
+	var limit := COLD_TARGET + (4.0 if instrument == "miri" else 8.0)
+	return sun_safe() and attitude_in_corridor() and cold_side_temp <= limit
 
 
 func thermal_stability() -> float:
@@ -248,7 +340,7 @@ func thermal_stability() -> float:
 
 
 func safe_to_observe() -> bool:
-	return sun_safe() and thermal_ok()
+	return sun_safe() and attitude_in_corridor() and thermal_ok()
 
 
 # ============================================================= 4. GUIDE STAR
@@ -259,12 +351,44 @@ func _build_guide_stars(profile: Dictionary) -> void:
 		for e in preset:
 			guide_stars.append(e)
 	else:
-		guide_stars = [
-			{"id": "GS-1", "brightness": 0.28, "offset": 4.0, "usable": false},   # too dim
-			{"id": "GS-2", "brightness": 0.82, "offset": 2.0, "usable": true},    # good
-			{"id": "GS-3", "brightness": 0.9, "offset": 14.0, "usable": false},   # too far off-detector
-			{"id": "GS-4", "brightness": 0.66, "offset": 3.2, "usable": true},    # ok
-		]
+		# Each observation receives a deterministic detector field. The best
+		# guide therefore moves between sensor quadrants instead of GS-2 being
+		# the answer in every mission, while reloading a mission stays stable.
+		var seed := int(profile.get("guide_seed", 0))
+		for index in range(target_id.length()):
+			seed += target_id.unicode_at(index) * (index + 3)
+		seed = absi(seed)
+		var best_index := seed % 4
+		var secondary_index := (best_index + 2) % 4
+		var dim_index := (best_index + 1) % 4
+		var off_detector_index := (best_index + 3) % 4
+		for index in range(4):
+			var star := {
+				"id": "GS-%d" % (index + 1),
+				"brightness": 0.45,
+				"offset": 5.0,
+				"usable": false,
+				"reason": "unusable",
+			}
+			if index == best_index:
+				star["brightness"] = 0.82 + float(seed % 7) * 0.01
+				star["offset"] = 1.4 + float(seed % 4) * 0.18
+				star["usable"] = true
+				star["reason"] = "best"
+			elif index == secondary_index:
+				star["brightness"] = 0.62 + float(seed % 5) * 0.015
+				star["offset"] = 3.0 + float(seed % 3) * 0.25
+				star["usable"] = true
+				star["reason"] = "acceptable"
+			elif index == dim_index:
+				star["brightness"] = 0.22 + float(seed % 4) * 0.015
+				star["offset"] = 4.2
+				star["reason"] = "too_dim"
+			elif index == off_detector_index:
+				star["brightness"] = 0.88
+				star["offset"] = 13.0 + float(seed % 4)
+				star["reason"] = "off_detector"
+			guide_stars.append(star)
 	chosen_guide = -1
 	pointing_error = 8.0
 	drift_rate = 0.9
@@ -337,12 +461,30 @@ func acquire() -> void:
 	var per_frame := clampf(exposure_time / 300.0, 0.2, 2.0)
 	var dh: Dictionary = plan_hint("dither", dither)
 	var base_signal := per_frame * target_brightness * instrument_match() * filter_match() * float(dh.get("snr", 1.0))
-	# a deterministic cosmic-ray pattern: roughly one hit every 3rd frame
+	# A compact detector review exercise. Standard four-frame integrations carry
+	# four different outcomes: clean data, two repairable transient events, and
+	# one unrecoverable guide smear. Their order changes per mission.
+	var event_cycle := ["clean", "cosmic_streak", "hot_pixels", "guide_smear"]
+	var event_offset := observation_seed % event_cycle.size()
 	for i in range(integrations):
-		var cosmic := (i % 3 == 2)
 		var saturated := saturates()
+		var event_type := "saturation_bloom" if saturated else str(event_cycle[(i + event_offset) % event_cycle.size()])
+		if i >= event_cycle.size() and not saturated:
+			event_type = "cosmic_shower" if i % 2 == 0 else "amplifier_glow"
+		var repairable := event_type in ["cosmic_streak", "hot_pixels", "cosmic_shower", "amplifier_glow"]
+		var unusable := event_type in ["guide_smear", "saturation_bloom"]
+		var cosmic := event_type in ["cosmic_streak", "hot_pixels", "cosmic_shower"]
 		var sig := base_signal * (0.6 + 0.4 * float(i + 1) / float(integrations))
-		frames.append({"signal": sig, "cosmic_ray": cosmic, "saturated": saturated, "kept": true})
+		frames.append({
+			"signal": sig,
+			"event_type": event_type,
+			"event_seed": observation_seed + i * 37,
+			"repairable": repairable,
+			"unusable": unusable,
+			"cosmic_ray": cosmic,
+			"saturated": saturated,
+			"kept": true,
+		})
 	acquired = true
 
 
@@ -378,6 +520,31 @@ func kept_frames() -> int:
 		if bool(f.get("kept", false)):
 			n += 1
 	return n
+
+
+func frame_should_keep(frame: Dictionary) -> bool:
+	return not bool(frame.get("unusable", false))
+
+
+func frame_review_ready() -> bool:
+	if frames.is_empty():
+		return false
+	for frame_value in frames:
+		var frame: Dictionary = frame_value
+		if bool(frame.get("kept", false)) != frame_should_keep(frame):
+			return false
+	return kept_frames() > 0
+
+
+func frame_selection_quality() -> float:
+	if frames.is_empty():
+		return 0.0
+	var correct := 0
+	for frame_value in frames:
+		var frame: Dictionary = frame_value
+		if bool(frame.get("kept", false)) == frame_should_keep(frame):
+			correct += 1
+	return float(correct) / float(frames.size())
 
 
 func align_frames() -> void:
@@ -436,6 +603,7 @@ func snr() -> float:
 	# so a poor match genuinely lowers the achievable SNR
 	var signal_factor := 0.5 + 0.5 * instrument_match() * filter_match()
 	var raw := chain * stack_gain * 12.0 * signal_factor
+	raw *= lerpf(0.55, 1.0, frame_selection_quality())
 	if saturates():
 		raw *= 0.5
 	if not background_subtracted:
@@ -444,7 +612,7 @@ func snr() -> float:
 
 
 func processing_ready() -> bool:
-	return frames_aligned and cosmic_rays_removed and stacked and background_subtracted
+	return frame_review_ready() and frames_aligned and cosmic_rays_removed and stacked and background_subtracted
 
 
 # ============================================================= 8. FILTER MAP

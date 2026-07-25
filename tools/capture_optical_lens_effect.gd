@@ -20,6 +20,7 @@ func _initialize() -> void:
 		gm.install_part(part_type, 0)
 	await _capture_search_modes()
 	await _capture_detailed_scope()
+	await _capture_averted_scope()
 	print("OPTICAL LENS CAPTURES PASS: ", ProjectSettings.globalize_path(OUTPUT))
 	quit(0)
 
@@ -67,6 +68,32 @@ func _capture_detailed_scope() -> void:
 	if guide_text != null:
 		guide_text.visible = false
 	_save("04_detailed_telescope_full_colour.png")
+	view.queue_free()
+	await process_frame
+
+
+func _capture_averted_scope() -> void:
+	gm.debug_jump_to_level(31, false)
+	gm.selected_object_id = "sombrero_galaxy"
+	var feedback := root.get_node_or_null("/root/InteractionFeedback")
+	if feedback != null:
+		var seen: Dictionary = feedback.get("_tutorial_seen")
+		seen["first_averted_vision"] = true
+		seen["first_earth_drift"] = true
+		seen["first_focus_control"] = true
+		feedback.set("_tutorial_seen", seen)
+	var view := load("res://scenes/telescope_view.tscn").instantiate() as Control
+	root.add_child(view)
+	await _settle(0.28)
+	if view.get("quiz_brief_overlay") != null:
+		view.call("_dismiss_pre_quiz_guide")
+	await _settle(0.12)
+	view.set("dark_adaptation", 1.0)
+	view.set("averted_vision_active", true)
+	view.call("_update_averted_vision_guide", 0.8)
+	view.call("_refresh_technique_status")
+	await _settle(0.16)
+	_save("05_averted_vision_fisheye.png")
 	view.queue_free()
 	await process_frame
 

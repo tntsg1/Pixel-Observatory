@@ -68,6 +68,10 @@ func _test_sky_target_navigation() -> void:
 	var edge: Control = sky_view.get("edge_target_indicator")
 	_check(edge != null and edge.visible, "off-screen Moon shows edge indicator")
 	_check(str((sky_view.get("edge_target_name") as Label).text).contains("Moon"), "edge indicator names the Moon")
+	_check(str((sky_view.get("edge_target_delta") as Label).text).contains("\n"), "edge indicator shows separate A/D and W/S instructions")
+	_check(edge.position.x >= 10.0 and edge.position.y >= 10.0 and edge.position.x + edge.size.x <= 620.0 and edge.position.y + edge.size.y <= 442.0, "edge indicator stays fully inside the safe observation area")
+	var trail: Control = sky_view.get("edge_navigation_trail")
+	_check(trail != null and trail.visible, "off-screen target shows a directional trail from the optical center")
 
 	sky_view.set("telescope_azimuth", 250.0)
 	sky_view.set("telescope_altitude", 45.0)

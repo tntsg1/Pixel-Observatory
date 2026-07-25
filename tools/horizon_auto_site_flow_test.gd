@@ -14,7 +14,8 @@ func _initialize() -> void:
 	_snapshot_save()
 	var gm: Node = root.get_node("/root/GameManager")
 	gm.new_game()
-	gm.debug_jump_to_level(1, false)
+	# Site relocation is introduced only after the ten local foundation lessons.
+	gm.debug_jump_to_level(11, false)
 	gm.suppress_next_world_map_redirect = true
 
 	var sky: Node = load("res://scenes/sky_observation.tscn").instantiate()

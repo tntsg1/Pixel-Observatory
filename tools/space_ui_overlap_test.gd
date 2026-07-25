@@ -47,12 +47,19 @@ func _initialize() -> void:
 	model.dither = "three_point"
 	model.exposure_time = 400.0
 	model.integrations = 5
-	model.rotate_to(110.0)
+	model.rotate_to(model.thermal_target_deg)
+	for _i in range(600):
+		model.step_thermal(1.0 / 60.0)
+		if model.thermal_locked:
+			break
 	model.choose_guide_star(1)
 	for _i in range(240):
 		model.step_guiding(1.0 / 60.0)
 	model.set_segment_alignment(1.0)
 	model.acquire()
+	for frame_index in range(model.frames.size()):
+		var frame: Dictionary = model.frames[frame_index]
+		model.toggle_keep(frame_index, model.frame_should_keep(frame))
 	model.align_frames()
 	model.remove_cosmic_rays()
 	model.subtract_background()

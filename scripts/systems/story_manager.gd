@@ -16,6 +16,8 @@ const DIALOGUES_PATH := "res://data/story_dialogues.json"
 const EXPANSION_DIALOGUES_PATH := "res://data/expansion/story_dialogues.json"
 const REVISIONS_PATH := "res://data/story_revisions.json"
 const NARRATIVE_PATH := "res://data/story_narrative.json"
+const SKILL_TUTORIALS_PATH := "res://data/maya_skill_tutorials.json"
+const SKILL_EVENT_PREFIX := "maya_skill_"
 
 # Events are found by naming convention against the loaded dialogue data:
 #   before_observation -> "level_N_before"
@@ -42,7 +44,9 @@ const EPILOGUE_MIN_LEVEL := 25
 
 var dialogues: Dictionary = {}
 var narrative: Dictionary = {}
+var skill_tutorials: Dictionary = {}
 var active_event_id := ""
+var active_event_ids: Array = []
 var active_lines: Array = []
 var active_context: Dictionary = {}
 var return_scene_key := ""
@@ -58,16 +62,90 @@ func _ready() -> void:
 	# target-specific science dialogue already authored for every other level.
 	_merge_dialogue_pack(_load_json_dict(REVISIONS_PATH))
 	narrative = _load_json_dict(NARRATIVE_PATH)
+	_load_skill_tutorials()
 
 
 # ------------------------------------------------------------------ queries
 
 
 func get_dialogue(event_id: String) -> Array:
+	if event_id.begins_with(SKILL_EVENT_PREFIX):
+		return _skill_dialogue(event_id.trim_prefix(SKILL_EVENT_PREFIX))
 	var lines: Variant = dialogues.get(event_id, [])
 	if lines is Array and not lines.is_empty():
 		return lines
 	return _advanced_fallback_dialogue(event_id)
+
+
+func skill_tutorial(skill_id: String) -> Dictionary:
+	var tutorial: Variant = skill_tutorials.get(skill_id, {})
+	if tutorial is Dictionary:
+		return tutorial
+	return {}
+
+
+func skill_event_id(skill_id: String) -> String:
+	return SKILL_EVENT_PREFIX + skill_id if skill_id != "" else ""
+
+
+func skill_trigger_for_card(card_id: String, level_number: int = 0) -> String:
+	# TeachingFlowManager uses this query so Maya's explanation and the visual
+	# concept brief always interrupt at the same real gameplay doorway.
+	for skill_value in skill_tutorials.values():
+		if not skill_value is Dictionary:
+			continue
+		var skill: Dictionary = skill_value
+		if str(skill.get("concept_card", "")) != card_id:
+			continue
+		if level_number > 0 and int(skill.get("level", 0)) != level_number:
+			continue
+		return str(skill.get("trigger", ""))
+	return ""
+
+
+func pending_skill_events(trigger: String, level_number: int, progress: Dictionary) -> Array:
+	var pending: Array = []
+	for skill_id_value in skill_tutorials:
+		var skill_id := str(skill_id_value)
+		var skill: Dictionary = skill_tutorial(skill_id)
+		if int(skill.get("level", 0)) != level_number:
+			continue
+		if str(skill.get("trigger", "")) != trigger:
+			continue
+		var event_id := skill_event_id(skill_id)
+		if not has_seen(event_id, progress):
+			pending.append(event_id)
+	return pending
+
+
+func _skill_dialogue(skill_id: String) -> Array:
+	var skill := skill_tutorial(skill_id)
+	if skill.is_empty():
+		return []
+	var image_path := ""
+	var gm := _game_manager()
+	if gm != null:
+		var card: Dictionary = gm.get_learning_card(str(skill.get("concept_card", "")))
+		image_path = str(card.get("image", ""))
+	var result: Array = []
+	var phases := [
+		["why_en", "why_zh"],
+		["action_en", "action_zh"],
+		["success_en", "success_zh"],
+		["recovery_en", "recovery_zh"]
+	]
+	for phase_index in range(phases.size()):
+		var keys: Array = phases[phase_index]
+		var line := {
+			"speaker": "Maya",
+			"portrait": "maya",
+			"text_en": str(skill.get(str(keys[0]), "")),
+			"text_zh": str(skill.get(str(keys[1]), ""))
+		}
+		if phase_index == 1 and image_path != "" and ResourceLoader.exists(image_path):
+			line["image"] = image_path
+		result.append(line)
+	return result
 
 
 func _advanced_fallback_dialogue(event_id: String) -> Array:
@@ -145,9 +223,14 @@ func context_for_event(event_id: String) -> Dictionary:
 	var gm := _game_manager()
 	if gm == null:
 		return {}
+	var skill: Dictionary = {}
+	if event_id.begins_with(SKILL_EVENT_PREFIX):
+		skill = skill_tutorial(event_id.trim_prefix(SKILL_EVENT_PREFIX))
 	var level_number := _event_level_number(event_id)
 	if event_id == "intro":
 		level_number = 1
+	elif not skill.is_empty():
+		level_number = int(skill.get("level", 0))
 	if level_number <= 0:
 		level_number = int(gm.current_level().get("level_number", 0))
 	var narrative_level: Dictionary = gm.current_level()
@@ -177,6 +260,18 @@ func context_for_event(event_id: String) -> Dictionary:
 		to_id = "observation_pad"
 	elif event_id.begins_with("first_"):
 		phase = "mechanic"
+	elif not skill.is_empty():
+		phase = "mechanic"
+		match str(skill.get("trigger", "")):
+			"before_assembly":
+				from_id = "mission_board"
+				to_id = "assembly_table"
+			"before_collimation":
+				from_id = "assembly_table"
+				to_id = "collimation_bench"
+			"before_identify", "before_focus", "before_observation":
+				from_id = "mission_board"
+				to_id = _observation_location_for_level(narrative_level)
 	elif event_id.contains("_before"):
 		from_id = "mission_board"
 		to_id = _observation_location_for_level(narrative_level)
@@ -184,12 +279,19 @@ func context_for_event(event_id: String) -> Dictionary:
 	var from_info: Dictionary = locations.get(from_id, {})
 	var to_info: Dictionary = locations.get(to_id, {})
 	var reason_en := str(chapter.get("cause_en", "Tonight's result follows from the previous observation."))
+	if not skill.is_empty():
+		reason_en = str(skill.get("why_en", reason_en))
 	var reason_zh := str(chapter.get("cause_zh", "今晚的任务来自上一项观测留下的问题。"))
+	if not skill.is_empty():
+		reason_zh = str(skill.get("why_zh", reason_zh))
 	if phase == "after":
 		reason_en = str(chapter.get("proof_en", reason_en))
 		reason_zh = str(chapter.get("proof_zh", reason_zh))
 	var action_en := str(override.get("action_en", ""))
 	var action_zh := str(override.get("action_zh", ""))
+	if not skill.is_empty():
+		action_en = str(skill.get("action_en", action_en))
+		action_zh = str(skill.get("action_zh", action_zh))
 	if action_en == "":
 		if phase == "after":
 			action_en = "Record the evidence, then use the Mission Board to begin the next question."
@@ -202,8 +304,8 @@ func context_for_event(event_id: String) -> Dictionary:
 		"level_number": level_number,
 		"phase": phase,
 		"chapter_id": str(chapter.get("id", "")),
-		"chapter_en": str(chapter.get("title_en", "Astronomy Club")),
-		"chapter_zh": str(chapter.get("title_zh", "天文俱乐部")),
+		"chapter_en": str(skill.get("title_en", chapter.get("title_en", "Astronomy Club"))),
+		"chapter_zh": str(skill.get("title_zh", chapter.get("title_zh", "天文俱乐部"))),
 		"reason_en": reason_en,
 		"reason_zh": reason_zh,
 		"from_id": from_id,
@@ -221,17 +323,33 @@ func context_for_event(event_id: String) -> Dictionary:
 
 
 func begin_event(event_id: String, scene_key: String, follow_trigger: String = "") -> bool:
+	return _begin_events([event_id], scene_key, follow_trigger)
+
+
+func _begin_events(event_ids: Array, scene_key: String, follow_trigger: String = "") -> bool:
 	var gm := _game_manager()
-	if gm == null or event_id == "":
+	if gm == null:
 		return false
-	if has_seen(event_id, gm.progress):
+	var playable_ids: Array = []
+	var combined_lines: Array = []
+	var context_event_id := ""
+	for event_id_value in event_ids:
+		var event_id := str(event_id_value)
+		if event_id == "" or has_seen(event_id, gm.progress):
+			continue
+		var lines := get_dialogue(event_id)
+		if lines.is_empty():
+			continue
+		playable_ids.append(event_id)
+		combined_lines.append_array(lines)
+		if context_event_id == "" or event_id.begins_with(SKILL_EVENT_PREFIX):
+			context_event_id = event_id
+	if playable_ids.is_empty():
 		return false
-	var lines := get_dialogue(event_id)
-	if lines.is_empty():
-		return false
-	active_event_id = event_id
-	active_lines = lines
-	active_context = context_for_event(event_id)
+	active_event_ids = playable_ids
+	active_event_id = str(playable_ids[0])
+	active_lines = combined_lines
+	active_context = context_for_event(context_event_id)
 	return_scene_key = scene_key
 	pending_trigger = follow_trigger
 	gm.go("story")
@@ -241,7 +359,14 @@ func begin_event(event_id: String, scene_key: String, follow_trigger: String = "
 func begin_mechanic_event(mechanic: String, scene_key: String, follow_trigger: String = "") -> bool:
 	# First-time introduction for a game mechanic (tube sub-assembly,
 	# collimation, ...). Replays never happen thanks to seen_story_events.
-	return begin_event(str(MECHANIC_EVENTS.get(mechanic, "")), scene_key, follow_trigger)
+	var gm := _game_manager()
+	if gm == null:
+		return false
+	var event_ids: Array = [str(MECHANIC_EVENTS.get(mechanic, ""))]
+	if follow_trigger != "":
+		var level_number := int(gm.current_level().get("level_number", 0))
+		event_ids.append_array(pending_skill_events(follow_trigger, level_number, gm.progress))
+	return _begin_events(event_ids, scene_key, follow_trigger)
 
 
 func begin_epilogue(level_number: int, scene_key: String) -> bool:
@@ -258,7 +383,9 @@ func begin_event_for_trigger(trigger: String, scene_key: String) -> bool:
 	if gm == null:
 		return false
 	var level_number: int = int(gm.current_level().get("level_number", 0))
-	return begin_event(event_for_trigger(trigger, level_number), scene_key, trigger)
+	var event_ids: Array = [event_for_trigger(trigger, level_number)]
+	event_ids.append_array(pending_skill_events(trigger, level_number, gm.progress))
+	return _begin_events(event_ids, scene_key, trigger)
 
 
 func finish_active_event() -> void:
@@ -267,16 +394,19 @@ func finish_active_event() -> void:
 	var gm := _game_manager()
 	if gm == null:
 		return
-	if active_event_id != "":
+	if not active_event_ids.is_empty():
 		if not gm.progress.has("seen_story_events"):
 			gm.progress["seen_story_events"] = []
-		if not gm.progress["seen_story_events"].has(active_event_id):
-			gm.progress["seen_story_events"].append(active_event_id)
+		for event_id_value in active_event_ids:
+			var event_id := str(event_id_value)
+			if event_id != "" and not gm.progress["seen_story_events"].has(event_id):
+				gm.progress["seen_story_events"].append(event_id)
 	var completed_event_id := active_event_id
 	var completed_context := active_context.duplicate(true)
 	var scene := return_scene_key
 	var trigger := pending_trigger
 	active_event_id = ""
+	active_event_ids = []
 	active_lines = []
 	active_context = {}
 	return_scene_key = ""
@@ -305,6 +435,7 @@ func finish_active_event() -> void:
 
 func reset_flow() -> void:
 	active_event_id = ""
+	active_event_ids = []
 	active_lines = []
 	active_context = {}
 	return_scene_key = ""
@@ -330,6 +461,19 @@ func _load_json_dict(path: String) -> Dictionary:
 	if parsed is Dictionary:
 		return parsed
 	return {}
+
+
+func _load_skill_tutorials() -> void:
+	skill_tutorials.clear()
+	var pack := _load_json_dict(SKILL_TUTORIALS_PATH)
+	for skill_value in pack.get("skills", []):
+		if not skill_value is Dictionary:
+			continue
+		var skill: Dictionary = skill_value
+		var skill_id := str(skill.get("id", ""))
+		if skill_id == "":
+			continue
+		skill_tutorials[skill_id] = skill
 
 
 func _merge_dialogue_pack(pack: Dictionary) -> void:

@@ -66,6 +66,7 @@ func _initialize() -> void:
 	await _settle(0.06)
 	_save("07_guide_search_field.png")
 	scene.call("_choose_guide", 1)
+	await _settle(1.65)
 	for _i in range(240):
 		model.step_guiding(1.0 / 60.0)
 	scene.call("_refresh_guide")
