@@ -81,7 +81,7 @@
   .gnav{
     position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100;
     display:flex;align-items:center;gap:8px;padding:8px 10px 8px 22px;border-radius:999px;
-    transition:opacity .5s,transform .6s cubic-bezier(.22,1,.36,1);max-width:calc(100vw - 24px);
+    transition:opacity .18s ease-out,transform .22s cubic-bezier(.23,1,.32,1);max-width:calc(100vw - 24px);
   }
   .gnav.hide{opacity:0;transform:translateX(-50%) translateY(-24px);pointer-events:none}
   .gnav-brand{
@@ -1856,7 +1856,13 @@
   var heroInner = document.getElementById('heroInner');
   var heroCv = document.getElementById('sky');
   var gnav = document.getElementById('gnav');
-  var lastY = 0, ticking = false;
+  var lastY = scrollY, ticking = false, navRevealTimer = 0;
+  function revealNavAfterScroll(){
+    clearTimeout(navRevealTimer);
+    navRevealTimer = setTimeout(function(){
+      if(gnav && scrollY >= 90) gnav.classList.remove('hide');
+    }, 280);
+  }
   function onScroll(){
     var y = scrollY;
     if(!reduced && heroInner && y < innerHeight*1.2){
@@ -1873,6 +1879,7 @@
   }
   addEventListener('scroll', function(){
     if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
+    revealNavAfterScroll();
   }, {passive:true});
   onScroll();
 

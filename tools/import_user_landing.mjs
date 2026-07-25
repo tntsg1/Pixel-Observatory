@@ -19,6 +19,10 @@ html = html
     'html[data-lang="en"] .zh{display:none!important}',
     'html[data-lang="en"] .zh{display:none!important}\n  html[data-lang="en"] .pr h3 .lat{display:none!important}',
   )
+  .replace(
+    "transition:opacity .5s,transform .6s cubic-bezier(.22,1,.36,1);max-width:calc(100vw - 24px);",
+    "transition:opacity .18s ease-out,transform .22s cubic-bezier(.23,1,.32,1);max-width:calc(100vw - 24px);",
+  )
   .replaceAll("https://tntsg1.github.io/Pixel-Observatory/", "game/")
   .replace(
     '<h1>STARLIGHT OBSERVATORY<span class="sub">',
@@ -47,6 +51,53 @@ html = html
   .replace(
     /setLang\(saved \|\| \(\(navigator\.language \|\| 'en'\)[^;]+;/,
     "setLang(saved || 'en', false);",
+  )
+  .replace(
+    `  var lastY = 0, ticking = false;
+  function onScroll(){
+    var y = scrollY;
+    if(!reduced && heroInner && y < innerHeight*1.2){
+      heroInner.style.transform = 'translateY('+(y*.34)+'px)';
+      heroInner.style.opacity = Math.max(0, 1 - y/(innerHeight*.72));
+      heroCv.style.transform = 'translateY('+(y*.16)+'px)';
+    }
+    if(gnav){
+      if(y < 90) gnav.classList.add('hide');
+      else if(y > lastY + 4) gnav.classList.add('hide');
+      else if(y < lastY - 4) gnav.classList.remove('hide');
+    }
+    lastY = y; ticking = false;
+  }
+  addEventListener('scroll', function(){
+    if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
+  }, {passive:true});
+  onScroll();`,
+    `  var lastY = scrollY, ticking = false, navRevealTimer = 0;
+  function revealNavAfterScroll(){
+    clearTimeout(navRevealTimer);
+    navRevealTimer = setTimeout(function(){
+      if(gnav && scrollY >= 90) gnav.classList.remove('hide');
+    }, 280);
+  }
+  function onScroll(){
+    var y = scrollY;
+    if(!reduced && heroInner && y < innerHeight*1.2){
+      heroInner.style.transform = 'translateY('+(y*.34)+'px)';
+      heroInner.style.opacity = Math.max(0, 1 - y/(innerHeight*.72));
+      heroCv.style.transform = 'translateY('+(y*.16)+'px)';
+    }
+    if(gnav){
+      if(y < 90) gnav.classList.add('hide');
+      else if(y > lastY + 4) gnav.classList.add('hide');
+      else if(y < lastY - 4) gnav.classList.remove('hide');
+    }
+    lastY = y; ticking = false;
+  }
+  addEventListener('scroll', function(){
+    if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
+    revealNavAfterScroll();
+  }, {passive:true});
+  onScroll();`,
   );
 
 if (!html.includes('rel="icon"')) {
