@@ -237,6 +237,16 @@ cinematic polish and clearer first-use explanation.
 
 ## Dated Recent Updates
 
+### 2026-07-25 - Canonical Website and Game Route
+
+- Corrected the custom-domain release structure so
+  `pixelobservatorygame.com/` serves the official Starlight Observatory website
+  and its play actions open the game at the same-origin `/game/` route.
+- Kept GitHub Pages as a deployment mirror instead of exposing its repository
+  subpath as the player-facing destination.
+- Added Cloudflare R2 routing for the large Godot pack and side-module files
+  requested from `/game/`.
+
 ### 2026-07-25 — Advanced Observatory Interaction, Narrative and Accessibility Pass
 
 - Expanded the advanced-observatory campaign data, Maya dialogue revisions and

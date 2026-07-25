@@ -4,12 +4,14 @@
 
 - URL: <https://pixelobservatorygame.com/>
 - Repository: <https://github.com/tntsg1/Pixel-Observatory>
+- Website title: Starlight Observatory
 - Game title: Pixel Observatory
-- Delivery format: Godot Web export
+- Delivery format: Website at `/`, Godot Web export at `/game/`
 
-The public URL returned HTTP 200 and the Godot Web entry page was reachable in
-the latest check. The live page is a built artifact, not a direct view of the
-working tree.
+The public URL returns the official website. Its play buttons use the same
+origin and open `https://pixelobservatorygame.com/game/`; GitHub Pages remains a
+deployment mirror, not the canonical player-facing address. The live page is a
+built artifact, not a direct view of the working tree.
 
 ## Deployment Path
 
@@ -43,8 +45,9 @@ privacy-preserving visitor estimate, not a claim of exact human identity.
 4. Commit only the intended source, data, asset, and documentation files.
 5. Push the release branch or merge to `main`.
 6. Open the GitHub Actions run and wait for both `build` and `deploy` jobs.
-7. Open `https://pixelobservatorygame.com/` in a private window and verify the
-   game title, loading screen, input, and the changed feature.
+7. Open `https://pixelobservatorygame.com/` in a private window, verify the
+   official website, then use a play button and confirm the game loads at
+   `https://pixelobservatorygame.com/game/`.
 8. Record the date, commit, and user-visible changes in `docs/CHANGELOG.md`.
 
 ## Current Release Note

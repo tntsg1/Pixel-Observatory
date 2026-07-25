@@ -93,19 +93,33 @@ export default {
 			return counter.fetch(request);
 		}
 		const large_game_files = {
-			"/index.pck": "application/octet-stream",
-			"/index.side.wasm": "application/wasm",
+			"/index.pck": {
+				key: "index.pck",
+				content_type: "application/octet-stream",
+			},
+			"/index.side.wasm": {
+				key: "index.side.wasm",
+				content_type: "application/wasm",
+			},
+			"/game/index.pck": {
+				key: "index.pck",
+				content_type: "application/octet-stream",
+			},
+			"/game/index.side.wasm": {
+				key: "index.side.wasm",
+				content_type: "application/wasm",
+			},
 		};
 		if (large_game_files.hasOwnProperty(url.pathname)) {
-			const key = url.pathname.slice(1);
-			const asset = await env.GAME_ASSETS.get(key);
+			const large_file = large_game_files[url.pathname];
+			const asset = await env.GAME_ASSETS.get(large_file.key);
 			if (!asset) {
 				return new Response("Game data is unavailable.", { status: 404 });
 			}
 
 			const headers = new Headers();
 			asset.writeHttpMetadata(headers);
-			headers.set("Content-Type", large_game_files[url.pathname]);
+			headers.set("Content-Type", large_file.content_type);
 			headers.set("Content-Length", String(asset.size));
 			headers.set("ETag", asset.httpEtag);
 			// The pack changes on each game release. Revalidate it so returning
