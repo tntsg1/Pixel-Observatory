@@ -7,8 +7,8 @@ const ROOM_RECT := Rect2(36, 118, 952, 570)
 const PLAYER_SIZE := Vector2(18, 20)
 const PLAYER_SPEED := 220.0
 const INTERACT_DISTANCE := 56.0
-const BG_TEXTURE := "res://assets/reference/observatory_room_clean_bg_1024.png"
-const PLAYER_TEXTURE := "res://assets/characters/player_observer_4dir_clean.png"
+const BG_TEXTURE: Texture2D = preload("res://assets/reference/observatory_room_clean_bg_1024.png")
+const PLAYER_TEXTURE: Texture2D = preload("res://assets/characters/player_observer_4dir_clean.png")
 const PLAYER_FRAME_SIZE := Vector2(96, 128)
 # Uniform scale only — the old 44x62 display size squashed the 96x128 frame.
 const PLAYER_DISPLAY_HEIGHT := 72.0
@@ -239,7 +239,7 @@ func _build() -> void:
 
 func _draw_full_background() -> void:
 	var bg := TextureRect.new()
-	bg.texture = load(BG_TEXTURE)
+	bg.texture = BG_TEXTURE
 	bg.position = Vector2.ZERO
 	bg.size = Vector2(W, H)
 	bg.ignore_texture_size = true
@@ -373,7 +373,7 @@ func _draw_player() -> void:
 	player_shadow = _rect(_player_shadow_position(), Vector2(26, 7), Color(0.0, 0.0, 0.0, 0.32))
 	player = Sprite2D.new()
 	player_atlas = AtlasTexture.new()
-	player_atlas.atlas = load(PLAYER_TEXTURE)
+	player_atlas.atlas = PLAYER_TEXTURE
 	player.texture = player_atlas
 	player.position = _player_visual_position()
 	player.centered = true

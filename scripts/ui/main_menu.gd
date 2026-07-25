@@ -1,7 +1,7 @@
 extends Control
 ## Main Menu: full image background + transparent interaction layer.
 
-const BG_TEXTURE := "res://assets/main_menu/main_menu_bg_1024.png"
+const BG_TEXTURE: Texture2D = preload("res://assets/main_menu/main_menu_bg_1024.png")
 const SCREEN_SIZE := Vector2(1024, 768)
 
 # Button rects are transparent hotspots over the baked full-screen menu art.
@@ -38,7 +38,7 @@ func _build() -> void:
 
 func _draw_background() -> void:
 	var bg := TextureRect.new()
-	bg.texture = load(BG_TEXTURE)
+	bg.texture = BG_TEXTURE
 	bg.position = Vector2.ZERO
 	bg.size = SCREEN_SIZE
 	bg.ignore_texture_size = true
