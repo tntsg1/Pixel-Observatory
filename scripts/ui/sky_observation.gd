@@ -2515,19 +2515,24 @@ func _rebuild_view(sync_camera := true) -> void:
 		var delta_az := shortest_angle_degrees(display_azimuth, float(item.get("azimuth", 0.0))) + offset_az
 		var delta_alt := altitude - display_altitude + offset_alt
 		var visual := _object_visual_for_mode(obj)
-		var in_view: bool = altitude > 0.0 and absf(delta_az) <= half_x and absf(delta_alt) <= half_y and bool(visual.get("shown", true))
 		var center_local := _fov_to_local(delta_az, delta_alt)
-		if in_view and view_mode == "telescope":
+		var geometrically_in_view: bool = altitude > 0.0 and absf(delta_az) <= half_x and absf(delta_alt) <= half_y
+		if geometrically_in_view and view_mode == "telescope":
 			var aperture_radius := minf(VIEW_RECT.size.x, VIEW_RECT.size.y) * 0.445
-			in_view = center_local.distance_to(VIEW_RECT.size * 0.5) <= aperture_radius
-		icon.visible = in_view
-		button.visible = in_view
-		if not in_view:
+			geometrically_in_view = center_local.distance_to(VIEW_RECT.size * 0.5) <= aperture_radius
+		var object_visible := geometrically_in_view and bool(visual.get("shown", true))
+		# A faint mission object can be scientifically invisible to the naked
+		# eye while its catalog coordinates are still known. Keep the object
+		# itself dark, but retain a waypoint at its true projected position.
+		var mission_waypoint_visible := geometrically_in_view and object_id == target_id
+		icon.visible = object_visible
+		button.visible = object_visible or mission_waypoint_visible
+		if not object_visible and not mission_waypoint_visible:
 			continue
 		var texture_size: Vector2 = icon.texture.get_size()
 		var icon_scale: float = float(visual.get("size_px", 2.0)) / maxf(texture_size.x, texture_size.y)
 		icon.scale = Vector2.ONE * icon_scale
-		var icon_size: Vector2 = texture_size * icon_scale
+		var icon_size: Vector2 = texture_size * icon_scale if object_visible else Vector2(2.0, 2.0)
 		var rect := Rect2(center_local - icon_size * 0.5, icon_size)
 		icon.position = rect.position
 		var alpha: float = float(visual.get("alpha", 1.0))
@@ -2545,7 +2550,8 @@ func _rebuild_view(sync_camera := true) -> void:
 			"delta_az": delta_az,
 			"delta_alt": delta_alt,
 			"rect": rect,
-			"detection_rect": hit_rect
+			"detection_rect": hit_rect,
+			"object_visible": object_visible
 		}
 
 	_update_ground()
