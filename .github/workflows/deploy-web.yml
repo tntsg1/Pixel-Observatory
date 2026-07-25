@@ -45,6 +45,7 @@ jobs:
 
       - name: Export browser build
         run: |
+          node tools/prepare_web_export.mjs
           mkdir -p build/web
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . --export-release Web build/web/index.html
 

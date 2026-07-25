@@ -2,6 +2,44 @@ const reducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)",
 ).matches;
 
+function attachLiquidGlass(surface) {
+  surface.classList.add("liquid-glass");
+  const light = document.createElement("span");
+  light.className = "liquid-light";
+  light.setAttribute("aria-hidden", "true");
+  surface.appendChild(light);
+
+  let frame = 0;
+  let targetX = surface.clientWidth * 0.5;
+  let targetY = surface.clientHeight * 0.5;
+  let currentX = targetX;
+  let currentY = targetY;
+  const settle = () => {
+    currentX += (targetX - currentX) * 0.2;
+    currentY += (targetY - currentY) * 0.2;
+    light.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
+    if (Math.abs(targetX - currentX) > 0.2 || Math.abs(targetY - currentY) > 0.2) {
+      frame = requestAnimationFrame(settle);
+    } else {
+      frame = 0;
+    }
+  };
+  surface.addEventListener("pointerenter", () => surface.classList.add("is-lit"));
+  surface.addEventListener("pointermove", (event) => {
+    const bounds = surface.getBoundingClientRect();
+    targetX = event.clientX - bounds.left;
+    targetY = event.clientY - bounds.top;
+    if (!frame) frame = requestAnimationFrame(settle);
+  });
+  surface.addEventListener("pointerleave", () => surface.classList.remove("is-lit"));
+}
+
+if (!reducedMotion && matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  document.querySelectorAll(".nav-shell, .glass-panel, .journey-dialog").forEach(attachLiquidGlass);
+} else {
+  document.querySelectorAll(".nav-shell, .glass-panel, .journey-dialog").forEach((surface) => surface.classList.add("liquid-glass"));
+}
+
 const visitorCount = document.getElementById("visitor-count");
 const visitorStorageKey = "pixel-observatory-visitor-id";
 const visitorId = (() => {
