@@ -262,6 +262,11 @@ cinematic polish and clearer first-use explanation.
   responsive Pixel Observatory start screen before revealing the Godot canvas.
   Added an anonymous, refresh-safe Cloudflare visitor counter backed by a
   Durable Object, plus deployment-time shell generation for every Web export.
+- Replaced the temporary Web-export overlay with the project's dedicated
+  astronomy-site landing experience and moved the Godot build to `/game/`.
+  Web exports now disable desktop VRAM texture compression because it caused
+  browser `CompressedTexture2D` loader failures and greyed-out main-menu and
+  observatory-platform imagery.
 
 ### 2026-07-04 — L10-L24 Teaching and Practice Structure
 

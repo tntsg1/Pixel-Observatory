@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#050b13" />
+    <meta
+      name="description"
+      content="Starlight Observatory is a cinematic pixel-realistic astronomy game about building telescopes and learning to read the night sky."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23050b13'/%3E%3Cpath d='M16 4l2.4 8.3L27 16l-8.6 3.7L16 28l-2.4-8.3L5 16l8.6-3.7L16 4z' fill='%23d6a968'/%3E%3C/svg%3E"
+    />
+    <title>Starlight Observatory | 星光天文台</title>
+    <link rel="stylesheet" href="promo.css?v=3" />
+  </head>
+  <body>
+    <canvas id="starfield" aria-hidden="true"></canvas>
+    <header class="nav-shell">
+      <a class="wordmark" href="#top" aria-label="Starlight Observatory">
+        <i aria-hidden="true">✦</i
+        ><span>STARLIGHT<small>OBSERVATORY</small></span>
+      </a>
+      <nav aria-label="Primary navigation">
+        <a href="#eyes">Begin</a><a href="#optics">Optics</a
+        ><a href="#journey">Journey</a>
+      </nav>
+      <span class="visitor-count" aria-live="polite">VISITORS <b id="visitor-count">--</b></span>
+      <button class="glass-button compact" type="button" data-open-journey>
+        Watch the Journey <span>↗</span>
+      </button>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div
+          class="hero-image"
+          role="img"
+          aria-label="A moonlit mountain observatory beneath the Milky Way"
+        ></div>
+        <div class="hero-glow" aria-hidden="true"></div>
+        <div class="hero-copy reveal is-visible">
+          <p class="overline">A pixel-realistic astronomy observation game</p>
+          <h1 id="hero-title">STARLIGHT<br /><em>OBSERVATORY</em></h1>
+          <p class="hero-cn">星光天文台</p>
+          <p class="hero-tagline">
+            Build your telescope. Read the sky. Discover more.
+          </p>
+          <p class="hero-subline">亲手组装望远镜，读懂夜空，发现更远的世界。</p>
+          <div class="hero-actions">
+            <a class="primary-button" href="game/index.html"
+              >Explore the Game <span>↓</span></a
+            ><button class="text-button" type="button" data-open-journey>
+              Watch the Journey <span>▶</span>
+            </button>
+          </div>
+        </div>
+        <p class="hero-status">MOUNT LYRA / 02:16 / CLEAR SKY</p>
+        <a class="scroll-note" href="#eyes"><i></i> Scroll to observe</a>
+      </section>
+
+      <section class="eyebegin section" id="eyes" aria-labelledby="eyes-title">
+        <div
+          class="wide-sky"
+          role="img"
+          aria-label="A first-time observer looking across a night sky from the observatory"
+        ></div>
+        <div class="content split-start reveal">
+          <div>
+            <p class="overline">01 / FIRST LIGHT</p>
+            <h2 id="eyes-title">
+              Every observation begins<br /><em>with your own eyes.</em>
+            </h2>
+          </div>
+          <div class="section-copy">
+            <p class="cn-line">每一次观测，都从自己的双眼开始。</p>
+            <p>
+              Before the glass, before the mirror, before the first assembled
+              instrument, there is a sky wide enough to take in at once.
+            </p>
+            <p>
+              Learn how vision adapts to darkness, why brightness matters, and
+              why a wide field still leaves faint worlds unresolved.
+            </p>
+          </div>
+        </div>
+        <div
+          class="eye-metrics content reveal"
+          aria-label="Naked eye observation metrics"
+        >
+          <span><b>120°</b><small>wide field</small></span
+          ><span><b>0×</b><small>magnification</small></span
+          ><span><b>∞</b><small>questions</small></span>
+        </div>
+      </section>
+
+      <section
+        class="assembly section"
+        id="assembly"
+        aria-labelledby="assembly-title"
+      >
+        <div class="content assembly-head reveal">
+          <p class="overline">02 / ASSEMBLY BAY</p>
+          <h2 id="assembly-title">
+            A telescope is not a single object.<br /><em>It is a system.</em>
+          </h2>
+          <p class="section-copy">
+            望远镜不是一个单独的物体，而是一套需要精确对齐的光学系统。
+          </p>
+        </div>
+        <div class="assembly-stage" data-assembly-stage>
+          <img
+            class="assembly-exploded"
+            src="assets/refractor-exploded.png"
+            alt="Exploded refractor telescope showing the tripod, mount, cutaway optical tube, objective lens, finder scope, focuser, diagonal, and eyepiece"
+          />
+          <div class="assembly-axis" aria-hidden="true">
+            <span></span><span></span><span></span><span></span><span></span
+            ><span></span>
+          </div>
+          <div
+            class="parts-legend glass-panel"
+            aria-label="Telescope components"
+          >
+            <button
+              data-part="tripod"
+              data-tip="Three adjustable legs isolate the optical system from uneven ground."
+            >
+              Tripod <span>01</span>
+            </button>
+            <button
+              data-part="mount"
+              data-tip="The alt-azimuth head carries the tube and controls both observing axes."
+            >
+              Mount <span>02</span>
+            </button>
+            <button
+              data-part="tube"
+              data-tip="The cutaway reveals internal baffles that suppress stray light before focus."
+            >
+              Optical tube <span>03</span>
+            </button>
+            <button
+              data-part="objective"
+              data-tip="The front glass doublet gathers light and begins converging it toward the focal plane."
+            >
+              Objective <span>04</span>
+            </button>
+            <button
+              data-part="finder"
+              data-tip="A small low-power telescope gives you a wider field for locating the target."
+            >
+              Finder scope <span>05</span>
+            </button>
+            <button
+              data-part="eyepiece"
+              data-tip="The focuser, diagonal, and eyepiece turn the converging image into a view for your eye."
+            >
+              Focus &amp; eyepiece <span>06</span>
+            </button>
+          </div>
+          <p class="assembly-caption">
+            Enter the tube blueprint. Install each internal part. See how one
+            imperfect alignment changes the whole image.
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="optics section"
+        id="optics"
+        aria-labelledby="optics-title"
+      >
+        <div class="content optics-grid">
+          <div class="reveal">
+            <p class="overline">03 / THE PATH OF LIGHT</p>
+            <h2 id="optics-title">
+              Focus is not a button.<br /><em>It is where light meets.</em>
+            </h2>
+            <p class="cn-line">
+              调焦不是简单的按钮操作，而是让光线在焦平面重新汇聚。
+            </p>
+            <p class="section-copy">
+              Move the focal plane, then feel the image settle. Magnification,
+              field of view, and clarity become a relationship you can see
+              instead of a number you simply select.
+            </p>
+          </div>
+          <div
+            class="optics-display glass-panel reveal"
+            aria-label="Interactive optical path diagram"
+          >
+            <div class="optic-object">✦</div>
+            <div class="light-ray ray-one"></div>
+            <div class="light-ray ray-two"></div>
+            <div class="objective-lens"></div>
+            <div class="focal-plane"></div>
+            <div class="eye-piece"></div>
+            <div class="optic-label label-object">Distant light</div>
+            <div class="optic-label label-lens">Objective</div>
+            <div class="optic-label label-focus">Focal plane</div>
+            <div class="optics-data">
+              <span>FOCAL LENGTH <b>900 mm</b></span
+              ><span>FIELD OF VIEW <b>1.2°</b></span
+              ><span>CLARITY <b>92%</b></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="limits section"
+        id="limits"
+        aria-labelledby="limits-title"
+      >
+        <div class="content limits-copy reveal">
+          <p class="overline">04 / WHEN GLASS HAS LIMITS</p>
+          <h2 id="limits-title">
+            When the limits of glass become visible,<br /><em
+              >a new path begins.</em
+            >
+          </h2>
+          <p class="cn-line">当玻璃镜片的极限显现，另一条道路随之开启。</p>
+        </div>
+        <div class="comparison content reveal">
+          <article class="compare-view refractor-view">
+            <p>REFRACTOR / 180×</p>
+            <div class="planet planet-fringe" aria-hidden="true"></div>
+            <h3>Color begins to split.</h3>
+            <span>Red-blue fringe / detail loss</span>
+          </article>
+          <article class="compare-view reflector-view" data-reflector>
+            <p>REFLECTOR / 180×</p>
+            <div class="planet planet-clean" aria-hidden="true"></div>
+            <h3>Reflection keeps the detail.</h3>
+            <span>Primary mirror / secondary / collimation</span>
+          </article>
+        </div>
+        <div class="content reflector-intro reveal">
+          <div class="reflector-schematic" aria-hidden="true">
+            <i></i><b></b><span></span>
+          </div>
+          <p>
+            Now the Newtonian arrives: a primary mirror gathers the light, a
+            spider holds the secondary, and a side focuser makes alignment
+            visible. It trades color fringing for a system you must collimate
+            and maintain.
+          </p>
+        </div>
+      </section>
+
+      <section
+        class="observing section"
+        id="observing"
+        aria-labelledby="observing-title"
+      >
+        <div class="content observing-head reveal">
+          <p class="overline">05 / THE OBSERVATION LOOP</p>
+          <h2 id="observing-title">
+            Find it. Center it.<br /><em>Focus it. Understand it.</em>
+          </h2>
+          <p class="cn-line">找到目标，对准目标，调清目标，理解目标。</p>
+        </div>
+        <div class="observation-product content reveal">
+          <div class="mode-copy">
+            <button class="view-mode is-active" data-view="naked">
+              <span>01</span><strong>Naked Eye</strong
+              ><small
+                >Wide field. A faint point in a very large sky.</small
+              ></button
+            ><button class="view-mode" data-view="finder">
+              <span>02</span><strong>Finder Scope</strong
+              ><small
+                >Narrower. Enough structure to locate the target.</small
+              ></button
+            ><button class="view-mode" data-view="telescope">
+              <span>03</span><strong>Main Telescope</strong
+              ><small>Narrow field. Surface detail begins to appear.</small>
+            </button>
+          </div>
+          <div
+            class="observation-image"
+            data-view-image
+            role="img"
+            aria-label="Telescope observation game interface"
+          >
+            <img
+              src="assets/observation-interface.png"
+              alt="A crisp pixel-realistic telescope observation interface"
+            />
+          </div>
+          <div class="observation-controls glass-panel">
+            <span>AZ 142°</span><span>ALT 38°</span
+            ><label
+              >FOCUS
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value="78"
+                aria-label="Focus"
+              /><output>78%</output></label
+            ><span>TRACK / MANUAL</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="living-sky section" aria-labelledby="sky-title">
+        <div class="content sky-story">
+          <div class="reveal">
+            <p class="overline">06 / CONDITIONS ARE PART OF THE INSTRUMENT</p>
+            <h2 id="sky-title">The sky never<br /><em>stays still.</em></h2>
+            <p class="cn-line">夜空从来不会静止。</p>
+            <p class="section-copy">
+              Earth rotation pulls a target through the field. Clouds close a
+              window. Turbulence softens fine detail. Read the conditions,
+              adjust the power, correct the focus, and keep tracking.
+            </p>
+          </div>
+          <div
+            class="sky-simulator glass-panel reveal"
+            aria-label="Dynamic night sky simulator"
+          >
+            <div class="moving-cloud cloud-a"></div>
+            <div class="moving-cloud cloud-b"></div>
+            <div class="sim-star star-a"></div>
+            <div class="sim-star star-b"></div>
+            <div class="sim-star star-c"></div>
+            <div class="sim-target">M 42</div>
+            <div class="seeing-ring"></div>
+            <div class="sim-readout">
+              <span>SEEING / II</span><span>CLOUD / 17%</span
+              ><span>DRIFT / 15″ SEC</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="journey section"
+        id="journey"
+        aria-labelledby="journey-title"
+      >
+        <div class="content journey-title reveal">
+          <p class="overline">07 / OBSERVER'S PATH</p>
+          <h2 id="journey-title">
+            One night sky.<br /><em>Many ways to see it.</em>
+          </h2>
+        </div>
+        <div class="journey-rail" data-journey-rail>
+          <article class="journey-slide is-selected">
+            <span>01</span>
+            <div class="journey-device naked-device"></div>
+            <h3>Naked Eye</h3>
+            <p>Find the sky's first landmarks.</p>
+          </article>
+          <article class="journey-slide">
+            <span>02</span>
+            <div class="journey-device refractor-device"></div>
+            <h3>Refractor</h3>
+            <p>Learn how glass brings light together.</p>
+          </article>
+          <article class="journey-slide">
+            <span>03</span>
+            <div class="journey-device newton-device"></div>
+            <h3>Newtonian Reflector</h3>
+            <p>Collimate a mirror-built optical path.</p>
+          </article>
+          <article class="journey-slide">
+            <span>04</span>
+            <div class="journey-device dobsonian-device"></div>
+            <h3>Dobsonian</h3>
+            <p>Gather more light. Track by hand.</p>
+          </article>
+          <article class="journey-slide">
+            <span>05</span>
+            <div class="journey-device cassegrain-device"></div>
+            <h3>Cassegrain</h3>
+            <p>Fold a long focal length into a compact tube.</p>
+          </article>
+          <article class="journey-slide">
+            <span>06</span>
+            <div class="journey-device gregorian-device"></div>
+            <h3>Gregorian</h3>
+            <p>Refine a precise two-mirror alignment.</p>
+          </article>
+          <article class="journey-slide">
+            <span>07</span>
+            <div class="journey-device infrared-device"></div>
+            <h3>Infrared Space Telescope</h3>
+            <p>Reveal heat beyond visible light.</p>
+          </article>
+          <article class="journey-slide">
+            <span>08</span>
+            <div class="journey-device fast-device"></div>
+            <h3>FAST Radio Telescope</h3>
+            <p>Listen for a pulse in the cosmic noise.</p>
+          </article>
+        </div>
+        <p class="content rail-note">
+          Scroll sideways through an instrument family. Each one solves a
+          different problem.
+        </p>
+      </section>
+
+      <section class="maya section" aria-labelledby="maya-title">
+        <div
+          class="maya-image"
+          role="img"
+          aria-label="The telescope assembly workshop at night"
+        ></div>
+        <div class="maya-content content reveal">
+          <div>
+            <p class="overline">08 / THE ASTRONOMY CLUB</p>
+            <h2 id="maya-title">
+              You are not just collecting stars.<br /><em
+                >You are learning how we see them.</em
+              >
+            </h2>
+            <p class="cn-line">
+              你收集的不只是星星，而是在学习人类如何看见它们。
+            </p>
+          </div>
+          <div class="maya-message glass-panel">
+            <span>MAYA / MENTOR</span>
+            <p>
+              “Tell me what you saw before you tell me what you think it was.”
+            </p>
+            <small
+              >Every upgrade changes the story, your hands, and the science you
+              can learn.</small
+            >
+          </div>
+        </div>
+      </section>
+
+      <section class="features section" aria-labelledby="features-title">
+        <div class="content reveal">
+          <p class="overline">09 / A GAME ABOUT LOOKING CLOSER</p>
+          <h2 id="features-title">
+            Built for wonder.<br /><em>Grounded in observation.</em>
+          </h2>
+          <div class="feature-lines">
+            <p>
+              Assemble real telescope systems <span>组装真实望远镜系统</span>
+            </p>
+            <p>Learn optics through play <span>在游戏中学习光学原理</span></p>
+            <p>
+              Observe planets, nebulae and galaxies
+              <span>观测行星、星云和星系</span>
+            </p>
+            <p>
+              Adjust focus, tracking and alignment
+              <span>调整焦距、追踪和准直</span>
+            </p>
+            <p>
+              Experience clouds, seeing and Earth rotation
+              <span>感受云层、视宁度和地球自转</span>
+            </p>
+            <p>
+              Progress from naked-eye to radio astronomy
+              <span>从肉眼观测走向射电天文学</span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section class="closing section" aria-labelledby="closing-title">
+        <div
+          class="closing-image"
+          role="img"
+          aria-label="The complete observatory under the night sky"
+        ></div>
+        <div class="closing-shade"></div>
+        <div class="content closing-content reveal">
+          <p class="overline">YOUR NEXT CLEAR NIGHT</p>
+          <h2 id="closing-title">The night sky<br /><em>is waiting.</em></h2>
+          <p>夜空正在等待你的发现。</p>
+          <div>
+            <a class="primary-button" href="game/index.html"
+              >Start Observing <span>↓</span></a
+            ><button class="glass-button" type="button" data-open-journey>
+              Join the Astronomy Club <span>↗</span>
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>STARLIGHT OBSERVATORY / 星光天文台</span
+      ><span>INDEPENDENT DEVELOPMENT</span
+      ><span
+        ><a href="#">Steam</a> <a href="#">X</a> <a href="#">Discord</a></span
+      >
+    </footer>
+    <dialog
+      id="journey-dialog"
+      class="journey-dialog"
+      aria-labelledby="journey-dialog-title"
+    >
+      <button
+        type="button"
+        class="dialog-close"
+        data-close-dialog
+        aria-label="Close"
+      >
+        ×
+      </button>
+      <p class="overline">OBSERVATION JOURNEY / 01:42</p>
+      <h2 id="journey-dialog-title">The first light<br /><em>is yours.</em></h2>
+      <div class="journey-reel">
+        <img
+          src="assets/observation-interface.png"
+          alt="Telescope observation screen"
+        />
+      </div>
+      <p>
+        From a faint point in an open sky to a signal received beyond visible
+        light.
+      </p>
+    </dialog>
+    <script src="promo.js?v=3"></script>
+  </body>
+</html>
