@@ -97,7 +97,47 @@ html = html
     if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
     revealNavAfterScroll();
   }, {passive:true});
-  onScroll();`,
+  onScroll();
+
+  /* ---------- interruptible section navigation ---------- */
+  var sectionScrollFrame = 0;
+  function cancelSectionScroll(){
+    if(sectionScrollFrame) cancelAnimationFrame(sectionScrollFrame);
+    sectionScrollFrame = 0;
+  }
+  function scrollToSection(target, hash){
+    cancelSectionScroll();
+    var startY = scrollY;
+    var targetY = Math.max(0, target.getBoundingClientRect().top + startY - 92);
+    var distance = targetY - startY;
+    if(Math.abs(distance) < 2) return;
+    var duration = reduced ? 180 : Math.min(760, Math.max(420, 420 + Math.abs(distance) * 0.055));
+    var began = performance.now();
+    history.pushState(null, '', hash);
+    function step(now){
+      var progress = Math.min(1, (now - began) / duration);
+      var eased = progress < 0.5
+        ? 4 * progress * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+      scrollTo(0, startY + distance * eased);
+      if(progress < 1) sectionScrollFrame = requestAnimationFrame(step);
+      else sectionScrollFrame = 0;
+    }
+    sectionScrollFrame = requestAnimationFrame(step);
+  }
+  document.querySelectorAll('a[href^="#"]').forEach(function(link){
+    link.addEventListener('click', function(event){
+      if(event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      var hash = link.getAttribute('href');
+      if(!hash || hash === '#') return;
+      var target = document.getElementById(hash.slice(1));
+      if(!target) return;
+      event.preventDefault();
+      scrollToSection(target, hash);
+    });
+  });
+  addEventListener('wheel', cancelSectionScroll, {passive:true});
+  addEventListener('touchstart', cancelSectionScroll, {passive:true});`,
   );
 
 if (!html.includes('rel="icon"')) {
