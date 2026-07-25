@@ -74,7 +74,7 @@ static func story_pose(line: Dictionary, event_id: String, line_index: int, line
 			1: return DISCOVER
 			2: return EXPLAIN
 			3: return THINK
-			5: return DISCOVER
+			5: return EMPHASIZE
 			_: return EMPHASIZE if line_index >= line_count - 1 else EXPLAIN
 
 	var event := event_id.to_lower()

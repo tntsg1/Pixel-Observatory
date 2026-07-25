@@ -12,6 +12,8 @@ const TEXT_COLOR := Color(0.94, 0.94, 0.90)
 const MUTED := Color(0.66, 0.74, 0.84)
 
 const PLAYER_PORTRAIT := "res://assets/characters/player_portrait.png"
+const MAYA_PORTRAIT_POSITION := Vector2(-24, -2)
+const PLAYER_PORTRAIT_POSITION := Vector2(-24, -18)
 
 const TARGET_VISUALS := {
 	"moon": "res://assets/telescope_view/moon_large.png",
@@ -35,6 +37,7 @@ var diagram_rect: TextureRect
 var diagram_tween: Tween
 var default_visual_rect: TextureRect
 var chapter_label: Label
+var beat_label: Label
 var reason_label: Label
 var route_label: Label
 var club_label: Label
@@ -133,6 +136,7 @@ func _build() -> void:
 	portrait_frame.add_child(portrait_rect)
 
 	speaker_label = _label("", Vector2(244, 540), Vector2(420, 28), 19, NAME_COLOR)
+	beat_label = _label("", Vector2(676, 542), Vector2(236, 22), 11, Color(0.54, 0.91, 0.96), HORIZONTAL_ALIGNMENT_RIGHT)
 	text_label = _label("", Vector2(244, 574), Vector2(668, 82), 16, TEXT_COLOR)
 	text_label.max_lines_visible = 4
 
@@ -207,9 +211,13 @@ func _show_line() -> void:
 	else:
 		speaker_label.text = speaker
 	text_label.text = GameManager.text(str(line.get("text_en", "")), str(line.get("text_zh", "")))
+	var beat_en := str(line.get("beat_en", ""))
+	var beat_zh := str(line.get("beat_zh", ""))
+	beat_label.text = GameManager.text(beat_en, beat_zh)
 	counter_label.text = "%d / %d" % [line_index + 1, StoryManager.active_lines.size()]
 	var portrait_id := str(line.get("portrait", "maya")).to_lower()
 	if portrait_id == "maya" or speaker.to_lower() == "maya":
+		portrait_rect.position = MAYA_PORTRAIT_POSITION
 		var pose := MayaPortrait.story_pose(
 			line,
 			StoryManager.active_event_id,
@@ -218,6 +226,7 @@ func _show_line() -> void:
 		)
 		MayaPortrait.apply_to(portrait_rect, pose)
 	elif portrait_id in ["player", "you"] and ResourceLoader.exists(PLAYER_PORTRAIT):
+		portrait_rect.position = PLAYER_PORTRAIT_POSITION
 		portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST

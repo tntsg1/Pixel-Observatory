@@ -237,6 +237,28 @@ cinematic polish and clearer first-use explanation.
 
 ## Dated Recent Updates
 
+### 2026-07-25 — Advanced Observatory Interaction, Narrative and Accessibility Pass
+
+- Expanded the advanced-observatory campaign data, Maya dialogue revisions and
+  telescope heritage records so instruments have a clearer historical and
+  narrative context instead of appearing as isolated technical unlocks.
+- Added tutorial-assistance controls so players can choose full guidance,
+  lighter prompts or freer exploration without breaking mission progression.
+- Strengthened space infrared operations with target-aware attitude slewing,
+  thermal constraints, interactive wavefront alignment and evidence-based
+  false-colour channel mapping.
+- Upgraded the FAST radio-observation model and five-stage flow: feed-cabin
+  inertia and braking, receiver-window tuning, distinct RFI classes, period and
+  dispersion-measure alignment, sustained integration, and evidence-gated radio
+  reports. The ongoing CRT presentation pass is intentionally not listed here
+  as complete until its visual review is finished.
+- Added a small, replaceable core SFX foundation and event routing for assembly,
+  focus, target locking, space operations and FAST actions, together with an
+  in-game SFX preference. These bundled sounds are implementation placeholders
+  pending a final real-world foley/audio asset pass.
+- Added focused headless checks, capture tools and regression coverage for the
+  new observation, teaching, localization and accessibility paths.
+
 ### 2026-07-04 — L10-L24 Teaching and Practice Structure
 
 - Designed a spiral practice structure so one concept could be revisited across

@@ -1964,7 +1964,7 @@ func _refresh_focus_ui() -> void:
 					focus_state_label.text = _hold_progress_text()
 					focus_state_label.add_theme_color_override("font_color", Color(0.70, 0.85, 1.0))
 				elif is_quality_acceptable():
-					focus_state_label.text = GameManager.text("Image clear enough. Ready to identify.", "图像已足够清晰，可以识别。")
+					focus_state_label.text = _focus_ready_text()
 					focus_state_label.add_theme_color_override("font_color", Color(0.45, 0.95, 0.55))
 				else:
 					focus_state_label.text = _quality_shortfall_text()
@@ -2022,8 +2022,16 @@ func _current_feedback() -> String:
 			)
 		return _quality_shortfall_text()
 	if requires_focus and can_identify_object():
-		return GameManager.text("Image clear enough. Ready to identify.", "图像已足够清晰，可以识别。")
+		return _focus_ready_text()
 	return _short_feedback(str(observation.get("quality", "Unknown")))
+
+
+func _focus_ready_text() -> String:
+	var level := GameManager.current_level()
+	return GameManager.text(
+		"Image clear enough. Ready to identify.",
+		str(level.get("focus_ready_text_zh", "图像已足够清晰，可以识别。"))
+	)
 
 
 func _add_stat_bars() -> void:

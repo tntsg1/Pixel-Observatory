@@ -129,6 +129,9 @@
       "focus_knob"
     ],
     "required_assembly_score": 70,
+    "minimum_success_quality": "Fair",
+    "focus_ready_text_zh": "图像已清晰，可以识别。",
+    "observation_success_feedback_zh": "图像已清晰，可以识别。",
     "hint_text_en": "After observing, adjust focus in the telescope view until the image is sharp.",
     "hint_text_zh": "观测后，在望远镜视野里调焦直到图像清晰。",
     "success_text_en": "Focusing aligns the focal plane image with the eyepiece.",

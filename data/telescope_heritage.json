@@ -1,0 +1,110 @@
+{
+  "intro": {
+    "id": "naked_eye",
+    "title_en": "Before Telescopes: The Shared Sky",
+    "title_zh": "望远镜之前：共同的天空",
+    "before_en": "People used the unaided sky for direction, seasons, stories, and questions, but familiar lights still hid their structure.",
+    "before_zh": "人们用肉眼辨方向、定季节、讲故事、提出问题，但熟悉的天光仍隐藏着自身结构。",
+    "breakthrough_en": "Careful naked-eye records created the baseline that every later instrument could improve upon.",
+    "breakthrough_zh": "认真记录肉眼所见，为后来每一种仪器提供了可以比较和超越的基线。",
+    "learned_en": "Use your own eyes first: name what is visible on the Moon and what remains unresolved.",
+    "learned_zh": "先用自己的眼睛观测：说出月球上看得见的部分，也记下仍然分辨不清的部分。",
+    "diagram": ""
+  },
+  "level_3_before_assembly": {
+    "id": "refractor",
+    "title_en": "Glass Turns the Moon into a World",
+    "title_zh": "玻璃让月球成为一个世界",
+    "before_en": "The naked-eye Moon showed shape and dark maria, but its terrain remained unresolved.",
+    "before_zh": "肉眼能看见月球轮廓与暗色月海，却无法分辨它的地形。",
+    "breakthrough_en": "After early-1600s spyglasses appeared, Galileo improved a telescope and used it astronomically, revealing an uneven lunar surface.",
+    "breakthrough_zh": "17 世纪初望远镜式窥镜出现后，伽利略改进望远镜并用于天文观测，揭示了月球并非平滑表面。",
+    "learned_en": "Build a refractor, return to the same Moon, and compare maria and crater rims with your first record.",
+    "learned_zh": "组装折射镜，回到同一轮月球，把月海与环形山边缘和第一份记录作比较。",
+    "diagram": "res://assets/learning_diagrams/refractor_light_path.png"
+  },
+  "level_6_before": {
+    "id": "finder_scope",
+    "title_en": "The Practical Art of Finding",
+    "title_zh": "寻找目标的实用技艺",
+    "before_en": "Magnification narrowed the field so much that even experienced observers could lose an obvious target.",
+    "before_zh": "放大让视场变得很窄，就连有经验的观测者也会丢失一个原本显眼的目标。",
+    "breakthrough_en": "A small, wide-field finder gave the main telescope a trustworthy pointing reference.",
+    "breakthrough_zh": "小型宽视场寻星镜为主望远镜提供了可靠的指向参考。",
+    "learned_en": "Practice the working rhythm: Eye to Finder to Main Scope, after aligning both instruments.",
+    "learned_zh": "先校准两台镜，再练习真实工作节奏：肉眼、寻星镜、主望远镜。",
+    "diagram": "res://assets/learning_diagrams/finder_scope_alignment_diagram.png"
+  },
+  "level_18_before": {
+    "id": "deep_sky",
+    "title_en": "Learning to Trust a Faint Smudge",
+    "title_zh": "学会相信一团微光",
+    "before_en": "Bright objects answered quickly; nebulae and galaxies often looked like almost nothing.",
+    "before_zh": "明亮天体很快就会回应，星云和星系却常常看起来近乎什么也没有。",
+    "breakthrough_en": "Larger aperture, dark-adapted eyes, darker skies, and patient comparison gradually separated real structure from background glow.",
+    "breakthrough_zh": "更大口径、暗适应的眼睛、更暗的天空和耐心比较，会逐渐把真实结构从背景微光中分离出来。",
+    "learned_en": "Accept Orion's honest softness, then hold Andromeda long enough for faint structure to emerge.",
+    "learned_zh": "接受猎户座星云真实的柔和，再把仙女座稳住足够久，让暗弱结构慢慢显现。",
+    "diagram": "res://assets/learning_diagrams/nebula_nursery.png"
+  },
+  "level_26_before_assembly": {
+    "id": "newtonian",
+    "title_en": "Newton's Answer to the Colored Fringe",
+    "title_zh": "牛顿对彩色边缘的回答",
+    "before_en": "A refractor separated colors at a bright star, and no careful focusing could make the fringe disappear.",
+    "before_zh": "折射镜在明亮恒星旁分开了不同颜色，再仔细的调焦也无法让彩边消失。",
+    "breakthrough_en": "Isaac Newton built a practical reflecting telescope to avoid the color separation caused by large objective lenses.",
+    "breakthrough_zh": "艾萨克·牛顿制造了实用反射望远镜，以避开大型物镜造成的颜色分离。",
+    "learned_en": "Build the primary, secondary, side focuser, and shared optical axis; mirrors solve color but demand collimation.",
+    "learned_zh": "组装主镜、副镜、侧置调焦器和共同光轴；镜面解决色差，也要求你学会准直。",
+    "diagram": "res://assets/learning_diagrams/newtonian_light_path.png"
+  },
+  "level_36_before_assembly": {
+    "id": "dobsonian",
+    "title_en": "A Large Mirror for the Sidewalk",
+    "title_zh": "走上街头的大主镜",
+    "before_en": "Large-aperture observing could feel expensive, mechanically complex, and closed to ordinary people.",
+    "before_zh": "大口径观测曾显得昂贵、机械结构复杂，仿佛离普通人很远。",
+    "breakthrough_en": "John Dobson popularized large Newtonian tubes on simple rocker boxes and shared them through public sidewalk astronomy.",
+    "breakthrough_zh": "约翰·多布森推广了安装在简单摇箱上的大口径牛顿镜，并通过街头公众观测把它分享给更多人。",
+    "learned_en": "Trade automatic tracking for gentle alt-az nudges, a wide field, and more faint deep-sky light.",
+    "learned_zh": "用轻柔的经纬式手动推镜取代自动追踪，换来宽视场和更多暗弱深空光线。",
+    "diagram": "res://assets/assembly/dobsonian_main_blueprint.png"
+  },
+  "level_46_before_assembly": {
+    "id": "cassegrain",
+    "title_en": "Folding a Long Telescope",
+    "title_zh": "把长望远镜折进短镜筒",
+    "before_en": "Small planetary detail wanted a long focal length, but a physically long tube was awkward to support and aim.",
+    "before_zh": "细小行星结构需要长焦距，可真正很长的镜筒难以支撑和瞄准。",
+    "breakthrough_en": "A folded two-mirror design published under Laurent Cassegrain's name in 1672 packed a long optical path into a compact body.",
+    "breakthrough_zh": "1672 年以洛朗·卡塞格林之名发表的双镜折叠设计，把长光路装进了紧凑镜身。",
+    "learned_en": "Use disciplined finder work to enter its narrow field, then let the long focal length reveal fine detail.",
+    "learned_zh": "用有纪律的寻星流程进入狭窄视场，再让长焦距揭示细小结构。",
+    "diagram": "res://assets/assembly/cassegrain_main_blueprint_cropped.png"
+  },
+  "level_66_before_assembly": {
+    "id": "space_infrared",
+    "title_en": "A Cold Observatory Beyond Earth",
+    "title_zh": "地球之外的低温观测站",
+    "before_en": "Earth's atmosphere protects life, but it absorbs important infrared wavelengths and glows warmly in the same band.",
+    "before_zh": "地球大气保护生命，却会吸收重要红外波段，并在同一波段发出温暖的辐射。",
+    "breakthrough_en": "Modern cold infrared observatories operate beyond Earth, including near Sun-Earth L2, where shielding and low temperature protect faint signals.",
+    "breakthrough_zh": "现代低温红外观测站运行在地球之外，包括日地 L2 附近，以遮蔽和低温保护暗弱信号。",
+    "learned_en": "There is no eyepiece: deploy, protect, guide, align wavefronts, accumulate photons, process frames, and map filters.",
+    "learned_zh": "这里没有目镜：你要展开、热防护、导星、校准波前、累积光子、处理帧并映射滤镜。",
+    "diagram": "res://assets/learning_diagrams/jwst_spectrum.png"
+  },
+  "level_76_before_assembly": {
+    "id": "fast_radio",
+    "title_en": "Finding a Pattern the Eye Cannot See",
+    "title_zh": "寻找眼睛看不见的规律",
+    "before_en": "Some objects send no useful visible picture; their evidence is a weak repeating radio pattern buried in noise.",
+    "before_zh": "有些天体不会提供有用的可见图像；它们的证据是埋在噪声里的微弱重复射电规律。",
+    "breakthrough_en": "FAST's 500-meter reflector in Guizhou actively reshapes beneath a suspended feed cabin to collect and measure radio signals.",
+    "breakthrough_zh": "贵州 FAST 的 500 米反射面会在悬吊馈源舱下主动变形，用来收集并测量射电信号。",
+    "learned_en": "Position the feed cabin, tune frequency, reject RFI, fold pulses, match dispersion measure, integrate, and raise SNR.",
+    "learned_zh": "定位馈源舱、调谐频率、抑制射频干扰、折叠脉冲、匹配色散量、积分并提高信噪比。",
+    "diagram": "res://assets/assembly/fast_main_blueprint.png"
+  }
+}

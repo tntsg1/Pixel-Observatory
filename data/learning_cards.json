@@ -20,8 +20,8 @@
     "title_en": "How a Refractor Telescope Works",
     "title_zh": "折射望远镜如何工作",
     "image": "res://assets/learning_diagrams/refractor_light_path.png",
-    "text_en": "The objective lens collects light and forms an image. The eyepiece magnifies that image for your eye.",
-    "text_zh": "物镜收集光线并形成图像。目镜把这个图像放大给眼睛观看。"
+    "text_en": "After early-1600s spyglasses appeared, Galileo improved a telescope and used it astronomically; he did not invent it. The objective lens forms an image and the eyepiece magnifies it, so maria and crater rims can be compared with the naked-eye Moon.",
+    "text_zh": "17 世纪初望远镜式窥镜出现后，伽利略改进望远镜并用于天文观测，但他并不是望远镜的发明者。物镜成像，目镜放大，让月海和环形山边缘可以与肉眼月球作比较。"
   },
   {
     "id": "focus_focal_plane",
@@ -44,8 +44,8 @@
     "title_en": "Why a Finder Scope Helps",
     "title_zh": "为什么寻星镜有帮助",
     "image": "res://assets/learning_diagrams/finder_scope_alignment_diagram.png",
-    "text_en": "A finder scope shows a wider view than the main telescope. It helps you aim before using higher magnification.",
-    "text_zh": "寻星镜的视野比主望远镜更宽，可以帮助你在高倍率观测前先对准目标。"
+    "text_en": "A finder scope shows a wider field than the main telescope, because more magnification also makes navigation harder. Align both tubes, then use the real observing rhythm: Eye to Finder to Main Scope. Even experienced observers rely on it.",
+    "text_zh": "寻星镜的视场比主望远镜更宽，因为倍率提高也会让导航变难。先校准两台镜，再使用真实观测节奏：肉眼、寻星镜、主望远镜。即使有经验的观测者也依赖这套流程。"
   },
   {
     "id": "chromatic_aberration",
@@ -60,8 +60,8 @@
     "title_en": "How a Newtonian Reflector Works",
     "title_zh": "牛顿反射望远镜如何工作",
     "image": "res://assets/learning_diagrams/newtonian_light_path.png",
-    "text_en": "A refractor lens bends colors by slightly different amounts, so distant bright targets can show colored fringes. A Newtonian uses a curved primary mirror to gather light without this chromatic aberration, then a small diagonal secondary sends the focused light to the eyepiece on the side.",
-    "text_zh": "折射镜的透镜对不同颜色的折射程度略有不同，因此遥远的明亮目标可能出现彩色边缘。牛顿镜使用弯曲主镜集光，不会产生这种色差，再由小型斜副镜把聚焦后的光送到侧面的目镜。"
+    "text_en": "A refractor can keep colored fringes even at best focus. Isaac Newton built a practical reflector to avoid this lens color separation. Its curved primary gathers light, a diagonal secondary sends it to the side focuser, and collimation keeps both mirrors on one optical axis.",
+    "text_zh": "折射镜即使在最佳焦点也可能保留彩边。艾萨克·牛顿制造了实用反射望远镜，以避开这种透镜颜色分离。弯曲主镜负责集光，斜副镜把光送向侧置调焦器，而准直让两面镜子保持在同一光轴上。"
   },
   {
     "id": "aperture_light_gathering",
@@ -148,16 +148,16 @@
     "title_en": "The Dobsonian: Big Mirror, Simple Box",
     "title_zh": "多布森：大主镜，简单摇箱",
     "image": "res://assets/assembly/dobsonian_main_blueprint.png",
-    "text_en": "A Dobsonian mounts a Newtonian tube on a simple rocker box: swivel for azimuth, tilt for altitude. It is stable and cheap, but nothing tracks the sky - you keep the target centered with gentle hand nudges.",
-    "text_zh": "多布森把牛顿式镜筒放在简单的摇箱上：左右旋转控制方位，上下俯仰控制高度。它稳定又便宜，但没有任何自动追踪——你要用手轻推镜筒，让目标保持居中。"
+    "text_en": "John Dobson popularized large Newtonian tubes on simple rocker boxes and shared them through public sidewalk astronomy. Swivel for azimuth and tilt for altitude: the design makes big aperture accessible, but you provide the tracking with gentle hand nudges.",
+    "text_zh": "约翰·多布森推广了安装在简单摇箱上的大口径牛顿镜，并通过街头公众观测把它分享给更多人。左右旋转控制方位，上下俯仰控制高度：这种设计让大口径更亲民，但追踪要靠你轻柔地手动推镜。"
   },
   {
     "id": "cassegrain_folded_path",
     "title_en": "The Cassegrain: A Folded Light Path",
     "title_zh": "卡塞格林：折叠的光路",
     "image": "res://assets/assembly/cassegrain_main_blueprint_cropped.png",
-    "text_en": "The concave primary mirror reflects light to a convex secondary, which sends it back through a hole in the primary. Folding packs a long focal length into a short tube: high magnification, but a narrow field of view that is sensitive to shaking and seeing.",
-    "text_zh": "凹面主镜把光反射给凸面副镜，副镜再把光送回、穿过主镜中央的开孔。折叠让长焦距装进短镜筒：倍率更高，但视场狭窄，对抖动和视宁度更敏感。"
+    "text_en": "A two-mirror design published under Laurent Cassegrain's name in 1672 sends light from a concave primary to a convex secondary and back through the primary. Folding packs a long focal length into a short tube: high magnification, but a narrow field that rewards disciplined finder use.",
+    "text_zh": "1672 年以洛朗·卡塞格林之名发表的双镜设计，让光从凹面主镜到凸面副镜，再折返回主镜中央。折叠把长焦距装进短镜筒：倍率更高，但狭窄视场要求有纪律地使用寻星镜。"
   },
   {
     "id": "gregorian_concave_secondary",
@@ -180,8 +180,8 @@
     "title_en": "Radio Astronomy: Data Instead of Images",
     "title_zh": "射电天文：数据就是观测",
     "image": "res://assets/assembly/fast_main_blueprint.png",
-    "text_en": "A radio telescope has no eyepiece. Its dish collects radio waves onto a receiver, and a processor records signal strength over time. You tune a frequency band, watch for repeating pulses, and measure peaks and periods - the data trace IS the observation.",
-    "text_zh": "射电望远镜没有目镜。反射面把无线电波汇聚到接收机上，处理器记录信号强度随时间的变化。你要调谐频段、寻找重复脉冲、测量峰值和周期——数据轨迹本身就是观测结果。"
+    "text_en": "FAST is a 500-meter radio telescope in Guizhou with an active reflector and a suspended feed cabin. It has no eyepiece: position the cabin, tune frequency, reject RFI, fold pulses, match dispersion measure, and integrate until SNR makes the hidden pattern credible. The trace IS the observation.",
+    "text_zh": "FAST 是位于贵州的 500 米射电望远镜，拥有主动反射面和悬吊馈源舱。它没有目镜：定位馈源舱、调谐频率、抑制射频干扰、折叠脉冲、匹配色散量，并持续积分，直到信噪比让隐藏规律可信。数据轨迹本身就是观测结果。"
   },
   {
     "id": "multi_wavelength_evidence",
@@ -196,8 +196,8 @@
     "title_en": "Why Infrared, Why Space",
     "title_zh": "为什么用红外、为什么去太空",
     "image": "res://assets/learning_diagrams/jwst_spectrum.png",
-    "text_en": "Visible light is only a sliver of the spectrum. Cold dust, young stars and very distant galaxies glow in the infrared, which the eye cannot see. Warm air and a warm telescope also glow in infrared, so the observatory must be cold and in space.",
-    "text_zh": "可见光只是光谱的一小段。冷尘埃、年轻恒星和极遥远的星系在红外波段发光，而人眼看不到红外。温暖的空气和温暖的望远镜自身也会发红外，所以望远镜必须又冷又在太空中。"
+    "text_en": "Earth's atmosphere protects life, but absorbs important infrared wavelengths; warm air and a warm telescope also glow in infrared. Modern observatories near places such as Sun-Earth L2 use distance, shielding, and deep cooling to protect faint infrared signals.",
+    "text_zh": "地球大气保护生命，却会吸收重要红外波段；温暖空气和温暖望远镜自身也会发出红外。现代观测站运行在日地 L2 等位置附近，利用距离、遮蔽和深度制冷保护暗弱红外信号。"
   },
   {
     "id": "jwst_segmented_mirror",

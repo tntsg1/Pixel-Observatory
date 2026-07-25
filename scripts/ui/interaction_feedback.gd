@@ -20,6 +20,9 @@ var _disabled_refresh_elapsed := 0.0
 
 func _ready() -> void:
 	_load_settings()
+	var gm := get_node_or_null("/root/GameManager")
+	if gm != null and gm.has_signal("tutorial_assistance_changed"):
+		gm.tutorial_assistance_changed.connect(_on_tutorial_assistance_changed)
 	get_tree().node_added.connect(_on_node_added)
 	_bind_existing_buttons(get_tree().root)
 
@@ -78,7 +81,18 @@ func set_guidance_highlights_enabled(enabled: bool) -> void:
 
 
 func guidance_highlights_enabled() -> bool:
+	var gm := get_node_or_null("/root/GameManager")
+	if gm != null and gm.has_method("tutorial_assistance_mode") and str(gm.tutorial_assistance_mode()) == "free":
+		return false
 	return guidance_highlights
+
+
+func _on_tutorial_assistance_changed(mode: String) -> void:
+	if mode != "free" or not is_inside_tree():
+		return
+	for overlay in get_tree().get_nodes_in_group("guidance_highlight"):
+		if overlay != null and is_instance_valid(overlay):
+			overlay.queue_free()
 
 
 func _save_settings() -> void:
@@ -308,7 +322,6 @@ func _button_gui_input(event: InputEvent, button: BaseButton) -> void:
 		var mouse := event as InputEventMouseButton
 		if mouse.pressed and mouse.button_index == MOUSE_BUTTON_LEFT:
 			error(button)
-			feedback_sfx_requested.emit("ui_blocked")
 
 
 func _slider_value_changed(_value: float, slider: Slider, border: Panel) -> void:
@@ -463,6 +476,7 @@ func error(control: Control) -> void:
 	if control == null or not is_instance_valid(control):
 		return
 	flash_border(control, ERROR, 0.28)
+	feedback_sfx_requested.emit("ui_error")
 	if reduced_motion:
 		return
 	control.pivot_offset = control.size * 0.5
@@ -651,9 +665,9 @@ func operation_chain(
 	parent.add_child(panel)
 
 	var steps := [
-		[GameManager.text("ACTION", "操作"), action_text],
-		[GameManager.text("PHYSICAL EFFECT", "物理效果"), effect_text],
-		[GameManager.text("NOW VISIBLE", "现在可见"), reveal_text],
+		[GameManager.text("ACTION", "操作结果"), action_text],
+		[GameManager.text("PHYSICAL EFFECT", "系统状态"), effect_text],
+		[GameManager.text("NOW VISIBLE", "已解锁"), reveal_text],
 	]
 	for index in range(steps.size()):
 		var cell := Label.new()
@@ -714,8 +728,13 @@ func operation_chain(
 
 
 func tutorial_highlight_once(target: Control, key: String, text: String, parent: Control) -> Control:
-	if not guidance_highlights or target == null or parent == null or bool(_tutorial_seen.get(key, false)):
+	var gm := get_node_or_null("/root/GameManager")
+	var tutorial_mode := "full"
+	if gm != null and gm.has_method("tutorial_assistance_mode"):
+		tutorial_mode = str(gm.tutorial_assistance_mode())
+	if tutorial_mode == "free" or not guidance_highlights or target == null or parent == null or bool(_tutorial_seen.get(key, false)):
 		return null
+	var light_hint := tutorial_mode == "light"
 	_tutorial_seen[key] = true
 	_save_settings()
 	var overlay := Control.new()
@@ -727,7 +746,7 @@ func tutorial_highlight_once(target: Control, key: String, text: String, parent:
 	parent.add_child(overlay)
 	var dim := ColorRect.new()
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	dim.color = Color(0, 0, 0, 0.34)
+	dim.color = Color(0, 0, 0, 0.0 if light_hint else 0.34)
 	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	overlay.add_child(dim)
 	var target_rect := target.get_global_rect()
@@ -744,7 +763,10 @@ func tutorial_highlight_once(target: Control, key: String, text: String, parent:
 	frame.add_theme_stylebox_override("panel", style)
 	overlay.add_child(frame)
 	var parent_size := parent.size
-	var bubble_size := Vector2(clampf(parent_size.x - 40.0, 300.0, 430.0), 116.0)
+	var bubble_size := Vector2(
+		clampf(parent_size.x - 40.0, 280.0, 380.0 if light_hint else 430.0),
+		72.0 if light_hint else 116.0
+	)
 	var bubble_x := frame.position.x + frame.size.x * 0.5 - bubble_size.x * 0.5
 	if frame.position.x > parent_size.x * 0.58:
 		bubble_x = frame.position.x - bubble_size.x - 18.0
@@ -767,18 +789,19 @@ func tutorial_highlight_once(target: Control, key: String, text: String, parent:
 	bubble_style.set_corner_radius_all(5)
 	bubble.add_theme_stylebox_override("panel", bubble_style)
 	overlay.add_child(bubble)
-	MayaPortrait.create(
-		bubble,
-		"MayaTutorialPortrait",
-		MayaPortrait.tutorial_pose(key, text),
-		Vector2(6, 6),
-		Vector2(76, 104),
-		1
-	)
+	if not light_hint:
+		MayaPortrait.create(
+			bubble,
+			"MayaTutorialPortrait",
+			MayaPortrait.tutorial_pose(key, text),
+			Vector2(6, 6),
+			Vector2(76, 104),
+			1
+		)
 	var label := Label.new()
 	label.text = text
-	label.position = Vector2(88, 10)
-	label.size = Vector2(bubble_size.x - 98.0, bubble_size.y - 20.0)
+	label.position = Vector2(12, 8) if light_hint else Vector2(88, 10)
+	label.size = Vector2(bubble_size.x - 24.0, bubble_size.y - 16.0) if light_hint else Vector2(bubble_size.x - 98.0, bubble_size.y - 20.0)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -792,7 +815,7 @@ func tutorial_highlight_once(target: Control, key: String, text: String, parent:
 		tween.tween_property(frame, "modulate:a", 1.0, 0.38).set_trans(Tween.TRANS_SINE)
 	var timer := Timer.new()
 	timer.one_shot = true
-	timer.wait_time = 2.4 if not reduced_motion else 1.2
+	timer.wait_time = (1.8 if light_hint else 2.4) if not reduced_motion else 1.2
 	timer.timeout.connect(overlay.queue_free)
 	overlay.add_child(timer)
 	timer.start()

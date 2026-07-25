@@ -1122,6 +1122,11 @@ func _start_below_horizon_explanation() -> void:
 		"azimuth": telescope_azimuth,
 		"altitude": telescope_altitude
 	}
+	# Light and free modes keep the real below-horizon consequence and site
+	# routing, but skip the blocking Maya explanation sequence.
+	if not GameManager.uses_full_tutorials():
+		call_deferred("_finish_below_horizon_explanation")
+		return
 
 	horizon_explanation_layer = Control.new()
 	horizon_explanation_layer.name = "BelowHorizonExplanation"
@@ -3918,6 +3923,8 @@ func _update_workflow_discipline_timer(delta: float) -> void:
 	# centered after a while, show Maya's stronger one-time reminder panel
 	# (the persistent bottom-bar hint from _apply_workflow_discipline_hint
 	# stays as-is; this is an additional, harder-to-miss layer).
+	if not GameManager.uses_full_tutorials():
+		return
 	var level_variation: String = str(GameManager.current_level().get("variation", ""))
 	if level_variation != "workflow_discipline" or workflow_prompt_shown:
 		return

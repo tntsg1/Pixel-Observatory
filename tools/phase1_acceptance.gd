@@ -150,24 +150,24 @@ func _run_real_l66() -> void:
 	# ---- (7) RGB mapping drives the final image
 	print("\n--- (7) FALSE-COLOUR MAPPING ---")
 	scene.call("_confirm_process"); await _f(6)
-	m.set_channel("R", "near_infrared"); m.set_channel("G", "mid_infrared"); m.set_channel("B", "dust")
+	m.set_channel("R", "miri_dust"); m.set_channel("G", "nir_long"); m.set_channel("B", "nir_short")
 	m.choose_science("dust_rich"); scene.call("_build_stage"); await _f(4)
 	await _shot("07a_filter_mapA.png")
 	var sig_a := _image_signature()
 	var txt_a := _all_text(scene)
-	_expect(txt_a.contains("R=近红外") and txt_a.contains("G=中红外") and txt_a.contains("B=尘埃"),
+	_expect(txt_a.contains("R=中红外尘埃") and txt_a.contains("G=近红外长波") and txt_a.contains("B=近红外短波"),
 		"7. the on-screen mapping matches the chosen channels", "7. the displayed mapping does not match the chosen channels")
 	# swap the mapping -> the image must change with it
-	m.set_channel("R", "dust"); m.set_channel("B", "near_infrared")
+	m.set_channel("R", "nir_short"); m.set_channel("B", "miri_dust")
 	scene.call("_build_stage"); await _f(4)
 	await _shot("07b_filter_mapB.png")
 	var sig_b := _image_signature()
 	var txt_b := _all_text(scene)
 	_expect(sig_b != sig_a, "7. changing the mapping changed the rendered image", "7. the image ignores the channel mapping")
-	_expect(txt_b.contains("R=尘埃"), "7. the label follows the new mapping", "7. the label did not follow the new mapping")
+	_expect(txt_b.contains("R=近红外短波"), "7. the label follows the new mapping", "7. the label did not follow the new mapping")
 	_audit_ui("filter")
 	# restore a correct mapping and finish
-	m.set_channel("R", "near_infrared"); m.set_channel("B", "dust")
+	m.set_channel("R", "miri_dust"); m.set_channel("B", "nir_short")
 	m.choose_science("dust_rich"); scene.call("_build_stage"); await _f(3)
 	scene.call("_confirm_filter"); await _f(6)
 	await _shot("08_report.png")

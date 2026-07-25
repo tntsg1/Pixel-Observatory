@@ -25,6 +25,10 @@ var _target_roll := 0.0
 var _slew_duration := 1.55
 var _slew_elapsed := 0.0
 var _pulse := 0.0
+var _previous_error := 8.0
+var control_pulse_count := 0
+var control_pulse_age := 9.0
+var lock_ceremony := false
 
 const BG := Color("050a12")
 const GRID := Color("183047")
@@ -60,6 +64,10 @@ func begin_slew(index: int, direction: Vector2, duration: float = 1.55) -> void:
 	slew_progress = 0.0
 	_slew_elapsed = 0.0
 	_slew_duration = maxf(0.4, duration)
+	control_pulse_count = 0
+	control_pulse_age = 9.0
+	lock_ceremony = false
+	_previous_error = 8.0
 	_start_yaw = yaw_deg
 	_start_pitch = pitch_deg
 	_start_roll = roll_deg
@@ -70,14 +78,41 @@ func begin_slew(index: int, direction: Vector2, duration: float = 1.55) -> void:
 
 
 func update_guidance(error: float, drift: float, is_locked: bool) -> void:
+	for threshold in [5.0, 3.8, 2.7, 1.7, 1.2]:
+		if _previous_error > threshold and error <= threshold:
+			control_pulse_count = mini(control_pulse_count + 1, 5)
+			control_pulse_age = 0.0
+			break
 	pointing_error = error
 	drift_rate = drift
 	locked = is_locked
+	_previous_error = error
 	queue_redraw()
+
+
+func begin_lock_ceremony() -> void:
+	lock_ceremony = true
+	locked = true
+	control_pulse_age = 0.0
+	queue_redraw()
+
+
+func skip_slew() -> void:
+	if not active:
+		return
+	_slew_elapsed = _slew_duration
+	slew_progress = 1.0
+
+
+func coarse_error_arcsec() -> float:
+	if not active:
+		return pointing_error
+	return lerpf(7.0, 1.2, _smoothstep(slew_progress))
 
 
 func _process(delta: float) -> void:
 	_pulse += delta
+	control_pulse_age += delta
 	if active:
 		_slew_elapsed += delta
 		slew_progress = clampf(_slew_elapsed / _slew_duration, 0.0, 1.0)
@@ -95,8 +130,9 @@ func _process(delta: float) -> void:
 			slew_finished.emit(candidate_index)
 		queue_redraw()
 	elif settled and not locked:
-		var jitter := minf(pointing_error / 8.0, 1.0)
-		roll_deg = _target_roll + sin(_pulse * 8.0) * jitter * 0.8
+		# Fine guidance does not rock the observatory. The bus holds its coarse
+		# attitude while tiny control pulses collapse the residual error vector.
+		roll_deg = _target_roll
 		queue_redraw()
 	elif locked:
 		queue_redraw()
@@ -124,12 +160,13 @@ func _draw() -> void:
 	_draw_target_marker(target, attitude_color)
 	_draw_rotation_arc(center, current_angle, target_angle, attitude_color)
 	_draw_spacecraft(center, attitude_color)
+	_draw_error_vector(Vector2(size.x - 42.0, size.y * 0.56), attitude_color)
 
 	var status := GameManager.text("SEARCH", "搜索")
 	if active:
 		status = GameManager.text("SLEWING %02d%%", "姿态转向 %02d%%") % int(slew_progress * 100.0)
 	elif locked:
-		status = GameManager.text("GUIDE LOCK", "导星锁定")
+		status = GameManager.text("FINE GUIDANCE", "精细导星")
 	elif settled:
 		status = GameManager.text("ATTITUDE HOLD", "姿态保持")
 	elif candidate_index >= 0:
@@ -138,6 +175,9 @@ func _draw() -> void:
 			"矢量已就绪" if candidate_usable else "矢量不可用")
 	draw_string(ThemeDB.fallback_font, Vector2(10, 15), status,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 11, attitude_color)
+	_draw_status_chip(
+		GameManager.text("FINE LOCK", "精导锁定") if locked else GameManager.text("ACQUIRE", "捕获"),
+		GREEN if locked else CYAN)
 	var yaw_remaining := _target_yaw - yaw_deg
 	var pitch_remaining := _target_pitch - pitch_deg
 	var turn_text := GameManager.text(
@@ -149,6 +189,12 @@ func _draw() -> void:
 			"抬高" if pitch_remaining >= 0.0 else "降低", absf(pitch_remaining)])
 	draw_string(ThemeDB.fallback_font, Vector2(10, 30), turn_text,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(attitude_color, 0.82))
+	var residual := maxf(0.01, maxf(0.25, drift_rate) * clampf(pointing_error / 6.0, 0.04, 1.0))
+	draw_string(ThemeDB.fallback_font, Vector2(10, 44),
+		GameManager.text(
+			"ERROR %.2f arcsec  RESIDUAL %.2f/s",
+			"误差 %.2f 角秒  残余漂移 %.2f/秒") % [coarse_error_arcsec(), residual],
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 9, GREEN if locked else MUTED)
 	draw_string(ThemeDB.fallback_font, Vector2(10, size.y - 8),
 		GameManager.text(
 			"YAW %+05.1f  PITCH %+05.1f  ROLL %+05.1f",
@@ -225,6 +271,36 @@ func _draw_spacecraft(center: Vector2, color: Color) -> void:
 	for spoke in range(3):
 		var a := wheel_angle + float(spoke) * TAU / 3.0
 		draw_line(wheel, wheel + Vector2(cos(a), sin(a)) * 6.0, WHITE, 1.0)
+	if control_pulse_age < 0.42 and not active:
+		var pulse_t := clampf(control_pulse_age / 0.42, 0.0, 1.0)
+		draw_arc(wheel, lerpf(8.0, 17.0, pulse_t), 0.0, TAU, 24, Color(CYAN, 0.72 * (1.0 - pulse_t)), 1.5)
+
+
+func _draw_error_vector(center: Vector2, color: Color) -> void:
+	var radius := 27.0
+	draw_circle(center, radius, Color(0.01, 0.035, 0.06, 0.92), true)
+	draw_arc(center, radius, 0.0, TAU, 32, Color(GRID, 0.95), 1.0)
+	draw_line(center - Vector2(radius - 4.0, 0), center + Vector2(radius - 4.0, 0), Color(GRID, 0.70), 1.0)
+	draw_line(center - Vector2(0, radius - 4.0), center + Vector2(0, radius - 4.0), Color(GRID, 0.70), 1.0)
+	var normalized_error := clampf(coarse_error_arcsec() / 7.0, 0.0, 1.0)
+	var vector_angle := atan2(candidate_direction.y, candidate_direction.x) + sin(_pulse * 1.7) * normalized_error * 0.35
+	var vector := Vector2(cos(vector_angle), sin(vector_angle)) * normalized_error * (radius - 5.0)
+	draw_line(center, center + vector, Color(color, 0.85), 1.5)
+	draw_circle(center + vector, 2.5 if not locked else 1.8, GREEN if locked else WHITE, true)
+	draw_string(ThemeDB.fallback_font, center + Vector2(-radius, -radius - 4.0),
+		GameManager.text("ERROR VECTOR", "误差矢量"),
+		HORIZONTAL_ALIGNMENT_CENTER, radius * 2.0, 8, MUTED)
+	if locked:
+		draw_circle(center, 2.0, GREEN, true)
+		draw_arc(center, 6.0 + sin(_pulse * 3.0), 0.0, TAU, 18, Color(GREEN, 0.55), 1.0)
+
+
+func _draw_status_chip(text: String, color: Color) -> void:
+	var rect := Rect2(Vector2(size.x - 91.0, 5.0), Vector2(81.0, 18.0))
+	draw_rect(rect, Color(0.02, 0.07, 0.10, 0.94), true)
+	draw_rect(rect, color, false, 1.0)
+	draw_string(ThemeDB.fallback_font, rect.position + Vector2(4.0, 13.0), text,
+		HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 8.0, 9, color)
 
 
 func _draw_hex(center: Vector2, radius: float, rotation: float, color: Color) -> void:

@@ -95,7 +95,13 @@ func _initialize() -> void:
 			break
 	scene.call("_confirm_thermal")
 	await process_frame
-	m.choose_guide_star(1)
+	var usable_guide := -1
+	for guide_index in range(m.guide_stars.size()):
+		if bool((m.guide_stars[guide_index] as Dictionary).get("usable", false)):
+			usable_guide = guide_index
+			break
+	_check(usable_guide >= 0, "5. this mission provides a touch-reachable guide star")
+	m.choose_guide_star(usable_guide)
 	for _i in range(240): m.step_guiding(1.0/60.0)
 	scene.call("_confirm_guide")
 	await process_frame

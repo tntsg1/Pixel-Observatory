@@ -4,6 +4,7 @@ const SpaceDeploymentVisualScript := preload("res://scripts/ui/space_deployment_
 const SpaceGuideFieldScript := preload("res://scripts/ui/space_guide_field.gd")
 const SpaceGuideAttitudeDisplayScript := preload("res://scripts/ui/space_guide_attitude_display.gd")
 const SpaceWavefrontDisplayScript := preload("res://scripts/ui/space_wavefront_display.gd")
+const SpaceFalseColourDisplayScript := preload("res://scripts/ui/space_false_colour_display.gd")
 
 # JWST-class space infrared observation. A staged science pipeline that works in
 # photons, filters, attitude, temperature and data frames. It keeps its own
@@ -22,6 +23,7 @@ const P_BRIGHT := Color("dcdcdc")    # primary text, headings
 const P_MID := Color("9a9a9a")       # secondary text, idle borders
 const P_DIM := Color("5a5a5a")       # disabled, grid, hints
 const P_FAINT := Color("2e2e2e")     # separators
+const AMBER := Color("e2a34a")       # diagnosis / unresolved residuals
 # legacy names kept so every stage re-themes at once
 const GOLD := P_HOT
 const GOLD_HI := Color("ffffff")
@@ -53,12 +55,35 @@ var guide_lock_logged := false
 var guide_attitude_display: Control
 var guide_acquire_button: Button
 var guide_confirm_button: Button
+var guide_requirement_label: Label
 var guide_slew_active := false
 var guide_pending_index := -1
+var guide_lock_ceremony_active := false
+var guide_lock_ceremony_complete := false
+var guide_sequence_token := 0
+var guide_error_band := 99
 var wavefront_animating := false
 var wavefront_display: Control
+var wavefront_group_buttons: Array[Button] = []
+var wavefront_execute_button: Button
+var wavefront_fine_minus_button: Button
+var wavefront_fine_plus_button: Button
+var wavefront_confirm_button: Button
+var wavefront_actuator_label: Label
+var wavefront_segment_label: Label
+var wavefront_phase_meter: ProgressBar
+var wavefront_phase_center_mark: ColorRect
+var wavefront_control_hint: Label
+var wavefront_selected_group := -1
+var wavefront_selected_segment := -1
+var wavefront_convergence_active := false
+var wavefront_convergence_complete := false
 var process_animating := false
 var filter_animating := false
+var filter_display: Control
+var filter_preview_band := ""
+var filter_map_buttons: Dictionary = {}
+var crt_glass: ColorRect
 var process_tutorial_overlay: Control
 var process_tutorial_highlight: Panel
 var process_tutorial_copy: Label
@@ -71,6 +96,9 @@ var process_generate_button: Button
 var shutdown_overlay: Control
 var shutdown_status_label: Label
 var shutdown_phase := ""
+
+const WAVEFRONT_FINE_STEP := 0.12
+const WAVEFRONT_MECHANICAL_DELAY := 0.15
 
 
 func _ready() -> void:
@@ -266,7 +294,7 @@ func _stage_list() -> Array:
 	# First-ever entry: a Maya teaching briefing, then deployment. Both are
 	# first-time only; later visits skip straight to planning.
 	var out: Array = []
-	if not bool(GameManager.progress.get("space_intro_seen", false)):
+	if GameManager.uses_full_tutorials() and not bool(GameManager.progress.get("space_intro_seen", false)):
 		out.append("intro")
 	if not bool(GameManager.progress.get("space_deployed", false)):
 		out.append("deploy")
@@ -286,16 +314,16 @@ func _process(delta: float) -> void:
 	if console_reveal < 1.0:
 		console_reveal = minf(1.0, console_reveal + delta * 2.6)
 		_render_console()
-	if _key() == "guide" and model.chosen_guide >= 0 and not model.guide_locked:
-		model.step_guiding(delta)
-		_refresh_guide()
-		if model.guide_locked and not guide_lock_logged:
-			guide_lock_logged = true
-			_log_line("FGS CLOSED LOOP", "LOCKED", "%.2f ARCSEC" % model.pointing_error)
-			_say(GameManager.text(
-				"Guide lock acquired. The bite marks have closed and drift is flat.",
-				"导星锁定完成。锁定标记已经咬合，漂移曲线已拉平。"), GREEN)
-			InteractionFeedback.success(self)
+	if _key() == "guide":
+		if guide_slew_active:
+			_refresh_guide()
+		elif model.chosen_guide >= 0 and not model.guide_locked:
+			model.step_guiding(delta)
+			_update_guide_error_band()
+			_refresh_guide()
+			if model.guide_locked and not guide_lock_logged:
+				guide_lock_logged = true
+				_begin_guide_lock_ceremony()
 	if _key() == "thermal":
 		model.step_thermal(delta)
 		thermal_refresh_elapsed += delta
@@ -427,6 +455,8 @@ func _add_crt_overlay() -> void:
 	mat.shader = shader
 	glass.material = mat
 	add_child(glass)
+	crt_glass = glass
+	_update_crt_colour_mode()
 
 
 func _clear() -> void:
@@ -436,6 +466,7 @@ func _clear() -> void:
 
 func _build_stage() -> void:
 	_clear()
+	_update_crt_colour_mode()
 	match _key():
 		"intro": _build_intro()
 		"deploy": _build_deploy()
@@ -447,6 +478,21 @@ func _build_stage() -> void:
 		"process": _build_process()
 		"filter": _build_filter()
 		"report": _build_report()
+
+
+func _update_crt_colour_mode() -> void:
+	if crt_glass == null or not is_instance_valid(crt_glass):
+		return
+	if not (crt_glass.material is ShaderMaterial):
+		return
+	# The engineering console stays monochrome during instrument control.
+	# False-colour composition and the final report must preserve mapped
+	# wavelengths, while retaining the same curved glass and scanline response.
+	var science_colour_stage := _key() in ["filter", "report"]
+	(crt_glass.material as ShaderMaterial).set_shader_parameter(
+		"monochrome",
+		0.0 if science_colour_stage else 1.0
+	)
 
 
 func _advance() -> void:
@@ -1043,15 +1089,40 @@ func _build_thermal() -> void:
 	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(scope)
 	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("ATTITUDE CONTROL", "姿态控制"))
-	readout = _label_to(pad, "", Vector2(16, 42), Vector2(284, 146), 11, TEXT)
+
+	# The right rail is deliberately split into three clipped regions. The
+	# gimbal uses custom drawing, so relying on hand-tuned draw coordinates
+	# would allow vectors and labels to spill back into telemetry.
+	var status_region := Control.new()
+	status_region.name = "ThermalStatusRegion"
+	status_region.position = Vector2(16, 42)
+	status_region.size = Vector2(284, 142)
+	status_region.clip_contents = true
+	status_region.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	pad.add_child(status_region)
+	readout = _label_to(status_region, "", Vector2.ZERO, status_region.size, 11, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	var attitude_region := Control.new()
+	attitude_region.name = "ThermalAttitudeCanvas"
+	attitude_region.position = Vector2(16, 192)
+	attitude_region.size = Vector2(284, 200)
+	attitude_region.clip_contents = true
+	attitude_region.mouse_filter = Control.MOUSE_FILTER_STOP
+	pad.add_child(attitude_region)
 	# 3D gimbal: grab the globe and turn the observatory. Replaces the slider so
 	# the player is orienting a spacecraft, not scrubbing a value.
-	_label_to(pad, GameManager.text("Drag to slew; use fine trim near the marker", "拖动进行转向，接近标记后使用微调"), Vector2(16, 188), Vector2(284, 20), 11, GOLD)
+	var attitude_hint := _label_to(
+		attitude_region,
+		GameManager.text("Drag to slew; use fine trim near the marker", "拖动转向；接近标记后使用微调"),
+		Vector2(4, 0), Vector2(276, 20), 10, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	attitude_hint.name = "ThermalAttitudeHint"
+	attitude_hint.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	var gimbal := AttitudeGimbal.new()
 	gimbal.name = "AttitudeGimbal"
-	gimbal.position = Vector2(22, 206)
-	gimbal.size = Vector2(272, 188)
+	gimbal.position = Vector2(6, 22)
+	gimbal.size = Vector2(272, 172)
+	gimbal.clip_contents = true
 	gimbal.sun_angle = model.attitude_deg
 	gimbal.safe_min = model.thermal_corridor_min()
 	gimbal.safe_max = model.thermal_corridor_max()
@@ -1060,7 +1131,15 @@ func _build_thermal() -> void:
 	gimbal.on_changed = func(v: float) -> void:
 		model.rotate_to(v)
 		_refresh_thermal()
-	pad.add_child(gimbal)
+	attitude_region.add_child(gimbal)
+
+	var control_region := Control.new()
+	control_region.name = "ThermalControlRegion"
+	control_region.position = Vector2(16, 400)
+	control_region.size = Vector2(284, 96)
+	control_region.clip_contents = true
+	control_region.mouse_filter = Control.MOUSE_FILTER_PASS
+	pad.add_child(control_region)
 	# Coarse buttons cover large slews; fine buttons make the final roll solution
 	# readable and controllable on both mouse and touch.
 	var adjustments := [
@@ -1072,18 +1151,18 @@ func _build_thermal() -> void:
 	for index in range(adjustments.size()):
 		var adjustment: Array = adjustments[index]
 		var amount := float(adjustment[0])
-		var rotate_button := _button(str(adjustment[1]), Vector2(16 + index * 69, 402), Vector2(64, 38), Color("143247"))
+		var rotate_button := _button(str(adjustment[1]), Vector2(index * 69, 0), Vector2(64, 38), Color("143247"))
 		rotate_button.name = str(adjustment[2])
 		rotate_button.tooltip_text = GameManager.text(
 			"Coarse slew" if absf(amount) >= 10.0 else "Fine attitude trim",
 			"粗调转向" if absf(amount) >= 10.0 else "姿态微调"
 		)
 		rotate_button.pressed.connect(func() -> void: _animate_attitude_to(model.attitude_deg + amount))
-		pad.add_child(rotate_button)
-	var go := _button(GameManager.text("Confirm Safe Attitude", "确认安全姿态"), Vector2(16, 456), Vector2(284, 40), Color("175238"))
+		control_region.add_child(rotate_button)
+	var go := _button(GameManager.text("Confirm Safe Attitude", "确认安全姿态"), Vector2(0, 56), Vector2(284, 40), Color("175238"))
 	go.name = "ConfirmThermalLock"
 	go.pressed.connect(_confirm_thermal)
-	pad.add_child(go)
+	control_region.add_child(go)
 	thermal_confirm_button = go
 	_refresh_thermal()
 	call_deferred("_show_thermal_tutorial", gimbal)
@@ -1218,9 +1297,14 @@ func _confirm_thermal() -> void:
 
 # ============================================================ GUIDE
 func _build_guide() -> void:
+	guide_sequence_token += 1
 	guide_slew_active = false
 	guide_pending_index = -1
 	guide_candidate = -1
+	guide_error_band = 99
+	guide_lock_ceremony_active = false
+	guide_lock_ceremony_complete = model.guide_locked
+	guide_lock_logged = model.guide_locked
 	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("STAR FIELD & GUIDING", "星场与导星"))
 	guide_field = SpaceGuideFieldScript.new()
 	guide_field.name = "GuideField"
@@ -1239,10 +1323,11 @@ func _build_guide() -> void:
 	guide_attitude_display.size = Vector2(284, 170)
 	guide_attitude_display.slew_finished.connect(_on_guide_slew_finished)
 	pad.add_child(guide_attitude_display)
-	_label_to(pad, GameManager.text(
+	guide_requirement_label = _label_to(pad, GameManager.text(
 		"Acquire a bright star.\nThe observatory slews first; guidance locks after it settles.",
 		"捕获明亮恒星。\n天文台先转向并稳定，之后导星系统才会锁定。"),
-		Vector2(16, 316), Vector2(284, 46), 10, MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		Vector2(16, 316), Vector2(284, 46), 10, MUTED)
+	guide_requirement_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var acquire := _button(GameManager.text("Acquire Highlighted Star", "捕获搜索框中的导星"), Vector2(16, 314), Vector2(284, 44), Color("143247"))
 	acquire.name = "AcquireGuideCandidate"
 	acquire.pressed.connect(_acquire_guide_candidate)
@@ -1255,6 +1340,10 @@ func _build_guide() -> void:
 	pad.add_child(go)
 	guide_acquire_button = acquire
 	guide_confirm_button = go
+	if model.guide_locked:
+		guide_field.update_sequence_progress("locked", 1.0)
+		guide_field.begin_lock_ceremony()
+		guide_attitude_display.begin_lock_ceremony()
 	_refresh_guide()
 
 
@@ -1272,6 +1361,13 @@ func _on_guide_candidate_changed(index: int) -> void:
 
 
 func _acquire_guide_candidate() -> void:
+	if guide_slew_active:
+		if guide_attitude_display != null and is_instance_valid(guide_attitude_display):
+			guide_attitude_display.skip_slew()
+			_say(GameManager.text(
+				"Coarse slew skipped. Fine guidance still must meet the real lock threshold.",
+				"已跳过粗转向演出。精细导星仍需达到实际锁定门槛。"), CYAN)
+		return
 	if guide_candidate < 0:
 		_say(GameManager.text(
 			"No candidate is inside the search box. Drag it over a star first.",
@@ -1296,14 +1392,25 @@ func _choose_guide(index: int) -> void:
 	guide_slew_active = true
 	guide_pending_index = index
 	guide_lock_logged = false
-	_log_line("SPACECRAFT SLEW", "RUN", str(star.get("id", "GS")))
+	guide_lock_ceremony_active = false
+	guide_lock_ceremony_complete = false
+	guide_error_band = 99
+	_log_line(
+		GameManager.text("ATTITUDE SLEW", "姿态转向"),
+		GameManager.text("RUN", "执行"),
+		str(star.get("id", "GS")))
+	_log_line(
+		GameManager.text("ERROR VECTOR", "误差矢量"),
+		GameManager.text("REDUCING", "收敛"),
+		"7.00 ARCSEC")
 	_say(GameManager.text(
 		"Guide vector accepted. Reaction wheels are rotating the observatory toward the star.",
 		"导星矢量已确认。反作用轮正在转动天文台，使望远镜指向这颗恒星。"), CYAN)
 	if guide_field != null and is_instance_valid(guide_field):
 		guide_field.set_input_locked(true)
+		guide_field.begin_acquisition(index)
 	if guide_attitude_display != null and is_instance_valid(guide_attitude_display):
-		guide_attitude_display.begin_slew(index, guide_field.guide_direction(index), 1.55)
+		guide_attitude_display.begin_slew(index, guide_field.guide_direction(index), 0.95)
 	_refresh_guide()
 
 
@@ -1315,8 +1422,17 @@ func _on_guide_slew_finished(index: int) -> void:
 	if guide_field != null and is_instance_valid(guide_field):
 		guide_field.set_input_locked(false)
 	if model.choose_guide_star(index):
-		_log_line("SPACECRAFT SLEW", "HOLD", "YAW/PITCH SETTLED")
-		_log_line("FGS ACQUIRE", "TRACK", str(model.guide_stars[index].get("id", "GS")))
+		_log_line(
+			GameManager.text("ATTITUDE SLEW", "姿态转向"),
+			GameManager.text("HOLD", "保持"),
+			GameManager.text("YAW/PITCH SETTLED", "偏航/俯仰已稳定"))
+		_log_line(
+			GameManager.text("FGS ACQUIRE", "导星捕获"),
+			GameManager.text("TRACK", "跟踪"),
+			str(model.guide_stars[index].get("id", "GS")))
+		guide_error_band = _guide_error_band_for(model.pointing_error)
+		if guide_field != null and is_instance_valid(guide_field):
+			guide_field.begin_fine_guidance(index)
 		_say(GameManager.text(
 			"Attitude hold reached. Fine guidance is now removing the final pointing error.",
 			"姿态保持已经建立。精细导星系统正在消除最后的指向误差。"), CYAN)
@@ -1343,29 +1459,185 @@ func _update_guide_attitude_candidate() -> void:
 func _refresh_guide() -> void:
 	if readout == null or not is_instance_valid(readout):
 		return
-	var guidance_state := "SLEWING" if guide_slew_active else ("LOCKED" if model.guide_locked else ("stabilizing" if model.chosen_guide >= 0 else "searching"))
-	var guidance_state_zh := "姿态转向中" if guide_slew_active else ("已锁定" if model.guide_locked else ("稳定中" if model.chosen_guide >= 0 else "搜索中"))
+	var displayed_error := model.pointing_error
+	if guide_slew_active and guide_attitude_display != null and is_instance_valid(guide_attitude_display):
+		displayed_error = float(guide_attitude_display.coarse_error_arcsec())
+	var displayed_drift := _guide_residual_drift(displayed_error)
+	var guidance_state := "SLEWING" if guide_slew_active else ("FINE LOCK" if model.guide_locked else ("CONVERGING" if model.chosen_guide >= 0 else "SEARCH"))
+	var guidance_state_zh := "姿态转向中" if guide_slew_active else ("精导锁定" if model.guide_locked else ("微调收敛中" if model.chosen_guide >= 0 else "搜索中"))
 	readout.text = GameManager.text(
-		"Candidate: %s\nError %.2f arcsec   Drift %.2f/s\nGuide quality %d%%\nAttitude / guidance: %s" % [
+		"Candidate: %s\nError %.2f arcsec   Residual %.2f/s\nGuide stability %d%%\nState: %s" % [
 			_guide_candidate_name(),
-			model.pointing_error, model.drift_rate, int(model.guide_quality() * 100),
+			displayed_error, displayed_drift, int(model.guide_quality() * 100),
 			guidance_state],
-		"搜索候选：%s\n指向误差 %.2f 角秒\n漂移速率 %.2f 角秒/秒\n导星质量 %d%%\n精细导星：%s" % [
+		"搜索候选：%s\n指向误差 %.2f 角秒\n残余漂移 %.2f 角秒/秒\n导星稳定度 %d%%\n状态：%s" % [
 			_guide_candidate_name(),
-			model.pointing_error, model.drift_rate, int(model.guide_quality() * 100),
+			displayed_error, displayed_drift, int(model.guide_quality() * 100),
 			guidance_state_zh])
-	readout.add_theme_color_override("font_color", GREEN if model.guide_locked else (CYAN if model.chosen_guide >= 0 else MUTED))
+	readout.add_theme_color_override("font_color", GREEN if guide_lock_ceremony_complete else (CYAN if model.chosen_guide >= 0 or guide_slew_active else MUTED))
 	if guide_field != null and is_instance_valid(guide_field):
 		guide_field.update_metrics(model.pointing_error, model.drift_rate, model.guide_locked, model.chosen_guide)
+		if guide_slew_active and guide_attitude_display != null and is_instance_valid(guide_attitude_display):
+			guide_field.update_sequence_progress("slew", float(guide_attitude_display.slew_progress))
+		elif model.chosen_guide >= 0 and not model.guide_locked:
+			guide_field.update_sequence_progress("fine", clampf(1.0 - model.pointing_error / 7.0, 0.0, 1.0))
 	if guide_attitude_display != null and is_instance_valid(guide_attitude_display):
-		guide_attitude_display.update_guidance(model.pointing_error, model.drift_rate, model.guide_locked)
+		guide_attitude_display.update_guidance(model.pointing_error, displayed_drift, model.guide_locked)
 	if guide_acquire_button != null and is_instance_valid(guide_acquire_button):
-		guide_acquire_button.disabled = guide_slew_active
+		guide_acquire_button.disabled = model.chosen_guide >= 0 and not guide_slew_active
 		guide_acquire_button.text = GameManager.text(
-			"Slewing Observatory..." if guide_slew_active else "Begin Attitude Slew",
-			"天文台姿态转向中……" if guide_slew_active else "开始姿态转向")
+			"Skip Coarse Slew" if guide_slew_active else "Begin Attitude Slew",
+			"跳过粗转向" if guide_slew_active else "开始姿态转向")
+		guide_acquire_button.tooltip_text = GameManager.text(
+			"Let the full slew play to see the attitude solution, or skip only the presentation. Lock conditions are never skipped.",
+			"建议完整观看姿态转向；也可只跳过演出。实际锁定条件不会被跳过。") if guide_slew_active else ""
 	if guide_confirm_button != null and is_instance_valid(guide_confirm_button):
-		guide_confirm_button.disabled = guide_slew_active or not model.guide_locked
+		guide_confirm_button.disabled = guide_slew_active or not model.guide_locked or (guide_lock_logged and not guide_lock_ceremony_complete)
+		guide_confirm_button.text = GameManager.text(
+			"Fine Lock Ready - Continue" if guide_lock_ceremony_complete else ("Verifying Fine Lock..." if guide_lock_ceremony_active else "Confirm Lock"),
+			"精导锁定完成 - 继续" if guide_lock_ceremony_complete else ("正在确认精导锁定……" if guide_lock_ceremony_active else "确认锁定"))
+		var reason := _guide_lock_block_reason(displayed_error, displayed_drift)
+		guide_confirm_button.tooltip_text = reason
+		if guide_requirement_label != null and is_instance_valid(guide_requirement_label):
+			guide_requirement_label.text = reason
+			guide_requirement_label.add_theme_color_override(
+				"font_color",
+				GREEN if guide_lock_ceremony_complete else (CYAN if model.chosen_guide >= 0 or guide_slew_active else MUTED))
+
+
+func _guide_residual_drift(error: float) -> float:
+	if model.chosen_guide < 0:
+		return model.drift_rate
+	return maxf(0.01, maxf(0.25, model.drift_rate) * clampf(error / 6.0, 0.04, 1.0))
+
+
+func _guide_lock_block_reason(error: float, residual_drift: float) -> String:
+	if guide_lock_ceremony_complete:
+		return GameManager.text(
+			"Fine lock verified. Continue to wavefront alignment.",
+			"精导锁定已确认。可以继续进行波前校准。")
+	if guide_lock_ceremony_active:
+		return GameManager.text(
+			"Verifying guide stability. Hold the attitude solution.",
+			"正在确认导星稳定度，请保持当前姿态。")
+	if guide_slew_active:
+		return GameManager.text(
+			"Coarse attitude slew is still running.",
+			"粗姿态转向尚未完成。")
+	if model.chosen_guide < 0:
+		return GameManager.text(
+			"Center a bright guide star in the search box, then begin the attitude slew.",
+			"将明亮导星置于搜索框内，然后开始姿态转向。")
+	if model.guide_quality() < 0.5:
+		return GameManager.text(
+			"Guide stability is too low. Select a brighter, better-placed star.",
+			"导星稳定度不足，请选择更明亮、位置更合适的恒星。")
+	if error > 1.2:
+		return GameManager.text(
+			"Pointing error %.2f arcsec; fine lock requires 1.20 or less." % error,
+			"指向误差为 %.2f 角秒；精导锁定需降至 1.20 角秒以内。" % error)
+	if residual_drift > 0.08:
+		return GameManager.text(
+			"Residual drift %.2f arcsec/s; wait for the control pulses to settle." % residual_drift,
+			"残余漂移为 %.2f 角秒/秒；请等待控制脉冲收敛。" % residual_drift)
+	return GameManager.text(
+		"Guide star acquired. Fine-guidance verification is starting.",
+		"导星已经捕获，正在开始精导稳定性确认。")
+
+
+func _guide_error_band_for(error: float) -> int:
+	if error > 4.8:
+		return 4
+	if error > 3.5:
+		return 3
+	if error > 2.3:
+		return 2
+	if error > 1.2:
+		return 1
+	return 0
+
+
+func _update_guide_error_band() -> void:
+	var next_band := _guide_error_band_for(model.pointing_error)
+	if next_band >= guide_error_band:
+		return
+	guide_error_band = next_band
+	var pulse_number := 5 - next_band
+	_log_line(
+		GameManager.text("FGS CONTROL PULSE %d" % pulse_number, "精导控制脉冲 %d" % pulse_number),
+		GameManager.text("TRIM", "微调"),
+		"%.2f ARCSEC" % model.pointing_error)
+
+
+func _begin_guide_lock_ceremony() -> void:
+	if not model.guide_locked or guide_lock_ceremony_active or guide_lock_ceremony_complete:
+		return
+	guide_lock_ceremony_active = true
+	var token := guide_sequence_token
+	if guide_field != null and is_instance_valid(guide_field):
+		guide_field.begin_lock_ceremony()
+	if guide_attitude_display != null and is_instance_valid(guide_attitude_display):
+		guide_attitude_display.begin_lock_ceremony()
+	_say(GameManager.text(
+		"Guide star captured. Verifying the closed-loop pointing solution.",
+		"导星已经捕获，正在验证闭环指向解。"), CYAN)
+	_refresh_guide()
+
+	await get_tree().create_timer(0.14).timeout
+	if not _guide_sequence_is_current(token):
+		return
+	var guide_name := str((model.guide_stars[model.chosen_guide] as Dictionary).get("id", "GS"))
+	_log_line(
+		GameManager.text("FGS ACQUIRE %s" % guide_name, "导星捕获 %s" % guide_name),
+		GameManager.text("TRACK", "跟踪"))
+	await get_tree().create_timer(0.18).timeout
+	if not _guide_sequence_is_current(token):
+		return
+	_log_line(
+		GameManager.text("FINE GUIDANCE", "精细导星"),
+		GameManager.text("LOCKED", "锁定"))
+	await get_tree().create_timer(0.18).timeout
+	if not _guide_sequence_is_current(token):
+		return
+	_log_line(
+		GameManager.text("POINTING STABILITY", "指向稳定度"),
+		GameManager.text("NOMINAL", "正常"),
+		"%.2f ARCSEC" % model.pointing_error)
+	InteractionFeedback.feedback_sfx_requested.emit("guide_locked")
+	_play_guide_lock_scanline()
+
+	await get_tree().create_timer(0.30).timeout
+	if not _guide_sequence_is_current(token):
+		return
+	guide_lock_ceremony_active = false
+	guide_lock_ceremony_complete = true
+	_say(GameManager.text(
+		"Fine-guidance lock verified. The observatory is holding the target steadily.",
+		"精细导星锁定已确认，天文台正在稳定保持目标。"), GREEN)
+	_refresh_guide()
+	if guide_confirm_button != null and is_instance_valid(guide_confirm_button):
+		InteractionFeedback.success(guide_confirm_button, "guide_lock_ready")
+
+
+func _guide_sequence_is_current(token: int) -> bool:
+	return is_inside_tree() and token == guide_sequence_token and _key() == "guide" and model.guide_locked
+
+
+func _play_guide_lock_scanline() -> void:
+	if content == null or not is_instance_valid(content):
+		return
+	var scan := ColorRect.new()
+	scan.name = "GuideLockScanline"
+	scan.position = Vector2(40, 82)
+	scan.size = Vector2(600, 2)
+	scan.color = Color(0.50, 0.95, 1.0, 0.62)
+	scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scan.z_index = 40
+	content.add_child(scan)
+	var tween := create_tween().bind_node(scan)
+	tween.tween_property(scan, "position:y", 488.0, 0.32).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(scan, "modulate:a", 0.0, 0.36).set_trans(Tween.TRANS_QUAD)
+	tween.tween_callback(scan.queue_free)
 
 
 func _guide_candidate_name() -> String:
@@ -1399,11 +1671,17 @@ func _draw_guide() -> void:
 
 func _confirm_guide() -> void:
 	if not model.guide_locked:
-		_say(GameManager.text("No stable lock yet. Choose a bright, well-placed guide star and let it settle.", "尚未稳定锁定。请选择明亮且位置合适的导星并等待稳定。"), RED)
+		_say(_guide_lock_block_reason(model.pointing_error, _guide_residual_drift(model.pointing_error)), RED)
 		InteractionFeedback.error(self)
+		return
+	if guide_lock_ceremony_active:
+		_say(GameManager.text(
+			"Fine-guidance verification is still running. Hold for a moment.",
+			"精导稳定性仍在确认中，请保持片刻。"), CYAN)
 		return
 	_log("GUIDE STAR LOCKED")
 	_say(GameManager.text("Fine-guidance locked. Align the mirror segments next.", "精细导星已锁定。下一步校准镜面分段。"), GREEN)
+	InteractionFeedback.feedback_sfx_requested.emit("guide_locked")
 	_advance()
 	_space_operation_chain(
 		GameManager.text("Locked a stable guide star", "锁定稳定导星"),
@@ -1415,92 +1693,396 @@ func _confirm_guide() -> void:
 # ============================================================ WAVEFRONT
 func _build_wavefront() -> void:
 	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("WAVEFRONT / MIRROR ALIGNMENT", "波前 / 镜面校准"))
+	wavefront_animating = false
+	wavefront_convergence_active = false
+	wavefront_convergence_complete = model.wavefront_ok() and model.wavefront_anomaly_segments().is_empty()
+	if model.wavefront_coarse_complete:
+		wavefront_selected_group = -1
+	if not model.wavefront_anomaly_segments().has(wavefront_selected_segment):
+		wavefront_selected_segment = -1
 	wavefront_display = SpaceWavefrontDisplayScript.new()
 	wavefront_display.name = "WavefrontDisplay"
 	wavefront_display.position = Vector2(40, 8)
 	wavefront_display.size = Vector2(600, 500)
-	wavefront_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wavefront_display.mouse_filter = Control.MOUSE_FILTER_STOP
+	wavefront_display.segment_selected.connect(_select_wavefront_segment)
 	content.add_child(wavefront_display)
 	scope = wavefront_display
 	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("SEGMENT ACTUATORS", "镜片执行器"))
-	readout = _label_to(pad, "", Vector2(16, 42), Vector2(284, 136), 13, TEXT)
+	readout = _label_to(pad, "", Vector2(16, 42), Vector2(284, 94), 12, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var regime := _label_to(
-		pad,
-		GameManager.text(
-			"COARSE  ·  six-segment bank / fast travel\nFINE       ·  one segment / sub-wave trim",
-			"粗对准  ·  六镜片联动 / 快速大行程\n精对准  ·  单镜片微调 / 压低波前误差"
-		),
-		Vector2(16, 184), Vector2(284, 52), 10, P_MID
-	)
-	regime.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var coarse := _button(GameManager.text("COARSE · BANK ACTUATE", "粗对准 · 镜片组驱动"), Vector2(16, 250), Vector2(284, 44), Color("202020"))
-	coarse.name = "CoarseWavefrontAlign"
-	coarse.pressed.connect(_animate_wavefront_step.bind(0.18, "COARSE"))
-	coarse.disabled = model.segment_alignment >= 0.82
-	coarse.tooltip_text = GameManager.text(
-		"Moves six segments quickly. It cannot finish precision phasing.",
-		"一次快速移动六块镜片，但无法完成最终精密共相。"
-	)
-	pad.add_child(coarse)
-	var fine := _button(GameManager.text("FINE · SINGLE SEGMENT", "精对准 · 单镜片微调"), Vector2(16, 306), Vector2(284, 44), Color("143247"))
-	fine.name = "FineWavefrontAlign"
-	fine.pressed.connect(_animate_wavefront_step.bind(0.07, "FINE"))
-	fine.tooltip_text = GameManager.text(
-		"Trims one segment and converges the star image below 150 nm.",
-		"逐块微调，把分裂星点收敛到 150 nm 以下。"
-	)
-	pad.add_child(fine)
-	var go := _button(GameManager.text("Confirm Alignment", "确认对准"), Vector2(16, 440), Vector2(284, 44), Color("175238"))
-	go.pressed.connect(_confirm_wavefront)
-	pad.add_child(go)
+	readout.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+
+	wavefront_control_hint = _label_to(pad, "", Vector2(16, 140), Vector2(284, 40), 10, P_MID)
+	wavefront_control_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	wavefront_group_buttons.clear()
+	for group_index in range(3):
+		var bank := _button("", Vector2(16 + group_index * 95, 190), Vector2(84, 42), Color("202020"))
+		bank.name = "WavefrontGroup%s" % String.chr(65 + group_index)
+		bank.pressed.connect(_select_wavefront_group.bind(group_index))
+		bank.tooltip_text = GameManager.text(
+			"Select this six-segment bank for diagnosis.",
+			"选择这组六块镜片进行误差诊断。"
+		)
+		pad.add_child(bank)
+		wavefront_group_buttons.append(bank)
+
+	wavefront_execute_button = _button(
+		GameManager.text("ACTUATE SELECTED BANK", "驱动所选镜片组"),
+		Vector2(16, 242), Vector2(284, 40), Color("202020"))
+	wavefront_execute_button.name = "CoarseWavefrontExecute"
+	wavefront_execute_button.pressed.connect(_execute_wavefront_group)
+	pad.add_child(wavefront_execute_button)
+
+	wavefront_segment_label = _label_to(pad, "", Vector2(16, 184), Vector2(284, 38), 11, TEXT)
+	wavefront_segment_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	wavefront_phase_meter = ProgressBar.new()
+	wavefront_phase_meter.name = "WavefrontPhaseScale"
+	wavefront_phase_meter.position = Vector2(16, 228)
+	wavefront_phase_meter.size = Vector2(284, 18)
+	wavefront_phase_meter.min_value = 0.0
+	wavefront_phase_meter.max_value = 1.0
+	wavefront_phase_meter.show_percentage = false
+	wavefront_phase_meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	wavefront_phase_meter.add_theme_stylebox_override("background", _flat(Color("050505"), P_DIM, 1))
+	wavefront_phase_meter.add_theme_stylebox_override("fill", _flat(Color("704d20"), AMBER, 1))
+	pad.add_child(wavefront_phase_meter)
+	wavefront_phase_center_mark = _rect_to(pad, Vector2(157, 228), Vector2(1, 18), P_MID)
+	wavefront_phase_center_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+	wavefront_fine_minus_button = _button("−", Vector2(16, 258), Vector2(136, 42), Color("202020"))
+	wavefront_fine_minus_button.name = "FineWavefrontMinus"
+	wavefront_fine_minus_button.tooltip_text = GameManager.text("Retract the selected actuator.", "收回所选镜片执行器。")
+	wavefront_fine_minus_button.pressed.connect(_adjust_wavefront_segment.bind(-WAVEFRONT_FINE_STEP))
+	pad.add_child(wavefront_fine_minus_button)
+	wavefront_fine_plus_button = _button("+", Vector2(164, 258), Vector2(136, 42), Color("202020"))
+	wavefront_fine_plus_button.name = "FineWavefrontPlus"
+	wavefront_fine_plus_button.tooltip_text = GameManager.text("Extend the selected actuator.", "伸出所选镜片执行器。")
+	wavefront_fine_plus_button.pressed.connect(_adjust_wavefront_segment.bind(WAVEFRONT_FINE_STEP))
+	pad.add_child(wavefront_fine_plus_button)
+
+	wavefront_actuator_label = _label_to(pad, "", Vector2(16, 306), Vector2(284, 28), 10, P_MID)
+	wavefront_actuator_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	wavefront_confirm_button = _button(
+		GameManager.text("Confirm Alignment", "确认对准"),
+		Vector2(16, 440), Vector2(284, 44), Color("175238"))
+	wavefront_confirm_button.name = "ConfirmWavefrontAlignment"
+	wavefront_confirm_button.pressed.connect(_confirm_wavefront)
+	pad.add_child(wavefront_confirm_button)
 	_refresh_wavefront()
 
 
-func _animate_wavefront_step(amount: float, mode: String) -> void:
-	if wavefront_animating or model.segment_alignment >= 1.0:
+func _select_wavefront_group(group_index: int) -> void:
+	if wavefront_animating or model.wavefront_coarse_complete:
 		return
-	if mode == "COARSE" and model.segment_alignment >= 0.82:
+	wavefront_selected_group = group_index
+	if wavefront_display != null and is_instance_valid(wavefront_display):
+		wavefront_display.set_selected_group(group_index)
+	_say(GameManager.text(
+		"Bank %s selected. Compare its phase offset before actuation." % String.chr(65 + group_index),
+		"已选择 %s 组。驱动前先比较三组相位偏差。" % String.chr(65 + group_index)
+	), CYAN)
+	_refresh_wavefront()
+
+
+func _execute_wavefront_group() -> void:
+	if wavefront_animating or model.wavefront_coarse_complete:
+		return
+	if wavefront_selected_group < 0:
 		_say(GameManager.text(
-			"Coarse banks are at their limit. Use FINE control to merge the remaining star images.",
-			"粗调镜片组已到行程极限。请改用精对准，让剩余星点合并。"
+			"Select the bank with the largest phase offset first.",
+			"请先选择相位偏差最大的一组镜片。"
+		), AMBER)
+		InteractionFeedback.error(wavefront_execute_button)
+		return
+	wavefront_animating = true
+	_refresh_wavefront()
+	var group_index := wavefront_selected_group
+	var display_ref := wavefront_display
+	_log_line("WFS BANK %s ACTUATION" % String.chr(65 + group_index), "RUN", "6 SEG")
+	if display_ref != null and is_instance_valid(display_ref):
+		display_ref.start_group_actuation(group_index)
+	InteractionFeedback.feedback_sfx_requested.emit("segment_actuator")
+	await get_tree().create_timer(_wavefront_duration(0.34)).timeout
+	if not _wavefront_context_active(display_ref):
+		wavefront_animating = false
+		return
+	await get_tree().create_timer(_wavefront_duration(WAVEFRONT_MECHANICAL_DELAY)).timeout
+	var correct := model.coarse_adjust_group(group_index)
+	if display_ref != null and is_instance_valid(display_ref):
+		display_ref.animate_sensor_response(
+			model.segment_phase_errors,
+			model.segment_alignment,
+			model.wavefront_error_nm,
+			_wavefront_duration(0.38))
+	_refresh_wavefront(false)
+	await get_tree().create_timer(_wavefront_duration(0.38)).timeout
+	if not _wavefront_context_active(display_ref):
+		wavefront_animating = false
+		return
+	wavefront_animating = false
+	_log_line("WFS BANK %s ACTUATION" % String.chr(65 + group_index), "HOLD", "%d NM" % roundi(model.wavefront_error_nm))
+	if correct:
+		wavefront_selected_group = -1
+		if display_ref != null and is_instance_valid(display_ref):
+			display_ref.set_selected_group(-1)
+		_say(GameManager.text(
+			"Dominant bank corrected. Four amber residual segments remain; select one on the mirror.",
+			"主误差镜片组已校正。还剩四块琥珀色异常镜片，请在主镜上选择。"
 		), CYAN)
+		InteractionFeedback.success(wavefront_execute_button, "wavefront_bank_lock")
+	else:
+		_say(GameManager.text(
+			"Small improvement only: this bank is not in the dominant error channel. Compare the other offsets.",
+			"仅有轻微改善：该组不在主误差通道。请继续比较其他镜片组。"
+		), AMBER)
+		if group_index < wavefront_group_buttons.size():
+			InteractionFeedback.pulse(wavefront_group_buttons[group_index], AMBER, 0.35)
+	_refresh_wavefront()
+
+
+func _select_wavefront_segment(segment_index: int) -> void:
+	if wavefront_animating or not model.wavefront_coarse_complete:
+		return
+	wavefront_selected_segment = segment_index
+	if wavefront_display != null and is_instance_valid(wavefront_display):
+		wavefront_display.set_selected_segment(segment_index)
+	var error := model.segment_phase_error(segment_index)
+	if absf(error) <= 0.12:
+		_say(GameManager.text(
+			"Segment %02d is already inside the residual tolerance. Choose an amber segment." % (segment_index + 1),
+			"%02d 号镜片已在残差容限内，请选择琥珀色异常镜片。" % (segment_index + 1)
+		), P_MID)
+	else:
+		_say(GameManager.text(
+			"Segment %02d selected. Move its actuator toward the centre mark." % (segment_index + 1),
+			"已选择 %02d 号镜片。请让执行器读数向中心刻线收敛。" % (segment_index + 1)
+		), CYAN)
+	_refresh_wavefront()
+
+
+func _adjust_wavefront_segment(delta: float) -> void:
+	if wavefront_animating or not model.wavefront_coarse_complete:
+		return
+	if wavefront_selected_segment < 0:
+		_say(GameManager.text(
+			"Select one amber residual segment on the mirror first.",
+			"请先在主镜上选择一块琥珀色异常镜片。"
+		), AMBER)
 		InteractionFeedback.error(readout)
 		return
 	wavefront_animating = true
-	var start := model.segment_alignment
-	var target := clampf(start + amount, 0.0, 0.82 if mode == "COARSE" else 1.0)
-	_log_line("WFS %s ACTUATION" % mode, "RUN", "%02d/18" % roundi(target * 18.0))
-	if wavefront_display != null and is_instance_valid(wavefront_display):
-		wavefront_display.flash_actuation(mode)
-	var tween := create_tween().bind_node(self)
-	tween.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
-	tween.tween_method(func(value: float) -> void:
-		model.set_segment_alignment(value)
-		_refresh_wavefront(), start, target, 0.42 if mode == "COARSE" else 0.26)
-	tween.tween_callback(func() -> void:
+	_refresh_wavefront()
+	var segment_index := wavefront_selected_segment
+	var display_ref := wavefront_display
+	var before := absf(model.segment_phase_error(segment_index))
+	_log_line("SEG %02d PHASE TRIM" % (segment_index + 1), "RUN", "%+.2fL" % delta)
+	if display_ref != null and is_instance_valid(display_ref):
+		display_ref.start_segment_actuation(segment_index)
+	InteractionFeedback.feedback_sfx_requested.emit("segment_actuator")
+	await get_tree().create_timer(_wavefront_duration(0.28)).timeout
+	if not _wavefront_context_active(display_ref):
 		wavefront_animating = false
-		_log_line("WFS %s ACTUATION" % mode, "HOLD", "%d NM" % roundi(model.wavefront_error_nm))
-		if mode == "COARSE" and model.segment_alignment >= 0.82:
+		return
+	await get_tree().create_timer(_wavefront_duration(WAVEFRONT_MECHANICAL_DELAY)).timeout
+	var improved := model.adjust_segment_phase(segment_index, delta)
+	if display_ref != null and is_instance_valid(display_ref):
+		display_ref.animate_sensor_response(
+			model.segment_phase_errors,
+			model.segment_alignment,
+			model.wavefront_error_nm,
+			_wavefront_duration(0.32))
+	_refresh_wavefront(false)
+	await get_tree().create_timer(_wavefront_duration(0.32)).timeout
+	if not _wavefront_context_active(display_ref):
+		wavefront_animating = false
+		return
+	wavefront_animating = false
+	var after := absf(model.segment_phase_error(segment_index))
+	_log_line("SEG %02d PHASE TRIM" % (segment_index + 1), "HOLD", "%.2fL" % after)
+	if improved:
+		if after <= 0.12:
 			_say(GameManager.text(
-				"Coarse phasing complete. Switch to FINE and close the last split peaks.",
-				"粗共相完成。切换到精对准，收拢最后的分裂峰。"
+				"Segment %02d settled. Its PSF side peak has merged; select the next amber segment." % (segment_index + 1),
+				"%02d 号镜片已稳定，对应的 PSF 副峰已并入中心；请选择下一块琥珀色镜片。" % (segment_index + 1)
 			), CYAN)
-		_build_stage())
+			InteractionFeedback.success(
+				wavefront_fine_minus_button if delta < 0.0 else wavefront_fine_plus_button,
+				"wavefront_segment_settled")
+		else:
+			_say(GameManager.text(
+				"Residual reduced %.2f -> %.2f lambda. Continue toward zero." % [before, after],
+				"残差已从 %.2f 降至 %.2f λ，请继续向零位微调。" % [before, after]
+			), CYAN)
+	else:
+		_say(GameManager.text(
+			"That direction increased the residual. Reverse the actuator; no segment was lost.",
+			"这个方向让残差增大了。请反向微调，镜片状态不会丢失。"
+		), AMBER)
+		InteractionFeedback.pulse(
+			wavefront_fine_minus_button if delta < 0.0 else wavefront_fine_plus_button,
+			AMBER, 0.3)
+	_refresh_wavefront()
+	if model.wavefront_ok() and model.wavefront_anomaly_segments().is_empty():
+		await _play_wavefront_convergence()
 
 
-func _refresh_wavefront() -> void:
+func _play_wavefront_convergence() -> void:
+	if wavefront_convergence_active or wavefront_convergence_complete:
+		return
+	wavefront_convergence_active = true
+	wavefront_animating = true
+	_refresh_wavefront()
+	_log_line("PHASE RETRIEVAL", "RUN", "%d NM" % roundi(model.wavefront_error_nm))
+	_say(GameManager.text(
+		"Residual peaks are closing. Holding the phase-retrieval solution...",
+		"残余副峰正在闭合，保持相位恢复解……"
+	), CYAN)
+	var display_ref := wavefront_display
+	if wavefront_display != null and is_instance_valid(wavefront_display):
+		wavefront_display.begin_convergence()
+	InteractionFeedback.feedback_sfx_requested.emit("wavefront_converging")
+	await get_tree().create_timer(_wavefront_duration(0.82)).timeout
+	if not _wavefront_context_active(display_ref):
+		return
+	wavefront_convergence_active = false
+	wavefront_convergence_complete = true
+	wavefront_animating = false
+	wavefront_selected_segment = -1
+	if display_ref != null and is_instance_valid(display_ref):
+		display_ref.set_selected_segment(-1)
+	_log_line("PHASE RETRIEVAL CONVERGED", "LOCKED")
+	_say(GameManager.text(
+		"Phase retrieval converged. All 18 segments now behave as one mirror.",
+		"相位恢复已收敛，18 块镜片现在共同构成一面主镜。"
+	), GREEN)
+	InteractionFeedback.feedback_sfx_requested.emit("wavefront_locked")
+	if wavefront_confirm_button != null and is_instance_valid(wavefront_confirm_button):
+		InteractionFeedback.success(wavefront_confirm_button, "wavefront_converged")
+		InteractionFeedback.pulse(wavefront_confirm_button, CYAN, 0.5)
+	_refresh_wavefront()
+
+
+# Compatibility entry point for existing automation. Gameplay buttons no
+# longer call this; they require an explicit bank or residual segment choice.
+func _animate_wavefront_step(_amount: float, mode: String) -> void:
+	if mode == "COARSE":
+		_select_wavefront_group(model.max_wavefront_group())
+		await _execute_wavefront_group()
+		return
+	var anomalies := model.wavefront_anomaly_segments()
+	if anomalies.is_empty():
+		return
+	var segment_index := int(anomalies[0])
+	_select_wavefront_segment(segment_index)
+	var error := model.segment_phase_error(segment_index)
+	await _adjust_wavefront_segment(-WAVEFRONT_FINE_STEP if error > 0.0 else WAVEFRONT_FINE_STEP)
+
+
+func _refresh_wavefront(sync_display := true) -> void:
 	if readout == null or not is_instance_valid(readout):
 		return
+	var actuator_state := "RUN" if wavefront_animating else "HOLD"
 	readout.text = GameManager.text(
-		"Segment alignment %d%%\nWavefront error %.0f nm (target < 150)\nPSF sharpness %d%%\nCalibration %d%%" % [
-			int(model.segment_alignment * 100), model.wavefront_error_nm, int(model.psf_sharpness() * 100), int(model.calibration_progress * 100)],
-		"镜片对准 %d%%\n波前误差 %.0f nm（目标 < 150）\n点扩散锐度 %d%%\n校准进度 %d%%" % [
-			int(model.segment_alignment * 100), model.wavefront_error_nm, int(model.psf_sharpness() * 100), int(model.calibration_progress * 100)])
+		"ACTUATOR %s\nAlignment %d%%\nWFE %.0f nm  (target < 150)\nPSF sharpness %d%%" % [
+			actuator_state, int(model.segment_alignment * 100), model.wavefront_error_nm, int(model.psf_sharpness() * 100)],
+		"执行器 %s\n镜片对准 %d%%\n波前误差 %.0f nm（目标 < 150）\nPSF 锐度 %d%%" % [
+			actuator_state, int(model.segment_alignment * 100), model.wavefront_error_nm, int(model.psf_sharpness() * 100)])
 	readout.add_theme_color_override("font_color", GREEN if model.wavefront_ok() else CYAN)
 	if wavefront_display != null and is_instance_valid(wavefront_display):
-		wavefront_display.alignment = model.segment_alignment
-		wavefront_display.wavefront_error_nm = model.wavefront_error_nm
+		if sync_display:
+			wavefront_display.sync_state(
+				model.segment_phase_errors,
+				model.segment_alignment,
+				model.wavefront_error_nm,
+				model.wavefront_coarse_complete,
+				wavefront_selected_segment)
+		wavefront_display.set_selected_group(wavefront_selected_group)
+		wavefront_display.set_selected_segment(wavefront_selected_segment)
+
+	var coarse_mode := not model.wavefront_coarse_complete
+	if wavefront_control_hint != null and is_instance_valid(wavefront_control_hint):
+		if wavefront_convergence_complete:
+			wavefront_control_hint.text = GameManager.text(
+				"All 18 segments are phase-locked. The split star images now share one stable core.",
+				"18 块镜片已完成相位锁定，分裂星像已经收束为一个稳定核心。")
+		else:
+			wavefront_control_hint.text = GameManager.text(
+				"Compare A/B/C. Select the largest offset, then actuate that six-segment bank."
+				if coarse_mode else
+				"Click an amber segment. Use − / + to move its signed phase toward the centre mark.",
+				"比较 A/B/C 三组偏差，选择最大的一组，再驱动这六块镜片。"
+				if coarse_mode else
+				"点击琥珀色异常镜片，用 − / + 将有符号相位移向中心刻线。"
+			)
+	for group_index in range(wavefront_group_buttons.size()):
+		var bank := wavefront_group_buttons[group_index]
+		bank.visible = coarse_mode
+		bank.disabled = wavefront_animating
+		bank.text = "%s\n%.2f λ" % [String.chr(65 + group_index), model.wavefront_group_error(group_index)]
+		bank.modulate = Color(1.12, 1.12, 1.12) if group_index == wavefront_selected_group else Color(0.74, 0.74, 0.74)
+	if wavefront_execute_button != null and is_instance_valid(wavefront_execute_button):
+		wavefront_execute_button.visible = coarse_mode
+		wavefront_execute_button.disabled = wavefront_animating or wavefront_selected_group < 0
+
+	var has_segment := wavefront_selected_segment >= 0
+	var segment_error := model.segment_phase_error(wavefront_selected_segment) if has_segment else 0.0
+	if wavefront_segment_label != null and is_instance_valid(wavefront_segment_label):
+		wavefront_segment_label.visible = not coarse_mode
+		if wavefront_convergence_complete:
+			wavefront_segment_label.text = GameManager.text(
+				"18 / 18 SEGMENTS PHASED",
+				"18 / 18 块镜片已完成相位校准")
+		else:
+			wavefront_segment_label.text = GameManager.text(
+				"SEGMENT %02d   PHASE %+.2f λ" % [wavefront_selected_segment + 1, segment_error]
+				if has_segment else "SELECT AN AMBER RESIDUAL SEGMENT",
+				"%02d 号镜片   相位 %+.2f λ" % [wavefront_selected_segment + 1, segment_error]
+				if has_segment else "请选择一块琥珀色异常镜片"
+			)
+	if wavefront_phase_meter != null and is_instance_valid(wavefront_phase_meter):
+		wavefront_phase_meter.visible = not coarse_mode and not wavefront_convergence_complete
+		wavefront_phase_meter.value = clampf((segment_error + 1.0) * 0.5, 0.0, 1.0)
+	if wavefront_phase_center_mark != null and is_instance_valid(wavefront_phase_center_mark):
+		wavefront_phase_center_mark.visible = not coarse_mode and not wavefront_convergence_complete
+	var can_trim := not coarse_mode and has_segment and absf(segment_error) > 0.12 and not wavefront_animating
+	if wavefront_fine_minus_button != null and is_instance_valid(wavefront_fine_minus_button):
+		wavefront_fine_minus_button.visible = not coarse_mode and not wavefront_convergence_complete
+		wavefront_fine_minus_button.disabled = not can_trim
+	if wavefront_fine_plus_button != null and is_instance_valid(wavefront_fine_plus_button):
+		wavefront_fine_plus_button.visible = not coarse_mode and not wavefront_convergence_complete
+		wavefront_fine_plus_button.disabled = not can_trim
+	if wavefront_actuator_label != null and is_instance_valid(wavefront_actuator_label):
+		wavefront_actuator_label.visible = not coarse_mode
+		if wavefront_convergence_complete:
+			wavefront_actuator_label.text = GameManager.text(
+				"PHASE RETRIEVAL CONVERGED",
+				"相位恢复已收敛")
+		else:
+			wavefront_actuator_label.text = GameManager.text(
+				"ACTUATOR %s   ·   %d RESIDUALS" % [actuator_state, model.wavefront_anomaly_segments().size()],
+				"执行器 %s   ·   剩余 %d 片" % [actuator_state, model.wavefront_anomaly_segments().size()]
+			)
+	if wavefront_confirm_button != null and is_instance_valid(wavefront_confirm_button):
+		wavefront_confirm_button.disabled = not wavefront_convergence_complete
+		wavefront_confirm_button.text = GameManager.text(
+			"Alignment Ready · Continue" if wavefront_convergence_complete else "Confirm Alignment",
+			"对准完成 · 继续" if wavefront_convergence_complete else "确认对准")
+
+
+func _wavefront_duration(normal_duration: float) -> float:
+	return 0.01 if InteractionFeedback.is_reduced_motion() else normal_duration
+
+
+func _wavefront_context_active(display_ref: Control) -> bool:
+	return is_inside_tree() \
+		and _key() == "wavefront" \
+		and display_ref != null \
+		and is_instance_valid(display_ref) \
+		and wavefront_display == display_ref
 
 
 func _draw_wavefront() -> void:
@@ -1525,13 +2107,32 @@ func _draw_wavefront() -> void:
 
 
 func _confirm_wavefront() -> void:
-	if not model.wavefront_ok():
-		_say(GameManager.text("Wavefront error still too high. Keep aligning until the star images merge (< 150 nm).",
-			"波前误差仍然太大。继续对准直到星点合并（< 150 nm）。"), RED)
+	if not model.wavefront_coarse_complete:
+		_say(GameManager.text(
+			"Diagnose and correct the dominant six-segment bank first.",
+			"请先诊断并校正主误差镜片组。"), AMBER)
 		InteractionFeedback.error(self)
+		return
+	var residuals := model.wavefront_anomaly_segments()
+	if not residuals.is_empty():
+		_say(GameManager.text(
+			"%d amber residual segments still split the PSF. Select and trim them." % residuals.size(),
+			"仍有 %d 块琥珀色异常镜片使 PSF 分裂，请逐块选择并微调。" % residuals.size()
+		), AMBER)
+		InteractionFeedback.error(self)
+		return
+	if not model.wavefront_ok():
+		_say(GameManager.text(
+			"Residual segments are stable, but WFE is still above 150 nm. Continue fine trim toward zero.",
+			"异常镜片已稳定，但波前误差仍高于 150 nm，请继续向零位精调。"), AMBER)
+		InteractionFeedback.error(self)
+		return
+	if not wavefront_convergence_complete:
+		await _play_wavefront_convergence()
 		return
 	_log("WAVEFRONT CONVERGED")
 	_say(GameManager.text("Optics aligned. Begin the exposure.", "光学已对准。开始曝光。"), GREEN)
+	InteractionFeedback.feedback_sfx_requested.emit("wavefront_locked")
 	_advance()
 	_space_operation_chain(
 		GameManager.text("Phased the mirror segments", "校准镜面分段相位"),
@@ -1859,7 +2460,7 @@ func _process_next_help() -> String:
 
 
 func _show_process_tutorial_if_needed() -> void:
-	if _key() != "process" or not InteractionFeedback.guidance_highlights_enabled():
+	if _key() != "process" or not GameManager.uses_full_tutorials() or not InteractionFeedback.guidance_highlights_enabled():
 		return
 	var seen: Array = GameManager.progress.get("seen_teaching_steps", [])
 	if seen.has("space_frame_processing_v2"):
@@ -2261,24 +2862,28 @@ func _confirm_process() -> void:
 # ============================================================ FILTER
 func _build_filter() -> void:
 	filter_animating = false
-	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("FALSE-COLOUR FILTER MAPPING", "假彩色滤镜映射"))
+	filter_preview_band = ""
+	filter_map_buttons.clear()
+	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("FALSE-COLOUR BAND MAPPING", "假彩色波段映射"))
 	scope = Control.new(); scope.position = Vector2(40, 8); scope.size = Vector2(600, 500)
 	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	content.add_child(scope)
-	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("CHANNELS & SCIENCE", "通道与科学"))
+	var pad := _panel_to(content, Vector2(668, 8), Vector2(316, 500), PANEL, GOLD, GameManager.text("CHANNELS & EVIDENCE", "通道与证据"))
 	_label_to(pad, GameManager.text("1 MAP BANDS  >  2 READ STRUCTURE  >  3 INFER",
 		"1 映射波段  >  2 读取结构  >  3 作出推断"), Vector2(16, 40), Vector2(284, 22), 11, P_BRIGHT)
 	_label_to(pad, GameManager.text("The colour is a code for wavelength, not what an eye would see.",
-		"颜色是波长编码，不是肉眼看到的颜色。"), Vector2(16, 64), Vector2(284, 34), 10, MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		"颜色代表波长，并不是肉眼看到的颜色。"), Vector2(16, 64), Vector2(284, 34), 10, MUTED).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var y := 102.0
 	for ch in ["R", "G", "B"]:
 		_label_to(pad, ch, Vector2(16, y), Vector2(24, 30), 15, GOLD)
 		var x := 44.0
-		for filt in ["near_infrared", "mid_infrared", "dust"]:
-			var b := _button(_opt_label("filter", filt), Vector2(x, y - 2), Vector2(80, 30), Color("1c3a5c") if str(model.channel_map[ch]) == filt else Color("122234"))
+		for band_id in model.FALSE_COLOUR_BANDS:
+			var b := _button(_filter_band_short_label(band_id), Vector2(x, y - 2), Vector2(80, 30), Color("1c3a5c") if str(model.channel_map[ch]) == band_id else Color("122234"))
 			b.add_theme_font_size_override("font_size", 10)
-			b.pressed.connect(_set_filter_channel.bind(ch, filt))
+			b.tooltip_text = _filter_band_description(band_id)
+			b.pressed.connect(_set_filter_channel.bind(ch, band_id))
 			pad.add_child(b)
+			filter_map_buttons["%s:%s" % [ch, band_id]] = b
 			x += 84.0
 		y += 44.0
 	_label_to(pad, GameManager.text("Scientific interpretation:", "科学解释："), Vector2(16, y + 6), Vector2(284, 20), 12, MUTED)
@@ -2299,12 +2904,14 @@ func _set_filter_channel(channel: String, filter_id: String) -> void:
 	if filter_animating:
 		return
 	model.set_channel(channel, filter_id)
+	filter_preview_band = filter_id
 	_log_line("MAP CHANNEL %s" % channel, "RUN", filter_id.to_upper())
 	_say(GameManager.text(
-		"Recomposing %s from the %s band. Watch the scan reveal which structures brighten." % [channel, _opt_label("filter", filter_id)],
-		"正在用%s波段重组%s通道。观察扫描后哪些结构变亮。" % [_opt_label("filter", filter_id), channel]), CYAN)
+		"Reading the %s band in grayscale, then assigning its structure to %s." % [_filter_band_label(filter_id), channel],
+		"先以灰度读取%s，再把它的空间结构映射到 %s 通道。" % [_filter_band_label(filter_id), channel]), CYAN)
 	_draw_filter()
-	_play_filter_scan("MAP " + channel)
+	_play_filter_scan(channel, filter_id)
+	_refresh_filter_button_states()
 
 
 func _set_science_choice(option: String) -> void:
@@ -2316,44 +2923,110 @@ func _set_science_choice(option: String) -> void:
 	if model.science_correct():
 		_say(GameManager.text(
 			"Hypothesis matches the visible structure. Confirm the science image.",
-			"推断与可见结构吻合。请确认科学图像。"), GREEN)
+			"科学解释与可见结构吻合，可以确认图像。"), GREEN)
+	elif model.mapping_complete() and not model.mapping_is_scientific():
+		_say(GameManager.text(
+			"The hypothesis may be plausible, but the wavelength order makes the evidence ambiguous.",
+			"解释可能合理，但当前波长顺序会混淆证据，科学置信度不足。"), ORANGE)
 	else:
 		_say(GameManager.text(
 			"Hypothesis recorded. Compare it with the evidence callouts before confirming.",
 			"推断已记录。确认前请将它与结构证据标注对照。"), CYAN)
-	_play_filter_scan("HYPOTHESIS")
+	if model.science_correct():
+		InteractionFeedback.success(self)
+	else:
+		InteractionFeedback.error(self)
 
 
-func _play_filter_scan(label_text: String) -> void:
+func _play_filter_scan(channel: String, band_id: String) -> void:
 	if scope == null or not is_instance_valid(scope):
 		return
 	filter_animating = true
+	if filter_display != null and is_instance_valid(filter_display):
+		filter_display.set("reveal_progress", 0.0)
 	var scan := ColorRect.new()
 	scan.name = "FilterScan"
-	scan.color = P_HOT
+	scan.color = {
+		"R": Color(1.0, 0.25, 0.12, 0.78),
+		"G": Color(0.20, 0.95, 0.52, 0.72),
+		"B": Color(0.22, 0.58, 1.0, 0.78),
+	}.get(channel, P_HOT)
 	scan.position = Vector2(60, 52)
-	scan.size = Vector2(480, 2)
+	scan.size = Vector2(480, 5)
 	scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	scan.z_index = 50
 	scope.add_child(scan)
-	var tag := _label_to(scope, label_text, Vector2(66, 58), Vector2(180, 18), 10, P_HOT)
+	var tag := _label_to(
+		scope,
+		"%s  >  %s" % [_filter_band_short_label(band_id), channel],
+		Vector2(66, 58), Vector2(210, 18), 10, scan.color)
 	tag.z_index = 51
 	var tween := create_tween().bind_node(self).set_parallel(true)
-	tween.tween_property(scan, "position:y", 352.0, 0.34).set_trans(Tween.TRANS_LINEAR)
-	tween.tween_property(scan, "modulate:a", 0.0, 0.12).set_delay(0.30)
-	tween.tween_property(tag, "modulate:a", 0.0, 0.24).set_delay(0.16)
+	tween.tween_property(scan, "position:y", 347.0, 0.48).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.tween_property(scan, "modulate:a", 0.0, 0.14).set_delay(0.42)
+	tween.tween_property(tag, "modulate:a", 0.0, 0.28).set_delay(0.24)
+	if filter_display != null and is_instance_valid(filter_display):
+		tween.tween_property(filter_display, "reveal_progress", 1.0, 0.48).set_trans(Tween.TRANS_SINE)
 	tween.chain().tween_callback(_finish_filter_scan.bind(scan, tag))
 
 
-func _finish_filter_scan(scan: ColorRect, tag: Label) -> void:
+func _finish_filter_scan(scan: Variant, tag: Variant) -> void:
 	if is_instance_valid(scan):
 		scan.queue_free()
 	if is_instance_valid(tag):
 		tag.queue_free()
 	filter_animating = false
+	filter_preview_band = ""
 	_log_line("FALSE COLOUR COMPOSITE", "UPDATED")
 	if _key() == "filter":
-		_build_stage()
+		_draw_filter()
+		_refresh_filter_button_states()
+
+
+func _refresh_filter_button_states() -> void:
+	for key in filter_map_buttons:
+		var button := filter_map_buttons[key] as Button
+		if button == null or not is_instance_valid(button):
+			continue
+		var split := str(key).split(":")
+		var selected := split.size() == 2 and str(model.channel_map.get(split[0], "")) == split[1]
+		button.modulate = Color(1.15, 1.20, 1.25, 1.0) if selected else Color(0.68, 0.72, 0.78, 1.0)
+
+
+func _filter_band_short_label(band_id: String) -> String:
+	var labels := {
+		"nir_short": ["NIR-S", "NIR短波"],
+		"nir_long": ["NIR-L", "NIR长波"],
+		"miri_dust": ["MIR-D", "MIR尘埃"],
+	}
+	var pair: Array = labels.get(band_id, [band_id, band_id])
+	return GameManager.text(str(pair[0]), str(pair[1]))
+
+
+func _filter_band_label(band_id: String) -> String:
+	var labels := {
+		"nir_short": ["Short-wave near infrared", "近红外短波"],
+		"nir_long": ["Long-wave near infrared", "近红外长波"],
+		"miri_dust": ["Mid-infrared dust emission", "中红外尘埃发射"],
+	}
+	var pair: Array = labels.get(band_id, [band_id, band_id])
+	return GameManager.text(str(pair[0]), str(pair[1]))
+
+
+func _filter_band_description(band_id: String) -> String:
+	var labels := {
+		"nir_short": [
+			"Short-wave near infrared: foreground stars and compact cores.",
+			"近红外短波：突出前景恒星与紧凑核心。"],
+		"nir_long": [
+			"Long-wave near infrared: embedded stars and structures seen through dust.",
+			"近红外长波：呈现穿透尘埃后的嵌入恒星与内部结构。"],
+		"miri_dust": [
+			"Mid-infrared emission: warm dust, dust lanes, PAH and gas structure.",
+			"中红外尘埃发射：突出暖尘埃、尘埃带、PAH 与气体结构。"],
+	}
+	var pair: Array = labels.get(band_id, [band_id, band_id])
+	return GameManager.text(str(pair[0]), str(pair[1]))
 
 
 func _science_label(opt: String) -> String:
@@ -2368,24 +3041,36 @@ func _draw_filter() -> void:
 	if scope == null or not is_instance_valid(scope):
 		return
 	for c in scope.get_children():
+		scope.remove_child(c)
 		c.queue_free()
-	# composite tinted by the channel mapping so different maps look different
-	var tint := Color(0.2, 0.2, 0.2)
-	var band_col := {"near_infrared": Color(0.9, 0.4, 0.3), "mid_infrared": Color(0.3, 0.5, 0.9), "dust": Color(0.4, 0.8, 0.5)}
-	if str(model.channel_map["R"]) != "":
-		tint.r += 0.5 * band_col.get(str(model.channel_map["R"]), Color.WHITE).r
-	if str(model.channel_map["G"]) != "":
-		tint.g += 0.5 * band_col.get(str(model.channel_map["G"]), Color.WHITE).g
-	if str(model.channel_map["B"]) != "":
-		tint.b += 0.5 * band_col.get(str(model.channel_map["B"]), Color.WHITE).b
-	# the SAME target, recoloured by the channel mapping the player chose
-	_draw_target_image(scope, Rect2(60, 52, 480, 300), clampf(model.snr() / 26.0, 0.2, 1.0), tint)
+	var science_texture: Texture2D
+	var science_image_path := str(_profile().get("science_image_path", ""))
+	if science_image_path != "" and ResourceLoader.exists(science_image_path):
+		science_texture = load(science_image_path) as Texture2D
+	filter_display = SpaceFalseColourDisplayScript.new()
+	filter_display.name = "FalseColourStructuralComposite"
+	filter_display.position = Vector2(60, 52)
+	filter_display.size = Vector2(480, 300)
+	filter_display.clip_contents = true
+	filter_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scope.add_child(filter_display)
+	filter_display.call(
+		"configure",
+		science_texture,
+		model.channel_map,
+		model.band_signatures,
+		model.target_kind,
+		model.observation_seed,
+		clampf(model.snr() / 20.0, 0.25, 1.0),
+		filter_preview_band
+	)
 	_label_to(scope, GameManager.dict_text(GameManager.current_target(), "name") + "  ·  " +
-		GameManager.text("false colour", "假彩色"), Vector2(60, 358), Vector2(480, 20), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+		(GameManager.text("single-band grayscale", "单波段灰度") if filter_preview_band != "" else GameManager.text("structural false colour", "结构假彩色")),
+		Vector2(60, 358), Vector2(480, 20), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var mapped := "R=%s  G=%s  B=%s" % [
-		_opt_label("filter", str(model.channel_map["R"])) if str(model.channel_map["R"]) != "" else "-",
-		_opt_label("filter", str(model.channel_map["G"])) if str(model.channel_map["G"]) != "" else "-",
-		_opt_label("filter", str(model.channel_map["B"])) if str(model.channel_map["B"]) != "" else "-"]
+		_filter_band_short_label(str(model.channel_map["R"])) if str(model.channel_map["R"]) != "" else "-",
+		_filter_band_short_label(str(model.channel_map["G"])) if str(model.channel_map["G"]) != "" else "-",
+		_filter_band_short_label(str(model.channel_map["B"])) if str(model.channel_map["B"]) != "" else "-"]
 	_label_to(scope, mapped, Vector2(60, 380), Vector2(480, 20), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	if model.mapping_complete():
 		_draw_filter_evidence(scope)
@@ -2394,13 +3079,18 @@ func _draw_filter() -> void:
 			"Assign three different bands. Longer-wavelength dust emission and shorter-wavelength stellar light will separate into different structures.",
 			"分配三个不同波段。长波尘埃辐射与短波恒星光会分离成不同结构。"),
 			Vector2(60, 404), Vector2(480, 52), 12, MUTED)
+	_refresh_filter_button_states()
 
 
 func _draw_filter_evidence(parent: Control) -> void:
 	var evidence := _filter_evidence()
-	_label_to(parent, GameManager.text("STRUCTURE EVIDENCE", "结构证据"), Vector2(60, 402), Vector2(480, 18), 11, P_HOT)
+	var confidence := int(round(model.science_evidence_confidence() * 100.0))
+	var evidence_color := GREEN if model.mapping_is_scientific() else ORANGE
+	_label_to(parent, GameManager.text("EVIDENCE CONFIDENCE", "证据置信度") + "  %d%%" % confidence,
+		Vector2(60, 402), Vector2(480, 18), 11, evidence_color)
 	for index in range(mini(3, evidence.size())):
-		_label_to(parent, "▸ " + str(evidence[index]), Vector2(70, 422 + index * 18), Vector2(466, 18), 10, P_BRIGHT)
+		_label_to(parent, "▸ " + str(evidence[index]), Vector2(70, 422 + index * 18), Vector2(466, 18), 10,
+			P_BRIGHT if model.mapping_is_scientific() else MUTED)
 	# A restrained callout points at the diagnostic feature without covering it.
 	var feature_pos := Vector2(360, 230)
 	var feature_text := GameManager.text("DIAGNOSTIC FEATURE", "诊断结构")
@@ -2416,11 +3106,17 @@ func _draw_filter_evidence(parent: Control) -> void:
 		feature_text = GameManager.text("SHELL / ARC", "壳层 / 弧")
 	elif model.true_science == "distant_galaxy":
 		feature_text = GameManager.text("SHIFTED CORE", "红移核心")
-	_line_to(parent, feature_pos, Vector2(474, 174), P_HOT)
-	_label_to(parent, feature_text, Vector2(412, 154), Vector2(132, 18), 9, P_HOT, HORIZONTAL_ALIGNMENT_RIGHT)
+	var callout_color := P_HOT if model.mapping_is_scientific() else MUTED
+	_line_to(parent, feature_pos, Vector2(474, 174), callout_color)
+	_label_to(parent, feature_text, Vector2(412, 154), Vector2(132, 18), 9, callout_color, HORIZONTAL_ALIGNMENT_RIGHT)
 
 
 func _filter_evidence() -> Array:
+	if model.mapping_complete() and not model.mapping_is_scientific():
+		return [
+			GameManager.text("Colour order no longer follows wavelength.", "颜色顺序没有按波长排列。"),
+			GameManager.text("Stellar and dust structures overlap ambiguously.", "恒星结构与尘埃结构发生含混重叠。"),
+			GameManager.text("Re-map the bands before drawing a conclusion.", "请重新映射波段后再作出结论。")]
 	match model.true_science:
 		"dust_rich":
 			return [
@@ -2452,7 +3148,13 @@ func _filter_evidence() -> Array:
 
 func _confirm_filter() -> void:
 	if not model.mapping_complete():
-		_say(GameManager.text("Assign a different filter to each of R, G and B first.", "请先给 R、G、B 各分配一个不同的滤镜。"), RED)
+		_say(GameManager.text("Assign one different wavelength band to each of R, G and B.", "请先为 R、G、B 分别映射一个不同的波段。"), RED)
+		InteractionFeedback.error(self)
+		return
+	if not model.mapping_is_scientific():
+		_say(GameManager.text(
+			"The composite uses an ambiguous wavelength order. Put the longest-wave dust emission in R, long-wave near infrared in G, and short-wave near infrared in B.",
+			"当前波长顺序会混淆结构证据。请将中红外尘埃发射映射到 R、近红外长波映射到 G、近红外短波映射到 B。"), ORANGE)
 		InteractionFeedback.error(self)
 		return
 	if model.chosen_science == "":

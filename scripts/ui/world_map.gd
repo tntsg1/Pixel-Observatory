@@ -475,7 +475,7 @@ func _build_travel_hud() -> void:
 
 
 func _show_first_map_tutorial() -> void:
-	if not InteractionFeedback.guidance_highlights_enabled():
+	if not GameManager.uses_full_tutorials() or not InteractionFeedback.guidance_highlights_enabled():
 		return
 	var seen: Array = GameManager.progress.get("seen_teaching_steps", [])
 	if seen.has("world_map_controls_v1") or not is_inside_tree():

@@ -434,12 +434,12 @@ func _quality_panel(observation: Dictionary, stats: Dictionary) -> void:
 
 func _learned_panel(obj: Dictionary, level: Dictionary, observation: Dictionary, data: Dictionary, concept: Dictionary) -> void:
 	_mission_section_line(Vector2(228, 354), 568)
-	_paper_label(_inline_text("Operation Chain", "操作链"), Vector2(312, 340), Vector2(400, 26), 18, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_paper_label(_inline_text("Operation Chain", "操作回顾"), Vector2(312, 340), Vector2(400, 26), 18, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
 	var summary := _operation_chain_summary(obj, level, observation, data)
 	var headings := [
-		_inline_text("ACTION", "操作"),
-		_inline_text("PHYSICAL EFFECT", "物理效果"),
-		_inline_text("WHAT BECAME VISIBLE", "显现结果"),
+		_inline_text("ACTION", "操作结果"),
+		_inline_text("PHYSICAL EFFECT", "系统状态"),
+		_inline_text("WHAT BECAME VISIBLE", "观测发现"),
 	]
 	for index in range(3):
 		var x := 240.0 + float(index) * 184.0

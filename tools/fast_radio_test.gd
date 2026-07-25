@@ -8,8 +8,9 @@ extends SceneTree
 #   4. wrong period/DM or too-short integration keeps SNR low; correct chain +
 #      longer integration raises SNR (sqrt scaling) and confirms the pulse
 #   5. the scene walks aim -> tune -> rfi -> fold -> report and only then submits
-#   6. two levels play with different profiles (period/band/RFI)
-#   7. FAST uses no optical concepts (objective/eyepiece/magnification/focus)
+#   6. levels play with data-driven drift/RFI/DM/integration challenges
+#   7. wrong actions leave model evidence and reports are never unconditional
+#   8. FAST uses no optical concepts (objective/eyepiece/magnification/focus)
 
 var failures := 0
 
@@ -26,6 +27,8 @@ func _initialize() -> void:
 
 	_test_model()
 	_test_two_profiles()
+	_test_visible_consequences()
+	_test_level_variants()
 	await _test_scene(gm)
 	_test_no_optical()
 
@@ -100,6 +103,9 @@ func _test_model() -> void:
 	_check(bool(rep["success"]), "4. report marks the observation successful")
 	_check(absf(float(rep["pulse_period_ms"]) - m.true_period_ms) < 1.0, "4. report locks the true period")
 	_check(float(rep["dispersion_measure"]) == m.true_dm, "4. report locks the true DM")
+	_check(m.conclusion_state() == "stable_pulsar", "4. correct evidence yields the stable-pulsar conclusion")
+	_check(m.evaluate_conclusion("stable_pulsar"), "4. only the evidence-backed conclusion is accepted")
+	_check(not m.evaluate_conclusion("insufficient_signal"), "4. a contradictory report conclusion is rejected")
 
 
 # ---------------------------------------------------------------- 6 profiles
@@ -112,6 +118,69 @@ func _test_two_profiles() -> void:
 	_check(a.true_period_ms != b.true_period_ms, "6. the two levels have different pulse periods")
 	_check(a.true_center_mhz != b.true_center_mhz, "6. the two levels observe different bands")
 	_check(b.rfi_peaks.size() != a.rfi_peaks.size() or true, "6. each level builds its own RFI environment")
+
+
+func _test_visible_consequences() -> void:
+	var m := RadioSignalModel.new()
+	m.configure({
+		"target_id": "evidence_test",
+		"center_mhz": 1250.0,
+		"period_ms": 714.5,
+		"dm": 26.8,
+		"rfi": [
+			{"mhz": 1090.0, "strength": 0.95, "source": "radar", "pattern": "fixed_narrow"},
+			{"mhz": 1350.0, "strength": 0.82, "source": "phone", "pattern": "burst"},
+		],
+	})
+	m.azimuth = m.true_azimuth
+	m.altitude = m.true_altitude
+	m.window_center_mhz = m.true_center_mhz
+	m.window_bandwidth_mhz = m.true_bandwidth_mhz
+	m.classify(0, true)
+	_check(m.source_deleted(), "7. rejecting the celestial peak creates source-deleted evidence")
+	_check(m.classification_evidence() == "source_deleted", "7. source deletion has a named, visible diagnostic state")
+	_check(not bool(m.report()["success"]), "7. deleting the candidate can never produce a successful report")
+	m.classify(0, false)
+	m.classify(1, false)
+	m.classify(2, true)
+	_check(m.residual_rfi_count() == 1, "7. keeping an RFI peak leaves residual contamination")
+	_check(m.classification_evidence() == "residual_rfi", "7. residual RFI is exposed as evidence instead of a hidden score loss")
+	m.trial_dm = 0.0
+	var spread_wrong: Array = m.subband_offsets(7)
+	m.trial_dm = m.true_dm
+	var spread_right: Array = m.subband_offsets(7)
+	_check(absf(float(spread_wrong[0]) - float(spread_wrong[-1])) > 0.2, "7. wrong DM visibly staggers sub-band arrival")
+	_check(absf(float(spread_right[0]) - float(spread_right[-1])) < 0.01, "7. correct DM aligns sub-band arrival")
+
+
+func _test_level_variants() -> void:
+	var file := FileAccess.open("res://data/advanced_levels.json", FileAccess.READ)
+	_check(file != null, "6. advanced level data is readable")
+	if file == null:
+		return
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	_check(parsed is Array, "6. advanced level data parses")
+	if not (parsed is Array):
+		return
+	var variants := {}
+	for level_value in parsed as Array:
+		if not (level_value is Dictionary):
+			continue
+		var level: Dictionary = level_value
+		var number := int(level.get("level_number", 0))
+		if number < 76 or number > 85:
+			continue
+		var radio: Dictionary = level.get("radio_profile", {})
+		variants[number] = str(radio.get("challenge", ""))
+	_check(variants.size() == 10, "6. every FAST level has an explicit radio profile")
+	_check(str(variants.get(79, "")) == "cabin_drift", "6. L79 emphasizes feed-cabin drift")
+	_check(str(variants.get(83, "")) == "rfi_heavy", "6. L83 emphasizes severe RFI cleaning")
+	_check(str(variants.get(84, "")) == "dm_alignment", "6. L84 emphasizes dispersion alignment")
+	_check(str(variants.get(85, "")) == "discovery", "6. L85 uses the independent discovery profile")
+	var unique := {}
+	for challenge in variants.values():
+		unique[str(challenge)] = true
+	_check(unique.size() >= 6, "6. FAST levels expose multiple data-driven challenge identities")
 
 
 # ---------------------------------------------------------------- 5 scene
@@ -138,9 +207,10 @@ func _test_scene(gm: Node) -> void:
 	m.az_velocity = 0.0
 	m.alt_velocity = 0.0
 	scene.call("_try_lock")
-	await process_frame
+	await create_timer(1.55).timeout
 	_check(int(scene.get("stage")) == 1, "5. locking advances to Tune")
 	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. feed-cabin lock reveals receiver tuning through radio-specific feedback")
+	_check(scene.get("tune_waterfall").size() > 0, "5. Tune opens with a persistent receiver-history waterfall")
 
 	# tune on source, confirm
 	m.window_center_mhz = m.true_center_mhz
@@ -173,14 +243,20 @@ func _test_scene(gm: Node) -> void:
 	m.trial_dm = m.true_dm
 	m.set_integration(300.0)
 	scene.call("_confirm_fold")
-	await process_frame
+	await create_timer(2.55).timeout
 	_check(int(scene.get("stage")) == 4, "5. confirmed pulse advances to Report")
+	_check(scene.get("discovery_phase") >= 0.99, "5. FIRST PULSE sequence synchronizes sub-bands, waterfall, and folded profile")
 
-	# only Submit completes
+	# Report is evidence-gated: a wrong conclusion cannot complete; the correct
+	# conclusion is then accepted.
 	_check(not gm_completed(gm), "5. reaching the report does not auto-submit")
+	scene.set("report_choice", "insufficient_signal")
 	scene.call("_submit")
-	for _i in range(3):
-		await process_frame
+	await process_frame
+	_check(not gm_completed(gm), "5. a contradictory report conclusion cannot complete the mission")
+	scene.set("report_choice", "stable_pulsar")
+	scene.call("_submit")
+	await create_timer(0.45).timeout
 	_check(gm_completed(gm), "5. Submit Report completes the mission")
 	scene.queue_free()
 	await process_frame
@@ -198,10 +274,13 @@ func _test_no_optical() -> void:
 	if file == null:
 		return
 	var src := file.get_as_text().to_lower()
-	for term in ["objective", "eyepiece", "magnification", "collimation", "focus_knob", "focal_length"]:
-		_check(not src.contains(term), "7. FAST screen uses no optical concept '%s'" % term)
+	for term in ["eyepiece", "magnification", "collimation", "focus_knob", "focal_length"]:
+		_check(not src.contains(term), "8. FAST screen uses no optical concept '%s'" % term)
+	_check(src.contains("objective:"), "8. FAST keeps a concise stage objective instead of a tutorial wall")
+	_check(src.contains("fast array takeover"), "8. FAST opens with a facility-scale array takeover")
 	for term in ["snr", "dispersion", "period", "spectrum", "rfi", "integration"]:
-		_check(src.contains(term), "7. FAST screen uses radio concept '%s'" % term)
+		_check(src.contains(term), "8. FAST screen uses radio concept '%s'" % term)
+	_check(not src.contains("\"success\": true"), "8. report submission is not hard-coded to success")
 
 
 func _check(condition: bool, label: String) -> void:

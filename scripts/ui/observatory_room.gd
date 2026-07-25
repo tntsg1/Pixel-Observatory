@@ -119,10 +119,15 @@ func _show_assembly_return_chain(arrival_id: String) -> void:
 	var destination := _get_interactable(route_target)
 	var destination_glow := destination.get("glow") as Control
 	var destination_name := str(destination.get("name", GameManager.text("Observation Pad", "观测台")))
+	var fast_completion := _remote_console_kind() == "radio"
+	var completion_action_zh := "FAST 装配完成" if fast_completion else "装配完成"
+	var completion_status_zh := "全系统自检通过" if fast_completion else "望远镜就绪检查通过"
+	var completion_unlock_zh := "FAST 观测控制台已启用" if fast_completion else "%s已启用" % destination_name
 	_show_feedback(
 		GameManager.text(
 			"Telescope Ready. Follow the highlighted route to %s." % destination_name,
-			"望远镜已就绪。沿高亮路线前往%s。" % destination_name
+			"FAST 已完成装配。请沿高亮路线前往 FAST 观测控制台。" if fast_completion
+			else "望远镜已就绪。沿高亮路线前往%s。" % destination_name
 		),
 		3200
 	)
@@ -130,9 +135,9 @@ func _show_assembly_return_chain(arrival_id: String) -> void:
 		InteractionFeedback.success(destination_glow, "assembly_route_ready")
 	var chain := InteractionFeedback.operation_chain(
 		self,
-		GameManager.text("Assembly complete", "装配完成"),
-		GameManager.text("The telescope passed its readiness check", "望远镜已通过就绪检查"),
-		GameManager.text("%s is now active" % destination_name, "%s现已启用" % destination_name),
+		GameManager.text("Assembly complete", completion_action_zh),
+		GameManager.text("The telescope passed its readiness check", completion_status_zh),
+		GameManager.text("%s is now active" % destination_name, completion_unlock_zh),
 		destination_glow,
 		Color(0.42, 0.96, 0.58),
 		3.2
@@ -1755,7 +1760,7 @@ func _update_guidance_overlay(item: Dictionary) -> void:
 	if guidance_overlay == null:
 		return
 	_clear(guidance_overlay)
-	if room_guidance_suspended or item.is_empty() or not InteractionFeedback.guidance_highlights_enabled():
+	if room_guidance_suspended or item.is_empty() or not GameManager.uses_full_tutorials() or not InteractionFeedback.guidance_highlights_enabled():
 		guidance_overlay.visible = false
 		return
 	guidance_overlay.visible = true

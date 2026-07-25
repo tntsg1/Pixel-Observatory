@@ -2,6 +2,7 @@ extends Node
 
 signal progress_changed
 signal language_changed
+signal tutorial_assistance_changed(mode: String)
 
 const LocalizationScript := preload("res://scripts/systems/localization.gd")
 const TelescopeMathScript := preload("res://scripts/systems/telescope_math.gd")
@@ -15,6 +16,14 @@ const CAMPAIGN_VERSION := 94
 const FINAL_CAMPAIGN_LEVEL := 85
 const RETIRED_POST_FAST_LEVEL := 86
 const FREE_OBSERVATION_CREDITS := 5
+const TUTORIAL_ASSIST_FULL := "full"
+const TUTORIAL_ASSIST_LIGHT := "light"
+const TUTORIAL_ASSIST_FREE := "free"
+const TUTORIAL_ASSIST_MODES := [
+	TUTORIAL_ASSIST_FULL,
+	TUTORIAL_ASSIST_LIGHT,
+	TUTORIAL_ASSIST_FREE,
+]
 const SPACE_SEGMENTED_INSTALL_ORDER := [
 	"primary_mirror",
 	"secondary_mirror",
@@ -380,6 +389,8 @@ func default_progress() -> Dictionary:
 		"seen_teaching_steps": [],
 		"seen_concept_briefs": [],
 		"seen_story_events": [],
+		"tutorial_assistance": TUTORIAL_ASSIST_FULL,
+		"tutorial_free_confirmation_seen": false,
 		"pending_unlock_notice": [],
 		"unlocked_equipment_stages": ["eye"],
 		"language_mode": "en",
@@ -426,6 +437,37 @@ func save() -> void:
 	progress["language_mode"] = language_mode
 	SaveManager.save_progress(progress)
 	progress_changed.emit()
+
+
+func tutorial_assistance_mode() -> String:
+	var mode := str(progress.get("tutorial_assistance", TUTORIAL_ASSIST_FULL))
+	if not mode in TUTORIAL_ASSIST_MODES:
+		return TUTORIAL_ASSIST_FULL
+	return mode
+
+
+func set_tutorial_assistance_mode(mode: String) -> void:
+	var normalized := mode if mode in TUTORIAL_ASSIST_MODES else TUTORIAL_ASSIST_FULL
+	if tutorial_assistance_mode() == normalized:
+		return
+	progress["tutorial_assistance"] = normalized
+	save()
+	tutorial_assistance_changed.emit(normalized)
+
+
+func uses_full_tutorials() -> bool:
+	return tutorial_assistance_mode() == TUTORIAL_ASSIST_FULL
+
+
+func allows_tutorial_hints() -> bool:
+	return tutorial_assistance_mode() != TUTORIAL_ASSIST_FREE
+
+
+func acknowledge_free_exploration_confirmation() -> void:
+	if bool(progress.get("tutorial_free_confirmation_seen", false)):
+		return
+	progress["tutorial_free_confirmation_seen"] = true
+	save()
 
 
 func go(scene_key: String) -> void:
@@ -745,6 +787,8 @@ func try_story_event(event_id: String, return_scene_key: String) -> bool:
 
 
 func try_story_for_trigger(trigger: String, return_scene_key: String) -> bool:
+	if not uses_full_tutorials():
+		return false
 	return StoryManager.begin_event_for_trigger(trigger, return_scene_key)
 
 
@@ -1436,6 +1480,8 @@ func apply_auto_equip(plan: Array) -> int:
 
 
 func try_story_mechanic(mechanic: String, return_scene_key: String, follow_trigger: String = "") -> bool:
+	if not uses_full_tutorials():
+		return false
 	return StoryManager.begin_mechanic_event(mechanic, return_scene_key, follow_trigger)
 
 
@@ -1777,6 +1823,8 @@ func mission_board_note() -> Dictionary:
 
 
 func try_teaching_intercept(trigger: String, return_scene_key: String, return_payload: Dictionary = {}) -> bool:
+	if not uses_full_tutorials():
+		return false
 	return TeachingFlowManager.begin_step(current_level(), trigger, return_scene_key, return_payload)
 
 
@@ -2547,6 +2595,8 @@ func evaluate_selected_object(extra_context: Dictionary = {}) -> Dictionary:
 		extra_context["observation_mode"] = current_observation_mode()
 	if not extra_context.has("minimum_success_quality"):
 		extra_context["minimum_success_quality"] = str(current_level().get("minimum_success_quality", "Good"))
+	if not extra_context.has("success_feedback_zh") and current_level().has("observation_success_feedback_zh"):
+		extra_context["success_feedback_zh"] = str(current_level().get("observation_success_feedback_zh", ""))
 	var stats := calculate_stats()
 	if str(extra_context["observation_mode"]) == "telescope":
 		if not extra_context.has("environment"):
@@ -2905,6 +2955,9 @@ func _normalize_progress() -> void:
 	_ensure_progress_array("seen_concept_briefs")
 	_ensure_progress_array("seen_story_events")
 	_ensure_progress_array("pending_unlock_notice")
+	var tutorial_mode := str(progress.get("tutorial_assistance", TUTORIAL_ASSIST_FULL))
+	if not tutorial_mode in TUTORIAL_ASSIST_MODES:
+		progress["tutorial_assistance"] = TUTORIAL_ASSIST_FULL
 	var saved_family := str(progress.get("selected_telescope_family", "refractor"))
 	if not saved_family in ASSEMBLY_FAMILIES:
 		saved_family = "refractor"

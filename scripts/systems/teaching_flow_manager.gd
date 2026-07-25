@@ -112,7 +112,7 @@ func begin_step(level: Dictionary, trigger: String, scene_key: String, payload: 
 	# where to continue afterwards. Never touches selected_object_id,
 	# sky data or current_level.
 	var gm := _game_manager()
-	if gm == null:
+	if gm == null or not gm.uses_full_tutorials():
 		return false
 	var step := get_pending_step(level, trigger, gm.progress)
 	if step.is_empty():

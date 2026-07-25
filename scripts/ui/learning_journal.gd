@@ -84,6 +84,8 @@ func _populate() -> void:
 
 
 func _build_entry_card(index: int, entry: Dictionary) -> Control:
+	if str(entry.get("entry_kind", "")) == "telescope_heritage":
+		return _build_heritage_card(index, entry)
 	var quality := str(entry.get("observation_quality", "Good"))
 	var accent: Color = QUALITY_COLORS.get(quality, Color(0.56, 0.66, 0.76))
 	var maya := _entry_text(entry, "maya", "")
@@ -121,7 +123,7 @@ func _build_entry_card(index: int, entry: Dictionary) -> Control:
 	_add_record_line(card, GameManager.text("Equipment", "设备"), equipment, 46, Color(0.72, 0.84, 0.98))
 	_add_record_line(card, GameManager.text("Optics", "光学"), optics, 70, Color(0.72, 0.84, 0.98))
 	_add_record_line(card, GameManager.text("Environment", "环境"), environment, 94, Color(0.93, 0.75, 0.40))
-	_add_record_line(card, GameManager.text("Operation", "操作"), actions, 118, Color(0.68, 0.92, 0.70))
+	_add_record_line(card, GameManager.text("Operation", "操作记录"), actions, 118, Color(0.68, 0.92, 0.70))
 	var y := 142.0
 	if process != "":
 		_add_record_line(card, GameManager.text("Process", "过程"), process, y, Color(0.80, 0.86, 0.98))
@@ -131,6 +133,82 @@ func _build_entry_card(index: int, entry: Dictionary) -> Control:
 	if maya != "":
 		_add_record_line(card, GameManager.text("Maya's summary", "玛雅总结"), "\"" + maya + "\"", y + 48.0, Color(0.72, 0.94, 0.86))
 	return card
+
+
+func _build_heritage_card(index: int, entry: Dictionary) -> Control:
+	var card := Panel.new()
+	card.custom_minimum_size = Vector2(938, 218)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.040, 0.055, 0.090, 0.98), Color(0.78, 0.56, 0.28, 0.92), 2)
+	)
+	var title := GameManager.text(
+		str(entry.get("object_name_en", "")),
+		str(entry.get("object_name_zh", ""))
+	)
+	card.add_child(_label("#%02d   %s" % [index, title], Vector2(18, 12), Vector2(650, 28), 20, Color(0.98, 0.86, 0.56)))
+	card.add_child(_label(
+		GameManager.text("TELESCOPE HERITAGE", "望远镜传承"),
+		Vector2(690, 14),
+		Vector2(222, 24),
+		12,
+		Color(0.54, 0.91, 0.96),
+		HORIZONTAL_ALIGNMENT_CENTER
+	))
+
+	var text_x := 34.0
+	var text_width := 878.0
+	var diagram_path := str(entry.get("diagram", ""))
+	if diagram_path != "" and ResourceLoader.exists(diagram_path):
+		var diagram := TextureRect.new()
+		diagram.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		diagram.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		diagram.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		diagram.texture = load(diagram_path)
+		diagram.position = Vector2(22, 52)
+		diagram.size = Vector2(150, 142)
+		diagram.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(diagram)
+		text_x = 188.0
+		text_width = 724.0
+
+	_add_heritage_line(
+		card,
+		GameManager.text("BEFORE", "此前"),
+		GameManager.text(str(entry.get("before_en", "")), str(entry.get("before_zh", ""))),
+		text_x,
+		52.0,
+		text_width,
+		Color(0.72, 0.82, 0.94)
+	)
+	_add_heritage_line(
+		card,
+		GameManager.text("BREAKTHROUGH", "突破"),
+		GameManager.text(str(entry.get("breakthrough_en", "")), str(entry.get("breakthrough_zh", ""))),
+		text_x,
+		100.0,
+		text_width,
+		Color(0.98, 0.78, 0.38)
+	)
+	_add_heritage_line(
+		card,
+		GameManager.text("LEARNED BY DOING", "亲手学到"),
+		GameManager.text(str(entry.get("learned_en", "")), str(entry.get("learned_zh", ""))),
+		text_x,
+		156.0,
+		text_width,
+		Color(0.58, 0.94, 0.76)
+	)
+	return card
+
+
+func _add_heritage_line(parent: Control, heading: String, value: String, x: float, y: float, width: float, color: Color) -> void:
+	var heading_label := _label(heading, Vector2(x, y), Vector2(width, 18), 11, color)
+	parent.add_child(heading_label)
+	var content := _label(value, Vector2(x, y + 18.0), Vector2(width, 34), 11, Color(0.86, 0.88, 0.91))
+	content.max_lines_visible = 2
+	parent.add_child(content)
 
 
 func _add_record_line(parent: Control, heading: String, value: String, y: float, color: Color) -> void:

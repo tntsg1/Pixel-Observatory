@@ -123,12 +123,25 @@ func _test_model() -> void:
 	_check(m.guide_locked, "guide. fine guidance locks after settling")
 	_check(m.guide_quality() > 0.5, "guide. the selected guide produces useful lock quality")
 
-	# mirror_alignment: wavefront error falls as segments align; PSF sharpens
+	# mirror_alignment: diagnose the largest six-segment bank, then trim the
+	# remaining individual residuals. A wrong bank gives a small improvement
+	# but cannot skip the diagnostic.
 	_check(not m.wavefront_ok(), "align. starts with a large wavefront error")
 	var before := m.psf_sharpness()
-	for _i in range(12):
-		m.align_step(0.09)
+	var dominant_bank := m.max_wavefront_group()
+	var wrong_bank := (dominant_bank + 1) % 3
+	var wrong_before := m.wavefront_group_error(wrong_bank)
+	_check(not m.coarse_adjust_group(wrong_bank), "align. a non-dominant bank is diagnosed, not accepted")
+	_check(m.wavefront_group_error(wrong_bank) < wrong_before, "align. wrong bank actuation gives only a small physical improvement")
+	_check(not m.wavefront_coarse_complete, "align. wrong bank cannot complete coarse phasing")
+	_check(m.coarse_adjust_group(dominant_bank), "align. the dominant six-segment bank completes coarse phasing")
+	_check(m.wavefront_anomaly_segments().size() == 4, "align. coarse phasing leaves four visible residual segments")
+	for segment_index in m.wavefront_anomaly_segments():
+		while absf(m.segment_phase_error(segment_index)) > 0.12:
+			var delta := -0.12 if m.segment_phase_error(segment_index) > 0.0 else 0.12
+			m.adjust_segment_phase(segment_index, delta)
 	_check(m.wavefront_ok(), "align. reaches < 150 nm wavefront error")
+	_check(m.wavefront_anomaly_segments().is_empty(), "align. all residual PSF peaks are resolved")
 	_check(m.psf_sharpness() > before, "align. PSF sharpens as the star images merge")
 
 	# exposure: plan affects result; too little exposure is underexposed
@@ -155,12 +168,25 @@ func _test_model() -> void:
 	_check(m.processing_ready(), "process. all four steps make the image ready")
 	_check(m.frame_selection_quality() >= 0.99, "process. frame selection contributes to final quality")
 
-	# filter_mapping: needs three distinct channels; wrong science is rejected
+	# filter_mapping: each band carries a different spatial signature. A complete
+	# but physically confusing wavelength order has lower confidence and cannot
+	# validate even when the conclusion text itself happens to be correct.
 	_check(not m.mapping_complete(), "filter. no mapping at the start")
-	m.set_channel("R", "near_infrared"); m.set_channel("G", "near_infrared"); m.set_channel("B", "dust")
+	_check(m.band_signature("nir_short") != m.band_signature("nir_long"),
+		"filter. short- and long-wave near-IR have different structures")
+	_check(m.band_signature("nir_long") != m.band_signature("miri_dust"),
+		"filter. long-wave near-IR and mid-IR dust have different structures")
+	m.set_channel("R", "nir_short"); m.set_channel("G", "nir_short"); m.set_channel("B", "miri_dust")
 	_check(not m.mapping_complete(), "filter. duplicate channels are not a valid map")
-	m.set_channel("G", "mid_infrared")
+	m.set_channel("G", "nir_long")
 	_check(m.mapping_complete(), "filter. three distinct filters complete the map")
+	var reversed_signature := m.composite_signature()
+	_check(not m.mapping_is_scientific(), "filter. reversed wavelength order is visibly complete but scientifically ambiguous")
+	m.choose_science("dust_rich")
+	_check(not m.science_correct(), "filter. a correct label cannot rescue an invalid mapping")
+	m.set_channel("R", "miri_dust"); m.set_channel("G", "nir_long"); m.set_channel("B", "nir_short")
+	_check(m.mapping_is_scientific(), "filter. wavelength-ordered RGB mapping is scientifically valid")
+	_check(m.composite_signature() != reversed_signature, "filter. changing RGB order changes the structural composite")
 	m.choose_science("hot_gas")
 	_check(not m.science_correct(), "filter. a wrong interpretation is not accepted")
 	m.choose_science("dust_rich")
@@ -305,24 +331,37 @@ func _test_scene(gm: Node) -> void:
 	var guide_chain := scene.get_node_or_null("OperationChainFeedback")
 	_check(guide_chain != null, "guide. success reveals wavefront alignment without optical-telescope wording")
 
-	# wavefront: coarse and fine are intentionally different controls. Coarse
-	# moves quickly but stops short of the science threshold; fine phasing must
-	# close the remaining split peaks.
-	for _i in range(4):
-		scene.call("_animate_wavefront_step", 0.18, "COARSE")
-		await create_timer(0.50).timeout
-	_check(m.segment_alignment <= 0.821 and not m.wavefront_ok(),
-		"align. coarse bank actuation stops before precision completion")
-	var coarse_button := scene.find_child("CoarseWavefrontAlign", true, false) as Button
-	var fine_button := scene.find_child("FineWavefrontAlign", true, false) as Button
-	_check(coarse_button != null and coarse_button.disabled,
-		"align. coarse control visibly yields at its travel limit")
-	_check(fine_button != null and not fine_button.disabled,
-		"align. fine single-segment control remains available")
-	for _i in range(2):
-		scene.call("_animate_wavefront_step", 0.07, "FINE")
-		await create_timer(0.36).timeout
+	# wavefront: the player diagnoses one of three banks. A wrong choice is
+	# visible but gentle; the correct bank reveals four clickable residuals.
+	var scene_dominant := m.max_wavefront_group()
+	var scene_wrong := (scene_dominant + 1) % 3
+	scene.call("_select_wavefront_group", scene_wrong)
+	scene.call("_execute_wavefront_group")
+	await create_timer(0.95).timeout
+	_check(not m.wavefront_coarse_complete, "align. wrong visual bank does not auto-complete coarse phasing")
+	scene.call("_select_wavefront_group", scene_dominant)
+	scene.call("_execute_wavefront_group")
+	await create_timer(0.95).timeout
+	_check(m.wavefront_coarse_complete and not m.wavefront_ok(),
+		"align. correct bank actuation stops before precision completion")
+	_check(m.wavefront_anomaly_segments().size() == 4,
+		"align. correct bank exposes four amber residual segments")
+	var coarse_execute := scene.find_child("CoarseWavefrontExecute", true, false) as Button
+	var fine_minus := scene.find_child("FineWavefrontMinus", true, false) as Button
+	var fine_plus := scene.find_child("FineWavefrontPlus", true, false) as Button
+	_check(coarse_execute != null and not coarse_execute.visible,
+		"align. coarse bank controls yield after diagnosis")
+	_check(fine_minus != null and fine_plus != null and fine_minus.visible and fine_plus.visible,
+		"align. signed single-segment actuator controls are available")
+	for segment_index in m.wavefront_anomaly_segments().duplicate():
+		scene.call("_select_wavefront_segment", segment_index)
+		while absf(m.segment_phase_error(segment_index)) > 0.12:
+			var trim := -0.12 if m.segment_phase_error(segment_index) > 0.0 else 0.12
+			scene.call("_adjust_wavefront_segment", trim)
+			await create_timer(0.80).timeout
+	await create_timer(0.90).timeout
 	_check(m.wavefront_ok(), "align. fine phasing reaches the <150 nm threshold")
+	_check(bool(scene.get("wavefront_convergence_complete")), "align. final phase-retrieval convergence plays")
 	scene.call("_confirm_wavefront")
 	await process_frame
 	_check(str(scene.call("_key")) == "expose", "align. good wavefront advances to exposure")
@@ -364,7 +403,7 @@ func _test_scene(gm: Node) -> void:
 	scene.call("_confirm_filter")
 	await process_frame
 	_check(str(scene.call("_key")) == "filter", "filter. cannot advance without a full mapping")
-	for mapping in [["R", "near_infrared"], ["G", "mid_infrared"], ["B", "dust"]]:
+	for mapping in [["R", "miri_dust"], ["G", "nir_long"], ["B", "nir_short"]]:
 		scene.call("_set_filter_channel", str(mapping[0]), str(mapping[1]))
 		await process_frame
 		_check(bool(scene.get("filter_animating")), "filter. mapping %s starts a visible recomposition scan" % str(mapping[0]))

@@ -64,9 +64,9 @@ func _initialize() -> void:
 	model.remove_cosmic_rays()
 	model.subtract_background()
 	model.stack()
-	model.set_channel("R", "near_infrared")
-	model.set_channel("G", "mid_infrared")
-	model.set_channel("B", "dust")
+	model.set_channel("R", "miri_dust")
+	model.set_channel("G", "nir_long")
+	model.set_channel("B", "nir_short")
 	model.choose_science(model.true_science)
 
 	var stages: Array = scene.get("stages")
@@ -75,6 +75,16 @@ func _initialize() -> void:
 		scene.call("_build_stage")
 		await process_frame
 		_check_page(scene, str(stages[index]))
+	gm.language_mode = "zh"
+	scene.set("stage", stages.find("thermal"))
+	scene.call("_build_stage")
+	await process_frame
+	_check_page(scene, "thermal_zh")
+	scene.set("stage", stages.find("filter"))
+	scene.call("_build_stage")
+	await process_frame
+	_check_page(scene, "filter_zh")
+	gm.language_mode = "en"
 	scene.queue_free()
 	await process_frame
 
@@ -107,6 +117,28 @@ func _check_page(scene: Node, page_name: String) -> void:
 			if intersection.size.x > 0.5 and intersection.size.y > 0.5:
 				overlaps.append("%s <> telemetry (%s)" % [button.text, str(intersection.size)])
 	_check(overlaps.is_empty(), "page '%s' has no button/terminal overlap %s" % [page_name, str(overlaps)])
+	if page_name.begins_with("thermal"):
+		_check_thermal_regions(scene, page_name)
+
+
+func _check_thermal_regions(scene: Node, page_name: String) -> void:
+	var status := scene.find_child("ThermalStatusRegion", true, false) as Control
+	var canvas := scene.find_child("ThermalAttitudeCanvas", true, false) as Control
+	var controls := scene.find_child("ThermalControlRegion", true, false) as Control
+	var gimbal := scene.find_child("AttitudeGimbal", true, false) as Control
+	_check(status != null and canvas != null and controls != null and gimbal != null,
+		"page '%s' exposes all three thermal layout regions" % page_name)
+	if status == null or canvas == null or controls == null or gimbal == null:
+		return
+	var status_rect := status.get_global_rect()
+	var canvas_rect := canvas.get_global_rect()
+	var control_rect := controls.get_global_rect()
+	_check(not status_rect.intersects(canvas_rect),
+		"page '%s' status and attitude canvas rects do not intersect" % page_name)
+	_check(not canvas_rect.intersects(control_rect),
+		"page '%s' attitude canvas and controls rects do not intersect" % page_name)
+	_check(canvas_rect.encloses(gimbal.get_global_rect()),
+		"page '%s' gimbal remains inside its clipped canvas" % page_name)
 
 
 func _collect_buttons(node: Node, out: Array[Button]) -> void:

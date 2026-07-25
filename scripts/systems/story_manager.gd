@@ -16,6 +16,7 @@ const DIALOGUES_PATH := "res://data/story_dialogues.json"
 const EXPANSION_DIALOGUES_PATH := "res://data/expansion/story_dialogues.json"
 const REVISIONS_PATH := "res://data/story_revisions.json"
 const NARRATIVE_PATH := "res://data/story_narrative.json"
+const HERITAGE_PATH := "res://data/telescope_heritage.json"
 const SKILL_TUTORIALS_PATH := "res://data/maya_skill_tutorials.json"
 const SKILL_EVENT_PREFIX := "maya_skill_"
 
@@ -44,6 +45,7 @@ const EPILOGUE_MIN_LEVEL := 25
 
 var dialogues: Dictionary = {}
 var narrative: Dictionary = {}
+var heritage_entries: Dictionary = {}
 var skill_tutorials: Dictionary = {}
 var active_event_id := ""
 var active_event_ids: Array = []
@@ -62,6 +64,7 @@ func _ready() -> void:
 	# target-specific science dialogue already authored for every other level.
 	_merge_dialogue_pack(_load_json_dict(REVISIONS_PATH))
 	narrative = _load_json_dict(NARRATIVE_PATH)
+	heritage_entries = _load_json_dict(HERITAGE_PATH)
 	_load_skill_tutorials()
 
 
@@ -217,6 +220,56 @@ func board_note_for_level(level_number: int) -> Dictionary:
 	if note is Dictionary:
 		return note
 	return {}
+
+
+func heritage_for_event(event_id: String) -> Dictionary:
+	var entry: Variant = heritage_entries.get(event_id, {})
+	if entry is Dictionary:
+		return entry
+	return {}
+
+
+func record_telescope_heritage(event_id: String) -> bool:
+	# Heritage notes reuse the existing Club Logbook array, so old saves need
+	# no migration and the introduction remains a first-time story event.
+	var gm := _game_manager()
+	var heritage := heritage_for_event(event_id)
+	if gm == null or heritage.is_empty():
+		return false
+	if not gm.progress.has("journal_entries"):
+		gm.progress["journal_entries"] = []
+	var heritage_id := str(heritage.get("id", event_id))
+	for entry_value in gm.progress["journal_entries"]:
+		if not entry_value is Dictionary:
+			continue
+		var prior: Dictionary = entry_value
+		if (
+			str(prior.get("entry_kind", "")) == "telescope_heritage"
+			and str(prior.get("heritage_id", "")) == heritage_id
+		):
+			return false
+	gm.progress["journal_entries"].append({
+		"object_id": "heritage_" + heritage_id,
+		"object_name_en": str(heritage.get("title_en", heritage_id)),
+		"object_name_zh": str(heritage.get("title_zh", heritage_id)),
+		"object_type_en": "Telescope Heritage",
+		"object_type_zh": "望远镜传承",
+		"level_completed": int(gm.progress.get("current_level", 1)),
+		"observation_quality": "Note",
+		"observation_mode": "heritage",
+		"entry_kind": "telescope_heritage",
+		"entry_kind_en": "Telescope Heritage",
+		"entry_kind_zh": "望远镜传承",
+		"heritage_id": heritage_id,
+		"before_en": str(heritage.get("before_en", "")),
+		"before_zh": str(heritage.get("before_zh", "")),
+		"breakthrough_en": str(heritage.get("breakthrough_en", "")),
+		"breakthrough_zh": str(heritage.get("breakthrough_zh", "")),
+		"learned_en": str(heritage.get("learned_en", "")),
+		"learned_zh": str(heritage.get("learned_zh", "")),
+		"diagram": str(heritage.get("diagram", ""))
+	})
+	return true
 
 
 func context_for_event(event_id: String) -> Dictionary:
@@ -401,6 +454,7 @@ func finish_active_event() -> void:
 			var event_id := str(event_id_value)
 			if event_id != "" and not gm.progress["seen_story_events"].has(event_id):
 				gm.progress["seen_story_events"].append(event_id)
+			record_telescope_heritage(event_id)
 	var completed_event_id := active_event_id
 	var completed_context := active_context.duplicate(true)
 	var scene := return_scene_key

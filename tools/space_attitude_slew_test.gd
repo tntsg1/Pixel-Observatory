@@ -36,6 +36,8 @@ func _initialize() -> void:
 	scene.call("_choose_guide", rejected_index)
 	_check(not bool(scene.get("guide_slew_active")), "unusable star is rejected without a false slew")
 	_check(not model.guide_locked, "unusable star cannot lock")
+	scene.call("_begin_guide_lock_ceremony")
+	_check(not bool(scene.get("guide_lock_ceremony_active")), "failed candidate cannot trigger the success ceremony")
 
 	scene.call("_on_guide_candidate_changed", usable_index)
 	scene.call("_choose_guide", usable_index)
@@ -44,11 +46,11 @@ func _initialize() -> void:
 	_check(bool(field.get("input_locked")), "search box is frozen during spacecraft motion")
 	_check((scene.get("guide_confirm_button") as Button).disabled, "confirm lock is disabled during slew")
 
-	await _settle(0.74)
+	await _settle(0.50)
 	_check(float(attitude.get("slew_progress")) > 0.25 and float(attitude.get("slew_progress")) < 0.8,
 		"attitude display exposes visible mid-slew progress")
 	_check(absf(float(attitude.get("yaw_deg")) + 14.0) > 1.0, "spacecraft yaw visibly changes")
-	_check(absf(float(attitude.get("roll_deg")) + 6.0) > 0.5, "spacecraft roll visibly changes")
+	_check(float(attitude.call("coarse_error_arcsec")) < 7.0, "coarse-slew error visibly decreases")
 	_save("01_spacecraft_mid_slew.png")
 
 	await _settle(1.0)
@@ -56,10 +58,25 @@ func _initialize() -> void:
 	_check(model.chosen_guide == usable_index, "fine guidance starts only after the attitude hold")
 	_check(not bool(field.get("input_locked")), "search input is restored after the slew")
 	_check(bool(attitude.get("settled")), "attitude display enters hold state")
+	var settled_roll := float(attitude.get("roll_deg"))
+	await _settle(0.12)
+	_check(absf(float(attitude.get("roll_deg")) - settled_roll) < 0.05,
+		"fine guidance holds spacecraft attitude instead of rocking the whole observatory")
 
-	await _settle(1.25)
+	for _frame in range(180):
+		await process_frame
+		if model.guide_locked:
+			break
 	_check(model.guide_locked, "fine guidance reaches lock after settling")
+	_check(bool(scene.get("guide_lock_ceremony_active")), "real lock starts the precision-control ceremony")
+	_check((scene.get("guide_confirm_button") as Button).disabled, "confirm stays disabled while lock verification plays")
+	await _settle(0.90)
+	_check(bool(scene.get("guide_lock_ceremony_complete")), "fine-lock ceremony retains a visible verified state")
 	_check(not (scene.get("guide_confirm_button") as Button).disabled, "confirm becomes available after real lock")
+	var log_text := "\n".join(scene.get("console_log"))
+	_check(log_text.contains("FGS ACQUIRE") and log_text.contains("TRACK"), "terminal records guide-star tracking")
+	_check(log_text.contains("FINE GUIDANCE") and log_text.contains("LOCKED"), "terminal records fine-guidance lock")
+	_check(log_text.contains("POINTING STABILITY") and log_text.contains("NOMINAL"), "terminal records nominal pointing stability")
 	_save("02_spacecraft_guide_locked.png")
 
 	print("SPACE ATTITUDE SLEW TEST: %s" % ("PASS" if failures == 0 else "FAIL"))

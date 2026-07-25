@@ -3707,7 +3707,12 @@
       "bandwidth_mhz": 90.0,
       "source_strength": 1.0,
       "start_center_mhz": 1400.0,
-      "start_period_ms": 690.0
+      "start_period_ms": 690.0,
+      "start_dm": 10.0,
+      "challenge": "balanced",
+      "required_integration_s": 150.0,
+      "result_en": "The commissioning run recovered PSR B0329+54 as a stable repeating radio source.",
+      "result_zh": "联调观测成功恢复了 PSR B0329+54 的稳定重复射电脉冲。"
     }
   },
   {
@@ -3768,22 +3773,31 @@
       "bandwidth_mhz": 70.0,
       "source_strength": 0.72,
       "start_center_mhz": 1400.0,
+      "start_bandwidth_mhz": 150.0,
       "start_period_ms": 300.0,
+      "start_dm": 2.0,
+      "challenge": "weak_window",
+      "required_integration_s": 240.0,
+      "result_en": "A carefully placed receiver window preserved the pulsar while rejecting nearby transmitters.",
+      "result_zh": "精确设置的接收频窗保留了脉冲星信号，同时避开了邻近发射源。",
       "rfi": [
         {
           "mhz": 1075.0,
           "strength": 0.9,
-          "source": "radar"
+          "source": "radar",
+          "pattern": "fixed_narrow"
         },
         {
           "mhz": 1210.0,
           "strength": 0.82,
-          "source": "satellite"
+          "source": "satellite",
+          "pattern": "periodic"
         },
         {
           "mhz": 1355.0,
           "strength": 0.7,
-          "source": "phone"
+          "source": "phone",
+          "pattern": "burst"
         }
       ]
     }
@@ -3834,7 +3848,26 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 132.0,
+      "altitude": 48.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1250.0,
+      "bandwidth_mhz": 90.0,
+      "source_strength": 0.88,
+      "start_center_mhz": 1360.0,
+      "start_period_ms": 650.0,
+      "start_dm": 20.0,
+      "challenge": "period_search",
+      "period_threshold": 0.72,
+      "required_integration_s": 210.0,
+      "result_en": "The measured 714.5 ms repetition revealed the neutron star's remarkably steady rotation.",
+      "result_zh": "测得的 714.5 毫秒重复周期揭示了中子星极其稳定的自转。"
+    }
   },
   {
     "id": "level_79",
@@ -3882,7 +3915,30 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 118.0,
+      "altitude": 57.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1250.0,
+      "bandwidth_mhz": 90.0,
+      "source_strength": 0.86,
+      "start_offset_az": 34.0,
+      "start_offset_alt": 22.0,
+      "aim_drift_deg_s": 1.25,
+      "damping_scale": 0.72,
+      "acceleration_scale": 1.18,
+      "start_center_mhz": 1320.0,
+      "start_period_ms": 690.0,
+      "start_dm": 18.0,
+      "challenge": "cabin_drift",
+      "required_integration_s": 210.0,
+      "result_en": "Fine feed-cabin control held the beam on the pulsar despite a persistent pointing drift.",
+      "result_zh": "精细馈源舱控制抵消了持续指向漂移，使波束稳定保持在脉冲星上。"
+    }
   },
   {
     "id": "level_80",
@@ -3930,7 +3986,27 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 102.0,
+      "altitude": 61.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1285.0,
+      "bandwidth_mhz": 58.0,
+      "source_strength": 0.46,
+      "start_center_mhz": 1450.0,
+      "start_bandwidth_mhz": 160.0,
+      "start_period_ms": 760.0,
+      "start_dm": 8.0,
+      "challenge": "weak_window",
+      "required_integration_s": 390.0,
+      "snr_threshold": 9.0,
+      "result_en": "A narrow, quiet frequency window made the weak pulsar measurable above the receiver noise.",
+      "result_zh": "狭窄而安静的频率窗口让微弱脉冲星从接收机噪声中变得可测量。"
+    }
   },
   {
     "id": "level_81",
@@ -3978,7 +4054,26 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 151.0,
+      "altitude": 44.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1240.0,
+      "bandwidth_mhz": 84.0,
+      "source_strength": 0.38,
+      "start_center_mhz": 1325.0,
+      "start_period_ms": 700.0,
+      "start_dm": 21.0,
+      "challenge": "long_integration",
+      "required_integration_s": 510.0,
+      "snr_threshold": 8.5,
+      "result_en": "Long integration averaged random noise away until the same weak pulse returned with statistical confidence.",
+      "result_zh": "长时间积分逐渐平均掉随机噪声，最终以统计可信度恢复出同一微弱脉冲。"
+    }
   },
   {
     "id": "level_82",
@@ -4026,7 +4121,30 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 84.0,
+      "altitude": 68.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1260.0,
+      "bandwidth_mhz": 88.0,
+      "source_strength": 0.82,
+      "start_offset_az": 42.0,
+      "start_offset_alt": 25.0,
+      "aim_drift_deg_s": 1.8,
+      "damping_scale": 0.58,
+      "acceleration_scale": 1.24,
+      "start_center_mhz": 1340.0,
+      "start_period_ms": 680.0,
+      "start_dm": 16.0,
+      "challenge": "cabin_drift",
+      "required_integration_s": 240.0,
+      "result_en": "The suspended feed cabin settled inside its cable-load envelope and held the moving radio source.",
+      "result_zh": "悬吊馈源舱在缆索载荷包线内稳定下来，并持续跟住移动的射电源。"
+    }
   },
   {
     "id": "level_83",
@@ -4074,7 +4192,34 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 164.0,
+      "altitude": 39.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1235.0,
+      "bandwidth_mhz": 72.0,
+      "source_strength": 0.76,
+      "start_center_mhz": 1320.0,
+      "start_bandwidth_mhz": 120.0,
+      "start_period_ms": 748.0,
+      "start_dm": 14.0,
+      "challenge": "rfi_heavy",
+      "rfi_threshold": 0.95,
+      "required_integration_s": 270.0,
+      "result_en": "After radar, satellite, burst, and power-line contamination were removed, the celestial pulse remained.",
+      "result_zh": "雷达、卫星、突发通信和电力线污染被剔除后，天体脉冲仍然存在。",
+      "rfi": [
+        {"mhz": 1048.0, "strength": 0.98, "source": "radar", "pattern": "fixed_narrow"},
+        {"mhz": 1112.0, "strength": 0.84, "source": "satellite", "pattern": "periodic"},
+        {"mhz": 1178.0, "strength": 0.76, "source": "powerline", "pattern": "comb"},
+        {"mhz": 1328.0, "strength": 0.92, "source": "phone", "pattern": "burst"},
+        {"mhz": 1412.0, "strength": 0.72, "source": "aircraft", "pattern": "swept"}
+      ]
+    }
   },
   {
     "id": "level_84",
@@ -4122,7 +4267,26 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 139.0,
+      "altitude": 55.0,
+      "period_ms": 714.5,
+      "dm": 56.4,
+      "center_mhz": 1270.0,
+      "bandwidth_mhz": 86.0,
+      "source_strength": 0.68,
+      "start_center_mhz": 1360.0,
+      "start_period_ms": 704.0,
+      "start_dm": 4.0,
+      "challenge": "dm_alignment",
+      "dm_threshold": 0.78,
+      "required_integration_s": 330.0,
+      "result_en": "Correct dispersion removal aligned the pulse across every receiver sub-band before folding.",
+      "result_zh": "正确消除色散后，脉冲在所有接收子频段中对齐，随后才能可靠折叠。"
+    }
   },
   {
     "id": "level_85",
@@ -4170,6 +4334,39 @@
     "waveband": "radio",
     "teaching_steps": [],
     "drift_enabled": false,
-    "hold_seconds": 0
+    "hold_seconds": 0,
+    "radio_profile": {
+      "target_id": "pulsar_b0329",
+      "kind": "pulsar",
+      "azimuth": 126.0,
+      "altitude": 59.0,
+      "period_ms": 714.5,
+      "dm": 26.8,
+      "center_mhz": 1250.0,
+      "bandwidth_mhz": 78.0,
+      "source_strength": 0.52,
+      "start_offset_az": 38.0,
+      "start_offset_alt": 24.0,
+      "aim_drift_deg_s": 1.0,
+      "damping_scale": 0.70,
+      "start_center_mhz": 1435.0,
+      "start_bandwidth_mhz": 145.0,
+      "start_period_ms": 662.0,
+      "start_dm": 5.0,
+      "challenge": "discovery",
+      "period_threshold": 0.78,
+      "dm_threshold": 0.78,
+      "rfi_threshold": 0.95,
+      "required_integration_s": 450.0,
+      "snr_threshold": 9.5,
+      "result_en": "Your complete FAST reduction established a stable dispersed pulsar candidate worthy of follow-up observation.",
+      "result_zh": "你独立完成的 FAST 数据处理确认了一个稳定的色散脉冲星候选，值得继续跟踪观测。",
+      "rfi": [
+        {"mhz": 1088.0, "strength": 0.86, "source": "radar", "pattern": "fixed_narrow"},
+        {"mhz": 1182.0, "strength": 0.74, "source": "satellite", "pattern": "periodic"},
+        {"mhz": 1342.0, "strength": 0.80, "source": "phone", "pattern": "burst"},
+        {"mhz": 1460.0, "strength": 0.66, "source": "powerline", "pattern": "comb"}
+      ]
+    }
   }
 ]

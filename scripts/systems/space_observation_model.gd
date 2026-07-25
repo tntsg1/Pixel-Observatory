@@ -76,6 +76,8 @@ var guide_locked := false
 var segment_alignment := 0.25        # 0..1
 var wavefront_error_nm := 900.0      # target < 150 nm
 var calibration_progress := 0.0
+var segment_phase_errors: Array[float] = []
+var wavefront_coarse_complete := false
 
 # ------------------------------------------------------------------ 6. EXPOSE
 var frames: Array = []               # each {signal, cosmic_ray, saturated, kept}
@@ -88,7 +90,15 @@ var stacked := false
 var background_subtracted := false
 
 # ------------------------------------------------------------------ 8. FILTER
+const FALSE_COLOUR_BANDS := ["nir_short", "nir_long", "miri_dust"]
+const DEFAULT_CHANNEL_MAP := {
+	"R": "miri_dust",
+	"G": "nir_long",
+	"B": "nir_short",
+}
 var channel_map := {"R": "", "G": "", "B": ""}
+var recommended_channel_map := DEFAULT_CHANNEL_MAP.duplicate()
+var band_signatures: Dictionary = {}
 var chosen_science := ""
 
 
@@ -116,9 +126,7 @@ func configure(profile: Dictionary) -> void:
 	deploy_locked = false
 	_configure_thermal_challenge(profile)
 	_build_guide_stars(profile)
-	segment_alignment = 0.25
-	wavefront_error_nm = 900.0
-	calibration_progress = 0.0
+	_configure_wavefront_errors()
 	frames.clear()
 	acquired = false
 	frames_aligned = false
@@ -126,6 +134,14 @@ func configure(profile: Dictionary) -> void:
 	stacked = false
 	background_subtracted = false
 	channel_map = {"R": "", "G": "", "B": ""}
+	recommended_channel_map = (
+		profile.get("recommended_channel_map", DEFAULT_CHANNEL_MAP) as Dictionary
+	).duplicate(true)
+	var configured_signatures: Variant = profile.get("band_signatures", {})
+	if configured_signatures is Dictionary and not (configured_signatures as Dictionary).is_empty():
+		band_signatures = (configured_signatures as Dictionary).duplicate(true)
+	else:
+		band_signatures = _default_band_signatures()
 	chosen_science = ""
 
 
@@ -436,6 +452,110 @@ func guide_quality() -> float:
 
 
 # ============================================================= 5. WAVEFRONT
+func _configure_wavefront_errors() -> void:
+	segment_phase_errors.clear()
+	wavefront_coarse_complete = false
+	var dominant_group := observation_seed % 3
+	var group_levels := [0.53, 0.74, 0.98]
+	for index in range(18):
+		var group := index / 6
+		var rank := wrapi(group - dominant_group, 0, 3)
+		var magnitude := float(group_levels[rank])
+		magnitude += (float((observation_seed + index * 7) % 9) - 4.0) * 0.012
+		var sign_value := -1.0 if (observation_seed + index * 5) % 2 == 0 else 1.0
+		segment_phase_errors.append(sign_value * clampf(magnitude, 0.38, 1.0))
+	_recompute_wavefront_from_segments()
+
+
+func wavefront_group_error(group_index: int) -> float:
+	if group_index < 0 or group_index > 2 or segment_phase_errors.size() != 18:
+		return 0.0
+	var total := 0.0
+	for index in range(group_index * 6, group_index * 6 + 6):
+		total += absf(segment_phase_errors[index])
+	return total / 6.0
+
+
+func max_wavefront_group() -> int:
+	var best_group := 0
+	var best_error := -1.0
+	for group_index in range(3):
+		var error := wavefront_group_error(group_index)
+		if error > best_error:
+			best_error = error
+			best_group = group_index
+	return best_group
+
+
+func coarse_adjust_group(group_index: int) -> bool:
+	if wavefront_coarse_complete or group_index < 0 or group_index > 2:
+		return false
+	var correct := group_index == max_wavefront_group()
+	if not correct:
+		for index in range(group_index * 6, group_index * 6 + 6):
+			segment_phase_errors[index] *= 0.95
+		_recompute_wavefront_from_segments()
+		return false
+
+	# Coarse phasing removes the dominant bank offset. Four deterministic
+	# residual segments remain for the fine-control exercise.
+	for index in range(18):
+		var sign_value := -1.0 if segment_phase_errors[index] < 0.0 else 1.0
+		segment_phase_errors[index] = sign_value * (0.052 + float(index % 4) * 0.006)
+	# Keep four residual channels above the science threshold. The WFE cannot
+	# pass until the player finds and trims the final anomalous segment.
+	var anomaly_values := [0.50, 0.47, 0.44, 0.41]
+	for anomaly_index in range(anomaly_values.size()):
+		var segment_index := wrapi(observation_seed + anomaly_index * 5, 0, 18)
+		var sign_value := -1.0 if (observation_seed + anomaly_index) % 2 == 0 else 1.0
+		segment_phase_errors[segment_index] = sign_value * float(anomaly_values[anomaly_index])
+	wavefront_coarse_complete = true
+	_recompute_wavefront_from_segments()
+	return true
+
+
+func wavefront_anomaly_segments(threshold := 0.12) -> Array[int]:
+	var anomalies: Array[int] = []
+	for index in range(segment_phase_errors.size()):
+		if absf(segment_phase_errors[index]) > threshold:
+			anomalies.append(index)
+	anomalies.sort_custom(func(a: int, b: int) -> bool:
+		return absf(segment_phase_errors[a]) > absf(segment_phase_errors[b]))
+	return anomalies
+
+
+func adjust_segment_phase(segment_index: int, delta: float) -> bool:
+	if not wavefront_coarse_complete or segment_index < 0 or segment_index >= segment_phase_errors.size():
+		return false
+	var before := absf(segment_phase_errors[segment_index])
+	segment_phase_errors[segment_index] = clampf(segment_phase_errors[segment_index] + delta, -1.0, 1.0)
+	if absf(segment_phase_errors[segment_index]) < 0.035:
+		segment_phase_errors[segment_index] = 0.0
+	_recompute_wavefront_from_segments()
+	return absf(segment_phase_errors[segment_index]) < before
+
+
+func segment_phase_error(segment_index: int) -> float:
+	if segment_index < 0 or segment_index >= segment_phase_errors.size():
+		return 0.0
+	return segment_phase_errors[segment_index]
+
+
+func _recompute_wavefront_from_segments() -> void:
+	if segment_phase_errors.is_empty():
+		segment_alignment = 0.25
+		wavefront_error_nm = 900.0
+		calibration_progress = 0.0
+		return
+	var square_sum := 0.0
+	for error in segment_phase_errors:
+		square_sum += error * error
+	var rms := sqrt(square_sum / float(segment_phase_errors.size()))
+	segment_alignment = clampf(1.0 - rms, 0.0, 1.0)
+	wavefront_error_nm = lerpf(900.0, 60.0, segment_alignment)
+	calibration_progress = segment_alignment
+
+
 func align_step(amount: float) -> void:
 	set_segment_alignment(segment_alignment + amount)
 
@@ -444,6 +564,13 @@ func set_segment_alignment(value: float) -> void:
 	segment_alignment = clampf(value, 0.0, 1.0)
 	wavefront_error_nm = lerpf(900.0, 60.0, segment_alignment)
 	calibration_progress = clampf(segment_alignment, 0.0, 1.0)
+	var residual := 1.0 - segment_alignment
+	if segment_phase_errors.size() != 18:
+		segment_phase_errors.resize(18)
+	for index in range(18):
+		var sign_value := -1.0 if index % 2 == 0 else 1.0
+		segment_phase_errors[index] = sign_value * residual
+	wavefront_coarse_complete = segment_alignment >= 0.80
 
 
 func psf_sharpness() -> float:
@@ -616,14 +743,115 @@ func processing_ready() -> bool:
 
 
 # ============================================================= 8. FILTER MAP
-func set_channel(channel: String, filter_id: String) -> void:
-	if channel_map.has(channel):
-		channel_map[channel] = filter_id
+func set_channel(channel: String, band_id: String) -> void:
+	if channel_map.has(channel) and FALSE_COLOUR_BANDS.has(band_id):
+		channel_map[channel] = band_id
 
 
 func mapping_complete() -> bool:
-	return channel_map["R"] != "" and channel_map["G"] != "" and channel_map["B"] != "" \
-		and channel_map["R"] != channel_map["G"] and channel_map["G"] != channel_map["B"] and channel_map["R"] != channel_map["B"]
+	return FALSE_COLOUR_BANDS.has(str(channel_map["R"])) \
+		and FALSE_COLOUR_BANDS.has(str(channel_map["G"])) \
+		and FALSE_COLOUR_BANDS.has(str(channel_map["B"])) \
+		and channel_map["R"] != channel_map["G"] \
+		and channel_map["G"] != channel_map["B"] \
+		and channel_map["R"] != channel_map["B"]
+
+
+func mapping_quality() -> float:
+	if not mapping_complete():
+		return 0.0
+	var correct_channels := 0
+	for channel in ["R", "G", "B"]:
+		if str(channel_map[channel]) == str(recommended_channel_map.get(channel, "")):
+			correct_channels += 1
+	return 0.20 + 0.80 * float(correct_channels) / 3.0
+
+
+func band_signature(band_id: String) -> Dictionary:
+	var value: Variant = band_signatures.get(band_id, {})
+	return (value as Dictionary).duplicate(true) if value is Dictionary else {}
+
+
+func band_signature_vector(band_id: String) -> Vector4:
+	var signature := band_signature(band_id)
+	return Vector4(
+		float(signature.get("compact", 0.0)),
+		float(signature.get("embedded", 0.0)),
+		float(signature.get("dust", 0.0)),
+		float(signature.get("diffuse", 0.0))
+	)
+
+
+func composite_signature() -> Dictionary:
+	var result := {
+		"compact": Color(0, 0, 0, 1),
+		"embedded": Color(0, 0, 0, 1),
+		"dust": Color(0, 0, 0, 1),
+		"diffuse": Color(0, 0, 0, 1),
+	}
+	for channel in ["R", "G", "B"]:
+		var band_id := str(channel_map[channel])
+		if not FALSE_COLOUR_BANDS.has(band_id):
+			continue
+		var channel_color := Color(
+			1.0 if channel == "R" else 0.0,
+			1.0 if channel == "G" else 0.0,
+			1.0 if channel == "B" else 0.0,
+			1.0
+		)
+		var signature := band_signature(band_id)
+		for feature in result.keys():
+			result[feature] = result[feature] + channel_color * float(signature.get(feature, 0.0))
+	return result
+
+
+func science_evidence_confidence() -> float:
+	if not mapping_complete():
+		return 0.0
+	var signal_confidence := clampf(snr() / 18.0, 0.45, 1.0)
+	return clampf(mapping_quality() * signal_confidence, 0.0, 1.0)
+
+
+func mapping_is_scientific() -> bool:
+	return mapping_complete() and mapping_quality() >= 0.78
+
+
+func mapping_issue() -> String:
+	if not mapping_complete():
+		return "incomplete"
+	if mapping_is_scientific():
+		return ""
+	return "wavelength_order"
+
+
+func _default_band_signatures() -> Dictionary:
+	var result := {
+		"nir_short": {"compact": 1.0, "embedded": 0.25, "dust": 0.08, "diffuse": 0.22},
+		"nir_long": {"compact": 0.55, "embedded": 1.0, "dust": 0.28, "diffuse": 0.62},
+		"miri_dust": {"compact": 0.14, "embedded": 0.42, "dust": 1.0, "diffuse": 0.82},
+	}
+	match true_science:
+		"star_forming":
+			result["nir_short"] = {"compact": 1.0, "embedded": 0.30, "dust": 0.06, "diffuse": 0.20}
+			result["nir_long"] = {"compact": 0.60, "embedded": 1.0, "dust": 0.24, "diffuse": 0.58}
+			result["miri_dust"] = {"compact": 0.16, "embedded": 0.50, "dust": 1.0, "diffuse": 0.90}
+		"dust_rich":
+			result["nir_short"] = {"compact": 0.78, "embedded": 0.18, "dust": 0.05, "diffuse": 0.42}
+			result["nir_long"] = {"compact": 0.50, "embedded": 0.86, "dust": 0.34, "diffuse": 0.72}
+			result["miri_dust"] = {"compact": 0.10, "embedded": 0.38, "dust": 1.0, "diffuse": 0.88}
+		"old_stellar":
+			result["nir_short"] = {"compact": 0.70, "embedded": 0.18, "dust": 0.03, "diffuse": 0.92}
+			result["nir_long"] = {"compact": 0.48, "embedded": 0.52, "dust": 0.14, "diffuse": 1.0}
+			result["miri_dust"] = {"compact": 0.08, "embedded": 0.18, "dust": 0.46, "diffuse": 0.34}
+		"hot_gas":
+			result["nir_short"] = {"compact": 0.82, "embedded": 0.20, "dust": 0.05, "diffuse": 0.28}
+			result["nir_long"] = {"compact": 0.46, "embedded": 0.72, "dust": 0.20, "diffuse": 0.66}
+			result["miri_dust"] = {"compact": 0.08, "embedded": 0.35, "dust": 0.82, "diffuse": 1.0}
+		"distant_galaxy":
+			result["nir_short"] = {"compact": 0.52, "embedded": 0.20, "dust": 0.04, "diffuse": 0.58}
+			result["nir_long"] = {"compact": 0.92, "embedded": 0.78, "dust": 0.18, "diffuse": 1.0}
+			result["miri_dust"] = {"compact": 0.28, "embedded": 0.54, "dust": 0.72, "diffuse": 0.66}
+	return result
 
 
 func science_options() -> Array:
@@ -635,14 +863,14 @@ func choose_science(option: String) -> void:
 
 
 func science_correct() -> bool:
-	return chosen_science == true_science
+	return chosen_science == true_science and mapping_is_scientific()
 
 
 # ============================================================= REPORT
 func spectral_confidence() -> float:
 	var c := 0.5 * filter_match() + 0.3 * clampf(snr() / 20.0, 0.0, 1.0) + 0.2 * psf_sharpness()
 	if mapping_complete():
-		c += 0.1
+		c = lerpf(c, science_evidence_confidence(), 0.35)
 	return clampf(c, 0.0, 1.0)
 
 
@@ -659,6 +887,8 @@ func report() -> Dictionary:
 		"instrument": instrument,
 		"scientific_confidence": spectral_confidence(),
 		"science_finding": chosen_science,
+		"mapping_quality": mapping_quality(),
+		"evidence_confidence": science_evidence_confidence(),
 		"science_correct": science_correct(),
 		"success": snr() >= 10.0 and science_correct() and safe_to_observe(),
 	}

@@ -115,9 +115,9 @@ func _initialize() -> void:
 	_save("15_frame_stack_merge.png")
 	await _settle(0.62)
 
-	model.set_channel("R", "near_infrared")
-	model.set_channel("G", "mid_infrared")
-	model.set_channel("B", "dust")
+	model.set_channel("R", "miri_dust")
+	model.set_channel("G", "nir_long")
+	model.set_channel("B", "nir_short")
 	_show_stage("filter")
 	await _settle(0.06)
 	_save("16_filter_structure_evidence.png")

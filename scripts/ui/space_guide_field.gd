@@ -13,6 +13,11 @@ var dragging := false
 var input_locked := false
 var search_center := Vector2(118, 322)
 var history: Array[float] = []
+var sequence_phase := "search"
+var sequence_index := -1
+var sequence_progress := 0.0
+var sequence_elapsed := 0.0
+var lock_pulse := 0.0
 
 const STAR_POSITIONS := [
 	Vector2(118, 118), Vector2(302, 218), Vector2(456, 112), Vector2(226, 338),
@@ -43,6 +48,44 @@ func update_metrics(error: float, drift: float, is_locked: bool, chosen_index: i
 	while history.size() > 70:
 		history.pop_front()
 	queue_redraw()
+
+
+func begin_acquisition(index: int) -> void:
+	sequence_phase = "slew"
+	sequence_index = index
+	sequence_progress = 0.0
+	sequence_elapsed = 0.0
+	lock_pulse = 0.0
+	queue_redraw()
+
+
+func begin_fine_guidance(index: int) -> void:
+	sequence_phase = "fine"
+	sequence_index = index
+	sequence_progress = 0.0
+	sequence_elapsed = 0.0
+	queue_redraw()
+
+
+func update_sequence_progress(phase: String, progress: float) -> void:
+	sequence_phase = phase
+	sequence_progress = clampf(progress, 0.0, 1.0)
+	queue_redraw()
+
+
+func begin_lock_ceremony() -> void:
+	sequence_phase = "locked"
+	sequence_progress = 1.0
+	lock_pulse = 0.0
+	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	sequence_elapsed += delta
+	if sequence_phase == "locked":
+		lock_pulse = minf(1.0, lock_pulse + delta * 1.8)
+	if sequence_phase != "search":
+		queue_redraw()
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -120,17 +163,29 @@ func _draw() -> void:
 		var brightness := float(star.get("brightness", 0.4))
 		var usable := bool(star.get("usable", false))
 		var radius := 2.0 + brightness * 5.0
-		draw_circle(p, radius, HOT if usable else DIM, true)
-		draw_line(p - Vector2(10, 0), p + Vector2(10, 0), Color(HOT, 0.35), 1.0)
-		draw_line(p - Vector2(0, 10), p + Vector2(0, 10), Color(HOT, 0.35), 1.0)
+		var display_p := p
+		if index == sequence_index and sequence_phase != "search":
+			var unsettled := 0.0
+			if sequence_phase == "slew":
+				unsettled = 1.0 - sequence_progress
+			elif sequence_phase == "fine":
+				unsettled = clampf(pointing_error / 7.0, 0.0, 1.0)
+			var jitter := Vector2(
+				sin(sequence_elapsed * 13.0),
+				cos(sequence_elapsed * 9.0 + 0.7)
+			) * unsettled * 7.0
+			display_p += jitter
+			if sequence_phase == "locked":
+				draw_circle(display_p, radius + 7.0, Color(0.32, 0.86, 1.0, 0.08 + lock_pulse * 0.10), true)
+				draw_circle(display_p, radius + 2.0, Color(0.55, 0.95, 1.0, 0.20 + lock_pulse * 0.16), true)
+		var star_color := Color(0.68, 0.95, 1.0) if index == sequence_index and sequence_phase == "locked" else (HOT if usable else DIM)
+		draw_circle(display_p, radius, star_color, true)
+		draw_line(display_p - Vector2(10, 0), display_p + Vector2(10, 0), Color(star_color, 0.35), 1.0)
+		draw_line(display_p - Vector2(0, 10), display_p + Vector2(0, 10), Color(star_color, 0.35), 1.0)
 		draw_string(ThemeDB.fallback_font, p + Vector2(-18, 24), str(star.get("id", "GS")),
 			HORIZONTAL_ALIGNMENT_CENTER, 36, 10, HOT if index == candidate else MID)
-		if index == chosen:
-			var lock_radius := lerpf(34.0, 12.0, clampf(1.0 - pointing_error / 8.0, 0.0, 1.0))
-			draw_arc(p, lock_radius, 0.0, TAU, 48, HOT if locked else MID, 2.0)
-			for angle in [0.0, PI * 0.5, PI, PI * 1.5]:
-				var direction := Vector2(cos(angle), sin(angle))
-				draw_line(p + direction * (lock_radius + 7.0), p + direction * (lock_radius - 5.0), HOT, 2.0)
+		if index == sequence_index or index == chosen:
+			_draw_acquisition_corners(p, sequence_phase == "locked")
 
 	var box := Rect2(search_center - Vector2(42, 32), Vector2(84, 64))
 	var box_color := DIM if input_locked else (HOT if candidate >= 0 else MID)
@@ -143,6 +198,30 @@ func _draw() -> void:
 		draw_line(p, p + Vector2(0, sy * corner), HOT, 3.0)
 
 	_draw_drift_graph(drift_graph_rect())
+
+
+func _draw_acquisition_corners(center: Vector2, is_fine_lock: bool) -> void:
+	var convergence := 0.0
+	if sequence_phase == "slew":
+		convergence = sequence_progress * 0.42
+	elif sequence_phase == "fine":
+		convergence = clampf(1.0 - pointing_error / 7.0, 0.42, 0.92)
+	elif sequence_phase == "locked":
+		convergence = 1.0
+	var half_extent := lerpf(36.0, 15.0, convergence)
+	var corner_length := 10.0
+	var color := Color(0.52, 0.94, 1.0) if is_fine_lock else HOT
+	for signs_value in [
+		Vector2(-1, -1), Vector2(1, -1),
+		Vector2(1, 1), Vector2(-1, 1)
+	]:
+		var signs: Vector2 = signs_value
+		var corner: Vector2 = center + signs * half_extent
+		draw_line(corner, corner - Vector2(signs.x * corner_length, 0), color, 2.0)
+		draw_line(corner, corner - Vector2(0, signs.y * corner_length), color, 2.0)
+	if is_fine_lock:
+		draw_rect(Rect2(center - Vector2.ONE * half_extent, Vector2.ONE * half_extent * 2.0), Color(color, 0.52), false, 1.0)
+		draw_circle(center, 1.5, color, true)
 
 
 func drift_graph_rect() -> Rect2:
@@ -174,7 +253,7 @@ func _draw_drift_graph(rect: Rect2) -> void:
 	draw_string(
 		ThemeDB.fallback_font,
 		rect.position + Vector2(rect.size.x - 142.0, 14),
-		"%.2f arcsec/s" % drift_rate,
+		"%.2f arcsec/s" % _residual_drift(),
 		HORIZONTAL_ALIGNMENT_RIGHT, 134, 10, HOT if locked else MID)
 
 	var plot_rect := drift_plot_rect()
@@ -190,3 +269,9 @@ func _draw_drift_graph(rect: Rect2) -> void:
 		var y := plot_rect.end.y - float(history[index]) * plot_rect.size.y
 		points.append(Vector2(x, y))
 	draw_polyline(points, HOT if locked else MID, 2.0)
+
+
+func _residual_drift() -> float:
+	if chosen < 0:
+		return drift_rate
+	return maxf(0.01, maxf(0.25, drift_rate) * clampf(pointing_error / 6.0, 0.04, 1.0))
