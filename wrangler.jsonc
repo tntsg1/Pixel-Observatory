@@ -16,6 +16,20 @@
       "bucket_name": "pixel-observatory-game-assets"
     }
   ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "VISITOR_COUNTER",
+        "class_name": "VisitorCounter"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["VisitorCounter"]
+    }
+  ],
   "assets": {
     "directory": "./build/cloudflare-public",
     "binding": "ASSETS",

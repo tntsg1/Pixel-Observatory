@@ -258,6 +258,10 @@ cinematic polish and clearer first-use explanation.
   pending a final real-world foley/audio asset pass.
 - Added focused headless checks, capture tools and regression coverage for the
   new observation, teaching, localization and accessibility paths.
+- Reworked the browser delivery shell so the web build opens on a branded,
+  responsive Pixel Observatory start screen before revealing the Godot canvas.
+  Added an anonymous, refresh-safe Cloudflare visitor counter backed by a
+  Durable Object, plus deployment-time shell generation for every Web export.
 
 ### 2026-07-04 — L10-L24 Teaching and Practice Structure
 
