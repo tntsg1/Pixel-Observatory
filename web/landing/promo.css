@@ -1451,6 +1451,9 @@ footer a {
   .nav-shell nav {
     display: none;
   }
+  .visitor-count {
+    display: none;
+  }
   .hero-copy {
     width: min(100% - 44px, 690px);
     margin-top: 130px;
