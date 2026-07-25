@@ -7,6 +7,12 @@ const sourcePath = resolve(
 const outputPath = resolve(process.argv[3] || "web/landing/promo.html");
 let html = await readFile(sourcePath, "utf8");
 
+html = html.replace(
+  "<title>Starlight Observatory · 星光天文台</title>",
+  `<title>Starlight Observatory · 星光天文台</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2305070d'/%3E%3Cpath d='M16 4l2.4 8.3L27 16l-8.6 3.7L16 28l-2.4-8.3L5 16l8.6-3.7L16 4z' fill='%23d9a648'/%3E%3C/svg%3E">`,
+);
+
 html = html.replaceAll(
   "https://tntsg1.github.io/Pixel-Observatory/",
   "game/",
