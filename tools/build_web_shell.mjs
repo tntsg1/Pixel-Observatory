@@ -67,7 +67,8 @@ const client = `
     const tick = (now) => { const p = Math.min(1, (now - began) / 650); count.textContent = Math.round(start + (target - start) * (1 - Math.pow(1 - p, 3))).toLocaleString(); if (p < 1) requestAnimationFrame(tick); };
     requestAnimationFrame(tick);
   };
-  fetch('/api/visits', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ visitorId }) })
+  const visitEndpoint = location.hostname.endsWith('github.io') ? 'https://pixelobservatorygame.com/api/visits' : '/api/visits';
+  fetch(visitEndpoint, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ visitorId }) })
     .then((response) => response.ok ? response.json() : Promise.reject())
     .then(({ total, isNew }) => { animate(total); status.textContent = isNew ? '欢迎加入今晚的观测' : '欢迎回来，观测记录仍在等待'; })
     .catch(() => { count.textContent = '—'; status.textContent = '观测站已就绪'; });

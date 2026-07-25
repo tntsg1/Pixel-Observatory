@@ -5,6 +5,21 @@ const ISOLATION_HEADERS = {
 };
 
 const VISITOR_ID_PATTERN = /^[a-zA-Z0-9_-]{16,96}$/;
+const VISITOR_ALLOWED_ORIGINS = new Set([
+	"https://pixelobservatorygame.com",
+	"https://tntsg1.github.io",
+]);
+
+function visitor_response(response, request) {
+	const origin = request.headers.get("Origin");
+	if (!origin || !VISITOR_ALLOWED_ORIGINS.has(origin)) {
+		return response;
+	}
+	const headers = new Headers(response.headers);
+	headers.set("Access-Control-Allow-Origin", origin);
+	headers.set("Vary", "Origin");
+	return new Response(response.body, { status: response.status, headers });
+}
 
 export class VisitorCounter {
 	constructor(state) {
@@ -12,8 +27,14 @@ export class VisitorCounter {
 	}
 
 	async fetch(request) {
+		if (request.method === "OPTIONS") {
+			return visitor_response(new Response(null, {
+				status: 204,
+				headers: { "Access-Control-Allow-Headers": "content-type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" },
+			}), request);
+		}
 		if (request.method === "GET") {
-			return this._response(await this._total(), false);
+			return visitor_response(this._response(await this._total(), false), request);
 		}
 		if (request.method !== "POST") {
 			return new Response("Method not allowed.", { status: 405 });
@@ -38,7 +59,7 @@ export class VisitorCounter {
 			await this.state.storage.put(key, Date.now());
 			await this.state.storage.put("total", (await this._total()) + 1);
 		}
-		return this._response(await this._total(), isNew);
+		return visitor_response(this._response(await this._total(), isNew), request);
 	}
 
 	async _total() {
