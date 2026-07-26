@@ -81,7 +81,7 @@
   .gnav{
     position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100;
     display:flex;align-items:center;gap:8px;padding:8px 10px 8px 22px;border-radius:999px;
-    transition:opacity .18s ease-out,transform .22s cubic-bezier(.23,1,.32,1);max-width:calc(100vw - 24px);
+    transition:opacity .5s,transform .6s cubic-bezier(.22,1,.36,1);max-width:calc(100vw - 24px);
   }
   .gnav.hide{opacity:0;transform:translateX(-50%) translateY(-24px);pointer-events:none}
   .gnav-brand{
@@ -404,14 +404,94 @@
     font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
   .spec span{display:block;font-size:12.5px;color:var(--txt-low);margin-top:5px;line-height:1.5}
 
-  /* ---------- 9 club ---------- */
+  /* ---------- 9 progress and difference ---------- */
+  .s-diff{
+    background:
+      linear-gradient(180deg,var(--ink-0),rgba(10,15,30,.96) 35%,var(--ink-0));
+    overflow:hidden;
+  }
+  .s-diff::before{
+    content:"";position:absolute;left:50%;top:80px;width:min(900px,90vw);height:1px;
+    transform:translateX(-50%);
+    background:linear-gradient(90deg,transparent,rgba(217,166,72,.45),transparent);
+  }
+  .diff-thesis{
+    margin-top:68px;padding:30px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    display:grid;grid-template-columns:minmax(200px,.7fr) minmax(0,1.6fr);gap:clamp(30px,6vw,92px);
+    align-items:start;
+  }
+  .diff-thesis .label,.creator-note .label{
+    font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--gold);
+  }
+  .diff-thesis p{
+    color:var(--txt-hi);font-size:clamp(20px,2.7vw,30px);font-weight:600;
+    line-height:1.45;text-wrap:balance;
+  }
+  .project-numbers{
+    display:grid;grid-template-columns:repeat(5,1fr);margin-top:64px;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  }
+  .project-number{padding:26px 18px;border-right:1px solid var(--line)}
+  .project-number:last-child{border-right:0}
+  .project-number b{
+    display:block;color:var(--txt-hi);font-family:var(--mono);font-size:clamp(22px,3vw,34px);
+    font-weight:500;font-variant-numeric:tabular-nums;line-height:1.1;
+  }
+  .project-number span{display:block;color:var(--txt-low);font-size:12.5px;line-height:1.45;margin-top:9px}
+  .progress-head{margin-top:104px;display:grid;grid-template-columns:.7fr 1.4fr;gap:40px;align-items:end}
+  .progress-head h3{font-size:clamp(27px,4vw,42px);line-height:1.18}
+  .progress-head p{max-width:37em;color:var(--txt-mid)}
+  .progress-rail{margin-top:46px;border-top:1px solid var(--line)}
+  .progress-step{
+    display:grid;grid-template-columns:72px minmax(180px,.7fr) minmax(0,1.4fr);gap:28px;
+    padding:30px 0;border-bottom:1px solid var(--line);align-items:start;
+  }
+  .progress-step .num{
+    font-family:var(--mono);font-size:12px;color:var(--gold);letter-spacing:.18em;padding-top:4px;
+  }
+  .progress-step h4{color:var(--txt-hi);font-size:19px;font-weight:600;line-height:1.35}
+  .progress-step p{color:var(--txt-low);font-size:14.5px;line-height:1.65;max-width:48em}
+  .progress-step.in .num{animation:signalOn .7s cubic-bezier(.22,1,.36,1) both}
+  @keyframes signalOn{0%{opacity:.25;transform:translateX(-8px)}100%{opacity:1;transform:none}}
+  .compare-intro{margin-top:112px;max-width:44em}
+  .compare-intro h3{font-size:clamp(27px,4vw,42px);line-height:1.2}
+  .compare-intro p{margin-top:18px;color:var(--txt-mid)}
+  .comparison{margin-top:44px;border-top:1px solid var(--line)}
+  .compare-row{
+    display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1fr) minmax(0,1fr);
+    gap:clamp(24px,4vw,52px);padding:30px 0;border-bottom:1px solid var(--line);
+  }
+  .compare-row h4{font-size:17px;color:var(--txt-hi);font-weight:600}
+  .compare-row small{
+    display:block;font-family:var(--mono);font-size:10px;letter-spacing:.18em;
+    color:var(--gold);text-transform:uppercase;margin-bottom:7px;
+  }
+  .compare-row p{font-size:14px;color:var(--txt-low);line-height:1.65}
+  .compare-row p b{display:block;color:var(--txt-mid);font-weight:600;margin-bottom:5px}
+  .creator-note{
+    margin-top:94px;padding:38px 0;border-top:1px solid rgba(217,166,72,.45);
+    display:grid;grid-template-columns:minmax(170px,.55fr) minmax(0,1.45fr);gap:clamp(30px,6vw,90px);
+  }
+  .creator-note blockquote{
+    color:var(--txt-hi);font-size:clamp(21px,2.8vw,31px);font-weight:600;line-height:1.45;
+    text-wrap:balance;
+  }
+  .creator-note p{margin-top:18px;color:var(--txt-mid);max-width:44em}
+  .build-state{
+    margin-top:38px;padding:18px 0;display:grid;grid-template-columns:1fr 1fr;gap:34px;
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+  }
+  .build-state b{display:block;color:var(--txt-hi);font-size:14px;margin-bottom:4px}
+  .build-state span{display:block;color:var(--txt-low);font-size:13px;line-height:1.55}
+
+  /* ---------- 10 club ---------- */
   .s-maya{background:linear-gradient(var(--ink-0),var(--ink-1) 45%,var(--ink-0))}
   .learn-ways{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:52px}
   .learn-w{padding:24px 22px}
   .learn-w b{color:var(--txt-hi);font-size:15px;font-weight:600;display:block}
   .learn-w span{font-size:13px;color:var(--txt-low);display:block;margin-top:6px}
 
-  /* ---------- 10 features ---------- */
+  /* ---------- 11 features ---------- */
   .s-feat{background:var(--ink-0)}
   .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:70px}
   .feat{
@@ -470,12 +550,31 @@
     .tl-fig{justify-items:start}
     .tip-band{grid-template-columns:110px minmax(0,1fr);gap:18px;padding:22px}
     .tip-band .art{max-width:110px}
+    .project-numbers{grid-template-columns:repeat(3,1fr)}
+    .project-number:nth-child(3){border-right:0}
+    .project-number:nth-child(n+4){border-top:1px solid var(--line)}
+    .progress-head,.diff-thesis,.creator-note{grid-template-columns:1fr;gap:20px}
+    .progress-step{grid-template-columns:52px minmax(150px,.7fr) minmax(0,1.3fr);gap:20px}
+    .compare-row{grid-template-columns:minmax(150px,.55fr) 1fr 1fr;gap:24px}
   }
   @media (max-width:560px){
     .eye-stats,.grid3,.feat-grid,.learn-ways,.terms{grid-template-columns:1fr}
     .hud,.specs{grid-template-columns:1fr 1fr}
+    .gnav{top:10px}
+    .gnav-brand{font-size:0;gap:0}
     .tip-band{grid-template-columns:1fr;text-align:center;justify-items:center}
     .tip-band .art{margin:0 auto}
+    .project-numbers{grid-template-columns:1fr 1fr}
+    .project-number,.project-number:nth-child(3){border-right:1px solid var(--line);border-top:1px solid var(--line)}
+    .project-number:nth-child(odd){border-left:0}
+    .project-number:nth-child(even){border-right:0}
+    .project-number:first-child,.project-number:nth-child(2){border-top:0}
+    .project-number:last-child{grid-column:1/-1;border-right:0}
+    .progress-step{grid-template-columns:40px 1fr;gap:16px}
+    .progress-step p{grid-column:2}
+    .compare-row{grid-template-columns:1fr;gap:14px}
+    .compare-row p{padding-left:0}
+    .build-state{grid-template-columns:1fr}
   }
   .gnav-visits{
     color:var(--txt-low);font-family:var(--mono);font-size:10px;
@@ -497,6 +596,7 @@
     <a href="#observe"><span class="en">Observing</span><span class="zh">观测</span></a>
     <a href="#path"><span class="en">Path</span><span class="zh">成长路线</span></a>
     <a href="#principles"><span class="en">How They Work</span><span class="zh">原理</span></a>
+    <a href="#difference"><span class="en">Difference</span><span class="zh">独特之处</span></a>
     <a href="#story"><span class="en">Story</span><span class="zh">剧情</span></a>
   </div>
   <div class="lang-sw" role="group" aria-label="Language / 语言">
@@ -1630,10 +1730,128 @@
   </div>
 </section>
 
-<!-- ================= 9 · STORY / CLUB ================= -->
+<!-- ================= 9 · PROGRESS / DIFFERENCE ================= -->
+<section class="s-diff" id="difference">
+  <div class="wrap">
+    <p class="eyebrow rv">Chapter 09 · <span class="en">A Playable Observatory</span><span class="zh">一座可以亲手操作的天文台</span></p>
+    <h2 class="rv">
+      <span class="en">You built the distance<br>between looking and observing.</span>
+      <span class="zh">你做出来的，<br>是“看见”与“观测”之间的距离。</span>
+    </h2>
+    <div class="lede rv">
+      <p class="en">Most astronomy experiences begin with the answer: a labelled planet, a finished photograph, a searchable sky. Pixel Observatory begins one step earlier, while the image is still uncertain and the player still has to earn it.</p>
+      <p class="zh">许多天文作品从答案开始：标好名字的行星、已经处理完成的照片、随时可以检索的星空。Pixel Observatory 则把起点往前挪了一步——画面还没有稳定，答案也还没有出现，玩家必须亲手把一次观测做出来。</p>
+    </div>
+
+    <div class="diff-thesis rv">
+      <span class="label"><span class="en">The central idea</span><span class="zh">最重要的想法</span></span>
+      <p>
+        <span class="en">The telescope is not a prop between two story scenes. It is a working instrument, and its mistakes remain visible in the sky.</span>
+        <span class="zh">望远镜不是两段剧情之间的一件道具。它是一台真正参与运算的仪器，而你犯下的错误，会留在最后看到的星空里。</span>
+      </p>
+    </div>
+
+    <div class="project-numbers rv" aria-label="Current project scale">
+      <div class="project-number"><b>75</b><span class="en">missions in the current campaign data</span><span class="zh">当前战役数据中的任务</span></div>
+      <div class="project-number"><b>43,124</b><span class="en">catalogued stars behind the sky</span><span class="zh">构成动态星空的恒星数据</span></div>
+      <div class="project-number"><b>14</b><span class="en">observing sites with different horizons</span><span class="zh">拥有不同地平线的观测地点</span></div>
+      <div class="project-number"><b>29</b><span class="en">concept briefs that wait until they matter</span><span class="zh">在需要时才出现的概念讲解</span></div>
+      <div class="project-number"><b>31</b><span class="en">skill tutorials, from first light to radio</span><span class="zh">从初见星光到射电观测的技能教程</span></div>
+    </div>
+
+    <div class="progress-head rv">
+      <h3><span class="en">How the observatory grew</span><span class="zh">这座天文台是怎样长出来的</span></h3>
+      <p>
+        <span class="en">Its progress is not simply a longer equipment list. Each stage closed another gap between knowing a fact and being able to act on it.</span>
+        <span class="zh">它的进步并不只是设备越来越多。每一次扩展，都在缩短“知道一个知识”与“真正会用它”之间的距离。</span>
+      </p>
+    </div>
+
+    <div class="progress-rail">
+      <article class="progress-step rv">
+        <span class="num">01</span>
+        <h4><span class="en">The menu became a place.</span><span class="zh">菜单变成了一间真正的活动室。</span></h4>
+        <p><span class="en">The astronomy club now has a walkable base: mission board, parts cabinet, assembly table, observing pad, journal and a senior student who remembers what you have already learned.</span><span class="zh">天文社不再只是一排按钮：任务板、零件柜、组装台、观测区和日志都在同一座可探索的基地里；学姐也会记得你已经学过什么，不再机械地重复。</span></p>
+      </article>
+      <article class="progress-step rv">
+        <span class="num">02</span>
+        <h4><span class="en">Parts became an instrument.</span><span class="zh">零件真正组成了一台仪器。</span></h4>
+        <p><span class="en">Compatibility, installation order, nested optical assemblies and alignment all matter. A rushed build does not merely lose points: it changes clarity, stability, colour and tracking when the player reaches the sky.</span><span class="zh">兼容性、安装顺序、镜筒内部结构与校准都会产生后果。草率组装不只是少拿一点分，而是会在真正观测时改变清晰度、稳定性、色差和追踪表现。</span></p>
+      </article>
+      <article class="progress-step rv">
+        <span class="num">03</span>
+        <h4><span class="en">The sky became a situation.</span><span class="zh">星空不再是一张静止背景。</span></h4>
+        <p><span class="en">Naked eye, finder and telescope views form one continuous task. Earth rotation, seeing, cloud, light pollution, dark adaptation, field of view and tracking all shape what can be observed on a particular night.</span><span class="zh">肉眼、寻星镜和主镜视野组成一段连续操作；地球自转、大气扰动、云层、光污染、暗适应、视场与追踪共同决定某一晚究竟能看到什么。</span></p>
+      </article>
+      <article class="progress-step rv">
+        <span class="num">04</span>
+        <h4><span class="en">Failure became evidence.</span><span class="zh">失败开始留下可以读懂的证据。</span></h4>
+        <p><span class="en">Blur, drift, chromatic fringe, an unstable image or a weak signal are not arbitrary punishments. They are clues. The player can read the symptom, return to the instrument and correct the cause.</span><span class="zh">模糊、漂移、色边、画面抖动或微弱信号不再是随意的惩罚，而是可以反推原因的线索。玩家能从症状出发，回到设备上把问题真正修好。</span></p>
+      </article>
+      <article class="progress-step rv">
+        <span class="num">05</span>
+        <h4><span class="en">Each telescope found its own verb.</span><span class="zh">每一种望远镜都有了自己的动词。</span></h4>
+        <p><span class="en">Reflectors ask for collimation. The space infrared platform slews, cools, aligns segmented mirrors and maps invisible wavelengths. FAST drives a suspended feed cabin, tunes receivers, rejects interference and folds a pulsar signal into evidence.</span><span class="zh">反射镜需要准直；太空红外平台要转向、降温、对齐分块镜并映射不可见波段；FAST 则要驱动馈源舱、调谐接收机、排除干扰，再把脉冲信号折叠成可以成立的证据。</span></p>
+      </article>
+      <article class="progress-step rv">
+        <span class="num">06</span>
+        <h4><span class="en">The project left the editor.</span><span class="zh">作品走出了编辑器。</span></h4>
+        <p><span class="en">Browser export, a public domain, bilingual presentation, CJK font work, mobile controls, free-exploration tutorial modes and a persistent logbook turned a local prototype into something another person can actually enter and learn from.</span><span class="zh">浏览器导出、独立域名、中英双语、中文字体、移动端操控、可关闭的引导模式与持续记录的观测日志，让它不再只是本地原型，而是别人能够真正进入并学会东西的作品。</span></p>
+      </article>
+    </div>
+
+    <div class="compare-intro rv">
+      <h3><span class="en">It does not replace the other ways of learning astronomy. It connects them.</span><span class="zh">它不需要取代其他天文体验，而是把它们之间缺少的那一段连了起来。</span></h3>
+      <p><span class="en">Every neighbouring medium has a strength worth keeping. Pixel Observatory becomes distinctive by preserving that strength, then adding consequence, continuity and a human reason to continue.</span><span class="zh">相邻的每一种形式都有值得保留的长处。Pixel Observatory 的独特之处，不是把它们说得不够好，而是在这些长处之上，再加入后果、连续性，以及一个让人愿意继续走下去的理由。</span></p>
+    </div>
+
+    <div class="comparison">
+      <article class="compare-row rv">
+        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">Tabletop kits and models</span><span class="zh">桌游棋子与实体模型</span></h4></div>
+        <p><b><span class="en">Their strength</span><span class="zh">它们的长处</span></b><span class="en">Tactile, social and immediately understandable. A real object gives scale and presence.</span><span class="zh">有触感、有社交性，也很容易一眼看懂；实体物件天然拥有尺度感与存在感。</span></p>
+        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">Every fitted part continues into the simulation. Assembly choices alter the image, and the same instrument can be rebuilt without cost or fear of damage.</span><span class="zh">每个装上的零件都会继续参与后面的模拟；组装选择会改变最终图像，同一台仪器也能低成本、无损坏风险地反复拆装。</span></p>
+      </article>
+      <article class="compare-row rv">
+        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">Planetarium apps and sky maps</span><span class="zh">星图软件与在线星空</span></h4></div>
+        <p><b><span class="en">Their strength</span><span class="zh">它们的长处</span></b><span class="en">Breadth, precision and instant access to an enormous catalogue of objects.</span><span class="zh">覆盖面广、定位准确，也能立刻访问庞大的天体目录。</span></p>
+        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">An instrument stands between the player and the catalogue. The sky has limits, and understanding those limits becomes the lesson.</span><span class="zh">玩家与目录之间多了一台真实受限的仪器；“为什么今晚看不清”本身，也成为需要理解的一部分。</span></p>
+      </article>
+      <article class="compare-row rv">
+        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">Quizzes and collection games</span><span class="zh">问答与收集类天文游戏</span></h4></div>
+        <p><b><span class="en">Their strength</span><span class="zh">它们的长处</span></b><span class="en">A friendly entrance to names, facts and a clear sense of completion.</span><span class="zh">能轻松认识名称和知识点，也能提供清楚直接的完成感。</span></p>
+        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">Knowledge becomes a decision: choose an eyepiece, read a symptom, hold a target, map a wavelength or reject interference. The answer is performed before it is named.</span><span class="zh">知识会变成一次操作：选择目镜、判断症状、稳住目标、映射波段或排除干扰。玩家先把答案做出来，然后才说出它的名字。</span></p>
+      </article>
+      <article class="compare-row rv">
+        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">A real night at a telescope</span><span class="zh">真正站在望远镜旁的夜晚</span></h4></div>
+        <p><b><span class="en">Its strength</span><span class="zh">它的长处</span></b><span class="en">Real photons, real weather and the irreplaceable feeling of finding something in the sky yourself.</span><span class="zh">真实的光子、真实的天气，以及亲手在天空中找到目标的不可替代感。</span></p>
+        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">A rehearsal space: rare instruments, repeatable conditions, visible causes and the freedom to fail. It prepares curiosity for the real sky instead of pretending to replace it.</span><span class="zh">一个可以预演的空间：昂贵或罕见的仪器、可重复的条件、看得见的因果，以及放心失败的自由。它为真正的夜空准备好奇心，而不是假装取代夜空。</span></p>
+      </article>
+    </div>
+
+    <div class="creator-note rv">
+      <div>
+        <span class="label"><span class="en">Built by tntsg</span><span class="zh">由 tntsg 创作</span></span>
+      </div>
+      <div>
+        <blockquote>
+          <span class="en">The remarkable part is not the feature count. It is that one creator kept the science, the story, the interaction, the pixel world and the browser experience speaking the same language.</span>
+          <span class="zh">真正难得的并不是功能数量，而是一个创作者让科学、剧情、交互、像素世界与浏览器体验始终说着同一种语言。</span>
+        </blockquote>
+        <p><span class="en">That consistency gives the project a point of view. It is patient with beginners without flattening the subject, ambitious about instruments without forgetting the person at the eyepiece, and honest enough to let an imperfect observation remain imperfect.</span><span class="zh">这种一致性让作品拥有了自己的立场：它愿意耐心对待第一次接触天文的人，却没有把学科削平；它对仪器抱有野心，也没有忘记目镜后面的人；它甚至愿意让一次不完美的观测保持不完美，因为那正是理解发生的地方。</span></p>
+
+        <div class="build-state">
+          <div><b><span class="en">Already playable</span><span class="zh">已经可以完整体验</span></b><span class="en">Club story, assembly, three-stage observing, dynamic conditions, mission and free-observation loops, infrared and FAST foundations.</span><span class="zh">俱乐部剧情、组装、三段式观测、动态环境、任务与自由观测循环，以及红外与 FAST 的核心框架。</span></div>
+          <div><b><span class="en">Still being tuned</span><span class="zh">仍在继续打磨</span></b><span class="en">Final art for advanced instruments, later-mission pacing, atmosphere and cloud polish, mobile balance and the last layer of audio character.</span><span class="zh">高级仪器的最终美术、后期关卡节奏、大气与云层表现、移动端平衡，以及最后一层真正有性格的声音。</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 10 · STORY / CLUB ================= -->
 <section class="s-maya" id="story">
   <div class="wrap">
-    <p class="eyebrow rv">Chapter 09 · <span class="en">The Astronomy Club</span><span class="zh">学习与剧情</span></p>
+    <p class="eyebrow rv">Chapter 10 · <span class="en">The Astronomy Club</span><span class="zh">学习与剧情</span></p>
     <h2 class="rv">
       <span class="en">You are not just<br>collecting stars.</span>
       <span class="zh">你收集的<br>不只是星星。</span>
@@ -1667,13 +1885,13 @@
       </div>
       <div class="learn-w card">
         <b><span class="en">Mission Board</span><span class="zh">任务板</span></b>
-        <span class="en">24 missions across six chapters.</span><span class="zh">六个章节、24 个观测任务。</span>
+        <span class="en">75 missions across the instrument journey.</span><span class="zh">贯穿完整仪器成长路线的 75 个任务。</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ================= 10 · FEATURES ================= -->
+<!-- ================= 11 · FEATURES ================= -->
 <section class="s-feat" id="features">
   <div class="wrap">
     <p class="eyebrow rv"><span class="en">Everything, briefly</span><span class="zh">特色一览</span></p>
@@ -1856,13 +2074,7 @@
   var heroInner = document.getElementById('heroInner');
   var heroCv = document.getElementById('sky');
   var gnav = document.getElementById('gnav');
-  var lastY = scrollY, ticking = false, navRevealTimer = 0;
-  function revealNavAfterScroll(){
-    clearTimeout(navRevealTimer);
-    navRevealTimer = setTimeout(function(){
-      if(gnav && scrollY >= 90) gnav.classList.remove('hide');
-    }, 280);
-  }
+  var lastY = 0, ticking = false, navStopTimer = 0;
   function onScroll(){
     var y = scrollY;
     if(!reduced && heroInner && y < innerHeight*1.2){
@@ -1877,51 +2089,18 @@
     }
     lastY = y; ticking = false;
   }
+  function revealNavAfterStop(){
+    clearTimeout(navStopTimer);
+    navStopTimer = setTimeout(function(){
+      if(gnav && scrollY >= 90) gnav.classList.remove('hide');
+    }, 320);
+  }
   addEventListener('scroll', function(){
     if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
-    revealNavAfterScroll();
+    revealNavAfterStop();
   }, {passive:true});
   onScroll();
-
-  /* ---------- interruptible section navigation ---------- */
-  var sectionScrollFrame = 0;
-  function cancelSectionScroll(){
-    if(sectionScrollFrame) cancelAnimationFrame(sectionScrollFrame);
-    sectionScrollFrame = 0;
-  }
-  function scrollToSection(target, hash){
-    cancelSectionScroll();
-    var startY = scrollY;
-    var targetY = Math.max(0, target.getBoundingClientRect().top + startY - 92);
-    var distance = targetY - startY;
-    if(Math.abs(distance) < 2) return;
-    var duration = reduced ? 180 : Math.min(760, Math.max(420, 420 + Math.abs(distance) * 0.055));
-    var began = performance.now();
-    history.pushState(null, '', hash);
-    function step(now){
-      var progress = Math.min(1, (now - began) / duration);
-      var eased = progress < 0.5
-        ? 4 * progress * progress * progress
-        : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-      scrollTo(0, startY + distance * eased);
-      if(progress < 1) sectionScrollFrame = requestAnimationFrame(step);
-      else sectionScrollFrame = 0;
-    }
-    sectionScrollFrame = requestAnimationFrame(step);
-  }
-  document.querySelectorAll('a[href^="#"]').forEach(function(link){
-    link.addEventListener('click', function(event){
-      if(event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-      var hash = link.getAttribute('href');
-      if(!hash || hash === '#') return;
-      var target = document.getElementById(hash.slice(1));
-      if(!target) return;
-      event.preventDefault();
-      scrollToSection(target, hash);
-    });
-  });
-  addEventListener('wheel', cancelSectionScroll, {passive:true});
-  addEventListener('touchstart', cancelSectionScroll, {passive:true});
+  revealNavAfterStop();
 
   /* ---------- scatter static SVG stars ---------- */
   function scatter(id, n, w, h, seed){
