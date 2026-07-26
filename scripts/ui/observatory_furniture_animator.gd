@@ -1,7 +1,7 @@
 extends Control
 class_name ObservatoryFurnitureAnimator
 
-const ROOM_TEXTURE := "res://assets/reference/observatory_room_clean_bg_1024.png"
+const ROOM_TEXTURE := "res://assets/reference/observatory_room_hall_1024.png"
 const BRASS := Color(0.78, 0.52, 0.23)
 const INTERIOR_TINT := Color(0.42, 0.48, 0.58, 1.0)
 
@@ -9,36 +9,36 @@ const INTERIOR_TINT := Color(0.42, 0.48, 0.58, 1.0)
 # state is pixel-identical to the painted furniture beneath it.
 const SPECS := {
 	"cabinet": {
-		"rect": Rect2(83, 297, 224, 61),
-		"interior_source": Rect2(88, 211, 212, 76),
+		"rect": Rect2(94, 258, 240, 39),
+		"interior_source": Rect2(98, 170, 232, 74),
 		"mode": "drawer",
 		"travel": 9.0,
 	},
 	"door": {
-		"rect": Rect2(471, 91, 86, 187),
-		"interior_source": Rect2(358, 95, 68, 128),
+		"rect": Rect2(449, 69, 126, 179),
+		"interior_source": Rect2(355, 92, 70, 132),
 		"mode": "hinge",
 	},
 	"mission": {
-		"rect": Rect2(604, 94, 152, 140),
-		"interior_source": Rect2(606, 96, 148, 136),
+		"rect": Rect2(692, 87, 191, 130),
+		"interior_source": Rect2(694, 89, 187, 126),
 		"mode": "shutter",
 	},
 	"assembly": {
-		"rect": Rect2(782, 214, 170, 160),
-		"interior_source": Rect2(782, 214, 170, 160),
+		"rect": Rect2(730, 330, 246, 168),
+		"interior_source": Rect2(730, 330, 246, 168),
 		"mode": "workbench",
-		"focus_rect": Rect2(10, 5, 112, 88),
+		"focus_rect": Rect2(72, 10, 158, 92),
 	},
 	"journal": {
-		"rect": Rect2(82, 568, 225, 68),
-		"interior_source": Rect2(88, 211, 212, 76),
+		"rect": Rect2(48, 539, 256, 44),
+		"interior_source": Rect2(98, 170, 232, 74),
 		"mode": "drawer",
 		"travel": 8.0,
 	},
 	"computer": {
-		"rect": Rect2(721, 472, 131, 93),
-		"interior_source": Rect2(721, 472, 131, 93),
+		"rect": Rect2(785, 535, 165, 117),
+		"interior_source": Rect2(785, 535, 165, 117),
 		"mode": "screen",
 	},
 }
@@ -133,7 +133,11 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 	states[id] = "opening"
 	var rig: Dictionary = rigs[id]
 	var mode := str(rig.get("mode", "shutter"))
-	var duration := 0.10 if _reduced_motion_enabled() else 0.42
+	# Reduced motion keeps the same readable mechanical cadence while trimming
+	# travel and overshoot. It must never turn furniture into a 100 ms flash.
+	var duration := 0.44 if _reduced_motion_enabled() else 0.64
+	if mode == "screen":
+		duration = 0.56 if _reduced_motion_enabled() else 0.78
 	var tween := create_tween().bind_node(self).set_parallel(true)
 	active_tweens[id] = tween
 	var doors: Array = rig.get("doors", [])
@@ -205,7 +209,9 @@ func play_close(id: String, finished: Callable = Callable()) -> void:
 	states[id] = "closing"
 	var rig: Dictionary = rigs[id]
 	var mode := str(rig.get("mode", "shutter"))
-	var duration := 0.08 if _reduced_motion_enabled() else 0.32
+	var duration := 0.36 if _reduced_motion_enabled() else 0.52
+	if mode == "screen":
+		duration = 0.48 if _reduced_motion_enabled() else 0.66
 	var tween := create_tween().bind_node(self).set_parallel(true)
 	active_tweens[id] = tween
 	for door_value in rig.get("doors", []):
@@ -275,6 +281,10 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	rig_root.size = rect.size
 	rig_root.clip_contents = mode in ["hinge", "shutter", "screen", "workbench"]
 	rig_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Keep the animated CRT above the furniture cutout. The console footprint
+	# prevents the player from entering this rect, so depth sorting stays intact.
+	if mode == "screen":
+		rig_root.z_index = 4
 	add_child(rig_root)
 
 	var interior := TextureRect.new()
@@ -396,6 +406,27 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		"focus_frame": focus_frame,
 	}
 	states[id] = "closed"
+
+
+func set_proximity(id: String, active: bool) -> void:
+	if not rigs.has(id) or is_animating(id) or is_open(id):
+		return
+	var rig: Dictionary = rigs[id]
+	if str(rig.get("mode", "")) != "screen":
+		return
+	for door_value in rig.get("doors", []):
+		var door := door_value as Control
+		if door != null:
+			door.modulate = Color(0.88, 1.06, 0.94, 1.0) if active else Color.WHITE
+	var scanline := rig.get("scanline") as ColorRect
+	if scanline == null:
+		return
+	if active:
+		var travel := maxf(1.0, scanline.get_parent().size.y - 18.0)
+		scanline.position.y = 7.0 + fmod(float(Time.get_ticks_msec()) * 0.035, travel)
+		scanline.color.a = 0.34
+	else:
+		scanline.color.a = 0.0
 
 
 func _door_piece(source_rect: Rect2, local_rect: Rect2, local_position: Vector2) -> TextureRect:

@@ -56,13 +56,13 @@ func _check_open_close_cycle() -> void:
 		var callback_state := {"count": 0}
 		animator.play_open(id, func() -> void: callback_state["count"] = int(callback_state["count"]) + 1)
 		_check(animator.is_animating(id), "%s enters opening state" % id)
-		await create_timer(0.48).timeout
+		await create_timer(0.86).timeout
 		_check(animator.is_open(id), "%s reaches open state" % id)
 		_check(int(callback_state["count"]) == 1, "%s open callback runs once" % id)
 
 		animator.play_close(id, func() -> void: callback_state["count"] = int(callback_state["count"]) + 1)
 		_check(animator.is_animating(id), "%s enters closing state" % id)
-		await create_timer(0.38).timeout
+		await create_timer(0.72).timeout
 		_check(not animator.is_open(id) and not animator.is_animating(id), "%s reaches closed state" % id)
 		_check(int(callback_state["count"]) == 2, "%s close callback runs once" % id)
 
@@ -72,11 +72,11 @@ func _check_repeated_input_guard() -> void:
 	room.call("_play_furniture_action", "cabinet", func() -> void: action_state["count"] = int(action_state["count"]) + 1)
 	room.call("_play_furniture_action", "cabinet", func() -> void: action_state["count"] = int(action_state["count"]) + 1)
 	_check(bool(room.get("furniture_interaction_active")), "room locks interaction during furniture motion")
-	await create_timer(0.48).timeout
+	await create_timer(0.72).timeout
 	_check(int(action_state["count"]) == 1, "repeated interaction starts only one action")
 	_check(not bool(room.get("furniture_interaction_active")), "interaction unlocks after animation")
 	animator.play_close("cabinet")
-	await create_timer(0.38).timeout
+	await create_timer(0.60).timeout
 
 
 func _check_reduced_motion() -> void:
@@ -88,10 +88,14 @@ func _check_reduced_motion() -> void:
 	feedback.set("reduced_motion", true)
 	animator.play_open("door")
 	await create_timer(0.14).timeout
-	_check(animator.is_open("door"), "reduced motion keeps the open feedback")
+	_check(animator.is_animating("door"), "reduced motion preserves a readable open cadence")
+	await create_timer(0.38).timeout
+	_check(animator.is_open("door"), "reduced motion completes the open feedback")
 	animator.play_close("door")
 	await create_timer(0.12).timeout
-	_check(not animator.is_open("door"), "reduced motion keeps the close feedback")
+	_check(animator.is_animating("door"), "reduced motion preserves a readable close cadence")
+	await create_timer(0.32).timeout
+	_check(not animator.is_open("door"), "reduced motion completes the close feedback")
 	feedback.set("reduced_motion", previous)
 
 
@@ -114,7 +118,7 @@ func _check_return_close_cycle() -> void:
 	await create_timer(0.12).timeout
 	_check(animator.is_animating("assembly"), "returning from assembly visibly powers down its work surface")
 	_check(workbench.position.is_equal_approx(closed_position), "workbench feedback never pulls the furniture outward")
-	await create_timer(0.36).timeout
+	await create_timer(0.48).timeout
 	_check(not animator.is_open("assembly") and not animator.is_animating("assembly"), "return close cycle finishes cleanly")
 
 

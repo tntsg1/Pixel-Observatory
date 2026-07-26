@@ -1,0 +1,42 @@
+{
+  "fast_aerial": {
+    "status": "packaged",
+    "image_path": "res://assets/learning_media/fast/fast_aerial.jpg",
+    "role": "FAST aerial overview",
+    "source_page": "https://commons.wikimedia.org/wiki/File:202508_FAST_(Five-hundred-meter_Aperture_Spherical_radio_Telescope).jpg",
+    "author": "SCJiang",
+    "license": "CC BY-SA 4.0"
+  },
+  "fast_feed_cabin": {
+    "status": "packaged",
+    "image_path": "res://assets/learning_media/fast/fast_feed_cabin.jpg",
+    "role": "Suspended feed cabin and cable-drive reference",
+    "source_page": "https://commons.wikimedia.org/wiki/File:FAST_at_NMC_02.jpg",
+    "author": "Shujianyang",
+    "license": "CC BY-SA 4.0"
+  },
+  "fast_active_reflector": {
+    "status": "packaged",
+    "image_path": "res://assets/learning_media/fast/fast_active_reflector.jpg",
+    "role": "Active reflector and cable-net construction",
+    "source_page": "https://commons.wikimedia.org/wiki/File:FAST_under_construction,_took_from_rim..jpg",
+    "author": "蹕溫",
+    "license": "CC BY-SA 4.0"
+  },
+  "fast_control_room": {
+    "status": "reference_only",
+    "image_path": "",
+    "role": "FAST central control room",
+    "source_page": "https://nao.cas.cn/news/zh/202102/t20210206_6407079.html",
+    "author": "National Astronomical Observatories, Chinese Academy of Sciences",
+    "license": "No reusable license stated"
+  },
+  "pulsar_science": {
+    "status": "packaged",
+    "image_path": "res://assets/learning_media/fast/pulsar_science.jpg",
+    "role": "Pulsar science visualization",
+    "source_page": "https://svs.gsfc.nasa.gov/13058",
+    "author": "NASA Goddard Space Flight Center; visualization by Tom Bridgman",
+    "license": "NASA media usage guidelines"
+  }
+}

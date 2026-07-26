@@ -95,13 +95,13 @@ func _build() -> void:
 	var sky := _action_button(GameManager.text("Prepared Sky Test", "观星快速测试"), Vector2(530, 376), Vector2(252, 42), Color(0.06, 0.18, 0.34))
 	sky.pressed.connect(func() -> void:
 		GameManager.debug_jump_to_level(selected_level, true)
-		GameManager.debug_launch("sky", true)
+		GameManager.debug_launch("sky")
 	)
 	panel.add_child(sky)
 	var telescope := _action_button(GameManager.text("Prepared Telescope View", "望远镜视野快速测试"), Vector2(30, 428), Vector2(350, 42), Color(0.16, 0.12, 0.25))
 	telescope.pressed.connect(func() -> void:
 		GameManager.debug_jump_to_level(selected_level, true)
-		GameManager.debug_launch("telescope", true)
+		GameManager.debug_launch("telescope")
 	)
 	panel.add_child(telescope)
 	var prep := _action_button(GameManager.text("Prepare Equipment", "准备本关设备"), Vector2(398, 428), Vector2(250, 42), Color(0.16, 0.24, 0.12))
@@ -146,7 +146,21 @@ func _readiness_text() -> String:
 		collimation_line = GameManager.text("Collimation: %d%%. " % int(round(collimation)), "准直：%d%%。" % int(round(collimation)))
 	var open_line := GameManager.text("Observation entry: OPEN." if open_ok else "Observation entry: BLOCKED.",
 		"观测入口：已开放。" if open_ok else "观测入口：未开放。")
-	return GameManager.text("Test rig fully prepared. ", "当前测试设备已完整准备。") + main_line + " " + tube_line + " " + collimation_line + open_line
+	var mount_id := str(report.get("mount_id", ""))
+	var mount_line := ""
+	if mount_id != "":
+		var mount := GameManager.get_part(mount_id)
+		if bool(report.get("tracking_capable", false)):
+			mount_line = GameManager.text(
+				" Mount: %s · motor tracking %.2fx." % [GameManager.dict_text(mount, "name"), float(report.get("tracking_rate", 0.0))],
+				" 支架：%s · 电动追踪 %.2f 倍速。" % [GameManager.dict_text(mount, "name"), float(report.get("tracking_rate", 0.0))]
+			)
+		else:
+			mount_line = GameManager.text(
+				" Mount: %s · manual, hand-guided tracking only." % GameManager.dict_text(mount, "name"),
+				" 支架：%s · 手动支架，只能手动跟随。" % GameManager.dict_text(mount, "name")
+			)
+	return GameManager.text("Test rig fully prepared. ", "当前测试设备已完整准备。") + main_line + " " + tube_line + " " + collimation_line + open_line + mount_line
 
 
 func _refresh_selected_label() -> void:

@@ -3,9 +3,11 @@ class_name SpaceFalseColourDisplay
 
 const BAND_SHADER := preload("res://shaders/space_false_colour_band.gdshader")
 const CHANNEL_COLORS := {
-	"R": Color(1.0, 0.10, 0.025, 0.90),
-	"G": Color(0.025, 0.92, 0.20, 0.86),
-	"B": Color(0.055, 0.22, 1.0, 0.92),
+	# A restrained scientific palette. The channels remain easy to compare,
+	# without turning the image into fluorescent red/green/blue silhouettes.
+	"R": Color(0.94, 0.31, 0.17, 0.76),
+	"G": Color(0.43, 0.68, 0.49, 0.66),
+	"B": Color(0.24, 0.48, 0.86, 0.74),
 }
 const BAND_MODES := {
 	"nir_short": 0,
@@ -14,6 +16,7 @@ const BAND_MODES := {
 }
 
 var source_texture: Texture2D
+var band_textures: Dictionary = {}
 var channel_map: Dictionary = {}
 var signatures: Dictionary = {}
 var target_kind := "galaxy"
@@ -35,9 +38,11 @@ func configure(
 	kind: String,
 	seed: int,
 	strength: float,
-	preview := ""
+	preview := "",
+	separate_band_textures: Dictionary = {}
 ) -> void:
 	source_texture = texture
+	band_textures = separate_band_textures.duplicate()
 	channel_map = mapping.duplicate(true)
 	signatures = band_signatures.duplicate(true)
 	target_kind = kind
@@ -54,7 +59,7 @@ func _rebuild_layers() -> void:
 			remove_child(layer)
 			layer.queue_free()
 	_layers.clear()
-	if source_texture == null:
+	if source_texture == null and band_textures.is_empty():
 		return
 	if preview_band != "":
 		_add_band_layer(preview_band, Color(0.92, 0.96, 1.0, 0.96), "Preview")
@@ -66,13 +71,16 @@ func _rebuild_layers() -> void:
 
 
 func _add_band_layer(band_id: String, color: Color, suffix: String) -> void:
+	var layer_texture := band_textures.get(band_id, source_texture) as Texture2D
+	if layer_texture == null:
+		return
 	var layer := TextureRect.new()
 	layer.name = "BandLayer_%s_%s" % [band_id, suffix]
 	layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	layer.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	layer.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	layer.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	layer.texture = source_texture
+	layer.texture = layer_texture
 	layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var material := ShaderMaterial.new()
 	material.shader = BAND_SHADER
@@ -81,6 +89,7 @@ func _add_band_layer(band_id: String, color: Color, suffix: String) -> void:
 	material.set_shader_parameter("feature_weights", _signature_vector(band_id))
 	material.set_shader_parameter("signal_strength", signal_strength)
 	material.set_shader_parameter("reveal_progress", reveal_progress)
+	material.set_shader_parameter("direct_band_source", band_textures.has(band_id))
 	layer.material = material
 	add_child(layer)
 	_layers.append(layer)
@@ -105,7 +114,7 @@ func _update_reveal() -> void:
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("02060c"), true)
-	if source_texture != null:
+	if not _layers.is_empty():
 		return
 	var mapped_bands: Array[String] = []
 	if preview_band != "":

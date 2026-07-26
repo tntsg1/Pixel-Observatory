@@ -42,6 +42,10 @@ project/assembly_name="Starfall_Requiem"
 
 enabled=PackedStringArray("res://addons/godot_ai/plugin.cfg", "res://addons/tama/plugin.cfg")
 
+[gui]
+
+theme/custom_font="res://assets/fonts/ui_cjk_font.tres"
+
 [input]
 
 move_up={

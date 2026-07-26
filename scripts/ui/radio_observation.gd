@@ -4,21 +4,29 @@ extends Control
 # scientific state; this screen turns that state into a physical control-room
 # experience without introducing optical-telescope concepts.
 
-const BG := Color("07101a")
-const PANEL := Color("101b29")
-const PANEL_DEEP := Color("09141f")
-const GOLD := Color("d7a64a")
-const BRASS := Color("8e682e")
-const CYAN := Color("69cee8")
-const CRT := Color("94c8c4")
-const GREEN := Color("70d68b")
-const AMBER := Color("e0a447")
-const RED := Color("dc6a50")
-const TEXT := Color("e8e2d4")
-const MUTED := Color("91a3b4")
+const FAST_CRT_SHADER := preload("res://shaders/fast_crt_monitor.gdshader")
+const BG := Color("010203")
+const PANEL := Color("090b0d")
+const PANEL_DEEP := Color("030506")
+const GOLD := Color("d8d9d4")
+const BRASS := Color("69706e")
+const CYAN := Color("c7d7d8")
+const CRT := Color("d6dbd8")
+const GREEN := Color("86aa8d")
+const AMBER := Color("b5a06e")
+const RED := Color("a66f67")
+const TEXT := Color("ecece7")
+const MUTED := Color("858b89")
 const STAGE_KEYS := ["aim", "tune", "rfi", "fold", "report"]
 const SIMULATED_INTEGRATION_RATE := 42.0
 const WATERFALL_ROWS := 24
+const TERMINAL_HISTORY_LINES := 7
+const IDLE_HINT_DELAY := 20.0
+const FAST_TUTORIAL_PREFIX := "fast_guided_stage_"
+const RADIO_CONSOLE_BOOT_DURATION := 0.92
+const RADIO_CONSOLE_BOOT_DURATION_REDUCED := 0.64
+const RADIO_CONSOLE_SHUTDOWN_DURATION := 1.62
+const RADIO_CONSOLE_SHUTDOWN_DURATION_REDUCED := 1.08
 
 static var _array_takeover_seen_this_session := false
 
@@ -42,6 +50,16 @@ var intro_progress := 0.0
 var intro_overlay: Panel
 var intro_plot: RadioPlot
 var objective_label: Label
+var crt_glass: ColorRect
+var terminal_panel: Panel
+var terminal_label: Label
+var terminal_log: Array[String] = []
+var terminal_clock := 0.0
+var terminal_last_events: Dictionary = {}
+var terminal_emphasis_until := 0.0
+var last_input_drive := Vector2.ZERO
+var last_input_brake := false
+var last_aim_disturbance_active := false
 
 var status_label: Label
 var readout: Label
@@ -64,6 +82,15 @@ var waterfall_phase := 0.0
 var selected_peak := -1
 var rfi_evidence_label: Label
 var rfi_waterfall: Array = []
+var rfi_keep_button: Button
+var rfi_reject_button: Button
+var rfi_verify_button: Button
+var rfi_restore_button: Button
+var rfi_last_decision := ""
+var rfi_tutorial_panel: Panel
+var rfi_tutorial_label: Label
+var rfi_tutorial_next: Button
+var rfi_tutorial_step := 0
 
 var fold_step := 0
 var fold_slider: HSlider
@@ -79,6 +106,28 @@ var aim_capture_progress := 0.0
 var aim_capture_state := ""
 var discovery_phase := 0.0
 var discovery_plot: RadioPlot
+var discovery_event_trace: Array[String] = []
+
+var tutorial_steps: Array[Dictionary] = []
+var tutorial_step := -1
+var tutorial_waiting_action := ""
+var tutorial_action_complete := false
+var tutorial_frame: Panel
+var tutorial_next_button: Button
+var tutorial_mode_button: Button
+var tutorial_help_button: Button
+var tutorial_target: Control
+var tutorial_idle_seconds := 0.0
+var tutorial_idle_tier := 0
+var tutorial_active := false
+var console_shutdown_active := false
+
+var aim_drive_panel: Control
+var aim_brake_button: Button
+var tune_controls_panel: Control
+var tune_confirm_button: Button
+var report_panel_ref: Control
+var report_choices_holder: Control
 
 
 func _ready() -> void:
@@ -89,7 +138,126 @@ func _ready() -> void:
 	set_process(true)
 	_rebuild()
 	InteractionFeedback.page_enter(self)
-	call_deferred("_maybe_play_array_takeover")
+	_radio_console_boot()
+
+
+func _radio_console_boot() -> void:
+	var reduced := InteractionFeedback.is_reduced_motion()
+	var total_duration := (
+		RADIO_CONSOLE_BOOT_DURATION_REDUCED
+		if reduced else RADIO_CONSOLE_BOOT_DURATION)
+	var overlay := Control.new()
+	overlay.name = "FastConsoleBoot"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	overlay.z_index = 1300
+	overlay.set_meta("transition_duration", total_duration)
+	add_child(overlay)
+
+	var cover := ColorRect.new()
+	cover.color = Color.BLACK
+	cover.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(cover)
+	var scan := ColorRect.new()
+	scan.color = Color(CRT, 0.86)
+	scan.position = Vector2(512, 383)
+	scan.size = Vector2(0, 2)
+	overlay.add_child(scan)
+	var status := Label.new()
+	status.position = Vector2(246, 418)
+	status.size = Vector2(532, 30)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override("font_size", 13)
+	status.add_theme_color_override("font_color", CRT)
+	status.text = GameManager.text("RECEIVER CONSOLE  ·  WARMING CRT", "接收机控制台  ·  显像管预热")
+	overlay.add_child(status)
+
+	var line_time := total_duration * 0.28
+	var unfold_time := total_duration * 0.46
+	var settle_time := total_duration * 0.26
+	var tween := create_tween().bind_node(overlay)
+	tween.tween_property(scan, "position:x", 0.0, line_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tween.parallel().tween_property(scan, "size:x", 1024.0, line_time)
+	tween.tween_callback(func() -> void:
+		status.text = GameManager.text("ARRAY LINK  ·  SYNCHRONISING", "阵列链路  ·  正在同步"))
+	tween.tween_property(scan, "position:y", 0.0, unfold_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.parallel().tween_property(scan, "size:y", 768.0, unfold_time)
+	tween.parallel().tween_property(cover, "modulate:a", 0.16, unfold_time)
+	tween.tween_callback(func() -> void:
+		status.text = GameManager.text("FAST CONTROL  ·  READY", "FAST 控制系统  ·  就绪"))
+	tween.tween_property(cover, "modulate:a", 0.0, settle_time)
+	tween.parallel().tween_property(scan, "modulate:a", 0.0, settle_time)
+	tween.parallel().tween_property(status, "modulate:a", 0.0, settle_time)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(overlay):
+			overlay.queue_free()
+		call_deferred("_maybe_play_array_takeover"))
+
+
+func _radio_console_power_down() -> void:
+	if console_shutdown_active:
+		return
+	console_shutdown_active = true
+	running = true
+	var reduced := InteractionFeedback.is_reduced_motion()
+	var total_duration := (
+		RADIO_CONSOLE_SHUTDOWN_DURATION_REDUCED
+		if reduced else RADIO_CONSOLE_SHUTDOWN_DURATION)
+	var overlay := Control.new()
+	overlay.name = "FastConsoleShutdown"
+	overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	overlay.z_index = 1300
+	overlay.set_meta("transition_duration", total_duration)
+	add_child(overlay)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var status := Label.new()
+	status.position = Vector2(244, 346)
+	status.size = Vector2(536, 32)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	status.add_theme_font_size_override("font_size", 14)
+	status.add_theme_color_override("font_color", CRT)
+	status.text = GameManager.text("RECEIVER CHAIN  ·  SAFE", "接收链路  ·  已保护")
+	overlay.add_child(status)
+	var scan := ColorRect.new()
+	scan.color = Color(CRT, 0.82)
+	scan.position = Vector2(0, 383)
+	scan.size = Vector2(1024, 2)
+	overlay.add_child(scan)
+	var top := ColorRect.new()
+	top.color = Color.BLACK
+	top.position = Vector2.ZERO
+	top.size = Vector2(1024, 0)
+	overlay.add_child(top)
+	var bottom := ColorRect.new()
+	bottom.color = Color.BLACK
+	bottom.position = Vector2(0, 768)
+	bottom.size = Vector2(1024, 0)
+	overlay.add_child(bottom)
+	status.move_to_front()
+
+	var first_time := total_duration * 0.28
+	var close_time := total_duration * 0.46
+	var dot_time := total_duration * 0.26
+	var tween := create_tween().bind_node(overlay)
+	tween.tween_property(dim, "color:a", 0.48, first_time)
+	tween.tween_callback(func() -> void:
+		status.text = GameManager.text("ARRAY CONTROL  ·  RELEASED", "阵列控制权  ·  已释放"))
+	tween.tween_property(top, "size:y", 382.0, close_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tween.parallel().tween_property(bottom, "position:y", 386.0, close_time)
+	tween.parallel().tween_property(bottom, "size:y", 382.0, close_time)
+	tween.tween_callback(func() -> void:
+		status.text = GameManager.text("REMOTE LINK  ·  CLOSED", "远程链路  ·  已关闭"))
+	tween.tween_property(scan, "position:x", 510.0, dot_time)
+	tween.parallel().tween_property(scan, "size:x", 4.0, dot_time)
+	tween.parallel().tween_property(status, "modulate:a", 0.0, dot_time)
+	tween.tween_callback(func() -> void:
+		GameManager.set_observatory_spawn("computer")
+		GameManager.go("observatory"))
 
 
 func _profile() -> Dictionary:
@@ -107,6 +275,17 @@ func _profile() -> Dictionary:
 func _process(delta: float) -> void:
 	if model == null:
 		return
+	terminal_clock += delta
+	if terminal_emphasis_until > 0.0 and terminal_clock >= terminal_emphasis_until:
+		terminal_emphasis_until = 0.0
+		if terminal_label != null and is_instance_valid(terminal_label):
+			terminal_label.add_theme_color_override("font_color", CRT)
+	if not intro_running and not discovery_running and not running:
+		tutorial_idle_seconds += delta
+		if tutorial_idle_seconds >= IDLE_HINT_DELAY:
+			tutorial_idle_seconds = 0.0
+			_show_progressive_idle_hint()
+	_update_fast_crt()
 	if intro_running:
 		intro_progress = clampf(intro_progress + delta / 2.8, 0.0, 1.0)
 		if intro_plot != null and is_instance_valid(intro_plot):
@@ -115,15 +294,45 @@ func _process(delta: float) -> void:
 	if stage == 0 and not running:
 		var keyboard_drive := _keyboard_drive()
 		var active_drive := keyboard_drive if keyboard_drive != Vector2.ZERO else drive_vector
+		var brake_active := drive_braking or Input.is_key_pressed(KEY_SPACE)
+		if active_drive != last_input_drive:
+			if active_drive != Vector2.ZERO:
+				_terminal_event("FEED CABIN DRIVE", "RUN", _drive_direction_name(active_drive))
+				_note_player_activity()
+				_tutorial_action("aim_drive")
+			elif last_input_drive != Vector2.ZERO:
+				_terminal_event("FEED CABIN DRIVE", "COAST")
+			last_input_drive = active_drive
+		if brake_active != last_input_brake:
+			_terminal_event("INERTIAL BRAKE", "HOLD" if brake_active else "RELEASE")
+			if brake_active:
+				_note_player_activity()
+				_tutorial_action("aim_brake")
+			last_input_brake = brake_active
 		if active_drive != Vector2.ZERO:
 			model.nudge(active_drive.x, -active_drive.y, delta * 6.2)
-		if drive_braking or Input.is_key_pressed(KEY_SPACE):
+		if brake_active:
 			model.brake(delta * 7.0)
 		model.step(delta)
+		var disturbance_active := model.aim_disturbance_active()
+		if disturbance_active and not last_aim_disturbance_active:
+			_terminal_event("CABLE LOAD PULSE", "DAMPING", "NEXT IN %.0f s" % model.aim_disturbance_interval_s)
+			InteractionFeedback.feedback_sfx_requested.emit("fast_cable_settle")
+		last_aim_disturbance_active = disturbance_active
 		_record_aim_trail()
 		_refresh_aim()
 	elif stage == 3 and fold_step == 2 and integration_held and not discovery_running:
 		model.set_integration(model.integration_s + delta * SIMULATED_INTEGRATION_RATE)
+		_terminal_event(
+			"PHOTON INTEGRATION",
+			"ACCUMULATE",
+			"SNR %.1f" % model.fold_snr(),
+			"fold_integrate",
+			0.75
+		)
+		_note_player_activity()
+		if model.integration_s >= minf(20.0, model.required_integration_s * 0.2):
+			_tutorial_action("fold_integrate")
 		_refresh_fold()
 	elif stage in [1, 2] and not running:
 		waterfall_clock += delta
@@ -142,6 +351,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		var key := event as InputEventKey
 		if key.keycode == KEY_SPACE and stage == 3 and fold_step == 2:
 			integration_held = key.pressed
+			_terminal_event(
+				"PHOTON INTEGRATION",
+				"ACCUMULATE" if key.pressed else "HOLD",
+				"%.0f s" % model.integration_s
+			)
 			get_viewport().set_input_as_handled()
 			return
 		if not key.pressed or key.echo:
@@ -173,13 +387,116 @@ func _keyboard_drive() -> Vector2:
 	return value.normalized()
 
 
+func _drive_direction_name(value: Vector2) -> String:
+	var horizontal := ""
+	var vertical := ""
+	if value.x < -0.1:
+		horizontal = "WEST"
+	elif value.x > 0.1:
+		horizontal = "EAST"
+	if value.y < -0.1:
+		vertical = "NORTH"
+	elif value.y > 0.1:
+		vertical = "SOUTH"
+	if horizontal != "" and vertical != "":
+		return vertical + "-" + horizontal
+	return horizontal if horizontal != "" else vertical
+
+
+func _terminal_event(
+	command: String,
+	state: String,
+	detail: String = "",
+	throttle_key: String = "",
+	min_interval: float = 0.0,
+	important: bool = false
+) -> void:
+	var event_key := throttle_key if throttle_key != "" else "%s|%s|%s" % [command, state, detail]
+	var last_time := float(terminal_last_events.get(event_key, -999.0))
+	if terminal_clock - last_time < min_interval:
+		return
+	terminal_last_events[event_key] = terminal_clock
+	var total_seconds := maxi(0, int(terminal_clock))
+	var stamp := "T+%02d:%02d" % [total_seconds / 60, total_seconds % 60]
+	var dot_count := maxi(2, 31 - command.length())
+	var line := "%s  %s %s %s" % [stamp, command, ".".repeat(dot_count), state]
+	if detail != "":
+		line += "  " + detail
+	terminal_log.append(line)
+	while terminal_log.size() > TERMINAL_HISTORY_LINES:
+		terminal_log.pop_front()
+	if important:
+		terminal_emphasis_until = terminal_clock + 0.75
+	_refresh_terminal()
+
+
+func _refresh_terminal() -> void:
+	if terminal_label == null or not is_instance_valid(terminal_label):
+		return
+	terminal_label.text = "\n".join(terminal_log)
+	terminal_label.add_theme_color_override(
+		"font_color",
+		GREEN if terminal_emphasis_until > terminal_clock else CRT
+	)
+
+
+func _fast_visual_instability() -> float:
+	match stage:
+		0:
+			# A pointing error should not make the whole CRT shake forever. The
+			# brief cable-load event is the only strong AIM-stage disturbance.
+			if model.aim_disturbance_active():
+				return 0.72
+			return clampf(0.015 + model.pointing_speed() * 0.012, 0.015, 0.12)
+		1:
+			return clampf(0.18 + model.window_rfi_load() * 0.58 + (1.0 - model.tuning_quality()) * 0.28, 0.0, 1.0)
+		2:
+			var remaining := float(model.residual_rfi_count()) / float(maxi(1, model.rfi_peaks.size() - 1))
+			return clampf(0.12 + remaining * 0.72 + (0.22 if model.source_deleted() else 0.0), 0.0, 1.0)
+		3:
+			if fold_step == 0:
+				return clampf(0.85 - model.period_match() * 0.68, 0.08, 0.92)
+			if fold_step == 1:
+				return clampf(0.76 - model.dm_match() * 0.62, 0.08, 0.88)
+			return clampf(0.64 - minf(model.fold_snr() / maxf(model.report_snr_threshold, 0.1), 1.0) * 0.56, 0.04, 0.72)
+		_:
+			return 0.03
+
+
+func _update_fast_crt() -> void:
+	if crt_glass == null or not is_instance_valid(crt_glass):
+		return
+	var material := crt_glass.material as ShaderMaterial
+	if material == null:
+		return
+	var instability := _fast_visual_instability()
+	var stable := 1.0 - instability
+	material.set_shader_parameter("instability", instability)
+	material.set_shader_parameter("lock_stability", stable)
+	material.set_shader_parameter("flicker_strength", lerpf(0.002, 0.012, instability))
+	material.set_shader_parameter("rolling_refresh", lerpf(0.016, 0.045, instability))
+
+
+func _add_fast_crt_overlay() -> void:
+	crt_glass = ColorRect.new()
+	crt_glass.name = "FastCrtGlassOverlay"
+	crt_glass.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	crt_glass.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	crt_glass.z_index = 1200
+	var shader_material := ShaderMaterial.new()
+	shader_material.shader = FAST_CRT_SHADER
+	crt_glass.material = shader_material
+	add_child(crt_glass)
+	_update_fast_crt()
+
+
 # ---------------------------------------------------------------- layout
 func _rebuild() -> void:
 	for child in get_children():
 		child.queue_free()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_panel(Vector2.ZERO, Vector2(1024, 768), BG, BG)
-	_panel(Vector2(14, 10), Vector2(996, 724), Color("09131f"), BRASS)
+	_panel(Vector2(14, 10), Vector2(996, 724), Color("030405"), BRASS)
 	_label(GameManager.text("FAST RADIO OBSERVATION", "FAST 射电观测"), Vector2(24, 18), Vector2(976, 30), 23, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var target := GameManager.current_target()
 	_label(
@@ -192,19 +509,52 @@ func _rebuild() -> void:
 		_stage_objective(),
 		Vector2(42, 108), Vector2(940, 24), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER
 	)
-	objective_label.add_theme_stylebox_override("normal", _flat(Color("081723"), Color("28465a"), 1))
+	objective_label.add_theme_stylebox_override("normal", _flat(Color("030607"), Color("525a58"), 1))
 
 	content = Control.new()
 	content.position = Vector2(0, 128)
 	content.size = Vector2(1024, 546)
 	add_child(content)
 
-	status_label = _label("", Vector2(40, 680), Vector2(750, 42), 13, MUTED)
+	var terminal_bg := Panel.new()
+	terminal_panel = terminal_bg
+	terminal_bg.name = "FastEventTerminal"
+	terminal_bg.position = Vector2(40, 610)
+	terminal_bg.size = Vector2(750, 68)
+	terminal_bg.add_theme_stylebox_override("panel", _flat(Color("020303"), Color("404645"), 1))
+	terminal_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(terminal_bg)
+	terminal_label = _label_to(terminal_bg, "", Vector2(12, 3), Vector2(726, 62), 9, CRT)
+	terminal_label.name = "FastEventStream"
+	terminal_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	if terminal_log.is_empty():
+		_terminal_event("FAST ARRAY CONTROL", "ONLINE")
+		_terminal_event("REAL-TIME RECEIVER", "READY")
+	_refresh_terminal()
+
+	status_label = _label("", Vector2(40, 680), Vector2(520, 42), 13, MUTED)
+	status_label.name = "FastStatusLine"
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	tutorial_next_button = _button(GameManager.text("NEXT", "下一步"), Vector2(570, 684), Vector2(104, 34), Color("183844"))
+	tutorial_next_button.name = "FastTutorialNext"
+	tutorial_next_button.visible = false
+	tutorial_next_button.pressed.connect(_advance_fast_tutorial)
+	add_child(tutorial_next_button)
+	tutorial_mode_button = _button(GameManager.text("LESS GUIDE", "减少引导"), Vector2(680, 684), Vector2(112, 34), Color("242b31"))
+	tutorial_mode_button.name = "FastTutorialLessGuide"
+	tutorial_mode_button.visible = false
+	tutorial_mode_button.pressed.connect(_disable_full_fast_tutorial)
+	add_child(tutorial_mode_button)
+	tutorial_help_button = _button(GameManager.text("HELP", "操作说明"), Vector2(680, 684), Vector2(112, 34), Color("172235"))
+	tutorial_help_button.name = "FastTutorialReplay"
+	tutorial_help_button.pressed.connect(_replay_stage_tutorial)
+	add_child(tutorial_help_button)
 	var back := _button(GameManager.text("Back", "返回"), Vector2(812, 684), Vector2(178, 38), Color("172235"))
 	back.pressed.connect(_back)
 	add_child(back)
 	_build_stage()
+	call_deferred("_configure_stage_guidance")
+	_add_fast_crt_overlay()
 
 
 func _stage_objective() -> String:
@@ -365,6 +715,16 @@ func _draw_array_takeover(plot: RadioPlot) -> void:
 
 	_draw_plot_text(plot, GameManager.text("FAST ARRAY TAKEOVER", "FAST 阵列接管"), Vector2(34, 42), 24, GOLD)
 	_draw_plot_text(plot, GameManager.text("500 m ACTIVE REFLECTOR · GUIZHOU", "500 米主动反射面 · 贵州"), Vector2(36, 68), 12, CRT)
+	_draw_plot_text(
+		plot,
+		GameManager.text(
+			"Tonight the task changes: do not photograph the sky; recover a known pulsar's rhythm from noise.",
+			"今晚的任务变了：不再拍下天空，而是从噪声中找回一颗已知脉冲星的节奏。"
+		),
+		Vector2(36, 92),
+		11,
+		CYAN
+	)
 	var status_lines := [
 		GameManager.text("ARRAY SURFACE ........ ONLINE", "主动反射面 ........ 在线"),
 		GameManager.text("FEED CABIN ........... LINKED", "悬吊馈源舱 ........ 已连接"),
@@ -428,19 +788,449 @@ func _build_stage() -> void:
 		"report": _build_report()
 
 
+func _configure_stage_guidance() -> void:
+	if not is_inside_tree() or content == null:
+		return
+	tutorial_steps = _tutorial_steps_for_stage()
+	tutorial_step = -1
+	tutorial_waiting_action = ""
+	tutorial_action_complete = false
+	tutorial_active = false
+	tutorial_idle_seconds = 0.0
+	tutorial_idle_tier = 0
+	_clear_tutorial_frame()
+	if tutorial_next_button != null:
+		tutorial_next_button.visible = false
+	if tutorial_mode_button != null:
+		tutorial_mode_button.visible = false
+	if tutorial_help_button != null:
+		tutorial_help_button.visible = true
+	var seen_key := _tutorial_seen_key()
+	match GameManager.tutorial_assistance_mode():
+		GameManager.TUTORIAL_ASSIST_FULL:
+			if not InteractionFeedback.was_tutorial_seen(seen_key):
+				_start_stage_tutorial()
+		GameManager.TUTORIAL_ASSIST_LIGHT:
+			var light_key := seen_key + "_light"
+			if not InteractionFeedback.was_tutorial_seen(light_key):
+				InteractionFeedback.mark_tutorial_seen(light_key)
+				status_label.text = _light_stage_hint()
+				status_label.add_theme_color_override("font_color", CYAN)
+		_:
+			pass
+
+
+func _tutorial_steps_for_stage() -> Array[Dictionary]:
+	match STAGE_KEYS[stage]:
+		"aim":
+			return [
+				_tutorial_step_data(
+					"Mountains Between the Heartbeats: tonight you remotely take control of FAST in Guizhou. Radio astronomy begins by recognizing rhythm inside noise.",
+					"“群山之间的心跳”从贵州 FAST 的远程接管开始。射电观测不是拍照，而是在噪声中辨认节奏。",
+					"", scope,
+					"FAST is a fixed 500 m reflector; its active 300 m region and suspended cabin form the beam.",
+					"FAST 的 500 米反射面不会整体转动；活动的 300 米区域与悬吊馈源舱共同形成波束。"
+				),
+				_tutorial_step_data(
+					"Drive the cabin toward the projected sky beam. Watch the velocity arrow and predicted stopping point.",
+					"驱动馈源舱靠近天空波束投影，同时观察速度箭头和预计停止点。",
+					"aim_drive", aim_drive_panel,
+					"The cabin has inertia: releasing the control starts coasting, not an instant stop.",
+					"馈源舱具有惯性：松开控制后会继续滑行，不会立即停住。"
+				),
+				_tutorial_step_data(
+					"Brake before the cabin crosses the stability ring.",
+					"在馈源舱穿过稳定环之前提前制动。",
+					"aim_brake", aim_brake_button,
+					"Correct direction is not enough. Excess speed raises cable load and prevents a lock.",
+					"方向正确还不够；速度过高会增加缆索载荷，因此无法锁定。"
+				),
+				_tutorial_step_data(
+					"When error and speed are both low, engage the cabin lock.",
+					"误差和速度都降下来后，锁定馈源舱。",
+					"aim_lock", lock_button,
+					"The active reflector, six-cable suspension and receiver chain are now stable.",
+					"活动反射面、六索悬吊与接收机链路现在都已稳定。"
+				),
+			]
+		"tune":
+			return [
+				_tutorial_step_data(
+					"The receiver hears a wide radio band. First place its center over the broad, persistent candidate.",
+					"接收机会同时听见一大片频段。先把频窗中心移到宽缓、持续的候选信号上。",
+					"", scope,
+					"Center frequency chooses where the receiver listens.",
+					"中心频率决定接收机正在监听哪一段频谱。"
+				),
+				_tutorial_step_data(
+					"Move the center frequency and watch the candidate enter the window.",
+					"调整中心频率，观察候选信号进入频窗。",
+					"tune_center", scope,
+					"The source coverage rose because the window moved, not because it became wider.",
+					"信号覆盖率提高，是因为频窗位置改变，而不是因为带宽变宽。"
+				),
+				_tutorial_step_data(
+					"Now adjust bandwidth. Keep the broad candidate, but exclude tall patterned RFI.",
+					"现在调整带宽：保留宽缓候选，同时把高耸、规律的干扰挡在窗外。",
+					"tune_width", tune_controls_panel,
+					"Bandwidth controls how much spectrum enters. Wider is not always cleaner.",
+					"带宽决定有多少频谱进入接收机；更宽并不一定更干净。"
+				),
+				_tutorial_step_data(
+					"Stabilize the window when source coverage is high and RFI load is low.",
+					"信号覆盖率高、干扰负载低时，稳定频窗。",
+					"tune_confirm", tune_confirm_button,
+					"The candidate band is preserved for peak-by-peak review.",
+					"候选频段已保留，可以开始逐峰审查。"
+				),
+			]
+		"rfi":
+			return [
+				_tutorial_step_data(
+					"Human transmitters leave shapes in the spectrum. Select one peak and judge the evidence, not only its height.",
+					"人类发射源会在频谱留下不同形态。选择一个频峰，依据形态而不是只看高度。",
+					"", scope,
+					"Broad repeating structure suggests the sky; narrow, comb-like, burst or sweep patterns suggest RFI.",
+					"宽缓并重复的结构更像天体；窄带、梳状、突发或扫频更像人造干扰。"
+				),
+				_tutorial_step_data(
+					"Select a peak in the spectrum.",
+					"在频谱中选择一个峰。",
+					"rfi_select", scope,
+					"The review panel now names the peak shape and keeps your last decision visible.",
+					"审查面板会显示峰形，并持续保留你刚才的判定。"
+				),
+				_tutorial_step_data(
+					"Keep the broad repeating candidate or mark patterned interference.",
+					"保留宽缓、重复的候选；把规律性污染标记为干扰。",
+					"rfi_classify", rfi_keep_button,
+					"Removed contamination disappears from the cleaned trace. A mistaken deletion can be restored.",
+					"被剔除的污染会从净化轨迹消失；误删候选时可以恢复原始频谱。"
+				),
+				_tutorial_step_data(
+					"Review every peak, then verify the cleaned spectrum.",
+					"检查全部频峰，然后验证净化结果。",
+					"rfi_verify", rfi_verify_button,
+					"The time series is now clean enough to search for a repeating period.",
+					"时间序列已经足够干净，可以搜索重复周期。"
+				),
+			]
+		"fold":
+			if fold_step == 0:
+				return [
+					_tutorial_step_data(
+						"Search for the repetition period. A wrong trial period splits or drifts the folded peak.",
+						"先搜索重复周期。试验周期错误时，折叠峰会分裂或持续漂移。",
+						"", scope,
+						"Move the trial period until the two profiles converge.",
+						"调整试验周期，让分裂的两个轮廓逐渐汇合。"
+					),
+					_tutorial_step_data(
+						"Adjust the trial period and watch the folded profile.",
+						"调整试验周期，同时观察折叠轮廓。",
+						"fold_period_adjust", fold_slider,
+						"The peaks moved together because repeated pulses are landing in the same phase bin.",
+						"重复脉冲正落入同一相位区间，因此分裂峰开始汇合。"
+					),
+					_tutorial_step_data(
+						"Lock the trial period when the profile is coherent.",
+						"轮廓达到相干后，锁定试验周期。",
+						"fold_period_lock", fold_action_button,
+						"Period is coherent. Dispersion across frequency is the next error to remove.",
+						"周期已经相干；下一步要消除不同频率之间的色散延迟。"
+					),
+				]
+			if fold_step == 1:
+				return [
+					_tutorial_step_data(
+						"DM measures frequency-dependent delay. Wrong DM leaves the sub-band rows tilted.",
+						"DM 描述不同频率的到达延迟。DM 错误时，各子频段仍会倾斜错位。",
+						"", scope,
+						"Adjust DM until every sub-band pulse stands on one vertical line.",
+						"调整 DM，直到所有子频段脉冲垂直对齐。"
+					),
+					_tutorial_step_data(
+						"Adjust DM and watch the sub-band arrival rows.",
+						"调整 DM，同时观察各子频段的到达位置。",
+						"fold_dm_adjust", fold_slider,
+						"The rows straightened because the frequency delay was removed.",
+						"频率相关延迟被校正后，各行开始垂直对齐。"
+					),
+					_tutorial_step_data(
+						"Apply the DM correction once the rows align.",
+						"各行对齐后，应用 DM 校正。",
+						"fold_dm_lock", fold_action_button,
+						"Period and DM now agree. Only statistical confidence is missing.",
+						"周期与 DM 现在已经一致，只差足够的统计置信度。"
+					),
+				]
+			return [
+				_tutorial_step_data(
+					"Hold integration. Repeated measurements add coherently while random noise averages down.",
+					"持续按住积分。重复信号会同相叠加，随机噪声则被逐渐平均掉。",
+					"", scope,
+					"SNR rises with accumulated observing time, not with a cosmetic progress bar.",
+					"信噪比来自真实积分时间的累积，而不是装饰性的进度条。"
+				),
+				_tutorial_step_data(
+					"Hold the integration control until the pulse profile rises credibly above noise.",
+					"按住积分控制，直到脉冲轮廓可靠地高出噪声。",
+					"fold_integrate", fold_action_button,
+					"The same pulse is now repeating above a quieter background.",
+					"同一个脉冲正在更安静的背景上稳定重复。"
+				),
+				_tutorial_step_data(
+					"Confirm only when period, DM and SNR all support the same source.",
+					"只有周期、DM 与信噪比共同支持同一信号时，才能确认。",
+					"fold_confirm", fold_action_button,
+					"You independently confirmed a known pulsar signal from the noise.",
+					"你从噪声中独立确认了一个已知脉冲星信号。"
+				),
+			]
+		_:
+			return [
+				_tutorial_step_data(
+					"A scientific conclusion must agree with the evidence you produced.",
+					"科学结论必须与刚才亲手得到的证据一致。",
+					"", report_panel_ref,
+					"Compare residual RFI, aligned period and DM, and final SNR.",
+					"请比较残余干扰、周期与 DM 对齐情况，以及最终信噪比。"
+				),
+				_tutorial_step_data(
+					"Select the conclusion supported by the report card.",
+					"选择观测卡证据支持的结论。",
+					"report_choose", report_choices_holder,
+					"The selected statement can now be checked against measured evidence.",
+					"现在可以用实测证据检验这项结论。"
+				),
+				_tutorial_step_data(
+					"Submit the science report.",
+					"提交科学报告。",
+					"report_submit", submit_button,
+					"The observation is archived as a formal FAST data product.",
+					"本次观测将作为正式 FAST 数据成果归档。"
+				),
+			]
+
+
+func _tutorial_step_data(
+	text_en: String,
+	text_zh: String,
+	wait_action: String,
+	target: Control,
+	result_en: String,
+	result_zh: String
+) -> Dictionary:
+	return {
+		"text": GameManager.text(text_en, text_zh),
+		"wait": wait_action,
+		"target": target,
+		"result": GameManager.text(result_en, result_zh),
+	}
+
+
+func _start_stage_tutorial() -> void:
+	if tutorial_steps.is_empty():
+		return
+	tutorial_active = true
+	tutorial_step = 0
+	tutorial_idle_seconds = 0.0
+	tutorial_idle_tier = 0
+	tutorial_help_button.visible = false
+	tutorial_next_button.visible = true
+	tutorial_mode_button.visible = GameManager.uses_full_tutorials()
+	_show_fast_tutorial_step()
+
+
+func _show_fast_tutorial_step() -> void:
+	_clear_tutorial_frame()
+	if tutorial_step < 0 or tutorial_step >= tutorial_steps.size():
+		_finish_stage_tutorial()
+		return
+	var data := tutorial_steps[tutorial_step]
+	tutorial_waiting_action = str(data.get("wait", ""))
+	tutorial_action_complete = false
+	tutorial_target = data.get("target") as Control
+	status_label.text = str(data.get("text", ""))
+	status_label.add_theme_color_override("font_color", CYAN)
+	tutorial_next_button.text = GameManager.text(
+		"START" if tutorial_waiting_action == "" else "SKIP STEP",
+		"开始" if tutorial_waiting_action == "" else "跳过本步"
+	)
+	_create_tutorial_frame(tutorial_target)
+
+
+func _tutorial_action(action: String) -> void:
+	if not tutorial_active or tutorial_waiting_action == "" or tutorial_action_complete:
+		return
+	if action != tutorial_waiting_action:
+		return
+	tutorial_action_complete = true
+	var data := tutorial_steps[tutorial_step]
+	status_label.text = str(data.get("result", ""))
+	status_label.add_theme_color_override("font_color", GREEN)
+	tutorial_next_button.text = GameManager.text("NEXT", "下一步")
+	if tutorial_frame != null and is_instance_valid(tutorial_frame):
+		InteractionFeedback.pulse(tutorial_frame, GREEN, 0.35)
+	_terminal_event("GUIDED ACTION", "COMPLETE", action.to_upper(), "tutorial_%s" % action, 0.1, true)
+
+
+func _advance_fast_tutorial() -> void:
+	if not tutorial_active:
+		return
+	tutorial_step += 1
+	if tutorial_step >= tutorial_steps.size():
+		_finish_stage_tutorial()
+	else:
+		_show_fast_tutorial_step()
+
+
+func _finish_stage_tutorial() -> void:
+	if tutorial_active:
+		InteractionFeedback.mark_tutorial_seen(_tutorial_seen_key())
+	tutorial_active = false
+	tutorial_waiting_action = ""
+	tutorial_action_complete = false
+	_clear_tutorial_frame()
+	if tutorial_next_button != null:
+		tutorial_next_button.visible = false
+	if tutorial_mode_button != null:
+		tutorial_mode_button.visible = false
+	if tutorial_help_button != null:
+		tutorial_help_button.visible = true
+	status_label.text = _light_stage_hint()
+	status_label.add_theme_color_override("font_color", MUTED)
+
+
+func _disable_full_fast_tutorial() -> void:
+	GameManager.set_tutorial_assistance_mode(GameManager.TUTORIAL_ASSIST_LIGHT)
+	tutorial_active = false
+	_clear_tutorial_frame()
+	tutorial_next_button.visible = false
+	tutorial_mode_button.visible = false
+	tutorial_help_button.visible = true
+	status_label.text = GameManager.text(
+		"Full guidance is off. Use Help to replay this stage, or restore it from Settings.",
+		"完整引导已关闭。可用“操作说明”重看本阶段，也可随时在设置中恢复。"
+	)
+	status_label.add_theme_color_override("font_color", CYAN)
+
+
+func _replay_stage_tutorial() -> void:
+	tutorial_steps = _tutorial_steps_for_stage()
+	_start_stage_tutorial()
+
+
+func _create_tutorial_frame(target: Control) -> void:
+	if target == null or not is_instance_valid(target):
+		return
+	tutorial_frame = Panel.new()
+	tutorial_frame.name = "FastTutorialFocus"
+	tutorial_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	tutorial_frame.z_index = 1100
+	var local_origin := get_global_rect().position
+	var target_rect := target.get_global_rect()
+	tutorial_frame.position = target_rect.position - local_origin - Vector2(5, 5)
+	tutorial_frame.size = target_rect.size + Vector2(10, 10)
+	tutorial_frame.add_theme_stylebox_override("panel", _flat(Color.TRANSPARENT, CYAN, 2))
+	add_child(tutorial_frame)
+	if not InteractionFeedback.is_reduced_motion():
+		var pulse := create_tween().bind_node(tutorial_frame).set_loops()
+		pulse.tween_property(tutorial_frame, "modulate:a", 0.52, 0.58).set_trans(Tween.TRANS_SINE)
+		pulse.tween_property(tutorial_frame, "modulate:a", 1.0, 0.58).set_trans(Tween.TRANS_SINE)
+
+
+func _clear_tutorial_frame() -> void:
+	if tutorial_frame != null and is_instance_valid(tutorial_frame):
+		tutorial_frame.queue_free()
+	tutorial_frame = null
+	tutorial_target = null
+
+
+func _note_player_activity() -> void:
+	tutorial_idle_seconds = 0.0
+	tutorial_idle_tier = 0
+
+
+func _show_progressive_idle_hint() -> void:
+	if GameManager.tutorial_assistance_mode() == GameManager.TUTORIAL_ASSIST_FREE:
+		return
+	tutorial_idle_tier = mini(tutorial_idle_tier + 1, 3)
+	var hint := _idle_hint_for_state(tutorial_idle_tier)
+	if hint == "":
+		return
+	status_label.text = hint
+	status_label.add_theme_color_override("font_color", AMBER if tutorial_idle_tier < 3 else CYAN)
+	if tutorial_target != null and is_instance_valid(tutorial_target):
+		InteractionFeedback.pulse(tutorial_target, AMBER, 0.42)
+
+
+func _idle_hint_for_state(tier: int) -> String:
+	var area := ""
+	var phenomenon := ""
+	var action := ""
+	match STAGE_KEYS[stage]:
+		"aim":
+			area = GameManager.text("Look at the cabin vector and stability ring.", "请看馈源舱矢量与稳定环。")
+			phenomenon = GameManager.text("A cabin inside the ring still cannot lock while its speed is high.", "即使馈源舱进入圆环，速度过高时仍无法锁定。")
+			action = GameManager.text("Drive gently, brake before the center, then engage the lock.", "轻推方向，抵达中心前提前制动，再执行锁定。")
+		"tune":
+			area = GameManager.text("Look at the broad candidate and the movable passband.", "请看宽缓候选信号与可拖动频窗。")
+			phenomenon = GameManager.text("Center moves the window; width decides how much RFI enters.", "中心频率移动频窗，带宽决定多少干扰会进入。")
+			action = GameManager.text("Center on the broad feature, narrow away from tall peaks, then stabilize.", "把中心对准宽缓结构，缩窄以避开高峰，再稳定频窗。")
+		"rfi":
+			area = GameManager.text("Inspect the selected peak's shape in Peak Review.", "请在“频峰审查”中查看所选峰的形态。")
+			phenomenon = GameManager.text("Repeating broad structure is the candidate; patterned narrow features are RFI.", "重复的宽缓结构是候选；规律性窄峰是干扰。")
+			action = GameManager.text("Select each peak, keep the candidate, reject interference, then verify.", "逐个选择频峰，保留候选、剔除干扰，然后验证。")
+		"fold":
+			if fold_step == 0:
+				area = GameManager.text("Watch whether the folded profile is split.", "请观察折叠轮廓是否分裂。")
+				phenomenon = GameManager.text("Two peaks mean the trial period is still wrong.", "出现双峰说明试验周期仍然错误。")
+				action = GameManager.text("Adjust the period until both peaks merge, then lock it.", "调整周期让双峰汇合，再锁定周期。")
+			elif fold_step == 1:
+				area = GameManager.text("Watch the horizontal offset between sub-band rows.", "请观察各子频段行之间的水平错位。")
+				phenomenon = GameManager.text("Tilted rows mean the DM correction is incomplete.", "各行倾斜说明 DM 校正尚未完成。")
+				action = GameManager.text("Adjust DM until all rows align vertically, then apply.", "调整 DM 让各行垂直对齐，再应用校正。")
+			else:
+				area = GameManager.text("Watch integration time, SNR and the folded profile together.", "请同时观察积分时间、信噪比与折叠轮廓。")
+				phenomenon = GameManager.text("Random noise falls slowly while a real periodic pulse repeats.", "随机噪声会缓慢下降，真实周期脉冲则持续重复。")
+				action = GameManager.text("Hold Space or the integration control until SNR reaches the marked threshold.", "按住空格或积分控制，直到信噪比达到标记阈值。")
+		_:
+			area = GameManager.text("Compare the raw band, clean band and folded profile.", "请比较原始频段、净化频段与折叠轮廓。")
+			phenomenon = GameManager.text("The conclusion must agree with residual RFI, DM alignment and SNR.", "结论必须与残余干扰、DM 对齐和信噪比一致。")
+			action = GameManager.text("Choose the evidence-backed conclusion, then submit the report.", "选择证据支持的结论，再提交报告。")
+	return [area, phenomenon, action][clampi(tier - 1, 0, 2)]
+
+
+func _light_stage_hint() -> String:
+	match STAGE_KEYS[stage]:
+		"aim": return GameManager.text("Drive toward the ring, brake before center, and lock only after speed settles.", "驶向稳定环，在中心前制动；速度稳定后再锁定。")
+		"tune": return GameManager.text("Center chooses where to listen; bandwidth decides how much interference enters.", "中心频率决定监听位置，带宽决定多少干扰进入。")
+		"rfi": return GameManager.text("Keep broad repeating evidence; remove narrow or patterned human interference.", "保留宽缓、重复的证据；剔除窄带或规律性人造干扰。")
+		"fold": return _challenge_hint()
+		_: return GameManager.text("Submit only the conclusion supported by residual RFI, aligned timing and SNR.", "只提交残余干扰、时间对齐和信噪比共同支持的结论。")
+
+
+func _tutorial_seen_key() -> String:
+	if STAGE_KEYS[stage] == "fold":
+		return FAST_TUTORIAL_PREFIX + "fold_%d" % fold_step
+	return FAST_TUTORIAL_PREFIX + STAGE_KEYS[stage]
+
+
 func _advance(next_stage: int = stage + 1) -> void:
 	stage = clampi(next_stage, 0, STAGE_KEYS.size() - 1)
 	_rebuild()
 
 
 func _back() -> void:
+	if console_shutdown_active:
+		return
 	if stage > 0 and stage < 4:
 		stage -= 1
 		fold_step = 0
 		_rebuild()
 		return
-	GameManager.set_observatory_spawn("telescope")
-	GameManager.go("observatory")
+	_radio_console_power_down()
 
 
 # ---------------------------------------------------------------- 1. AIM
@@ -454,6 +1244,7 @@ func _build_aim() -> void:
 	display.add_child(scope)
 
 	var drive := _panel_to(content, Vector2(674, 6), Vector2(318, 478), PANEL, GOLD, GameManager.text("CABIN DRIVE", "馈源舱驱动"))
+	aim_drive_panel = drive
 	aim_lamp = Panel.new()
 	aim_lamp.position = Vector2(274, 14)
 	aim_lamp.size = Vector2(20, 20)
@@ -471,7 +1262,12 @@ func _build_aim() -> void:
 	_drive_button(drive, "◀", Vector2(pad_center.x - 102, pad_center.y - 22), Vector2(64, 44), Vector2(-1, 0))
 	_drive_button(drive, "▶", Vector2(pad_center.x + 38, pad_center.y - 22), Vector2(64, 44), Vector2(1, 0))
 	var brake := _button(GameManager.text("BRAKE", "制动"), Vector2(pad_center.x - 42, pad_center.y - 22), Vector2(84, 44), Color("3a2a1d"))
-	brake.button_down.connect(func() -> void: drive_braking = true)
+	aim_brake_button = brake
+	brake.button_down.connect(func() -> void:
+		drive_braking = true
+		_note_player_activity()
+		_tutorial_action("aim_brake")
+	)
 	brake.button_up.connect(func() -> void: drive_braking = false)
 	drive.add_child(brake)
 
@@ -481,16 +1277,6 @@ func _build_aim() -> void:
 	_label_to(drive, GameManager.text("WASD / arrows: drive   Space: brake", "WASD / 方向键：驱动   空格：制动"), Vector2(16, 374), Vector2(286, 22), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 
 	_refresh_aim()
-	if not InteractionFeedback.was_tutorial_seen("first_fast_cabin"):
-		InteractionFeedback.tutorial_highlight_once(
-			scope,
-			"first_fast_cabin",
-			GameManager.text(
-				"Follow the motion vector. Brake before crossing the stable ring.",
-				"跟随运动矢量，在越过稳定环前提前制动。"
-			),
-			self
-		)
 
 
 func _drive_button(parent: Control, text_value: String, pos: Vector2, size_value: Vector2, vector: Vector2) -> void:
@@ -498,6 +1284,8 @@ func _drive_button(parent: Control, text_value: String, pos: Vector2, size_value
 	button.add_theme_font_size_override("font_size", 19)
 	button.button_down.connect(func() -> void:
 		drive_vector = vector
+		_note_player_activity()
+		_tutorial_action("aim_drive")
 		InteractionFeedback.feedback_sfx_requested.emit("fast_cabin_drive")
 	)
 	button.button_up.connect(func() -> void:
@@ -521,14 +1309,20 @@ func _record_aim_trail() -> void:
 func _refresh_aim() -> void:
 	if readout == null or not is_instance_valid(readout):
 		return
+	var disturbance_text := (
+		GameManager.text("QUIET", "稳定")
+		if model.seconds_to_aim_disturbance() < 0.0
+		else GameManager.text("%.1f s" % model.seconds_to_aim_disturbance(), "%.1f 秒" % model.seconds_to_aim_disturbance())
+	)
+	var active_patch := model.active_reflector_center_normalized()
 	readout.text = GameManager.text(
-		"Cabin  AZ %06.2f°  ALT %05.2f°\nTarget AZ %06.2f°  ALT %05.2f°\nError %.2f°   Speed %.2f°/s" % [
+		"Cabin  AZ %06.2f°  ALT %05.2f°\nTarget AZ %06.2f°  ALT %05.2f°\nError %.2f°   Speed %.2f°/s\nPatch %+0.2f/%+0.2f   Pulse %s" % [
 			model.azimuth, model.altitude, model.true_azimuth, model.true_altitude,
-			model.pointing_error(), model.pointing_speed(),
+			model.pointing_error(), model.pointing_speed(), active_patch.x, active_patch.y, disturbance_text,
 		],
-		"馈源舱  方位 %06.2f°  高度 %05.2f°\n目标    方位 %06.2f°  高度 %05.2f°\n误差 %.2f°   速度 %.2f°/秒" % [
+		"馈源舱  方位 %06.2f°  高度 %05.2f°\n目标    方位 %06.2f°  高度 %05.2f°\n误差 %.2f°   速度 %.2f°/秒\n工作区 %+0.2f/%+0.2f   扰动 %s" % [
 			model.azimuth, model.altitude, model.true_azimuth, model.true_altitude,
-			model.pointing_error(), model.pointing_speed(),
+			model.pointing_error(), model.pointing_speed(), active_patch.x, active_patch.y, disturbance_text,
 		]
 	)
 	var color := GREEN if model.is_locked() else (AMBER if model.is_on_target() else TEXT)
@@ -541,9 +1335,12 @@ func _refresh_aim() -> void:
 
 
 func _draw_aim_plot(plot: RadioPlot) -> void:
-	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("06111a"), true)
-	_draw_crt_grid(plot, Rect2(Vector2(12, 10), plot.size - Vector2(24, 38)), 42.0, Color(0.20, 0.36, 0.42, 0.20))
-	var center := Vector2(plot.size.x * 0.5, plot.size.y * 0.48)
+	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("020405"), true)
+	_draw_crt_grid(plot, Rect2(Vector2(12, 10), plot.size - Vector2(24, 38)), 42.0, Color(0.46, 0.50, 0.49, 0.13))
+	var projection_origin := Vector2(plot.size.x * 0.5, plot.size.y * 0.40)
+	var target_projection := model.target_feed_offset_normalized()
+	var center := projection_origin + Vector2(target_projection.x * 118.0, target_projection.y * 54.0)
+	_draw_fast_reflector_wireframe(plot, center)
 	var scale_factor := 7.0
 	var err_az := wrapf(model.azimuth - model.true_azimuth, -180.0, 180.0)
 	var err_alt := model.altitude - model.true_altitude
@@ -556,17 +1353,36 @@ func _draw_aim_plot(plot: RadioPlot) -> void:
 	plot.draw_arc(center, stability_radius, 0.0, TAU * clampf(model.stability() + 0.08, 0.08, 1.0), 72, GREEN if model.is_locked() else AMBER, 3.0, true)
 	plot.draw_line(center - Vector2(48, 0), center + Vector2(48, 0), Color(CRT, 0.45), 1.0)
 	plot.draw_line(center - Vector2(0, 48), center + Vector2(0, 48), Color(CRT, 0.45), 1.0)
+	_draw_plot_text(
+		plot,
+		GameManager.text(
+			"SKY BEAM  AZ %.1f°  ALT %.1f°" % [model.true_azimuth, model.true_altitude],
+			"天空波束  方位 %.1f°  高度 %.1f°" % [model.true_azimuth, model.true_altitude]
+		),
+		center + Vector2(-66, -42),
+		9,
+		Color(CRT, 0.62)
+	)
 
-	var corners := [
+	var cable_anchors := [
 		Vector2(38, 26),
 		Vector2(plot.size.x - 38, 26),
+		Vector2(18, plot.size.y * 0.48),
+		Vector2(plot.size.x - 18, plot.size.y * 0.48),
 		Vector2(38, plot.size.y - 48),
 		Vector2(plot.size.x - 38, plot.size.y - 48),
 	]
 	var tension_color := RED if model.tension_warning() else Color(GOLD, 0.64)
-	for corner in corners:
-		plot.draw_line(corner, marker, tension_color, 1.2)
-		plot.draw_circle(corner, 4.0, BRASS)
+	for cable_index in range(cable_anchors.size()):
+		var anchor: Vector2 = cable_anchors[cable_index]
+		var load_phase := sin(float(cable_index) * 1.17 + model.cable_tension * 2.0)
+		var cable_color := Color(
+			tension_color,
+			clampf(0.46 + model.cable_tension * 0.38 + load_phase * 0.06, 0.35, 0.96)
+		)
+		plot.draw_line(anchor, marker, cable_color, 1.0 + model.cable_tension * 0.8)
+		plot.draw_circle(anchor, 4.0, BRASS)
+		_draw_plot_text(plot, "C%d" % (cable_index + 1), anchor + Vector2(5, -3), 7, Color(CRT, 0.38))
 
 	if aim_trail.size() > 1:
 		var trail := PackedVector2Array()
@@ -615,13 +1431,121 @@ func _draw_aim_plot(plot: RadioPlot) -> void:
 	_draw_plot_text(plot, state_text, Vector2(18, plot.size.y - 18), 12, GREEN if model.is_locked() else AMBER)
 
 
+func _draw_fast_reflector_wireframe(plot: RadioPlot, feed_target: Vector2) -> void:
+	var dish_center := Vector2(plot.size.x * 0.5, plot.size.y * 0.82)
+	var dish_width := plot.size.x * 0.43
+	var dish_depth := plot.size.y * 0.22
+	var wire := Color(CRT, 0.14)
+	var bright_wire := Color(CRT, 0.24)
+
+	for ring in range(7):
+		var t := float(ring + 1) / 7.0
+		var half_width := dish_width * t
+		var y := dish_center.y - dish_depth * (1.0 - t * t)
+		var points := PackedVector2Array()
+		for sample in range(49):
+			var x_norm := lerpf(-1.0, 1.0, float(sample) / 48.0)
+			var x := dish_center.x + x_norm * half_width
+			var sag := (x_norm * x_norm) * 12.0 * t
+			points.append(Vector2(x, y + sag))
+		plot.draw_polyline(points, bright_wire if ring == 6 else wire, 1.0, true)
+
+	for spoke in range(15):
+		var x_norm := lerpf(-1.0, 1.0, float(spoke) / 14.0)
+		var rim := Vector2(
+			dish_center.x + x_norm * dish_width,
+			dish_center.y + x_norm * x_norm * 12.0
+		)
+		var inner := Vector2(
+			dish_center.x + x_norm * 18.0,
+			dish_center.y - dish_depth + 2.0
+		)
+		plot.draw_line(inner, rim, wire, 1.0)
+
+	# The illuminated 300 m patch follows the target direction. Each small
+	# diamond carries its own actuator-slope mark, so the reflector reads as a
+	# deformable cable-net surface instead of one rigid bowl.
+	var active_normalized := model.active_reflector_center_normalized()
+	var active_center := Vector2(
+		dish_center.x + active_normalized.x * dish_width * 0.74,
+		dish_center.y - dish_depth * 0.43 + active_normalized.y * dish_depth * 0.34
+	)
+	var active_radius := Vector2(dish_width * 0.28, dish_depth * 0.30)
+	var active_outline := PackedVector2Array()
+	for sample in range(41):
+		var angle := TAU * float(sample) / 40.0
+		active_outline.append(active_center + Vector2(cos(angle) * active_radius.x, sin(angle) * active_radius.y))
+	plot.draw_polyline(active_outline, Color(CYAN, 0.38), 1.0, true)
+	for row in range(-4, 5):
+		for column in range(-8, 9):
+			var panel_normalized := Vector2(float(column) / 8.5, float(row) / 4.5)
+			if panel_normalized.length_squared() > 1.0:
+				continue
+			var panel_point := Vector2(
+				dish_center.x + panel_normalized.x * dish_width,
+				dish_center.y - dish_depth * 0.44 + panel_normalized.y * dish_depth * 0.42
+			)
+			var active_delta := panel_point - active_center
+			var in_active_patch := (
+				pow(active_delta.x / active_radius.x, 2.0)
+				+ pow(active_delta.y / active_radius.y, 2.0)
+			) <= 1.0
+			var formation := clampf(0.28 + model.stability() * 0.72, 0.28, 1.0)
+			var panel_color := Color(CYAN, 0.30 + formation * 0.48) if in_active_patch else Color(CRT, 0.13)
+			var half_size := Vector2(5.0, 2.5)
+			var panel_outline := PackedVector2Array([
+				panel_point + Vector2(-half_size.x, 0),
+				panel_point + Vector2(0, -half_size.y),
+				panel_point + Vector2(half_size.x, 0),
+				panel_point + Vector2(0, half_size.y),
+				panel_point + Vector2(-half_size.x, 0),
+			])
+			plot.draw_polyline(panel_outline, panel_color, 1.0, true)
+			if in_active_patch:
+				var tilt := model.panel_tilt_vector(panel_normalized)
+				var tilt_line := tilt.normalized() * clampf(tilt.length() * 4.2, 1.5, 5.0)
+				plot.draw_line(panel_point - tilt_line, panel_point + tilt_line, Color(AMBER, 0.76), 1.0)
+
+	plot.draw_dashed_line(feed_target, active_center, Color(CYAN, 0.24), 8.0, 1.0)
+	_draw_plot_text(
+		plot,
+		GameManager.text("ACTIVE PARABOLOID", "活动抛物面"),
+		active_center + Vector2(-50, 18),
+		8,
+		Color(CYAN, 0.48)
+	)
+
+	var tower_y := plot.size.y * 0.23
+	var left_tower := Vector2(40, tower_y)
+	var right_tower := Vector2(plot.size.x - 40, tower_y)
+	for tower in [left_tower, right_tower]:
+		plot.draw_line(tower, Vector2(tower.x, dish_center.y + 8.0), Color(CRT, 0.22), 1.0)
+		plot.draw_line(tower + Vector2(-8, 0), tower + Vector2(8, 0), Color(CRT, 0.32), 1.0)
+	_draw_plot_text(
+		plot,
+		GameManager.text("500 m FULL APERTURE · 300 m ACTIVE PARABOLOID · 6-CABLE CABIN", "500 米全口径 · 300 米活动抛物面 · 六索馈源舱"),
+		Vector2(18, plot.size.y - 40),
+		9,
+		Color(CRT, 0.46)
+	)
+
+
 func _try_lock() -> void:
 	if running:
 		return
 	if model.is_locked():
+		_terminal_event("FEED CABIN LOCK", "ACQUIRE", "ERROR %.2f deg" % model.pointing_error())
+		_terminal_event("SIX-CABLE LOAD", "BALANCED", "SPEED %.2f deg/s" % model.pointing_speed())
+		_terminal_event("ACTIVE SURFACE", "FORMING", "300 m PARABOLOID")
 		running = true
 		await _play_cabin_capture_sequence()
 		running = false
+		_tutorial_action("aim_lock")
+		_terminal_event("RECEIVER CHAIN", "CAPTURED", "PSR %s" % str(model.target_id).to_upper(), "", 0.0, true)
+		_maya_reaction(
+			"The cabin is steady. FAST is no longer looking everywhere; it is listening in one precise direction.",
+			"馈源舱稳定了。FAST 不再听整片天空，而是在一个精确方向上开始倾听。"
+		)
 		_advance(1)
 		_radio_operation_chain(
 			GameManager.text("Locked the suspended feed cabin", "锁定悬吊馈源舱"),
@@ -629,10 +1553,14 @@ func _try_lock() -> void:
 			GameManager.text("The receiver can now search the radio band", "接收机现在可以搜索射电频段")
 		)
 	elif model.is_on_target():
+		_note_player_activity()
+		_terminal_event("FEED CABIN LOCK", "WAIT", "SPEED %.2f deg/s" % model.pointing_speed())
 		status_label.text = GameManager.text("The cabin is crossing the target too fast. Brake and let the stable ring close.", "馈源舱掠过目标的速度过快。请制动并等待稳定环闭合。")
 		status_label.add_theme_color_override("font_color", AMBER)
 		InteractionFeedback.error(lock_button)
 	else:
+		_note_player_activity()
+		_terminal_event("FEED CABIN LOCK", "REJECT", "ERROR %.2f deg" % model.pointing_error())
 		status_label.text = GameManager.text("Position error remains visible in the cabin plot. Follow the vector toward the central ring.", "馈源舱位置图仍显示明显误差。请沿矢量驶向中央稳定环。")
 		status_label.add_theme_color_override("font_color", RED)
 		InteractionFeedback.error(lock_button)
@@ -668,6 +1596,10 @@ func _play_cabin_capture_sequence() -> void:
 				scope.queue_redraw()
 		, start, finish, duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		await tween.finished
+		_terminal_event(
+			["ATTITUDE SLEW", "CABLE LOAD", "RECEIVER CAPTURE"][i],
+			["COMPLETE", "SETTLED", "LOCKED"][i]
+		)
 		if i == 1:
 			InteractionFeedback.feedback_sfx_requested.emit("fast_cable_settle")
 	aim_capture_progress = 1.0
@@ -689,6 +1621,7 @@ func _build_tune() -> void:
 	spectrum_panel.add_child(scope)
 
 	var controls := _panel_to(content, Vector2(32, 374), Vector2(960, 110), PANEL, GOLD, GameManager.text("PASSBAND CONTROLS", "通带控制"))
+	tune_controls_panel = controls
 	readout = _label_to(controls, "", Vector2(18, 38), Vector2(330, 58), 12, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_stepper(controls, GameManager.text("CENTER MHz", "中心 MHz"), Vector2(372, 40), 150.0, _adjust_tune_center.bind(-5.0), _adjust_tune_center.bind(5.0))
@@ -696,6 +1629,7 @@ func _build_tune() -> void:
 	tune_log_label = _label_to(controls, "", Vector2(718, 38), Vector2(224, 32), 10, CRT, HORIZONTAL_ALIGNMENT_CENTER)
 	tune_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var confirm := _button(GameManager.text("STABILIZE WINDOW", "稳定频窗"), Vector2(728, 72), Vector2(204, 30), Color("18452f"))
+	tune_confirm_button = confirm
 	confirm.pressed.connect(_confirm_tune)
 	controls.add_child(confirm)
 	if tune_waterfall.is_empty():
@@ -705,12 +1639,20 @@ func _build_tune() -> void:
 
 func _adjust_tune_center(delta: float) -> void:
 	model.window_center_mhz = clampf(model.window_center_mhz + delta, model.BAND_MIN, model.BAND_MAX)
+	_note_player_activity()
+	_tutorial_action("tune_center")
+	_terminal_event("RECEIVER WINDOW", "MOVING", "CENTER %.0f MHz" % model.window_center_mhz, "tune_center", 0.28)
+	_terminal_event("CANDIDATE COVERAGE", "MEASURE", "%d%%" % int(model.window_covers_source() * 100.0), "tune_coverage", 0.42)
 	InteractionFeedback.feedback_sfx_requested.emit("fast_tune_window")
 	_refresh_tune()
 
 
 func _adjust_tune_width(delta: float) -> void:
 	model.window_bandwidth_mhz = clampf(model.window_bandwidth_mhz + delta, 20.0, 180.0)
+	_note_player_activity()
+	_tutorial_action("tune_width")
+	_terminal_event("PASSBAND WIDTH", "MOVING", "%.0f MHz" % model.window_bandwidth_mhz, "tune_width", 0.28)
+	_terminal_event("RFI LOAD", "MEASURE", "%d%%" % int(model.window_rfi_load() * 100.0), "tune_rfi", 0.42)
 	InteractionFeedback.feedback_sfx_requested.emit("fast_tune_window")
 	_refresh_tune()
 
@@ -730,6 +1672,7 @@ func _on_tune_scope_input(event: InputEvent) -> void:
 		if mouse.button_index != MOUSE_BUTTON_LEFT:
 			return
 		if mouse.pressed:
+			_note_player_activity()
 			var rect := _tune_window_rect(scope.size)
 			if absf(mouse.position.x - rect.position.x) <= 12.0:
 				tune_drag_mode = "left"
@@ -739,7 +1682,14 @@ func _on_tune_scope_input(event: InputEvent) -> void:
 				tune_drag_mode = "center"
 				_set_tune_center_from_x(mouse.position.x)
 		else:
+			var completed_drag_mode := tune_drag_mode
 			tune_drag_mode = ""
+			_terminal_event(
+				"RECEIVER WINDOW",
+				"HOLD",
+				"%.0f / %.0f MHz" % [model.window_center_mhz, model.window_bandwidth_mhz]
+			)
+			_tutorial_action("tune_center" if completed_drag_mode == "center" else "tune_width")
 			InteractionFeedback.feedback_sfx_requested.emit("fast_tune_window")
 		_refresh_tune()
 	elif event is InputEventMouseMotion and tune_drag_mode != "":
@@ -747,10 +1697,13 @@ func _on_tune_scope_input(event: InputEvent) -> void:
 		var mhz := _x_to_mhz(motion.position.x, scope.size.x)
 		if tune_drag_mode == "center":
 			model.window_center_mhz = mhz
+			_tutorial_action("tune_center")
 		else:
 			var other := model.window_center_mhz + model.window_bandwidth_mhz * (0.5 if tune_drag_mode == "left" else -0.5)
 			model.window_center_mhz = (mhz + other) * 0.5
 			model.window_bandwidth_mhz = clampf(absf(mhz - other), 20.0, 180.0)
+			_tutorial_action("tune_width")
+		_note_player_activity()
 		_refresh_tune()
 
 
@@ -847,6 +1800,14 @@ func _draw_tune_plot(plot: RadioPlot) -> void:
 func _confirm_tune() -> void:
 	var quality := model.tuning_quality()
 	if quality >= 0.55:
+		_terminal_event("CANDIDATE BAND", "PRESERVED", "QUALITY %d%%" % int(quality * 100.0))
+		_terminal_event("RFI LOAD", "REDUCED", "%d%%" % int(model.window_rfi_load() * 100.0))
+		_terminal_event("RECEIVER WINDOW", "STABLE", "%.0f ± %.0f MHz" % [model.window_center_mhz, model.window_bandwidth_mhz * 0.5], "", 0.0, true)
+		_tutorial_action("tune_confirm")
+		_maya_reaction(
+			"There it is: not a picture, only a weak repeating structure that refuses to disappear with the noise.",
+			"看见了吗？它不是图像，只是一段不会随噪声消失的微弱重复结构。"
+		)
 		status_label.text = GameManager.text("Passband stable. The candidate remains while the receiver noise drops.", "通带已经稳定。候选信号保留，接收机噪声下降。")
 		status_label.add_theme_color_override("font_color", GREEN)
 		InteractionFeedback.feedback_sfx_requested.emit("fast_tune_locked")
@@ -857,6 +1818,8 @@ func _confirm_tune() -> void:
 			GameManager.text("Individual peaks can now be inspected and cleaned", "现在可以逐个检查并净化频谱峰")
 		)
 	else:
+		_note_player_activity()
+		_terminal_event("PASSBAND VERIFY", "REJECT", "QUALITY %d%%" % int(quality * 100.0))
 		status_label.text = GameManager.text(
 			"The visual evidence is not stable: recenter the broad source feature or narrow away from the tall RFI peaks.",
 			"视觉证据尚不稳定：重新框住宽缓的信号特征，或缩窄频窗避开高耸干扰峰。"
@@ -880,30 +1843,125 @@ func _build_rfi() -> void:
 	var actions := _panel_to(content, Vector2(724, 6), Vector2(268, 478), PANEL, GOLD, GameManager.text("PEAK REVIEW", "频峰审查"))
 	readout = _label_to(actions, GameManager.text("Select a peak in the spectrum.", "请在频谱中选择一个峰。"), Vector2(14, 44), Vector2(240, 116), 12, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var keep := _button(GameManager.text("KEEP CANDIDATE  [K]", "保留候选  [K]"), Vector2(18, 176), Vector2(232, 42), Color("153e34"))
-	keep.pressed.connect(_classify_selected.bind(false))
-	actions.add_child(keep)
-	var reject := _button(GameManager.text("MARK INTERFERENCE [X]", "标记干扰  [X]"), Vector2(18, 230), Vector2(232, 42), Color("42271e"))
-	reject.pressed.connect(_classify_selected.bind(true))
-	actions.add_child(reject)
-	rfi_evidence_label = _label_to(actions, "", Vector2(18, 288), Vector2(232, 74), 11, AMBER)
+	rfi_keep_button = _button(GameManager.text("KEEP CANDIDATE  [K]", "保留候选  [K]"), Vector2(18, 176), Vector2(232, 42), Color("153e34"))
+	rfi_keep_button.pressed.connect(_classify_selected.bind(false))
+	actions.add_child(rfi_keep_button)
+	rfi_reject_button = _button(GameManager.text("MARK INTERFERENCE [X]", "标记干扰  [X]"), Vector2(18, 230), Vector2(232, 42), Color("42271e"))
+	rfi_reject_button.pressed.connect(_classify_selected.bind(true))
+	actions.add_child(rfi_reject_button)
+	rfi_evidence_label = _label_to(actions, "", Vector2(18, 282), Vector2(232, 60), 11, AMBER)
 	rfi_evidence_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var confirm := _button(GameManager.text("VERIFY CLEAN SPECTRUM", "验证净化频谱"), Vector2(18, 402), Vector2(232, 44), Color("18452f"))
-	confirm.pressed.connect(_confirm_rfi)
-	actions.add_child(confirm)
-	_label_to(actions, GameManager.text("←/→ select · K keep · X reject", "←/→ 选择 · K 保留 · X 剔除"), Vector2(12, 372), Vector2(244, 20), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	rfi_restore_button = _button(GameManager.text("RESTORE RAW SPECTRUM", "恢复原始频谱"), Vector2(18, 348), Vector2(232, 32), Color("2c3034"))
+	rfi_restore_button.name = "RestoreRawSpectrum"
+	rfi_restore_button.pressed.connect(_restore_raw_spectrum)
+	actions.add_child(rfi_restore_button)
+	rfi_verify_button = _button(GameManager.text("VERIFY CLEAN SPECTRUM", "验证净化频谱"), Vector2(18, 402), Vector2(232, 44), Color("18452f"))
+	rfi_verify_button.pressed.connect(_confirm_rfi)
+	actions.add_child(rfi_verify_button)
+	_label_to(actions, GameManager.text("←/→ select · K keep · X reject", "←/→ 选择 · K 保留 · X 剔除"), Vector2(12, 382), Vector2(244, 18), 9, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	if rfi_waterfall.is_empty():
 		_capture_waterfall_row(rfi_waterfall, true)
 	_refresh_rfi()
+
+
+func _show_rfi_tutorial(actions: Control) -> void:
+	if actions == null or not is_instance_valid(actions):
+		return
+	if rfi_tutorial_panel != null and is_instance_valid(rfi_tutorial_panel):
+		return
+	rfi_tutorial_step = 0
+	readout.visible = false
+	rfi_tutorial_panel = Panel.new()
+	rfi_tutorial_panel.name = "RfiMayaTutorial"
+	rfi_tutorial_panel.position = Vector2(8, 34)
+	rfi_tutorial_panel.size = Vector2(252, 136)
+	rfi_tutorial_panel.z_index = 40
+	rfi_tutorial_panel.add_theme_stylebox_override("panel", _flat(Color("08131a"), AMBER, 2))
+	actions.add_child(rfi_tutorial_panel)
+	MayaPortrait.create(
+		rfi_tutorial_panel,
+		"MayaPortrait",
+		MayaPortrait.EXPLAIN,
+		Vector2(5, 24),
+		Vector2(54, 104),
+		1
+	)
+	var title := _label_to(rfi_tutorial_panel, "", Vector2(64, 7), Vector2(176, 18), 10, AMBER)
+	title.name = "TutorialTitle"
+	rfi_tutorial_label = _label_to(rfi_tutorial_panel, "", Vector2(64, 25), Vector2(176, 77), 11, TEXT)
+	rfi_tutorial_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	rfi_tutorial_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	rfi_tutorial_next = _button("", Vector2(164, 105), Vector2(76, 24), Color("183844"))
+	rfi_tutorial_next.add_theme_font_size_override("font_size", 10)
+	rfi_tutorial_next.pressed.connect(_advance_rfi_tutorial)
+	rfi_tutorial_panel.add_child(rfi_tutorial_next)
+	_update_rfi_tutorial()
+
+
+func _advance_rfi_tutorial() -> void:
+	rfi_tutorial_step += 1
+	if rfi_tutorial_step < 3:
+		_update_rfi_tutorial()
+		InteractionFeedback.pulse(rfi_tutorial_panel, CYAN, 0.24)
+		return
+	InteractionFeedback.mark_tutorial_seen("first_fast_rfi_review")
+	if readout != null and is_instance_valid(readout):
+		readout.visible = true
+	if rfi_tutorial_panel != null and is_instance_valid(rfi_tutorial_panel):
+		rfi_tutorial_panel.queue_free()
+	rfi_tutorial_panel = null
+	rfi_tutorial_label = null
+	rfi_tutorial_next = null
+	InteractionFeedback.pulse(scope, CYAN, 0.45)
+	status_label.text = GameManager.text(
+		"Select a peak, inspect its shape, then keep the candidate or remove interference.",
+		"选择一个频谱峰，先判断其形态，再保留候选或剔除干扰。"
+	)
+	status_label.add_theme_color_override("font_color", CYAN)
+
+
+func _update_rfi_tutorial() -> void:
+	if rfi_tutorial_panel == null or not is_instance_valid(rfi_tutorial_panel):
+		return
+	var title := rfi_tutorial_panel.get_node_or_null("TutorialTitle") as Label
+	if title != null:
+		title.text = GameManager.text(
+			"MAYA / RFI  %d/3" % (rfi_tutorial_step + 1),
+			"玛雅 / 干扰辨识  %d/3" % (rfi_tutorial_step + 1)
+		)
+	match rfi_tutorial_step:
+		0:
+			rfi_tutorial_label.text = GameManager.text(
+				"Click a peak. Read its shape, not only its height.",
+				"先点击一个频谱峰。判断依据是形态，不只是峰值高度。"
+			)
+		1:
+			rfi_tutorial_label.text = GameManager.text(
+				"Broad and repeating: keep it. Narrow, comb-like, bursting or sweeping: remove it.",
+				"宽缓且重复：保留。窄带、梳状、突发或扫频：剔除。"
+			)
+		_:
+			rfi_tutorial_label.text = GameManager.text(
+				"Green is kept, red is removed, amber is unreviewed. Review every peak, then verify.",
+				"绿色表示保留，红色表示剔除，琥珀色表示尚未处理。全部检查后再验证。"
+			)
+	rfi_tutorial_next.text = GameManager.text(
+		"START" if rfi_tutorial_step == 2 else "NEXT",
+		"开始" if rfi_tutorial_step == 2 else "下一步"
+	)
 
 
 func _rfi_keyboard(keycode: Key) -> void:
 	match keycode:
 		KEY_LEFT, KEY_A:
 			selected_peak = wrapi(selected_peak - 1, 0, model.rfi_peaks.size())
+			_note_player_activity()
+			_tutorial_action("rfi_select")
 			_refresh_rfi()
 		KEY_RIGHT, KEY_D:
 			selected_peak = wrapi(selected_peak + 1, 0, model.rfi_peaks.size())
+			_note_player_activity()
+			_tutorial_action("rfi_select")
 			_refresh_rfi()
 		KEY_K: _classify_selected(false)
 		KEY_X: _classify_selected(true)
@@ -926,6 +1984,8 @@ func _on_rfi_scope_input(event: InputEvent) -> void:
 			nearest = i
 	if nearest >= 0 and distance <= 34.0:
 		selected_peak = nearest
+		_note_player_activity()
+		_tutorial_action("rfi_select")
 		InteractionFeedback.selection(scope, true, CYAN, false, "fast_peak_selected")
 		_refresh_rfi()
 
@@ -936,20 +1996,89 @@ func _classify_selected(as_rfi: bool) -> void:
 		status_label.add_theme_color_override("font_color", AMBER)
 		InteractionFeedback.error(scope)
 		return
-	model.classify(selected_peak, as_rfi)
+	var classified_index := selected_peak
+	model.classify(classified_index, as_rfi)
+	_note_player_activity()
+	_tutorial_action("rfi_classify")
+	var peak: Dictionary = model.rfi_peaks[classified_index]
+	rfi_last_decision = GameManager.text(
+		"Last: %.1f MHz -> %s" % [float(peak["mhz"]), "INTERFERENCE" if as_rfi else "CANDIDATE"],
+		"刚才：%.1f MHz -> %s" % [float(peak["mhz"]), "干扰" if as_rfi else "候选"]
+	)
+	_terminal_event(
+		"RFI REVIEW %.1f MHz" % float(peak["mhz"]),
+		"REJECT" if as_rfi else "PRESERVE",
+		str(peak.get("pattern", "fixed_narrow")).to_upper()
+	)
 	InteractionFeedback.feedback_sfx_requested.emit("fast_rfi_mark")
+	InteractionFeedback.success(
+		rfi_reject_button if as_rfi else rfi_keep_button,
+		"fast_rfi_reject" if as_rfi else "fast_rfi_keep"
+	)
+	var immediate_feedback := GameManager.text(
+		"Marked %.1f MHz as interference. Its contaminated trace is now suppressed." % float(peak["mhz"])
+		if as_rfi
+		else "Kept %.1f MHz as the sky candidate. Its repeating structure remains." % float(peak["mhz"]),
+		"已将 %.1f MHz 标记为干扰，受污染的轨迹已被抑制。" % float(peak["mhz"])
+		if as_rfi
+		else "已将 %.1f MHz 保留为天体候选，其重复结构仍然可见。" % float(peak["mhz"])
+	)
+	var next_peak := _next_unreviewed_peak(classified_index)
+	if next_peak >= 0:
+		selected_peak = next_peak
 	_refresh_rfi()
 	var evidence := model.classification_evidence()
 	if evidence == "source_deleted":
+		_terminal_event("CANDIDATE BAND", "LOST", "%.1f MHz" % float(peak["mhz"]), "", 0.0, true)
 		status_label.text = GameManager.text("The broad repeating candidate collapsed: you rejected the celestial source.", "宽缓的重复候选信号消失了：你误删了天体源。")
 		status_label.add_theme_color_override("font_color", RED)
 		InteractionFeedback.error(scope)
+		_maya_reaction(
+			"The receiver went quiet because the repeating sky signal was removed. Restore the raw spectrum and compare its shape again.",
+			"接收机突然安静，是因为重复的天体信号被误删了。恢复原始频谱，再比较一次它的形态。"
+		)
 	elif evidence == "residual_rfi":
 		status_label.text = GameManager.text("A tall or patterned contaminant still survives in the cleaned trace.", "净化轨迹中仍有高耸或带规律的污染峰。")
 		status_label.add_theme_color_override("font_color", AMBER)
 	else:
-		status_label.text = GameManager.text("The cleaned trace is becoming quieter. Continue reviewing the remaining peaks.", "净化后的轨迹正在安静下来。继续检查其余频谱峰。")
+		_terminal_event("CLEANED TRACE", "UPDATED", "RESIDUAL %d" % model.residual_rfi_count(), "rfi_trace", 0.12)
+		status_label.text = immediate_feedback
 		status_label.add_theme_color_override("font_color", GREEN)
+
+
+func _restore_raw_spectrum() -> void:
+	if model.classifications.is_empty():
+		status_label.text = GameManager.text("The spectrum is already in its original state.", "频谱已经处于原始状态。")
+		status_label.add_theme_color_override("font_color", MUTED)
+		return
+	var lost_candidate := model.source_deleted()
+	model.classifications.clear()
+	selected_peak = -1
+	rfi_last_decision = GameManager.text("Last: raw spectrum restored", "刚才：已恢复原始频谱")
+	_note_player_activity()
+	_terminal_event("RFI MASK", "RESET", "ALL PEAKS RESTORED")
+	_terminal_event("CANDIDATE BAND", "RECOVERED" if lost_candidate else "VISIBLE", "REVIEW REQUIRED", "", 0.0, true)
+	status_label.text = GameManager.text(
+		"The original spectrum is back. No evidence was lost; review every peak again.",
+		"原始频谱已经恢复，证据没有丢失。请重新审查每个频峰。"
+	)
+	status_label.add_theme_color_override("font_color", CYAN)
+	InteractionFeedback.success(rfi_restore_button, "fast_rfi_restore")
+	_maya_reaction(
+		"Good recovery. In radio work, a reversible mask is safer than silently deleting evidence.",
+		"恢复得很好。射电处理中，可撤销的掩膜比悄悄删掉证据更可靠。"
+	)
+	_refresh_rfi()
+
+
+func _next_unreviewed_peak(after_index: int) -> int:
+	if model.rfi_peaks.is_empty():
+		return -1
+	for offset in range(1, model.rfi_peaks.size() + 1):
+		var candidate := wrapi(after_index + offset, 0, model.rfi_peaks.size())
+		if str(model.classifications.get(candidate, "")) == "":
+			return candidate
+	return -1
 
 
 func _refresh_rfi() -> void:
@@ -958,16 +2087,52 @@ func _refresh_rfi() -> void:
 	if selected_peak >= 0 and selected_peak < model.rfi_peaks.size():
 		var peak: Dictionary = model.rfi_peaks[selected_peak]
 		var pattern := _pattern_text(str(peak.get("pattern", "fixed_narrow")))
+		var mark := str(model.classifications.get(selected_peak, ""))
+		var decision_en := "UNREVIEWED"
+		var decision_zh := "尚未处理"
+		var decision_color := AMBER
+		if mark == "source":
+			decision_en = "KEPT AS SKY CANDIDATE"
+			decision_zh = "已保留为天体候选"
+			decision_color = GREEN
+		elif mark == "rfi":
+			decision_en = "MARKED AS INTERFERENCE"
+			decision_zh = "已标记为人造干扰"
+			decision_color = RED
 		readout.text = GameManager.text(
-			"Peak %d / %d\n%.1f MHz   Strength %.2f\nShape: %s\nCommand: keep the sky candidate or reject interference." % [
-				selected_peak + 1, model.rfi_peaks.size(), float(peak["mhz"]), float(peak["strength"]), pattern,
+			"Peak %d / %d\n%.1f MHz   Strength %.2f\nShape: %s\nDecision: %s" % [
+				selected_peak + 1, model.rfi_peaks.size(), float(peak["mhz"]), float(peak["strength"]), pattern, decision_en,
 			],
-			"频峰 %d / %d\n%.1f MHz   强度 %.2f\n形态：%s\n操作：保留天体候选，或剔除人造干扰。" % [
-				selected_peak + 1, model.rfi_peaks.size(), float(peak["mhz"]), float(peak["strength"]), pattern,
+			"频峰 %d / %d\n%.1f MHz   强度 %.2f\n形态：%s\n判定：%s" % [
+				selected_peak + 1, model.rfi_peaks.size(), float(peak["mhz"]), float(peak["strength"]), pattern, decision_zh,
 			]
 		)
+		readout.add_theme_color_override("font_color", decision_color)
 	else:
 		readout.text = GameManager.text("Select a peak. Its shape and persistence are evidence.", "选择一个频谱峰。它的形态和持续性就是证据。")
+		readout.add_theme_color_override("font_color", TEXT)
+	if rfi_keep_button != null and is_instance_valid(rfi_keep_button):
+		var keep_mark := str(model.classifications.get(selected_peak, ""))
+		rfi_keep_button.add_theme_stylebox_override(
+			"normal",
+			_flat(Color("153e34"), GREEN if keep_mark == "source" else GOLD, 3 if keep_mark == "source" else 2)
+		)
+		rfi_keep_button.disabled = selected_peak < 0
+	if rfi_reject_button != null and is_instance_valid(rfi_reject_button):
+		var reject_mark := str(model.classifications.get(selected_peak, ""))
+		rfi_reject_button.add_theme_stylebox_override(
+			"normal",
+			_flat(Color("42271e"), RED if reject_mark == "rfi" else GOLD, 3 if reject_mark == "rfi" else 2)
+		)
+		rfi_reject_button.disabled = selected_peak < 0
+	if rfi_verify_button != null and is_instance_valid(rfi_verify_button):
+		var ready := model.all_classified()
+		rfi_verify_button.disabled = not ready
+		if ready and not bool(rfi_verify_button.get_meta("ready_announced", false)):
+			rfi_verify_button.set_meta("ready_announced", true)
+			InteractionFeedback.pulse(rfi_verify_button, GREEN, 0.65)
+	if rfi_restore_button != null and is_instance_valid(rfi_restore_button):
+		rfi_restore_button.disabled = model.classifications.is_empty()
 	var evidence := model.classification_evidence()
 	if rfi_evidence_label != null and is_instance_valid(rfi_evidence_label):
 		match evidence:
@@ -981,7 +2146,10 @@ func _refresh_rfi() -> void:
 				rfi_evidence_label.text = GameManager.text("EVIDENCE: noise floor is quiet and the broad pulse candidate remains.", "证据：噪声底已安静，宽缓脉冲候选仍然存在。")
 				rfi_evidence_label.add_theme_color_override("font_color", GREEN)
 			_:
-				rfi_evidence_label.text = GameManager.text("Review every visible feature before verification.", "验证前请检查每个可见特征。")
+				rfi_evidence_label.text = (
+					GameManager.text("Review every visible feature before verification.", "验证前请检查每个可见特征。")
+					+ ("\n" + rfi_last_decision if rfi_last_decision != "" else "")
+				)
 				rfi_evidence_label.add_theme_color_override("font_color", MUTED)
 	_capture_waterfall_row(rfi_waterfall, true)
 	scope.queue_redraw()
@@ -1018,7 +2186,7 @@ func _draw_rfi_plot(plot: RadioPlot) -> void:
 		var x := _mhz_to_x(float(peak["mhz"]), plot.size.x)
 		var y := spectrum_rect.position.y + 24.0 + plot_h * (1.0 - clampf(float(peak["strength"]) / 1.2, 0.0, 1.0))
 		var mark := str(model.classifications.get(i, ""))
-		var color := CYAN if i == selected_peak else GOLD
+		var color := CYAN if i == selected_peak else AMBER
 		if mark == "rfi":
 			color = RED
 			plot.draw_line(Vector2(x - 10, y - 10), Vector2(x + 10, y + 10), Color(RED, 0.78), 2.0)
@@ -1032,9 +2200,24 @@ func _draw_rfi_plot(plot: RadioPlot) -> void:
 			_draw_plot_text(plot, "%.0f MHz" % float(peak["mhz"]), Vector2(x - 28, y - 31), 10, CYAN)
 
 	_draw_waterfall(plot, waterfall_rect, rfi_waterfall, true)
-	var clean_ratio := float(model.correctly_rejected_rfi_count()) / float(maxi(1, model.rfi_peaks.size() - 1))
-	_meter_draw(plot, Rect2(Vector2(34, plot.size.y - 22), Vector2(plot.size.x - 68, 8)), clean_ratio, GREEN)
+	var reviewed_ratio := float(model.classifications.size()) / float(maxi(1, model.rfi_peaks.size()))
+	_meter_draw(
+		plot,
+		Rect2(Vector2(34, plot.size.y - 22), Vector2(plot.size.x - 68, 8)),
+		reviewed_ratio,
+		GREEN if model.all_classified() else CYAN
+	)
 	_draw_plot_text(plot, GameManager.text("CLEANING HISTORY", "净化历史"), waterfall_rect.position + Vector2(4, -4), 9, MUTED)
+	_draw_plot_text(
+		plot,
+		GameManager.text(
+			"REVIEWED %d/%d   GREEN KEEP   RED REMOVE   AMBER OPEN" % [model.classifications.size(), model.rfi_peaks.size()],
+			"已检查 %d/%d   绿色保留   红色剔除   琥珀色待处理" % [model.classifications.size(), model.rfi_peaks.size()]
+		),
+		Vector2(34, plot.size.y - 28),
+		9,
+		TEXT
+	)
 
 
 func _draw_peak_signature(plot: RadioPlot, pos: Vector2, pattern: String, color: Color) -> void:
@@ -1062,21 +2245,31 @@ func _draw_peak_signature(plot: RadioPlot, pos: Vector2, pattern: String, color:
 
 func _confirm_rfi() -> void:
 	if not model.all_classified():
+		_terminal_event("SPECTRUM VERIFY", "WAIT", "UNREVIEWED PEAKS")
 		status_label.text = GameManager.text("Unreviewed peaks remain. Select each visible feature before verification.", "仍有频谱峰尚未审查。验证前请逐个选择可见特征。")
 		status_label.add_theme_color_override("font_color", AMBER)
 		InteractionFeedback.error(scope)
 		return
 	if model.source_deleted():
+		_terminal_event("SPECTRUM VERIFY", "REJECT", "CANDIDATE LOST")
 		status_label.text = GameManager.text("Verification failed: the celestial candidate was removed. Restore it and review the shape.", "验证失败：天体候选被误删。请根据形态恢复它。")
 		status_label.add_theme_color_override("font_color", RED)
 		InteractionFeedback.error(scope)
 		return
 	if model.residual_rfi_count() > 0 or model.classification_score() < model.rfi_threshold:
+		_terminal_event("SPECTRUM VERIFY", "REJECT", "RESIDUAL RFI %d" % model.residual_rfi_count())
 		status_label.text = GameManager.text("Verification found residual interference. The surviving patterned peak is the evidence.", "验证发现残余干扰。仍然存在的规律性频峰就是证据。")
 		status_label.add_theme_color_override("font_color", RED)
 		InteractionFeedback.error(scope)
 		return
 	status_label.text = GameManager.text("Spectrum verified clean. The preserved candidate can now be folded in time.", "频谱净化验证通过。保留的候选信号现在可以进行时间折叠。")
+	_terminal_event("SPECTRUM VERIFY", "CLEAN", "RFI REMOVED %d" % model.correctly_rejected_rfi_count())
+	_terminal_event("CANDIDATE BAND", "PRESERVED", "REPEATING SKY SOURCE", "", 0.0, true)
+	_tutorial_action("rfi_verify")
+	_maya_reaction(
+		"Human transmitters are gone. What remains repeats like a clock, but we still have to prove its period.",
+		"人造发射源已经退去。剩下的信号像时钟一样重复，但我们还要证明它的周期。"
+	)
 	status_label.add_theme_color_override("font_color", GREEN)
 	InteractionFeedback.feedback_sfx_requested.emit("fast_rfi_clean")
 	_advance(3)
@@ -1122,6 +2315,9 @@ func _build_fold_control(parent: Control) -> void:
 			fold_slider.value = model.trial_period_ms
 			fold_slider.value_changed.connect(func(value: float) -> void:
 				model.trial_period_ms = value
+				_note_player_activity()
+				_tutorial_action("fold_period_adjust")
+				_terminal_event("PERIOD RESIDUAL", "SEARCH", "%.2f ms · %d%%" % [value, int(model.period_match() * 100.0)], "period_search", 0.35)
 				_refresh_fold()
 			)
 		else:
@@ -1131,6 +2327,9 @@ func _build_fold_control(parent: Control) -> void:
 			fold_slider.value = model.trial_dm
 			fold_slider.value_changed.connect(func(value: float) -> void:
 				model.trial_dm = value
+				_note_player_activity()
+				_tutorial_action("fold_dm_adjust")
+				_terminal_event("DM ALIGN", "CORRECT", "%.1f · %d%%" % [value, int(model.dm_match() * 100.0)], "dm_align", 0.35)
 				_refresh_fold()
 			)
 		parent.add_child(fold_slider)
@@ -1142,7 +2341,10 @@ func _build_fold_control(parent: Control) -> void:
 		parent.add_child(fold_action_button)
 	else:
 		fold_action_button = _button(GameManager.text("HOLD TO INTEGRATE [SPACE]", "按住积分 [空格]"), Vector2(18, 218), Vector2(262, 54), Color("153249"))
-		fold_action_button.button_down.connect(func() -> void: integration_held = true)
+		fold_action_button.button_down.connect(func() -> void:
+			integration_held = true
+			_note_player_activity()
+		)
 		fold_action_button.button_up.connect(func() -> void: integration_held = false)
 		parent.add_child(fold_action_button)
 		var confirm := _button(GameManager.text("CONFIRM DISCOVERY", "确认发现"), Vector2(18, 292), Vector2(262, 48), Color("18452f"))
@@ -1173,6 +2375,8 @@ func _fold_keyboard(keycode: Key) -> void:
 			model.trial_dm = clampf(model.trial_dm + direction * 0.25, 0.0, maxf(model.true_dm + 28.0, 40.0))
 		if fold_slider != null:
 			fold_slider.value = model.trial_period_ms if fold_step == 0 else model.trial_dm
+		_note_player_activity()
+		_tutorial_action("fold_period_adjust" if fold_step == 0 else "fold_dm_adjust")
 		_refresh_fold()
 	elif keycode == KEY_ENTER:
 		if fold_step <= 1:
@@ -1184,22 +2388,39 @@ func _fold_keyboard(keycode: Key) -> void:
 func _confirm_fold_step() -> void:
 	if fold_step == 0:
 		if model.period_match() < 0.45:
+			_terminal_event("PERIOD SEARCH", "UNRESOLVED", "%.2f ms" % model.trial_period_ms)
 			status_label.text = GameManager.text("The folded profile is still split. Move the trial period until the two peaks converge.", "折叠轮廓仍然分裂。继续调整试验周期，直到两个峰汇合。")
 			status_label.add_theme_color_override("font_color", RED)
 			InteractionFeedback.error(fold_slider)
 			return
+		_tutorial_action("fold_period_lock")
+		if tutorial_active:
+			_finish_stage_tutorial()
+		_terminal_event("PERIOD RESIDUAL", "CONVERGED", "%.2f ms" % model.trial_period_ms, "", 0.0, true)
+		_maya_reaction(
+			"The split peak has become one. That is what a correct repetition period looks like.",
+			"分裂的双峰合成了一个。正确的重复周期，就会留下这样的轮廓。"
+		)
 		fold_step = 1
+		_terminal_event("PERIOD SEARCH", "COHERENT", "%.2f ms" % model.trial_period_ms)
 		status_label.text = GameManager.text("Coarse period found. Now align arrival time across the receiver sub-bands.", "已找到粗略周期。现在校正各接收子频段的到达时间。")
 	else:
 		if model.dm_match() < 0.48:
+			_terminal_event("DISPERSION SOLUTION", "UNRESOLVED", "DM %.1f" % model.trial_dm)
 			status_label.text = GameManager.text("Sub-band pulses are still staggered. Adjust DM until the rows align vertically.", "子频段脉冲仍然错开。继续调整 DM，直到各行垂直对齐。")
 			status_label.add_theme_color_override("font_color", RED)
 			InteractionFeedback.error(fold_slider)
 			return
+		_tutorial_action("fold_dm_lock")
+		if tutorial_active:
+			_finish_stage_tutorial()
+		_terminal_event("SUB-BAND ARRIVAL", "VERTICAL", "DM %.1f" % model.trial_dm, "", 0.0, true)
 		fold_step = 2
+		_terminal_event("DISPERSION SOLUTION", "ALIGNED", "DM %.1f" % model.trial_dm)
 		status_label.text = GameManager.text("Dispersion aligned. Hold integration until the pulse rises above the noise.", "色散已经对齐。按住积分，直到脉冲高出噪声。")
 	InteractionFeedback.feedback_sfx_requested.emit("fast_fold_step")
 	_build_fold_controls_panel()
+	call_deferred("_configure_stage_guidance")
 	if scope != null and is_instance_valid(scope):
 		scope.queue_redraw()
 
@@ -1286,6 +2507,7 @@ func _confirm_fold() -> void:
 	var rep := model.report()
 	if not bool(rep.get("success", false)):
 		var reason := model.conclusion_state()
+		_terminal_event("PULSE CONFIRM", "REJECT", reason.to_upper())
 		match reason:
 			"residual_rfi":
 				status_label.text = GameManager.text("Residual RFI still contaminates the fold. Return to the cleaning stage.", "残余干扰仍在污染折叠结果。请返回净化阶段。")
@@ -1296,6 +2518,11 @@ func _confirm_fold() -> void:
 		status_label.add_theme_color_override("font_color", RED)
 		InteractionFeedback.error(scope)
 		return
+	_terminal_event("PERIODICITY", "DETECTED", "%.3f ms" % model.trial_period_ms)
+	_terminal_event("PULSE PROFILE", "CONFIRMED", "SNR %.1f" % model.fold_snr())
+	_tutorial_action("fold_confirm")
+	if tutorial_active:
+		_finish_stage_tutorial()
 	await _play_discovery_moment()
 	_advance(4)
 	_radio_operation_chain(
@@ -1309,6 +2536,7 @@ func _play_discovery_moment() -> void:
 	discovery_running = true
 	integration_held = false
 	discovery_phase = 0.0
+	discovery_event_trace.clear()
 	var overlay := Panel.new()
 	overlay.name = "FastDiscoveryMoment"
 	overlay.position = Vector2(70, 112)
@@ -1323,8 +2551,21 @@ func _play_discovery_moment() -> void:
 	discovery_plot.size = Vector2(828, 292)
 	discovery_plot.renderer = _draw_discovery_plot
 	overlay.add_child(discovery_plot)
-	var printout := _label_to(overlay, "", Vector2(48, 370), Vector2(788, 96), 13, GREEN, HORIZONTAL_ALIGNMENT_LEFT)
+	var printout := _label_to(overlay, "", Vector2(48, 366), Vector2(788, 66), 13, GREEN, HORIZONTAL_ALIGNMENT_LEFT)
 	printout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	var maya_line := _label_to(
+		overlay,
+		GameManager.text(
+			"You did not take a picture. You proved that a dead star is still speaking in time.",
+			"你没有拍下一张照片。你证明了一颗死去的恒星仍在用时间说话。"
+		),
+		Vector2(48, 434),
+		Vector2(788, 42),
+		13,
+		CYAN,
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
+	maya_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	InteractionFeedback.feedback_sfx_requested.emit("fast_discovery")
 	if not InteractionFeedback.is_reduced_motion():
 		overlay.modulate.a = 0.0
@@ -1337,17 +2578,19 @@ func _play_discovery_moment() -> void:
 		pulse.tween_property(title, "modulate", GREEN, 0.28)
 		pulse.tween_property(title, "modulate", GOLD, 0.38)
 	var sequence := [
-		GameManager.text("PERIODICITY DETECTED", "检测到稳定周期"),
-		GameManager.text("DISPERSION SOLUTION STABLE", "色散解稳定"),
-		GameManager.text("PULSE PROFILE ........ CONFIRMED", "脉冲轮廓 ............ 已确认"),
-		GameManager.text("CANDIDATE ............ PSR %s", "候选体 .............. PSR %s") % str(model.target_id).to_upper(),
+		["SUB-BANDS ALIGNED", GameManager.text("SUB-BANDS ............ ALIGNED", "子频段 .............. 已对齐")],
+		["WATERFALL PERIODIC", GameManager.text("CLEAN WATERFALL ...... PERIODIC", "净化瀑布图 .......... 周期稳定")],
+		["PROFILE EMERGED", GameManager.text("FOLDED PROFILE ....... EMERGED", "折叠轮廓 ............ 已显现")],
+		["REPEATING SOURCE CONFIRMED", GameManager.text("REPEATING SOURCE ..... CONFIRMED", "重复信号源 .......... 已确认")],
 	]
 	for i in range(sequence.size()):
 		if not is_instance_valid(printout) or not is_inside_tree():
 			discovery_running = false
 			discovery_plot = null
 			return
-		printout.text += ("" if printout.text == "" else "\n") + str(sequence[i])
+		discovery_event_trace.append(str(sequence[i][0]))
+		printout.text += ("" if printout.text == "" else "\n") + str(sequence[i][1])
+		_terminal_event(str(sequence[i][0]), "LOCKED" if i == sequence.size() - 1 else "RUN", "", "", 0.0, i == sequence.size() - 1)
 		var target_phase := float(i + 1) / float(sequence.size())
 		var tween := create_tween().bind_node(self)
 		tween.tween_method(func(value: float) -> void:
@@ -1356,6 +2599,9 @@ func _play_discovery_moment() -> void:
 				discovery_plot.queue_redraw()
 		, discovery_phase, target_phase, 0.40 if not InteractionFeedback.is_reduced_motion() else 0.10)
 		await tween.finished
+		if i == 2:
+			await get_tree().create_timer(0.18 if not InteractionFeedback.is_reduced_motion() else 0.03).timeout
+	_terminal_event("KNOWN PULSAR", "INDEPENDENTLY CONFIRMED", "PSR %s" % str(model.target_id).to_upper(), "", 0.0, true)
 	await get_tree().create_timer(0.55 if not InteractionFeedback.is_reduced_motion() else 0.16).timeout
 	if is_instance_valid(overlay):
 		overlay.queue_free()
@@ -1414,6 +2660,8 @@ func _draw_discovery_plot(plot: RadioPlot) -> void:
 func _build_report() -> void:
 	var rep := model.report()
 	var report_panel := _panel_to(content, Vector2(32, 6), Vector2(960, 478), PANEL, GOLD, GameManager.text("RADIO OBSERVATION REPORT", "射电观测报告"))
+	report_panel_ref = report_panel
+	report_choices_holder = report_panel
 	_label_to(report_panel, GameManager.text("FAST DATA PRODUCT", "FAST 观测成果"), Vector2(26, 42), Vector2(410, 26), 14, GOLD)
 	var product_plot := RadioPlot.new()
 	product_plot.position = Vector2(26, 72)
@@ -1507,6 +2755,8 @@ func _draw_spectrum_trace_in_rect(plot: RadioPlot, rect: Rect2, samples: Array, 
 
 func _select_report_choice(choice: String) -> void:
 	report_choice = choice
+	_note_player_activity()
+	_tutorial_action("report_choose")
 	_refresh_report_choice()
 	InteractionFeedback.feedback_sfx_requested.emit("ui_select")
 
@@ -1529,14 +2779,21 @@ func _submit() -> void:
 		return
 	var rep := model.report()
 	if not model.evaluate_conclusion(report_choice):
-		status_label.text = GameManager.text(
-			"That conclusion conflicts with the report. Compare SNR, residual RFI, and the aligned pulse profile.",
-			"该结论与报告证据冲突。请比较信噪比、残余干扰和对齐后的脉冲轮廓。"
-		)
+		status_label.text = _report_contradiction(report_choice, rep)
 		status_label.add_theme_color_override("font_color", RED)
+		_terminal_event("SCIENCE REPORT", "CONTRADICTION", report_choice.to_upper(), "", 0.0, true)
 		InteractionFeedback.error(report_choice_buttons.get(report_choice, submit_button) as Control)
 		return
+	_tutorial_action("report_submit")
+	if tutorial_active:
+		_finish_stage_tutorial()
 	running = true
+	_terminal_event("EVIDENCE MATRIX", "CONSISTENT", "PERIOD · DM · SNR")
+	_terminal_event("FAST OBSERVATION CARD", "ARCHIVED", str(model.target_id).to_upper(), "", 0.0, true)
+	_maya_reaction(
+		"This is not humanity's first detection of this pulsar. It is your first independent confirmation, and every number on the card came from your choices.",
+		"这不是人类第一次发现这颗脉冲星，却是你第一次独立确认它。观测卡上的每个数字，都来自你刚才的选择。"
+	)
 	InteractionFeedback.success(submit_button, "fast_report_confirmed")
 	var observation := {
 		"success": bool(rep.get("success", false)),
@@ -1550,11 +2807,37 @@ func _submit() -> void:
 		"dispersion_measure": float(rep["trial_dm"]),
 		"rfi_cleared": int(rep["rfi_cleared"]),
 		"report_conclusion": report_choice,
-		"feedback_en": str(rep.get("result_en", "A repeating radio pulse confirmed the source.")),
-		"feedback_zh": str(rep.get("result_zh", "重复射电脉冲确认了目标。")),
+		"feedback_en": "Between the mountains, a known pulsar rhythm was independently confirmed. " + str(rep.get("result_en", "A repeating radio pulse confirmed the source.")),
+		"feedback_zh": "群山之间，一颗已知脉冲星的节奏被你独立确认。" + str(rep.get("result_zh", "重复射电脉冲确认了目标。")),
 	}
 	await get_tree().create_timer(0.34 if not InteractionFeedback.is_reduced_motion() else 0.08).timeout
 	GameManager.complete_current_mission(GameManager.current_target_object_id(), observation)
+
+
+func _report_contradiction(choice: String, rep: Dictionary) -> String:
+	var residual := int(rep.get("rfi_residual", 0))
+	var snr := float(rep.get("snr", 0.0))
+	match choice:
+		"stable_pulsar":
+			if residual > 0:
+				return GameManager.text(
+					"The report says 'stable pulsar', but %d patterned interference peak(s) remain." % residual,
+					"报告写的是“稳定脉冲星”，但频谱仍残留 %d 个规律性干扰峰。" % residual
+				)
+			return GameManager.text(
+				"The report says 'stable pulsar', but period, DM, or SNR has not reached its measured threshold.",
+				"报告写的是“稳定脉冲星”，但周期、DM 或信噪比尚未达到实测门槛。"
+			)
+		"residual_rfi":
+			return GameManager.text(
+				"The cleaned spectrum has no residual patterned peak, while period and DM agree.",
+				"净化频谱已经没有规律性残余峰，而且周期与 DM 相互吻合。"
+			)
+		_:
+			return GameManager.text(
+				"The report calls the signal insufficient, but SNR %.1f exceeds %.1f and the folded pulse is coherent." % [snr, model.report_snr_threshold],
+				"报告认为信号不足，但信噪比 %.1f 已超过 %.1f，折叠脉冲也已相干。" % [snr, model.report_snr_threshold]
+			)
 
 
 func _quality(snr: float) -> String:
@@ -1595,7 +2878,14 @@ func _wrap_characters(value: String, line_length: int) -> String:
 func _radio_operation_chain(action_text: String, effect_text: String, reveal_text: String) -> void:
 	var chain := InteractionFeedback.operation_chain(self, action_text, effect_text, reveal_text, null, CYAN, 3.0)
 	if chain != null:
-		chain.position.y = 602.0
+		chain.position.y = 552.0
+
+
+func _maya_reaction(text_en: String, text_zh: String) -> void:
+	if status_label == null or not is_instance_valid(status_label):
+		return
+	status_label.text = GameManager.text("Maya: " + text_en, "玛雅：" + text_zh)
+	status_label.add_theme_color_override("font_color", CYAN)
 
 
 func _capture_waterfall_row(history: Array, apply_classification: bool) -> void:

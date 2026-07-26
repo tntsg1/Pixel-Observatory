@@ -52,6 +52,32 @@ func _initialize() -> void:
 	_check(model.wavefront_coarse_complete, "the dominant bank completes coarse phasing")
 	_check(model.wavefront_anomaly_segments().size() == 4, "coarse phasing leaves four amber residual segments")
 	_check(not model.wavefront_ok(), "coarse phasing alone cannot pass the precision threshold")
+	display = scene.find_child("WavefrontDisplay", true, false)
+	var displayed_residuals: Array = display.call("_anomaly_indices")
+	_check(displayed_residuals.size() == 4,
+		"the mirror display preserves all four residual segments after coarse phasing")
+	var residual_offsets_are_visible := true
+	for segment_index in displayed_residuals:
+		var phase_error := model.segment_phase_error(int(segment_index))
+		var visual_offset: Vector2 = display.call("_segment_visual_offset", int(segment_index), phase_error)
+		if visual_offset.length() < 6.9:
+			residual_offsets_are_visible = false
+	_check(residual_offsets_are_visible,
+		"fine residual segments retain a clearly visible schematic displacement")
+
+	var phase_slider := scene.find_child("WavefrontPhaseScale", true, false) as HSlider
+	var fine_plus := scene.find_child("FineWavefrontPlus", true, false) as Button
+	_check(phase_slider != null, "fine phase scale is a draggable slider")
+	_check(fine_plus != null and fine_plus.button_down.get_connections().size() > 0,
+		"fine trim buttons use hold-capable button-down input")
+	var slider_segment := int(model.wavefront_anomaly_segments()[0])
+	scene.call("_select_wavefront_segment", slider_segment)
+	var slider_before := absf(model.segment_phase_error(slider_segment))
+	phase_slider.value = model.segment_phase_error(slider_segment) * 0.5
+	await _settle(0.08)
+	scene.call("_end_wavefront_slider_drag", true)
+	_check(absf(model.segment_phase_error(slider_segment)) < slider_before,
+		"dragging the phase slider changes the selected segment immediately")
 
 	var psf_before := model.psf_sharpness()
 	for segment_index in model.wavefront_anomaly_segments().duplicate():
@@ -72,6 +98,8 @@ func _initialize() -> void:
 	_check(model.wavefront_error_nm < 150.0, "fine phasing reaches the wavefront-error threshold")
 	_check(model.psf_sharpness() > psf_before, "PSF sharpness improves as residual segments settle")
 	_check(bool(scene.get("wavefront_convergence_complete")), "phase retrieval plays the final convergence state")
+	_check((display.call("_anomaly_indices") as Array).is_empty(),
+		"the mirror becomes visually uniform only after fine residual convergence")
 	_check(scene.find_child("FineWavefrontMinus", true, false).visible == false,
 		"fine controls yield to the clean converged state")
 	var actuator_status := scene.get("wavefront_actuator_label") as Label

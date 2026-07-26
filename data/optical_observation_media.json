@@ -1,0 +1,373 @@
+{
+    "moon":  {
+                 "master_path":  "res://assets/telescope_view/moon_clear.png",
+                 "asset_class":  "existing_project_master"
+             },
+    "polaris":  {
+                    "master_path":  "res://assets/telescope_view/star_white_clear.png",
+                    "asset_class":  "realtime_point_source"
+                },
+    "sirius":  {
+                   "master_path":  "res://assets/telescope_view/star_blue_clear.png",
+                   "asset_class":  "realtime_point_source"
+               },
+    "vega":  {
+                 "master_path":  "res://assets/telescope_view/vega_user_clear.png",
+                 "asset_class":  "realtime_point_source"
+             },
+    "mars":  {
+                 "master_path":  "res://assets/telescope_view/mars_clear.png",
+                 "asset_class":  "existing_project_master"
+             },
+    "jupiter":  {
+                    "master_path":  "res://assets/telescope_view/jupiter_clear.png",
+                    "asset_class":  "existing_project_master"
+                },
+    "betelgeuse":  {
+                       "master_path":  "res://assets/telescope_view/star_red_clear.png",
+                       "asset_class":  "realtime_point_source"
+                   },
+    "orion_nebula":  {
+                         "master_path":  "res://assets/telescope_view/orion_nebula_clear.png",
+                         "asset_class":  "existing_project_master"
+                     },
+    "andromeda":  {
+                      "master_path":  "res://assets/telescope_view/andromeda_clear.png",
+                      "asset_class":  "existing_project_master"
+                  },
+    "arcturus":  {
+                     "master_path":  "res://assets/telescope_view/arcturus_clear.png",
+                     "asset_class":  "realtime_point_source"
+                 },
+    "canopus":  {
+                    "master_path":  "res://assets/telescope_view/canopus_clear.png",
+                    "asset_class":  "realtime_point_source"
+                },
+    "alpha_centauri":  {
+                           "master_path":  "res://assets/telescope_view/alpha_cen_clear.png",
+                           "asset_class":  "realtime_point_source"
+                       },
+    "proxima":  {
+                    "master_path":  "res://assets/telescope_view/proxima_clear.png",
+                    "asset_class":  "realtime_point_source"
+                },
+    "mercury":  {
+                    "master_path":  "res://assets/telescope_view/official/mercury.png",
+                    "asset_class":  "licensed_science_image",
+                    "media_class":  "isolated_planet",
+                    "render_mode":  "transparent_subject",
+                    "crop":  {
+                                 "fit":  "contain",
+                                 "target_scale":  0.68,
+                                 "safe_margin_px":  128
+                             }
+                },
+    "venus":  {
+                  "master_path":  "res://assets/telescope_view/official/venus.png",
+                  "asset_class":  "licensed_science_image",
+                  "media_class":  "isolated_planet",
+                  "render_mode":  "transparent_subject",
+                  "crop":  {
+                               "fit":  "contain",
+                               "target_scale":  0.64,
+                               "safe_margin_px":  144
+                           }
+              },
+    "saturn":  {
+                   "master_path":  "res://assets/telescope_view/official/saturn.png",
+                   "asset_class":  "licensed_science_image",
+                   "media_class":  "isolated_planet",
+                   "render_mode":  "transparent_subject",
+                   "crop":  {
+                                "fit":  "contain",
+                                "target_scale":  0.72,
+                                "safe_margin_px":  112
+                            }
+               },
+    "uranus":  {
+                   "master_path":  "res://assets/telescope_view/official/uranus.png",
+                   "asset_class":  "licensed_science_image",
+                   "media_class":  "isolated_planet",
+                   "render_mode":  "transparent_subject",
+                   "crop":  {
+                                "fit":  "contain",
+                                "target_scale":  0.64,
+                                "safe_margin_px":  144,
+                                "source_crop":  "full_disk_recovered"
+                            }
+               },
+    "neptune":  {
+                    "master_path":  "res://assets/telescope_view/official/neptune.png",
+                    "asset_class":  "licensed_science_image",
+                    "media_class":  "isolated_planet",
+                    "render_mode":  "transparent_subject",
+                    "crop":  {
+                                 "fit":  "contain",
+                                 "target_scale":  0.64,
+                                 "safe_margin_px":  144
+                             }
+                },
+    "moon_crater_copernicus":  {
+                                   "master_path":  "res://assets/telescope_view/official/moon_crater_copernicus.png",
+                                   "asset_class":  "licensed_science_image",
+                                   "media_class":  "extended_field",
+                                   "render_mode":  "circular_field",
+                                   "crop":  {
+                                                "fit":  "cover",
+                                                "centering":  [
+                                                                  0.5,
+                                                                  0.5
+                                                              ],
+                                                "focal_point":  [
+                                                                    0.5,
+                                                                    0.5
+                                                                ],
+                                                "radial_fade_fraction":  0.1
+                                            }
+                               },
+    "moon_mare_tranquillitatis":  {
+                                      "master_path":  "res://assets/telescope_view/official/moon_mare_tranquillitatis.png",
+                                      "asset_class":  "licensed_science_image",
+                                      "media_class":  "extended_field",
+                                      "render_mode":  "circular_field",
+                                      "crop":  {
+                                                   "fit":  "cover",
+                                                   "centering":  [
+                                                                     0.5,
+                                                                     0.5
+                                                                 ],
+                                                   "focal_point":  [
+                                                                       0.5,
+                                                                       0.5
+                                                                   ],
+                                                   "radial_fade_fraction":  0.1
+                                               }
+                                  },
+    "moon_terminator":  {
+                            "master_path":  "res://assets/telescope_view/official/moon_terminator.png",
+                            "asset_class":  "licensed_science_image",
+                            "media_class":  "extended_field",
+                            "render_mode":  "circular_field",
+                            "crop":  {
+                                         "fit":  "cover",
+                                         "centering":  [
+                                                           0.5,
+                                                           0.5
+                                                       ],
+                                         "focal_point":  [
+                                                             0.5,
+                                                             0.5
+                                                         ],
+                                         "radial_fade_fraction":  0.1
+                                     }
+                        },
+    "albireo":  {
+                    "master_path":  "res://assets/telescope_view/official/albireo.png",
+                    "asset_class":  "licensed_science_image",
+                    "media_class":  "extended_field",
+                    "render_mode":  "circular_field",
+                    "crop":  {
+                                 "fit":  "cover",
+                                 "centering":  [
+                                                   0.5,
+                                                   0.5
+                                               ],
+                                 "focal_point":  [
+                                                     0.5,
+                                                     0.5
+                                                 ],
+                                 "radial_fade_fraction":  0.1
+                             }
+                },
+    "pleiades":  {
+                     "master_path":  "res://assets/telescope_view/official/pleiades.png",
+                     "asset_class":  "licensed_science_image",
+                     "crop":  {
+                                  "centering":  [
+                                                    0.5,
+                                                    0.5
+                                                ],
+                                  "scale":  0.94,
+                                  "fit":  "cover",
+                                  "focal_point":  [
+                                                      0.5,
+                                                      0.5
+                                                  ],
+                                  "radial_fade_fraction":  0.1
+                              },
+                     "media_class":  "extended_field",
+                     "render_mode":  "circular_field"
+                 },
+    "m13":  {
+                "master_path":  "res://assets/telescope_view/official/m13.png",
+                "asset_class":  "licensed_science_image",
+                "crop":  {
+                             "centering":  [
+                                               0.5,
+                                               0.5
+                                           ],
+                             "scale":  0.94,
+                             "fit":  "cover",
+                             "focal_point":  [
+                                                 0.5,
+                                                 0.5
+                                             ],
+                             "radial_fade_fraction":  0.1
+                         },
+                "media_class":  "extended_field",
+                "render_mode":  "circular_field"
+            },
+    "ring_nebula":  {
+                        "master_path":  "res://assets/telescope_view/official/ring_nebula.png",
+                        "asset_class":  "licensed_science_image",
+                        "crop":  {
+                                     "centering":  [
+                                                       0.5,
+                                                       0.5
+                                                   ],
+                                     "scale":  0.92,
+                                     "fit":  "cover",
+                                     "focal_point":  [
+                                                         0.5,
+                                                         0.5
+                                                     ],
+                                     "radial_fade_fraction":  0.1
+                                 },
+                        "media_class":  "extended_field",
+                        "render_mode":  "circular_field"
+                    },
+    "lagoon_nebula":  {
+                          "master_path":  "res://assets/telescope_view/official/lagoon_nebula.png",
+                          "asset_class":  "licensed_science_image",
+                          "crop":  {
+                                       "centering":  [
+                                                         0.5,
+                                                         0.5
+                                                     ],
+                                       "scale":  0.94,
+                                       "fit":  "cover",
+                                       "focal_point":  [
+                                                           0.5,
+                                                           0.5
+                                                       ],
+                                       "radial_fade_fraction":  0.1
+                                   },
+                          "media_class":  "extended_field",
+                          "render_mode":  "circular_field"
+                      },
+    "sombrero_galaxy":  {
+                            "master_path":  "res://assets/telescope_view/official/sombrero_galaxy.png",
+                            "asset_class":  "licensed_science_image",
+                            "crop":  {
+                                         "centering":  [
+                                                           0.5,
+                                                           0.52
+                                                       ],
+                                         "scale":  0.92,
+                                         "tone":  "warm_core_dust_lane",
+                                         "fit":  "cover",
+                                         "focal_point":  [
+                                                             0.5,
+                                                             0.52
+                                                         ],
+                                         "radial_fade_fraction":  0.1
+                                     },
+                            "media_class":  "extended_field",
+                            "render_mode":  "circular_field"
+                        },
+    "crab_nebula":  {
+                        "master_path":  "res://assets/telescope_view/official/crab_nebula.png",
+                        "asset_class":  "licensed_science_image",
+                        "crop":  {
+                                     "centering":  [
+                                                       0.5,
+                                                       0.5
+                                                   ],
+                                     "scale":  0.94,
+                                     "fit":  "cover",
+                                     "focal_point":  [
+                                                         0.5,
+                                                         0.5
+                                                     ],
+                                     "radial_fade_fraction":  0.1
+                                 },
+                        "media_class":  "extended_field",
+                        "render_mode":  "circular_field"
+                    },
+    "dumbbell_nebula":  {
+                            "master_path":  "res://assets/telescope_view/official/dumbbell_nebula.png",
+                            "asset_class":  "licensed_science_image",
+                            "crop":  {
+                                         "centering":  [
+                                                           0.5,
+                                                           0.5
+                                                       ],
+                                         "scale":  0.92,
+                                         "fit":  "cover",
+                                         "focal_point":  [
+                                                             0.5,
+                                                             0.5
+                                                         ],
+                                         "radial_fade_fraction":  0.1
+                                     },
+                            "media_class":  "extended_field",
+                            "render_mode":  "circular_field"
+                        },
+    "double_cluster":  {
+                           "master_path":  "res://assets/telescope_view/official/double_cluster.png",
+                           "asset_class":  "licensed_science_image",
+                           "crop":  {
+                                        "centering":  [
+                                                          0.5,
+                                                          0.5
+                                                      ],
+                                        "scale":  0.94,
+                                        "fit":  "cover",
+                                        "focal_point":  [
+                                                            0.5,
+                                                            0.5
+                                                        ],
+                                        "radial_fade_fraction":  0.1
+                                    },
+                           "media_class":  "extended_field",
+                           "render_mode":  "circular_field"
+                       },
+    "whirlpool_galaxy":  {
+                             "master_path":  "res://assets/telescope_view/official/whirlpool_galaxy.png",
+                             "asset_class":  "licensed_science_image",
+                             "crop":  {
+                                          "centering":  [
+                                                            0.5,
+                                                            0.5
+                                                        ],
+                                          "scale":  0.92,
+                                          "fit":  "cover",
+                                          "focal_point":  [
+                                                              0.5,
+                                                              0.5
+                                                          ],
+                                          "radial_fade_fraction":  0.1
+                                      },
+                             "media_class":  "extended_field",
+                             "render_mode":  "circular_field"
+                         },
+    "needle_galaxy":  {
+                          "master_path":  "res://assets/telescope_view/official/needle_galaxy.png",
+                          "asset_class":  "licensed_science_image",
+                          "crop":  {
+                                       "centering":  [
+                                                         0.5,
+                                                         0.5
+                                                     ],
+                                       "scale":  0.9,
+                                       "fit":  "cover",
+                                       "focal_point":  [
+                                                           0.5,
+                                                           0.5
+                                                       ],
+                                       "radial_fade_fraction":  0.1
+                                   },
+                          "media_class":  "extended_field",
+                          "render_mode":  "circular_field"
+                      }
+}

@@ -5,6 +5,11 @@ var failures := 0
 
 func _initialize() -> void:
 	await process_frame
+	var feedback := root.get_node_or_null("/root/InteractionFeedback")
+	var previous_reduced_motion := false
+	if feedback != null:
+		previous_reduced_motion = bool(feedback.call("is_reduced_motion"))
+		feedback.set("reduced_motion", false)
 	var gm := root.get_node("/root/GameManager")
 	gm.new_game()
 	gm.language_mode = "en"
@@ -32,7 +37,11 @@ func _initialize() -> void:
 		"_power_down",
 		func() -> void: power_scene.set_meta("shutdown_callback", true),
 		true)
-	await _settle(1.75)
+	var shutdown := power_scene.find_child("SpaceConsoleShutdown", true, false) as Control
+	_check(
+		shutdown != null and float(shutdown.get_meta("transition_beat", 0.0)) >= 0.3,
+		"normal shutdown keeps each archive/link/collapse beat readable")
+	await _settle(3.0)
 	_check(bool(power_scene.get_meta("shutdown_callback", false)),
 		"shutdown finishes before changing scene")
 	_check(power_scene.get("shutdown_phase") == "complete",
@@ -72,6 +81,8 @@ func _initialize() -> void:
 	await process_frame
 
 	print("SPACE SHUTDOWN TRANSITION TEST: %s" % ("PASS" if failures == 0 else "FAIL"))
+	if feedback != null:
+		feedback.set("reduced_motion", previous_reduced_motion)
 	quit(0 if failures == 0 else 1)
 
 

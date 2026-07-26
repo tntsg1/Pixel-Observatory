@@ -38,6 +38,11 @@ var alt_velocity := 0.0
 var cable_tension := 0.30            # 0..1, rises with speed
 var aim_drift_deg_s := 0.0
 var aim_drift_phase := 0.0
+var aim_disturbance_interval_s := 10.0
+var aim_disturbance_timer_s := 10.0
+var aim_disturbance_remaining_s := 0.0
+var aim_disturbance_vector := Vector2.ZERO
+var aim_disturbance_serial := 0
 var damping_scale := 1.0
 var acceleration_scale := 1.0
 const MAX_SLEW := 18.0               # deg/s cap
@@ -45,6 +50,8 @@ const DAMPING := 2.4                 # velocity damping per second
 const ACCEL := 26.0                  # deg/s^2 per nudge unit
 const LOCK_TOLERANCE := 2.2          # deg pointing error to count as on-target
 const STABLE_SPEED := 1.4            # deg/s below which pointing is "settled"
+const FAST_MAX_ZENITH_ANGLE_DEG := 40.0
+const AIM_DISTURBANCE_DURATION_S := 0.72
 
 # ---- frequency window ----
 var window_center_mhz := 1400.0
@@ -81,6 +88,7 @@ func configure(profile: Dictionary) -> void:
 	narrative_result_en = str(profile.get("result_en", narrative_result_en))
 	narrative_result_zh = str(profile.get("result_zh", narrative_result_zh))
 	aim_drift_deg_s = float(profile.get("aim_drift_deg_s", 0.0))
+	aim_disturbance_interval_s = maxf(6.0, float(profile.get("aim_disturbance_interval_s", 10.0)))
 	damping_scale = maxf(0.35, float(profile.get("damping_scale", 1.0)))
 	acceleration_scale = maxf(0.35, float(profile.get("acceleration_scale", 1.0)))
 	required_integration_s = clampf(float(profile.get("required_integration_s", 180.0)), 30.0, MAX_INTEGRATION)
@@ -99,6 +107,10 @@ func configure(profile: Dictionary) -> void:
 	trial_dm = float(profile.get("start_dm", 0.0))
 	integration_s = 0.0
 	aim_drift_phase = 0.0
+	aim_disturbance_timer_s = aim_disturbance_interval_s
+	aim_disturbance_remaining_s = 0.0
+	aim_disturbance_vector = Vector2.ZERO
+	aim_disturbance_serial = 0
 	classifications.clear()
 	_build_rfi(profile)
 
@@ -156,8 +168,10 @@ func step(dt: float) -> void:
 	# inertia + exponential damping = the cabin coasts and settles, never snaps
 	aim_drift_phase += dt
 	if aim_drift_deg_s > 0.0:
-		az_velocity += sin(aim_drift_phase * 1.7) * aim_drift_deg_s * dt
-		alt_velocity += cos(aim_drift_phase * 1.15) * aim_drift_deg_s * 0.55 * dt
+		aim_disturbance_timer_s -= dt
+		if aim_disturbance_timer_s <= 0.0:
+			_begin_aim_disturbance()
+	aim_disturbance_remaining_s = maxf(0.0, aim_disturbance_remaining_s - dt)
 	azimuth += az_velocity * dt
 	altitude += alt_velocity * dt
 	var damp := clampf(1.0 - DAMPING * damping_scale * dt, 0.0, 1.0)
@@ -167,6 +181,65 @@ func step(dt: float) -> void:
 	var speed := pointing_speed()
 	# cable tension tracks how hard the drive is working
 	cable_tension = clampf(0.22 + speed / MAX_SLEW * 0.85, 0.0, 1.0)
+
+
+func _begin_aim_disturbance() -> void:
+	aim_disturbance_serial += 1
+	var phase_deg := fposmod(
+		true_azimuth * 0.73 + true_altitude * 1.37 + float(aim_disturbance_serial) * 137.5,
+		360.0
+	)
+	var phase := deg_to_rad(phase_deg)
+	aim_disturbance_vector = Vector2(cos(phase), sin(phase) * 0.68).normalized()
+	var impulse := aim_drift_deg_s * 0.58
+	az_velocity = clampf(az_velocity + aim_disturbance_vector.x * impulse, -MAX_SLEW, MAX_SLEW)
+	alt_velocity = clampf(alt_velocity + aim_disturbance_vector.y * impulse, -MAX_SLEW, MAX_SLEW)
+	aim_disturbance_remaining_s = AIM_DISTURBANCE_DURATION_S
+	aim_disturbance_timer_s = aim_disturbance_interval_s
+
+
+func aim_disturbance_active() -> bool:
+	return aim_disturbance_remaining_s > 0.0
+
+
+func seconds_to_aim_disturbance() -> float:
+	if aim_drift_deg_s <= 0.0:
+		return -1.0
+	return maxf(0.0, aim_disturbance_timer_s)
+
+
+func target_feed_offset_normalized() -> Vector2:
+	return _feed_offset_for_direction(true_azimuth, true_altitude)
+
+
+func cabin_feed_offset_normalized() -> Vector2:
+	return _feed_offset_for_direction(azimuth, altitude)
+
+
+func _feed_offset_for_direction(azimuth_deg: float, altitude_deg: float) -> Vector2:
+	# FAST forms an off-axis paraboloid beneath the suspended receiver. The
+	# receiver projection therefore rotates around the dish with azimuth and
+	# moves radially with zenith angle instead of always sitting at screen centre.
+	var zenith_deg := clampf(90.0 - altitude_deg, 0.0, FAST_MAX_ZENITH_ANGLE_DEG)
+	var radial := sin(deg_to_rad(zenith_deg)) / sin(deg_to_rad(FAST_MAX_ZENITH_ANGLE_DEG))
+	var azimuth_rad := deg_to_rad(azimuth_deg)
+	return Vector2(sin(azimuth_rad), -cos(azimuth_rad)) * radial
+
+
+func active_reflector_center_normalized() -> Vector2:
+	# The illuminated 300 m paraboloid follows the receiver projection, but over
+	# a smaller fraction of the full 500 m aperture.
+	return target_feed_offset_normalized() * 0.46
+
+
+func panel_tilt_vector(panel_position_normalized: Vector2) -> Vector2:
+	# Relative slope of z=(x^2+y^2)/(4f), plus the off-axis steering term. This
+	# is a visualization quantity: it exposes that neighbouring cable-net panels
+	# use different actuator angles without changing the pointing success model.
+	var local := panel_position_normalized - active_reflector_center_normalized()
+	var paraboloid_gradient := local / 0.94
+	var steering_gradient := target_feed_offset_normalized() * 0.34
+	return paraboloid_gradient + steering_gradient
 
 
 func pointing_error() -> float:

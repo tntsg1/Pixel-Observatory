@@ -117,9 +117,27 @@ func _test_averted_vision_ui() -> void:
 	await process_frame
 	var guide := view.find_child("AvertedVisionGuide", true, false) as Control
 	_check(guide != null and bool(guide.get("enabled")), "averted-vision lesson draws a visible side-gaze marker")
-	view.set("averted_vision_active", true)
-	view.call("_update_averted_vision_guide", 0.7)
+	view.set("dark_adaptation", 1.0)
+	view.set("drift_offset", Vector2.ZERO)
+	view.set("drift_direction", Vector2.ZERO)
+	Input.action_press("dodge")
+	view.call("_advance_dark_adaptation", 0.01)
+	view.call("_update_averted_vision_guide", 0.70)
 	_check(guide != null and bool(guide.get("active")) and float(guide.get("hold_visual")) > 0.0, "holding averted vision drives the visual progress ring")
+	_check(not bool(view.get("averted_vision_confirmed")), "a short Shift press does not satisfy averted vision")
+	view.call("_update_averted_vision_guide", 0.56)
+	_check(bool(view.get("averted_vision_confirmed")), "1.25 seconds of continuous side-gaze confirms the technique")
+	_check(float(guide.get("cursor_progress")) > 0.8, "gaze cursor travels from the target toward the side marker")
+	Input.action_release("dodge")
+	view.call("_advance_dark_adaptation", 0.01)
+	view.call("_update_averted_vision_guide", 0.60)
+	_check(not bool(view.get("averted_vision_confirmed")), "releasing Shift decays and resets averted vision")
+	_check(
+		str(view.call("_guide_thumbnail_path", "sombrero_galaxy")) == OpticalMediaRegistry.master_path("sombrero_galaxy"),
+		"Field Guide prioritizes the registry clean master"
+	)
+	_check(str(view.call("_target_render_mode", "sombrero_galaxy")) == "extended_subject", "deep-sky registry art uses a true-alpha science subject behind the fixed lens mask")
+	_check(str(view.call("_target_render_mode", "jupiter")) == "transparent_sprite", "planet sprites keep transparent-sprite rendering")
 	var equipment_button: Button
 	for node in view.find_children("*", "Button", true, false):
 		if str((node as Button).text).contains("Change Equipment"):

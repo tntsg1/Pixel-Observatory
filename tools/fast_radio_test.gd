@@ -278,9 +278,19 @@ func _test_no_optical() -> void:
 		_check(not src.contains(term), "8. FAST screen uses no optical concept '%s'" % term)
 	_check(src.contains("objective:"), "8. FAST keeps a concise stage objective instead of a tutorial wall")
 	_check(src.contains("fast array takeover"), "8. FAST opens with a facility-scale array takeover")
+	_check(src.contains("fast_crt_monitor.gdshader"), "8. FAST uses its state-driven CRT presentation layer")
+	_check(src.contains("feed cabin drive"), "8. FAST logs real feed-cabin drive commands")
+	_check(src.contains("spectrum verify"), "8. FAST logs real RFI verification results")
+	_check(src.contains("pulse profile"), "8. FAST logs the confirmed pulse result")
 	for term in ["snr", "dispersion", "period", "spectrum", "rfi", "integration"]:
 		_check(src.contains(term), "8. FAST screen uses radio concept '%s'" % term)
 	_check(not src.contains("\"success\": true"), "8. report submission is not hard-coded to success")
+	var shader := FileAccess.open("res://shaders/fast_crt_monitor.gdshader", FileAccess.READ)
+	_check(shader != null, "8. FAST CRT shader exists")
+	if shader != null:
+		var shader_source := shader.get_as_text().to_lower()
+		_check(shader_source.contains("instability"), "8. CRT instability is driven by the scientific state")
+		_check(shader_source.contains("lock_stability"), "8. CRT settles as the receiver chain locks")
 
 
 func _check(condition: bool, label: String) -> void:

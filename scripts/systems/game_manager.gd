@@ -129,6 +129,10 @@ var room_guidance_title := ""
 var room_guidance_hint := ""
 var language_mode := "en"
 var observatory_spawn_id := "default"
+# Exact in-room navigation pose. This is intentionally transient: it preserves
+# where the player stood while visiting menus, observation screens, journals,
+# or teaching cards without changing the save format or cross-session spawn.
+var observatory_return_pose: Dictionary = {}
 # The map can be opened from either the observatory or an already-active sky
 # view. Keep that return route transient: it is navigation state, not progress.
 var world_map_return_scene := "sky"
@@ -238,6 +242,7 @@ func debug_launch(scene_key: String, prepare_equipment: bool = false) -> void:
 	selected_object_level = int(progress.get("current_level", 1))
 	if scene_key == "observatory":
 		update_room_guidance_for_level()
+		clear_observatory_return_pose()
 		set_observatory_spawn("default")
 	go(scene_key)
 
@@ -315,7 +320,10 @@ func prepared_readiness_report() -> Dictionary:
 		"tube_interior": true,
 		"collimation": -1.0,
 		"observation_open": false,
-		"family": str(level.get("telescope_family", ""))
+		"family": str(level.get("telescope_family", "")),
+		"mount_id": "",
+		"tracking_capable": false,
+		"tracking_rate": 0.0
 	}
 	if not current_requires_telescope():
 		# Naked-eye-only nights: no rig to build.
@@ -324,6 +332,11 @@ func prepared_readiness_report() -> Dictionary:
 		report["needs_telescope"] = false
 		return report
 	report["needs_telescope"] = true
+	var mount_id := equipped_part_id("mount")
+	var mount := get_part(mount_id)
+	report["mount_id"] = mount_id
+	report["tracking_capable"] = bool(mount.get("tracking_capable", false))
+	report["tracking_rate"] = tracking_rate() if report["tracking_capable"] else 0.0
 	var state: Dictionary = progress.get("assembly_state", {})
 	for required_type_value in _effective_required_parts():
 		var required_type := str(required_type_value)
@@ -405,6 +418,9 @@ func default_progress() -> Dictionary:
 
 
 func new_game() -> void:
+	var audio_manager := get_node_or_null("/root/AudioManager")
+	if audio_manager != null and audio_manager.has_method("clear_music_progress"):
+		audio_manager.clear_music_progress()
 	progress = SaveManager.reset_progress(default_progress())
 	language_mode = _normalized_language_mode(str(progress.get("language_mode", "en")))
 	selected_object_id = ""
@@ -422,6 +438,7 @@ func new_game() -> void:
 	last_guidance = ""
 	clear_room_guidance()
 	observatory_spawn_id = "default"
+	clear_observatory_return_pose()
 	last_sky_aim = {"valid": false}
 	assembly_family_id = str(progress.get("selected_telescope_family", "refractor"))
 	TeachingFlowManager.reset_flow()
@@ -511,6 +528,27 @@ func go(scene_key: String) -> void:
 
 func set_observatory_spawn(spawn_id: String) -> void:
 	observatory_spawn_id = spawn_id
+
+
+func remember_observatory_pose(position: Vector2, facing: String) -> void:
+	if not is_finite(position.x) or not is_finite(position.y):
+		return
+	var safe_facing := facing if facing in ["up", "down", "left", "right"] else "down"
+	observatory_return_pose = {
+		"valid": true,
+		"position": position,
+		"facing": safe_facing,
+	}
+
+
+func take_observatory_return_pose() -> Dictionary:
+	var pose := observatory_return_pose.duplicate(true)
+	observatory_return_pose.clear()
+	return pose
+
+
+func clear_observatory_return_pose() -> void:
+	observatory_return_pose.clear()
 
 
 func take_observatory_spawn() -> String:
@@ -2294,6 +2332,15 @@ func update_tube_subassembly_progress(installed_subparts: Dictionary) -> void:
 	save()
 
 
+func _required_part_id_for_type(part_type: String, fallback_id: String) -> String:
+	for required_value in current_level().get("required_part_ids", []):
+		var required_id := str(required_value)
+		var required_part := get_part(required_id)
+		if str(required_part.get("type", "")) == part_type:
+			return required_id
+	return fallback_id
+
+
 func tube_subassembly_config() -> Dictionary:
 	var family := str(current_level().get("telescope_family", ""))
 	match family:
@@ -2305,7 +2352,8 @@ func tube_subassembly_config() -> Dictionary:
 			# Eight-slot folded path: tube -> primary cell -> concave primary ->
 			# convex secondary -> central baffle -> rear focuser -> eyepiece ->
 			# collimation tool (matches the user's tube blueprint art).
-			return {"family": family, "order": ["reflector_tube", "mirror_cell", "primary_mirror", "secondary_mirror", "central_baffle", "focuser", "eyepiece", "collimation_tool"], "ids": ["cassegrain_compact_tube", "cassegrain_mirror_cell", "cassegrain_primary_mirror", "cassegrain_convex_secondary", "cassegrain_central_baffle", "cassegrain_rear_focuser", "cassegrain_12mm_eyepiece", "cassegrain_collimation_tool"]}
+			var eyepiece_id := _required_part_id_for_type("eyepiece", "cassegrain_12mm_eyepiece")
+			return {"family": family, "order": ["reflector_tube", "mirror_cell", "primary_mirror", "secondary_mirror", "central_baffle", "focuser", "eyepiece", "collimation_tool"], "ids": ["cassegrain_compact_tube", "cassegrain_mirror_cell", "cassegrain_primary_mirror", "cassegrain_convex_secondary", "cassegrain_central_baffle", "cassegrain_rear_focuser", eyepiece_id, "cassegrain_collimation_tool"]}
 		"gregorian":
 			return {"family": family, "order": ["reflector_tube", "primary_mirror", "optical_support", "secondary_mirror", "focuser", "eyepiece"], "ids": ["gregorian_optical_tube", "gregorian_primary_mirror", "gregorian_optical_support", "gregorian_concave_secondary", "gregorian_focuser", "gregorian_18mm_eyepiece"]}
 	return {}
@@ -2709,6 +2757,7 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 			_unlock_parts_for_current_level()
 			_select_current_mission_target()
 	save()
+	AudioManager.play_event("mission_completed")
 	# Point the player at the next step for the (possibly new) level.
 	update_room_guidance_for_level()
 	show_mission_complete_card(payload)

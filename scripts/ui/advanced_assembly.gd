@@ -1664,6 +1664,7 @@ func _finish() -> void:
 			return
 		GameManager.go("collimation")
 		return
+	InteractionFeedback.feedback_sfx_requested.emit("assembly_completed")
 	GameManager.update_room_guidance_for_level()
 	GameManager.set_observatory_spawn("assembly")
 	GameManager.go("observatory")

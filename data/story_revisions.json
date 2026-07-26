@@ -6,25 +6,25 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "You made it. Welcome to the Astronomy Club. Long before telescopes, people used this same sky for direction, seasons, stories, and questions. Tonight you join that long chain.",
-      "text_zh": "你来了，欢迎加入天文俱乐部。远在望远镜出现之前，人们就用同一片天空辨方向、定季节、讲故事、提出问题。今晚，你也加入这条漫长的观测传承。"
+      "text_zh": "你来了。欢迎加入天文俱乐部，我是玛雅。人们看这片天空已经很久了，今晚轮到你亲手试试。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "image": "res://assets/reference/observatory_room_clean_bg_1024.png",
+      "image": "res://assets/reference/observatory_room_hall_1024.png",
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "The Moon feels familiar, yet its bright face still keeps secrets. Start with the oldest instrument we own: your own eyes. Notice both what they reveal and what they cannot resolve.",
-      "text_zh": "月球很熟悉，明亮的表面却仍藏着秘密。先用我们最古老的仪器：你自己的眼睛。既要留意看见了什么，也要记住哪些细节仍分辨不清。"
+      "text_zh": "先别碰望远镜，我们从月球开始。用眼睛看看它的轮廓和暗色区域，也留意哪些细节怎么都看不清。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "image": "res://assets/reference/observatory_room_clean_bg_1024.png",
+      "image": "res://assets/reference/observatory_room_hall_1024.png",
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Careful records were astronomy's first breakthrough. Our routine keeps that habit alive: the Mission Board asks, the cabinet and assembly table prepare, the Observation Pad tests, and the Club Logbook preserves the evidence.",
-      "text_zh": "认真记录，就是天文学最早的突破。这里也延续着这个习惯：任务板提问，零件柜和组装台做准备，观测台检验，俱乐部日志保存证据。"
+      "text_zh": "这里的路线不复杂：任务板接任务，零件柜和组装台做准备，观测台动手看，最后把结果记进日志。"
     },
     {
       "speaker": "Maya",
@@ -32,7 +32,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "The central circle is the Observation Pad. Parts are stored on the left, assembled at the upper-right table, logged at the lower-left desk, and measured by the green-screen terminal at lower right.",
-      "text_zh": "中央圆台是观测台。零件存放在左侧柜子，在右上角组装台安装，结果记进左下角日志，右下角绿屏终端负责技术测量。"
+      "text_zh": "中央圆台是观测台。左边拿零件，右上角组装，左下角查日志；右下角绿屏终端以后会用到。"
     },
     {
       "speaker": "You",
@@ -47,7 +47,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Exactly. Record the Moon's shape and dark maria now; a later refractor view will reveal what changed. Walk to the Observation Pad, press E, then use A/D and W/S to center it. I will stay with you.",
-      "text_zh": "没错。现在先记录月球轮廓与暗色月海；以后用折射镜再看，变化才有证据。走到观测台按 E，再用 A/D 和 W/S 把月球移到中央。我会陪着你。"
+      "text_zh": "对，先记下现在能看到的样子。走到中央观测台按 E，再用 A/D 和 W/S 把月球移到准星中央。我在旁边看着。"
     }
   ],
   "level_2_after": [
@@ -55,13 +55,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Polaris gave us direction, but the naked-eye image still gave us almost no structure. We have reached the limit of the instrument we were born with.",
-      "text_zh": "北极星给了我们方向，但肉眼图像仍然几乎没有结构。我们已经碰到了天生观测工具的极限。"
+      "text_zh": "北极星能帮我们辨方向，可肉眼还是看不出多少细节。该让望远镜上场了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Next we turn that limitation into a design problem. Check the Mission Board, choose the required parts in the cabinet, and meet me at the Assembly Table.",
-      "text_zh": "下一步，我们把这个限制变成一个设计问题。先看任务板，再到零件柜选择所需部件，最后来组装台找我。"
+      "text_zh": "先去任务板看看要观测什么，再到零件柜拿齐部件。准备好后，来组装台找我。"
     }
   ],
   "level_3_before_assembly": [
@@ -71,7 +71,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Your first Moon record has shape and dark maria, but almost no terrain. For thousands of years, that familiar disc remained distant and unresolved.",
-      "text_zh": "你的第一份月球记录有轮廓和暗色月海，却几乎没有地形。几千年来，那轮熟悉的圆盘一直遥远而难以分辨。"
+      "text_zh": "第一份月球记录里有轮廓和月海，但环形山还看不清。接下来就拿折射镜补上这些细节。"
     },
     {
       "speaker": "Maya",
@@ -80,7 +80,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Early-1600s spyglasses changed that. Galileo did not invent the telescope, but he improved one and turned it skyward; glass changed the Moon from a flat symbol into a world with uneven ground.",
-      "text_zh": "17 世纪初的望远镜式窥镜改变了这一点。伽利略并非望远镜的发明者，但他改进望远镜并把它指向天空；玻璃让月球从平面符号变成了有起伏地形的世界。"
+      "text_zh": "17 世纪初，伽利略改进了望远镜并把它指向天空。他不是望远镜的发明者，但月球从此不再只是一个圆盘，人们第一次看清了起伏的地形。"
     },
     {
       "speaker": "Maya",
@@ -88,7 +88,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Build our refractor in optical order, then return to the same Moon. Compare the maria and crater rims with your first log entry; that difference is the reason to build.",
-      "text_zh": "按光路顺序组装折射镜，再回到同一轮月球。把月海和环形山边缘与第一份日志比较；这份差异，就是动手组装的意义。"
+      "text_zh": "按光路顺序把折射镜装起来，然后再看一次月球。记得和第一份日志对照，看看环形山边缘多出了多少。"
     }
   ],
   "level_6_before": [
@@ -98,7 +98,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "The refractor shows more, but its narrow field makes the sky harder to navigate. Experienced observers lose targets too; the keyhole is the problem, not your eyesight.",
-      "text_zh": "折射镜看得更多，狭窄视场却让天空更难导航。有经验的观测者也会丢目标；问题在这扇小小的“钥匙孔”，不在你的眼睛。"
+      "text_zh": "主镜视野很窄，找不到目标很正常，老手也会丢。不是你眼神不好，是这扇“钥匙孔”确实太小。"
     },
     {
       "speaker": "Maya",
@@ -107,7 +107,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Observers added a small, wide-field finder that points with the main tube. It does not reveal planet detail; it makes a narrow telescope practical.",
-      "text_zh": "观测者给主镜加上一支同向的小型宽视场寻星镜。它不负责显示行星细节，而是让狭窄视场的望远镜真正好用。"
+      "text_zh": "所以主镜旁边会装一支宽视场寻星镜。它不负责看细节，只负责先把目标找进来。"
     },
     {
       "speaker": "Maya",
@@ -115,7 +115,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Align both views on Sirius, then practice the real rhythm: Eye, Finder, Main Scope. It is an observing habit, not just three menu buttons.",
-      "text_zh": "先用天狼星校准两个视野，再练习真正的节奏：肉眼、寻星镜、主望远镜。这是观测习惯，不只是三个菜单按钮。"
+      "text_zh": "先用天狼星把寻星镜和主镜对齐。以后记住这个顺序：肉眼找方向，寻星镜抓目标，主镜看细节。"
     }
   ],
   "level_10_after": [
@@ -123,13 +123,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You can now assemble, aim and focus the refractor. From here on, the telescope is not the only thing that can go wrong.",
-      "text_zh": "你已经能组装、瞄准并调焦折射镜。从现在开始，出问题的不再只有望远镜。"
+      "text_zh": "折射镜的组装、瞄准和调焦，你都已经会了。接下来要对付的，是天空自己。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "The next nights add darkness, clouds, atmospheric motion and Earth's rotation. Same instrument, harder sky. That is how we separate equipment skill from observing skill.",
-      "text_zh": "接下来的夜晚会加入暗适应、云层、大气扰动和地球自转。同一台仪器，面对更难的天空。这样我们才能把设备操作和真正的观测能力区分开。"
+      "text_zh": "后面的夜晚会遇到暗适应、云层、大气扰动和地球自转。望远镜没变，但你得学会看天况、等时机。"
     }
   ],
   "level_18_after": [
@@ -143,7 +143,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Now I will stop isolating one control at a time. The Mission Board will give you a result to obtain; you will decide how the whole observatory gets you there.",
-      "text_zh": "现在我不会再一次只考一个控制项。任务板只会给出要取得的结果，如何调动整个观测站到达那里，由你决定。"
+      "text_zh": "接下来不会一次只练一个按钮了。任务板告诉你要看到什么，怎么配设备、怎么等天况，你自己安排。"
     }
   ],
   "level_18_before": [
@@ -153,7 +153,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Bright planets answer quickly. Deep-sky objects often begin as almost nothing, and that can make a careful observer doubt their own eyes.",
-      "text_zh": "明亮行星很快就会回应。深空天体起初却常常近乎什么也没有，这会让认真观测的人怀疑自己的眼睛。"
+      "text_zh": "行星很亮，通常一眼就能认出来。深空天体可没这么配合，刚开始你可能只看到一团很淡的光。"
     },
     {
       "speaker": "Maya",
@@ -162,7 +162,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "The club's older notebooks repeat the same lesson: larger aperture, dark-adapted eyes, darker skies, and patience reveal faint structure gradually, never all at once.",
-      "text_zh": "俱乐部的旧观测本反复写着同一条经验：更大口径、暗适应的眼睛、更暗的天空和耐心，会让暗弱结构逐渐出现，而不是一下子跳出来。"
+      "text_zh": "俱乐部旧日志里写得最多的就是这件事：口径要够，眼睛要适应黑暗，天空要暗，还得耐心。淡结构会慢慢冒出来。"
     },
     {
       "speaker": "Maya",
@@ -170,7 +170,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Hold Orion steady and accept an honest soft glow as evidence. That light crossed about 1,300 years to reach us; give it a quiet moment before asking it to be obvious.",
-      "text_zh": "稳住猎户座星云，把真实而柔和的微光也当作证据。那束光跋涉了约 1300 年才到这里；别急着要求它显眼，先安静地多看一会儿。"
+      "text_zh": "把猎户座星云稳住，多看一会儿。它不会像行星那样跳出来，那团柔和的微光就是你要找的。"
     }
   ],
   "level_24_after": [
@@ -178,13 +178,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "That was a complete refractor session, planned and executed without rescue. You have proved that the workflow works.",
-      "text_zh": "这是一场完整的折射镜观测，你独立完成了规划和执行。你已经证明这套流程能够工作。"
+      "text_zh": "这次从选设备到观测，都是你自己完成的。折射镜这套操作，你已经能独立做了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "So the next useful lesson is not another success. Tomorrow we point the refractor at a target that exposes a flaw no amount of careful focusing can remove. Maya has left the next optical clue in the club storeroom.",
-      "text_zh": "所以下一个有价值的课程，不该只是再成功一次。明晚我们会把折射镜指向一个目标，让它暴露出无论多认真调焦都消不掉的缺陷。玛雅已经把下一条光学线索留在俱乐部储藏室。"
+      "text_zh": "下一课不重复庆祝成功。明晚我们找一颗亮星，看看折射镜有个什么毛病，连调焦都救不了。线索我放在储藏室了。"
     }
   ],
   "level_25_before": [
@@ -192,13 +192,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Vega is bright, distant and nearly point-like. That makes it an unforgiving test: a perfect star image should be compact and colorless.",
-      "text_zh": "织女星明亮、遥远，几乎是一个点，因此它是一项很苛刻的测试：理想星像应该紧致而没有彩边。"
+      "text_zh": "织女星又亮又远，在镜里几乎就是一个点，最适合检查彩边。理想的星点应该小而干净。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Focus as carefully as you know how. If the colored fringe remains at best focus, do not blame your hands. We are testing the lens design itself.",
-      "text_zh": "用你掌握的全部方法认真调焦。如果最佳焦点仍有彩边，不要责怪自己的操作。今晚被测试的是透镜结构本身。"
+      "text_zh": "先把焦点调到最清楚。要是彩边还在，别怪自己手抖，那是透镜留下来的。"
     }
   ],
   "level_25_after": [
@@ -212,7 +212,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "That failure gives us the reason to change telescope families. At the blueprint selector, choose the Newtonian: mirrors reflect all visible colors along the same path.",
-      "text_zh": "这次失败给了我们更换望远镜家族的理由。到蓝图选择器切换为牛顿式：镜面会让所有可见光颜色沿同一条路径反射。"
+      "text_zh": "所以我们换一种思路。去蓝图选择器切到牛顿式，镜面反射不会把不同颜色拆开。"
     }
   ],
   "level_26_before_assembly": [
@@ -222,7 +222,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "You focused Vega correctly and the colored fringe remained. Breathe: that was not your mistake. The refractor reached its own physical limit, and that is how science asks for a new tool.",
-      "text_zh": "你已经把织女星正确合焦，彩色边缘却仍然存在。先松口气：这不是你的错误。折射镜到达了自身的物理极限，而科学正是这样提出新工具的需求。"
+      "text_zh": "织女星已经合焦，彩边却还在。先松口气，这不是你调错了，是折射镜碰到了自己的极限。"
     },
     {
       "speaker": "Maya",
@@ -239,7 +239,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Open the Newtonian blueprint. Build the primary, secondary, spider, and side focuser as one path, then collimate their shared axis. Mirrors solve the color problem by giving you a new responsibility.",
-      "text_zh": "打开牛顿式蓝图，把主镜、副镜、蜘蛛支架和侧置调焦器组成一条光路，再准直它们的共同光轴。镜面解决了色差，也把一项新责任交给了你。"
+      "text_zh": "打开牛顿式蓝图，装好主镜、副镜、蜘蛛支架和侧置调焦器。装完还要准直，让几块镜面的光轴对齐。"
     }
   ],
   "level_35_after": [
@@ -247,13 +247,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "The Newtonian proved the bargain: no lens color fringe, more aperture for the cost, and a new responsibility to collimate the mirrors.",
-      "text_zh": "牛顿式证明了这笔交换的价值：没有透镜彩边、同样成本获得更大口径，同时承担镜面准直的新责任。"
+      "text_zh": "牛顿式没有透镜彩边，同样预算还能做得更大。不过镜面要靠你准直，这是它多出来的功课。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Next we keep that same optical path but simplify the mount. The saved complexity becomes a larger mirror, and tracking moves from machinery into your hands.",
-      "text_zh": "下一步保留同样的光路，却简化支架。省下的复杂度会变成更大的主镜，而追踪责任会从机器转移到你的双手。"
+      "text_zh": "下一台还用牛顿光路，但把支架做得更简单，省下的钱换成更大的主镜。代价是追踪得靠手推。"
     }
   ],
   "level_36_before_assembly": [
@@ -304,7 +304,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Aperture and a wide sweep are wonderful for faint fields, but tiny planetary detail asks for a long focal length. A truly long tube is awkward to carry, support, and aim.",
-      "text_zh": "大口径和宽广扫掠很适合暗弱天区，但细小行星结构需要长焦距。真正很长的镜筒难以搬运、支撑和瞄准。"
+      "text_zh": "大口径和宽广扫掠很适合暗弱天区，但行星上的小细节需要长焦距。镜筒如果真做得很长，搬运、支撑和瞄准都会很麻烦。"
     },
     {
       "speaker": "Maya",
@@ -321,7 +321,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Build it, then use the finder with discipline. Its narrow main field will punish a rushed hand, but careful pointing earns high-magnification planetary detail.",
-      "text_zh": "组装它，再有纪律地使用寻星镜。狭窄主视场会惩罚匆忙操作，但仔细指向会换来高倍率行星细节。"
+      "text_zh": "把它装起来，找目标时别跳过寻星镜。主镜视野窄，慢一点对准，才能换来高倍率下的行星细节。"
     }
   ],
   "level_55_after": [
@@ -329,13 +329,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You have now changed aperture, focal length, mount and light path on the ground. Each solved one problem and created another.",
-      "text_zh": "你已经在地面上改变过口径、焦距、支架和光路。每种设计都解决一个问题，同时带来另一个问题。"
+      "text_zh": "你已经换过口径、焦距、支架和光路。每种设计都有擅长的目标，也都有要迁就的地方。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "The next limits cannot be fixed by another ground-telescope shape: our atmosphere blocks wavelengths and blurs detail. We move to the Space Telescope Console and change both location and wavelength.",
-      "text_zh": "接下来的限制无法靠另一种地面镜筒形状解决：大气会阻挡波段并模糊细节。我们要前往空间望远镜控制台，同时改变观测地点和波段。"
+      "text_zh": "再换地面镜筒也绕不过大气：有些波段会被挡住，细节也会被扰动抹掉。下一站去空间望远镜控制台。"
     }
   ],
   "level_66_before_assembly": [
@@ -345,7 +345,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Our atmosphere is not an enemy; it protects us. But it absorbs important infrared wavelengths, and warm air and warm telescopes glow in infrared too, hiding faint signals.",
-      "text_zh": "大气不是敌人，它保护着我们。但它会吸收重要红外波段，温暖空气和温暖望远镜自身也会发出红外，从而淹没暗弱信号。"
+      "text_zh": "大气保护着我们，但也会挡住一部分红外。空气和望远镜只要有温度，还会自己发出红外，把微弱目标盖住。"
     },
     {
       "speaker": "Maya",
@@ -354,7 +354,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Modern cold infrared observatories operate beyond Earth, including near Sun-Earth L2. Distance, a sunshield, and deep cooling let them protect photons our ground instruments cannot keep clean.",
-      "text_zh": "现代低温红外观测站运行在地球之外，包括日地 L2 附近。远离地面、遮阳罩和深度制冷，让它们保护地面仪器难以保持纯净的光子信号。"
+      "text_zh": "所以红外望远镜会去太空，像日地 L2 附近那样远离地面。遮阳罩和低温环境能把仪器自己的热辐射压下去。"
     },
     {
       "speaker": "Maya",
@@ -362,7 +362,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "There is no eyepiece now. Assemble the remote observatory, then use the Space Console to deploy it, protect its cold side, lock a guide star, align wavefronts, accumulate photons, process frames, and map filters.",
-      "text_zh": "现在没有目镜。先组装远程观测站，再用空间控制台完成展开、冷端保护、导星锁定、波前校准、光子累积、帧处理和滤镜映射。"
+      "text_zh": "这次没有目镜。先把远程观测站装好，再到空间控制台一步步展开、热控、导星、对准、曝光和处理。"
     }
   ],
   "level_75_after": [
@@ -370,13 +370,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Infrared proved that changing wavelength can reveal structure invisible from the ground. An astronomical image is already more than what the eye sees.",
-      "text_zh": "红外观测证明，改变波段能揭示地面可见光看不到的结构。天文图像早已不只是眼睛直接看见的东西。"
+      "text_zh": "换到红外以后，尘埃后面的结构也露出来了。天文图像不只记录眼睛能看见的光。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "FAST takes the final step: there is no eyepiece picture at all. At the radio console, frequency, timing and signal strength become the observation.",
-      "text_zh": "FAST 会迈出最后一步：那里完全没有目镜图像。在射电控制台上，频率、周期和信号强度本身就是观测结果。"
+      "text_zh": "FAST 更不一样，它根本不给你目镜画面。你要看的，是频率、周期和信号强度。"
     }
   ],
   "level_76_before_assembly": [
@@ -386,7 +386,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Infrared taught us that an image can be processed data. Radio astronomy goes further: some sources give us no useful picture at all, only a repeating pattern buried in noise.",
-      "text_zh": "红外观测让我们知道图像也可以来自数据处理。射电天文更进一步：有些天体根本不给我们有用的照片，只留下埋在噪声里的重复规律。"
+      "text_zh": "红外图像已经离不开数据处理。到了射电这边，有些天体连照片都没有，只在噪声里留下一遍遍重复的节奏。"
     },
     {
       "speaker": "Maya",
@@ -395,7 +395,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "FAST is a 500-meter radio telescope in Guizhou. Its active reflector reshapes below a suspended feed cabin, directing radio waves into receivers that turn an invisible sky into measurable signals.",
-      "text_zh": "FAST 是位于贵州的 500 米射电望远镜。主动反射面在悬吊馈源舱下方改变形状，把射电波导向接收机，将不可见天空变成可测量信号。"
+      "text_zh": "FAST 在贵州，口径 500 米。下面的主动反射面会变形，把射电波汇聚到悬吊馈源舱里的接收机。"
     },
     {
       "speaker": "Maya",
@@ -403,7 +403,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Assemble the signal chain, then position the feed cabin, tune frequency, reject RFI, fold pulses, match dispersion measure, integrate longer, and raise SNR. This time the trace is the evidence.",
-      "text_zh": "先组装信号链，再定位馈源舱、调谐频率、抑制射频干扰、折叠脉冲、匹配色散量、延长积分并提高信噪比。这一次，数据轨迹本身就是证据。"
+      "text_zh": "先把信号链装好。进入控制台后，稳住馈源舱、找对频段、清掉干扰，再调周期和色散量，按住积分把脉冲从噪声里拉出来。"
     }
   ],
   "level_85_after": [
@@ -411,13 +411,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You began by centering the Moon with your eyes. Now you can extract the period of an invisible dead star from noise. The instruments changed, but the method did not: ask, predict, measure, compare, record.",
-      "text_zh": "你从用肉眼把月球移到中央开始，如今已经能从噪声中测出一颗不可见死星的周期。仪器一直在变，方法却没有变：提问、预测、测量、比较、记录。"
+      "text_zh": "最开始，你只是用肉眼把月球移到中央。现在，你能从噪声里找出一颗脉冲星的周期了。仪器变了，耐心观察和认真记录没变。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "That is the observatory's real lesson. No telescope is the final upgrade; each is an answer to a particular kind of light and a particular scientific question. Your Club Logbook is the proof that you learned to choose.",
-      "text_zh": "这才是观测站真正要教你的事。没有哪台望远镜是终极升级；每一台都是对某种光和某个科学问题的回答。你的俱乐部日志，就是你已经学会选择的证明。"
+      "text_zh": "没有哪台望远镜能包办所有目标。你已经会看目标、看波段，再挑合适的工具。翻翻俱乐部日志吧，这一路都记在里面。"
     }
   ],
   "first_tube_subassembly": [
@@ -425,13 +425,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "The main blueprint shows where the completed tube belongs, but it cannot explain what happens inside it. Open the Tube Blueprint first.",
-      "text_zh": "主蓝图只说明完整镜筒装在哪里，却无法解释镜筒内部发生什么。先打开镜筒子装配蓝图。"
+      "text_zh": "主蓝图只留了一个完整镜筒槽位。先打开镜筒子装配，把里面的光路装好。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Build the mirrors, spider and focuser as one optical path. When that path is complete, save the tube and return it to the main Assembly Table.",
-      "text_zh": "把镜面、蜘蛛支架和调焦器组成一条光路。光路完成后保存镜筒，再把它送回主装配台。"
+      "text_zh": "依次装上镜面、蜘蛛支架和调焦器。镜筒保存后会回到主装配台，再把它装进整机。"
     }
   ],
   "first_collimation": [
@@ -439,13 +439,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Assembly decides whether the parts are present. Collimation decides whether their optical axes agree. A reflector can be complete and still form a distorted star.",
-      "text_zh": "组装检查零件是否齐全，准直检查光轴是否一致。反射镜即使零件完整，仍可能形成扭曲星像。"
+      "text_zh": "零件装齐了，不代表光路就正。反射镜如果没准直，星点还是会歪、会散。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "At the Collimation Bench, connect the primary to the secondary and the secondary to the focuser. Only then should we take the tube to the Observation Pad.",
-      "text_zh": "在准直工作台，让主镜光轴连接副镜，再让副镜连接调焦器。完成后，镜筒才应该被带到观测台。"
+      "text_zh": "到准直台先调主镜指向副镜，再把副镜对准调焦器。光轴连成一条线后，我们再去观测。"
     }
   ],
   "first_below_horizon": [

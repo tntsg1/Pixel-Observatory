@@ -140,6 +140,13 @@ static func _evaluate_telescope(stats: Dictionary, celestial_object: Dictionary,
 				light_ratio *= 0.85
 			"dark":
 				light_ratio *= 1.08
+		var active_filter := str(extra_context.get("filter", "none"))
+		if active_filter == "nebula" and _nebula_filter_eligible(celestial_object):
+			# A narrow nebula filter rejects part of the artificial sky glow,
+			# improving emission/planetary-nebula contrast without erasing the
+			# site's penalty. Galaxies and clusters receive no such bonus.
+			light_ratio *= 1.10
+			clarity_ratio *= 1.04
 		var cloud_cover := float(environment.get("cloud_cover", 0.0))
 		if extra_context.has("cloud_attenuation"):
 			# Real-time attenuation from telescope_view's drifting cloud
@@ -260,6 +267,18 @@ static func _requirement_failure(stats: Dictionary, context: Dictionary) -> Dict
 
 static func _ratio(value: float, required: float) -> float:
 	return value / max(1.0, required)
+
+
+static func _nebula_filter_eligible(celestial_object: Dictionary) -> bool:
+	# Broadband galaxies, clusters and the synchrotron-dominated Crab do not
+	# receive a blanket brightness upgrade. These targets have strong emission
+	# lines that a beginner nebula filter can actually isolate.
+	return str(celestial_object.get("id", "")) in [
+		"orion_nebula",
+		"ring_nebula",
+		"lagoon_nebula",
+		"dumbbell_nebula",
+	]
 
 
 static func _quality_rank(quality: String) -> int:

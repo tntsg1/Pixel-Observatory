@@ -520,9 +520,11 @@ func page_enter(control: Control, from_offset := Vector2(0, 10)) -> void:
 		control.position = final_position + from_offset
 	var tween := _replace_tween(control, "feedback_page")
 	tween.set_parallel(true)
-	tween.tween_property(control, "modulate:a", 1.0, 0.20 if not reduced_motion else 0.08)
+	# Reduced motion removes travel, not time. A readable fade is less
+	# disorienting than compressing every page transition into a flash.
+	tween.tween_property(control, "modulate:a", 1.0, 0.28 if not reduced_motion else 0.22)
 	if not reduced_motion:
-		tween.tween_property(control, "position", final_position, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tween.tween_property(control, "position", final_position, 0.34).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 
 
 func fade_then(control: Control, callback: Callable) -> void:
@@ -530,7 +532,7 @@ func fade_then(control: Control, callback: Callable) -> void:
 		callback.call()
 		return
 	var tween := _replace_tween(control, "feedback_page_exit")
-	tween.tween_property(control, "modulate:a", 0.0, 0.16 if not reduced_motion else 0.06)
+	tween.tween_property(control, "modulate:a", 0.0, 0.24 if not reduced_motion else 0.20)
 	tween.tween_callback(callback)
 
 
@@ -676,11 +678,8 @@ func operation_chain(
 		cell.text = heading + "\n" + body
 		cell.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		cell.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-		cell.add_theme_font_size_override("font_size", 11 if not compact else 10)
+		cell.add_theme_font_size_override("font_size", 13 if not compact else 12)
 		cell.add_theme_color_override("font_color", Color(0.92, 0.94, 0.90))
-		cell.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.8))
-		cell.add_theme_constant_override("shadow_offset_x", 1)
-		cell.add_theme_constant_override("shadow_offset_y", 1)
 		if compact:
 			cell.position = Vector2(12, 6 + index * 34)
 			cell.size = Vector2(panel_width - 24, 31)
@@ -824,6 +823,13 @@ func tutorial_highlight_once(target: Control, key: String, text: String, parent:
 
 func was_tutorial_seen(key: String) -> bool:
 	return bool(_tutorial_seen.get(key, false))
+
+
+func mark_tutorial_seen(key: String) -> void:
+	if key == "" or bool(_tutorial_seen.get(key, false)):
+		return
+	_tutorial_seen[key] = true
+	_save_settings()
 
 
 func _feedback_border(control: Control, color: Color) -> Panel:
