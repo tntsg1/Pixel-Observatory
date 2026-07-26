@@ -6,6 +6,17 @@ const SpaceGuideAttitudeDisplayScript := preload("res://scripts/ui/space_guide_a
 const SpaceWavefrontDisplayScript := preload("res://scripts/ui/space_wavefront_display.gd")
 const SpaceFalseColourDisplayScript := preload("res://scripts/ui/space_false_colour_display.gd")
 
+const TARGET_SCIENCE_ASSETS := {
+	"andromeda": {
+		"science_image_path": "res://assets/telescope_view/space_infrared/andromeda/andromeda_infrared_observation.jpg",
+		"science_band_paths": {
+			"nir_short": "res://assets/telescope_view/space_infrared/andromeda/andromeda_nir_short.jpg",
+			"nir_long": "res://assets/telescope_view/space_infrared/andromeda/andromeda_nir_long.jpg",
+			"miri_dust": "res://assets/telescope_view/space_infrared/andromeda/andromeda_miri_dust.jpg",
+		},
+	}
+}
+
 # JWST-class space infrared observation. A staged science pipeline that works in
 # photons, filters, attitude, temperature and data frames. It keeps its own
 # space_observation state and deliberately borrows none of the ground-optic
@@ -19,10 +30,10 @@ const SpaceFalseColourDisplayScript := preload("res://scripts/ui/space_false_col
 const BG := Color("050505")          # tube black
 const PANEL := Color("0b0b0b")       # panel well
 const P_HOT := Color("ffffff")       # focused / active
-const P_BRIGHT := Color("dcdcdc")    # primary text, headings
-const P_MID := Color("9a9a9a")       # secondary text, idle borders
-const P_DIM := Color("5a5a5a")       # disabled, grid, hints
-const P_FAINT := Color("2e2e2e")     # separators
+const P_BRIGHT := Color("f0f0f0")    # primary text, headings
+const P_MID := Color("c4c4c4")       # secondary text, idle borders
+const P_DIM := Color("8a8a8a")       # helper text, inactive labels
+const P_FAINT := Color("4a4a4a")     # separators
 const AMBER := Color("e2a34a")       # diagnosis / unresolved residuals
 # legacy names kept so every stage re-themes at once
 const GOLD := P_HOT
@@ -33,6 +44,7 @@ const RED := P_HOT
 const ORANGE := P_BRIGHT
 const TEXT := P_BRIGHT
 const MUTED := P_DIM
+const MIN_TEXT_LUMA := 0.58
 
 var model: SpaceObservationModel
 var stages: Array = []
@@ -71,18 +83,26 @@ var wavefront_fine_plus_button: Button
 var wavefront_confirm_button: Button
 var wavefront_actuator_label: Label
 var wavefront_segment_label: Label
-var wavefront_phase_meter: ProgressBar
+var wavefront_phase_meter: HSlider
 var wavefront_phase_center_mark: ColorRect
 var wavefront_control_hint: Label
 var wavefront_selected_group := -1
 var wavefront_selected_segment := -1
 var wavefront_convergence_active := false
 var wavefront_convergence_complete := false
+var wavefront_slider_syncing := false
+var wavefront_trim_direction := 0.0
+var wavefront_trim_hold_elapsed := 0.0
+var wavefront_trim_repeat_elapsed := 0.0
+var wavefront_trim_session_before := 0.0
+var wavefront_trim_session_segment := -1
+var wavefront_trim_input_active := false
 var process_animating := false
 var filter_animating := false
 var filter_display: Control
 var filter_preview_band := ""
 var filter_map_buttons: Dictionary = {}
+var filter_diagnostics_visible := false
 var crt_glass: ColorRect
 var process_tutorial_overlay: Control
 var process_tutorial_highlight: Panel
@@ -99,6 +119,13 @@ var shutdown_phase := ""
 
 const WAVEFRONT_FINE_STEP := 0.12
 const WAVEFRONT_MECHANICAL_DELAY := 0.15
+const WAVEFRONT_REPEAT_STEP := 0.045
+const WAVEFRONT_REPEAT_DELAY := 0.24
+const WAVEFRONT_REPEAT_INTERVAL := 0.055
+const CONSOLE_BOOT_DURATION := 0.96
+const CONSOLE_BOOT_DURATION_REDUCED := 0.64
+const CONSOLE_SHUTDOWN_BEAT := 0.34
+const CONSOLE_SHUTDOWN_BEAT_REDUCED := 0.24
 
 
 func _ready() -> void:
@@ -114,7 +141,7 @@ func _ready() -> void:
 # ---- power-on / power-off tube animation --------------------------------
 func _boot_animation() -> void:
 	# A CRT does not just appear; it warms up. A bright horizontal scan line
-	# sweeps down the black tube, then the picture snaps in.
+	# grows from the centre, then unfolds the picture vertically and settles.
 	var cover := ColorRect.new()
 	cover.name = "BootCover"
 	cover.color = Color(0, 0, 0, 1)
@@ -122,11 +149,15 @@ func _boot_animation() -> void:
 	cover.size = Vector2(1024, 768)
 	cover.z_index = 380
 	cover.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var reduced := InteractionFeedback.is_reduced_motion()
+	cover.set_meta(
+		"transition_duration",
+		CONSOLE_BOOT_DURATION_REDUCED if reduced else CONSOLE_BOOT_DURATION)
 	add_child(cover)
 	var scan := ColorRect.new()
 	scan.color = Color(1, 1, 1, 0.9)
-	scan.size = Vector2(1024, 3)
-	scan.position = Vector2(0, 383)
+	scan.size = Vector2(0, 2)
+	scan.position = Vector2(512, 383)
 	scan.z_index = 381
 	scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(scan)
@@ -135,10 +166,16 @@ func _boot_animation() -> void:
 	# the terminal scene remains alive; in that case the tween and its captures
 	# must stop together instead of calling back with freed cover/scan nodes.
 	var tw := create_tween().bind_node(cover)
-	tw.tween_property(scan, "position:y", 0.0, 0.10)
-	tw.parallel().tween_property(scan, "size:y", 768.0, 0.16)
-	tw.parallel().tween_property(cover, "modulate:a", 0.0, 0.18)
-	tw.parallel().tween_property(scan, "modulate:a", 0.0, 0.20)
+	var line_time := 0.16 if reduced else 0.24
+	var unfold_time := 0.30 if reduced else 0.46
+	var settle_time := 0.18 if reduced else 0.26
+	tw.tween_property(scan, "position:x", 0.0, line_time).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(scan, "size:x", 1024.0, line_time)
+	tw.tween_property(scan, "position:y", 0.0, unfold_time).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(scan, "size:y", 768.0, unfold_time)
+	tw.parallel().tween_property(cover, "modulate:a", 0.18, unfold_time)
+	tw.tween_property(cover, "modulate:a", 0.0, settle_time)
+	tw.parallel().tween_property(scan, "modulate:a", 0.0, settle_time)
 	tw.tween_callback(func() -> void:
 		if is_instance_valid(cover): cover.queue_free()
 		if is_instance_valid(scan): scan.queue_free()
@@ -150,7 +187,7 @@ func _power_down(then: Callable, observation_complete := false) -> void:
 		return
 	running = true
 	var reduced := InteractionFeedback.is_reduced_motion()
-	var beat := 0.06 if reduced else 0.22
+	var beat := CONSOLE_SHUTDOWN_BEAT_REDUCED if reduced else CONSOLE_SHUTDOWN_BEAT
 	_log_line("SCIENCE ARCHIVE" if observation_complete else "SESSION CLOSE", "RUN")
 
 	shutdown_overlay = Control.new()
@@ -158,6 +195,7 @@ func _power_down(then: Callable, observation_complete := false) -> void:
 	shutdown_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
 	shutdown_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
 	shutdown_overlay.z_index = 900
+	shutdown_overlay.set_meta("transition_beat", beat)
 	add_child(shutdown_overlay)
 
 	var dim := ColorRect.new()
@@ -268,10 +306,27 @@ func _profile() -> Dictionary:
 	var prof: Dictionary = (level.get("space_profile", {}) as Dictionary).duplicate(true)
 	if prof.is_empty():
 		prof = {"target_id": GameManager.current_target_object_id()}
+	var target_id := str(prof.get("target_id", GameManager.current_target_object_id()))
+	var target_assets: Dictionary = TARGET_SCIENCE_ASSETS.get(target_id, {})
+	for key in target_assets:
+		if not prof.has(key):
+			prof[key] = target_assets[key]
 	# Mission number participates in the deterministic guide-field seed. Repeated
 	# targets in later lessons still require a fresh search and a different slew.
 	prof["guide_seed"] = int(level.get("level_number", GameManager.progress.get("current_level", 1)))
 	return prof
+
+
+func _science_band_textures() -> Dictionary:
+	var result := {}
+	var paths: Dictionary = _profile().get("science_band_paths", {})
+	for band_id in paths:
+		var path := str(paths[band_id])
+		if path != "" and ResourceLoader.exists(path):
+			var texture := load(path) as Texture2D
+			if texture != null:
+				result[band_id] = texture
+	return result
 
 
 # The five JWST teaching cards, shown as a first-time Maya briefing before the
@@ -333,6 +388,16 @@ func _process(delta: float) -> void:
 	if _key() == "expose" and acquiring:
 		elapsed += delta
 		_refresh_expose()
+	if _key() == "wavefront" and wavefront_trim_direction != 0.0:
+		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			_end_wavefront_button_trim()
+			return
+		wavefront_trim_hold_elapsed += delta
+		if wavefront_trim_hold_elapsed >= WAVEFRONT_REPEAT_DELAY:
+			wavefront_trim_repeat_elapsed += delta
+			while wavefront_trim_repeat_elapsed >= WAVEFRONT_REPEAT_INTERVAL:
+				wavefront_trim_repeat_elapsed -= WAVEFRONT_REPEAT_INTERVAL
+				_apply_wavefront_trim_delta(wavefront_trim_direction * WAVEFRONT_REPEAT_STEP)
 
 
 # ------------------------------------------------------------ shell
@@ -1694,6 +1759,9 @@ func _confirm_guide() -> void:
 func _build_wavefront() -> void:
 	_panel_to(content, Vector2(40, 8), Vector2(600, 500), PANEL, GOLD, GameManager.text("WAVEFRONT / MIRROR ALIGNMENT", "波前 / 镜面校准"))
 	wavefront_animating = false
+	wavefront_trim_direction = 0.0
+	wavefront_trim_input_active = false
+	wavefront_trim_session_segment = -1
 	wavefront_convergence_active = false
 	wavefront_convergence_complete = model.wavefront_ok() and model.wavefront_anomaly_segments().is_empty()
 	if model.wavefront_coarse_complete:
@@ -1738,29 +1806,42 @@ func _build_wavefront() -> void:
 	wavefront_segment_label = _label_to(pad, "", Vector2(16, 184), Vector2(284, 38), 11, TEXT)
 	wavefront_segment_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	wavefront_phase_meter = ProgressBar.new()
+	wavefront_phase_meter = HSlider.new()
 	wavefront_phase_meter.name = "WavefrontPhaseScale"
 	wavefront_phase_meter.position = Vector2(16, 228)
 	wavefront_phase_meter.size = Vector2(284, 18)
-	wavefront_phase_meter.min_value = 0.0
+	wavefront_phase_meter.min_value = -1.0
 	wavefront_phase_meter.max_value = 1.0
-	wavefront_phase_meter.show_percentage = false
-	wavefront_phase_meter.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	wavefront_phase_meter.add_theme_stylebox_override("background", _flat(Color("050505"), P_DIM, 1))
-	wavefront_phase_meter.add_theme_stylebox_override("fill", _flat(Color("704d20"), AMBER, 1))
+	wavefront_phase_meter.step = 0.01
+	wavefront_phase_meter.scrollable = false
+	wavefront_phase_meter.tooltip_text = GameManager.text(
+		"Drag the actuator directly toward the centre mark.",
+		"直接拖动执行器滑块，使其靠近中心刻线。")
+	wavefront_phase_meter.add_theme_stylebox_override("slider", _flat(Color("050505"), P_DIM, 1))
+	wavefront_phase_meter.add_theme_stylebox_override("grabber_area", _flat(Color("704d20"), AMBER, 1))
+	wavefront_phase_meter.add_theme_stylebox_override("grabber_area_highlight", _flat(Color("815d27"), P_HOT, 1))
+	wavefront_phase_meter.value_changed.connect(_on_wavefront_phase_slider_changed)
+	wavefront_phase_meter.drag_started.connect(_begin_wavefront_slider_drag)
+	wavefront_phase_meter.drag_ended.connect(_end_wavefront_slider_drag)
 	pad.add_child(wavefront_phase_meter)
 	wavefront_phase_center_mark = _rect_to(pad, Vector2(157, 228), Vector2(1, 18), P_MID)
 	wavefront_phase_center_mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	wavefront_fine_minus_button = _button("−", Vector2(16, 258), Vector2(136, 42), Color("202020"))
 	wavefront_fine_minus_button.name = "FineWavefrontMinus"
-	wavefront_fine_minus_button.tooltip_text = GameManager.text("Retract the selected actuator.", "收回所选镜片执行器。")
-	wavefront_fine_minus_button.pressed.connect(_adjust_wavefront_segment.bind(-WAVEFRONT_FINE_STEP))
+	wavefront_fine_minus_button.tooltip_text = GameManager.text(
+		"Click for one trim step, or hold for continuous retraction.",
+		"单击微调一步，或按住连续收回执行器。")
+	wavefront_fine_minus_button.button_down.connect(_begin_wavefront_button_trim.bind(-1.0))
+	wavefront_fine_minus_button.button_up.connect(_end_wavefront_button_trim)
 	pad.add_child(wavefront_fine_minus_button)
 	wavefront_fine_plus_button = _button("+", Vector2(164, 258), Vector2(136, 42), Color("202020"))
 	wavefront_fine_plus_button.name = "FineWavefrontPlus"
-	wavefront_fine_plus_button.tooltip_text = GameManager.text("Extend the selected actuator.", "伸出所选镜片执行器。")
-	wavefront_fine_plus_button.pressed.connect(_adjust_wavefront_segment.bind(WAVEFRONT_FINE_STEP))
+	wavefront_fine_plus_button.tooltip_text = GameManager.text(
+		"Click for one trim step, or hold for continuous extension.",
+		"单击微调一步，或按住连续伸出执行器。")
+	wavefront_fine_plus_button.button_down.connect(_begin_wavefront_button_trim.bind(1.0))
+	wavefront_fine_plus_button.button_up.connect(_end_wavefront_button_trim)
 	pad.add_child(wavefront_fine_plus_button)
 
 	wavefront_actuator_label = _label_to(pad, "", Vector2(16, 306), Vector2(284, 28), 10, P_MID)
@@ -1845,7 +1926,7 @@ func _execute_wavefront_group() -> void:
 
 
 func _select_wavefront_segment(segment_index: int) -> void:
-	if wavefront_animating or not model.wavefront_coarse_complete:
+	if wavefront_animating or wavefront_trim_input_active or not model.wavefront_coarse_complete:
 		return
 	wavefront_selected_segment = segment_index
 	if wavefront_display != null and is_instance_valid(wavefront_display):
@@ -1865,69 +1946,136 @@ func _select_wavefront_segment(segment_index: int) -> void:
 
 
 func _adjust_wavefront_segment(delta: float) -> void:
-	if wavefront_animating or not model.wavefront_coarse_complete:
+	if not _begin_wavefront_trim_session():
 		return
+	_apply_wavefront_trim_delta(delta)
+	await get_tree().process_frame
+	_finish_wavefront_trim_session()
+
+
+func _begin_wavefront_button_trim(direction: float) -> void:
+	if not _begin_wavefront_trim_session():
+		return
+	wavefront_trim_direction = signf(direction)
+	wavefront_trim_hold_elapsed = 0.0
+	wavefront_trim_repeat_elapsed = 0.0
+	_apply_wavefront_trim_delta(wavefront_trim_direction * WAVEFRONT_FINE_STEP)
+	InteractionFeedback.pulse(
+		wavefront_fine_minus_button if direction < 0.0 else wavefront_fine_plus_button,
+		CYAN,
+		0.16
+	)
+
+
+func _end_wavefront_button_trim() -> void:
+	wavefront_trim_direction = 0.0
+	_finish_wavefront_trim_session()
+
+
+func _begin_wavefront_slider_drag() -> void:
+	if _begin_wavefront_trim_session():
+		InteractionFeedback.pulse(wavefront_phase_meter, CYAN, 0.16)
+		return
+	_sync_wavefront_phase_slider()
+
+
+func _end_wavefront_slider_drag(_value_changed: bool) -> void:
+	_finish_wavefront_trim_session()
+
+
+func _on_wavefront_phase_slider_changed(value: float) -> void:
+	if wavefront_slider_syncing:
+		return
+	if not wavefront_trim_input_active and not _begin_wavefront_trim_session():
+		_sync_wavefront_phase_slider()
+		return
+	if wavefront_selected_segment < 0:
+		return
+	var current := model.segment_phase_error(wavefront_selected_segment)
+	_apply_wavefront_trim_delta(value - current, false)
+
+
+func _begin_wavefront_trim_session() -> bool:
+	if wavefront_animating or not model.wavefront_coarse_complete:
+		return false
 	if wavefront_selected_segment < 0:
 		_say(GameManager.text(
 			"Select one amber residual segment on the mirror first.",
 			"请先在主镜上选择一块琥珀色异常镜片。"
 		), AMBER)
 		InteractionFeedback.error(readout)
-		return
-	wavefront_animating = true
-	_refresh_wavefront()
-	var segment_index := wavefront_selected_segment
-	var display_ref := wavefront_display
-	var before := absf(model.segment_phase_error(segment_index))
-	_log_line("SEG %02d PHASE TRIM" % (segment_index + 1), "RUN", "%+.2fL" % delta)
-	if display_ref != null and is_instance_valid(display_ref):
-		display_ref.start_segment_actuation(segment_index)
+		return false
+	if wavefront_trim_input_active:
+		return true
+	wavefront_trim_input_active = true
+	wavefront_trim_session_segment = wavefront_selected_segment
+	wavefront_trim_session_before = absf(model.segment_phase_error(wavefront_selected_segment))
+	_log_line(
+		"SEG %02d PHASE TRIM" % (wavefront_selected_segment + 1),
+		"RUN",
+		"CONTINUOUS CONTROL"
+	)
+	if wavefront_display != null and is_instance_valid(wavefront_display):
+		wavefront_display.start_segment_actuation(wavefront_selected_segment)
 	InteractionFeedback.feedback_sfx_requested.emit("segment_actuator")
-	await get_tree().create_timer(_wavefront_duration(0.28)).timeout
-	if not _wavefront_context_active(display_ref):
-		wavefront_animating = false
+	_refresh_wavefront()
+	return true
+
+
+func _apply_wavefront_trim_delta(delta: float, stop_at_zero := true) -> void:
+	if not wavefront_trim_input_active or wavefront_selected_segment < 0 or absf(delta) < 0.0001:
 		return
-	await get_tree().create_timer(_wavefront_duration(WAVEFRONT_MECHANICAL_DELAY)).timeout
-	var improved := model.adjust_segment_phase(segment_index, delta)
-	if display_ref != null and is_instance_valid(display_ref):
-		display_ref.animate_sensor_response(
+	var current := model.segment_phase_error(wavefront_selected_segment)
+	var effective_delta := delta
+	if stop_at_zero and current * delta < 0.0 and absf(delta) > absf(current):
+		effective_delta = -current
+	model.adjust_segment_phase(wavefront_selected_segment, effective_delta)
+	if wavefront_display != null and is_instance_valid(wavefront_display):
+		wavefront_display.animate_sensor_response(
 			model.segment_phase_errors,
 			model.segment_alignment,
 			model.wavefront_error_nm,
-			_wavefront_duration(0.32))
+			_wavefront_duration(0.12)
+		)
 	_refresh_wavefront(false)
-	await get_tree().create_timer(_wavefront_duration(0.32)).timeout
-	if not _wavefront_context_active(display_ref):
-		wavefront_animating = false
+	if absf(model.segment_phase_error(wavefront_selected_segment)) <= 0.035:
+		wavefront_trim_direction = 0.0
+		if stop_at_zero:
+			call_deferred("_finish_wavefront_trim_session")
+
+
+func _finish_wavefront_trim_session() -> void:
+	if not wavefront_trim_input_active:
 		return
-	wavefront_animating = false
+	wavefront_trim_direction = 0.0
+	wavefront_trim_hold_elapsed = 0.0
+	wavefront_trim_repeat_elapsed = 0.0
+	var segment_index := wavefront_trim_session_segment
+	var before := wavefront_trim_session_before
 	var after := absf(model.segment_phase_error(segment_index))
+	wavefront_trim_input_active = false
 	_log_line("SEG %02d PHASE TRIM" % (segment_index + 1), "HOLD", "%.2fL" % after)
-	if improved:
-		if after <= 0.12:
-			_say(GameManager.text(
-				"Segment %02d settled. Its PSF side peak has merged; select the next amber segment." % (segment_index + 1),
-				"%02d 号镜片已稳定，对应的 PSF 副峰已并入中心；请选择下一块琥珀色镜片。" % (segment_index + 1)
-			), CYAN)
-			InteractionFeedback.success(
-				wavefront_fine_minus_button if delta < 0.0 else wavefront_fine_plus_button,
-				"wavefront_segment_settled")
-		else:
-			_say(GameManager.text(
-				"Residual reduced %.2f -> %.2f lambda. Continue toward zero." % [before, after],
-				"残差已从 %.2f 降至 %.2f λ，请继续向零位微调。" % [before, after]
-			), CYAN)
+	if after <= 0.12:
+		_say(GameManager.text(
+			"Segment %02d settled. Its PSF side peak has merged; select the next amber segment." % (segment_index + 1),
+			"%02d 号镜片已稳定，对应的 PSF 副峰已并入中心；请选择下一块琥珀色镜片。" % (segment_index + 1)
+		), CYAN)
+		InteractionFeedback.success(wavefront_phase_meter, "wavefront_segment_settled")
+	elif after < before:
+		_say(GameManager.text(
+			"Residual reduced %.2f -> %.2f lambda. Continue toward zero." % [before, after],
+			"残差已从 %.2f 降至 %.2f λ，请继续向零位微调。" % [before, after]
+		), CYAN)
 	else:
 		_say(GameManager.text(
 			"That direction increased the residual. Reverse the actuator; no segment was lost.",
 			"这个方向让残差增大了。请反向微调，镜片状态不会丢失。"
 		), AMBER)
-		InteractionFeedback.pulse(
-			wavefront_fine_minus_button if delta < 0.0 else wavefront_fine_plus_button,
-			AMBER, 0.3)
+		InteractionFeedback.pulse(wavefront_phase_meter, AMBER, 0.3)
+	wavefront_trim_session_segment = -1
 	_refresh_wavefront()
 	if model.wavefront_ok() and model.wavefront_anomaly_segments().is_empty():
-		await _play_wavefront_convergence()
+		call_deferred("_play_wavefront_convergence")
 
 
 func _play_wavefront_convergence() -> void:
@@ -1982,10 +2130,19 @@ func _animate_wavefront_step(_amount: float, mode: String) -> void:
 	await _adjust_wavefront_segment(-WAVEFRONT_FINE_STEP if error > 0.0 else WAVEFRONT_FINE_STEP)
 
 
+func _sync_wavefront_phase_slider() -> void:
+	if wavefront_phase_meter == null or not is_instance_valid(wavefront_phase_meter):
+		return
+	var phase := model.segment_phase_error(wavefront_selected_segment) if wavefront_selected_segment >= 0 else 0.0
+	wavefront_slider_syncing = true
+	wavefront_phase_meter.value = clampf(phase, -1.0, 1.0)
+	wavefront_slider_syncing = false
+
+
 func _refresh_wavefront(sync_display := true) -> void:
 	if readout == null or not is_instance_valid(readout):
 		return
-	var actuator_state := "RUN" if wavefront_animating else "HOLD"
+	var actuator_state := "RUN" if wavefront_animating or wavefront_trim_input_active else "HOLD"
 	readout.text = GameManager.text(
 		"ACTUATOR %s\nAlignment %d%%\nWFE %.0f nm  (target < 150)\nPSF sharpness %d%%" % [
 			actuator_state, int(model.segment_alignment * 100), model.wavefront_error_nm, int(model.psf_sharpness() * 100)],
@@ -2013,10 +2170,10 @@ func _refresh_wavefront(sync_display := true) -> void:
 			wavefront_control_hint.text = GameManager.text(
 				"Compare A/B/C. Select the largest offset, then actuate that six-segment bank."
 				if coarse_mode else
-				"Click an amber segment. Use − / + to move its signed phase toward the centre mark.",
+				"Click an amber segment. Drag the phase slider, or hold − / + for continuous trim.",
 				"比较 A/B/C 三组偏差，选择最大的一组，再驱动这六块镜片。"
 				if coarse_mode else
-				"点击琥珀色异常镜片，用 − / + 将有符号相位移向中心刻线。"
+				"点击琥珀色异常镜片。可拖动相位滑块，或按住 − / + 连续微调。"
 			)
 	for group_index in range(wavefront_group_buttons.size()):
 		var bank := wavefront_group_buttons[group_index]
@@ -2045,10 +2202,17 @@ func _refresh_wavefront(sync_display := true) -> void:
 			)
 	if wavefront_phase_meter != null and is_instance_valid(wavefront_phase_meter):
 		wavefront_phase_meter.visible = not coarse_mode and not wavefront_convergence_complete
-		wavefront_phase_meter.value = clampf((segment_error + 1.0) * 0.5, 0.0, 1.0)
+		wavefront_phase_meter.editable = (
+			not coarse_mode
+			and has_segment
+			and (absf(segment_error) > 0.12 or wavefront_trim_input_active)
+			and not wavefront_convergence_complete
+			and not wavefront_animating
+		)
+		_sync_wavefront_phase_slider()
 	if wavefront_phase_center_mark != null and is_instance_valid(wavefront_phase_center_mark):
 		wavefront_phase_center_mark.visible = not coarse_mode and not wavefront_convergence_complete
-	var can_trim := not coarse_mode and has_segment and absf(segment_error) > 0.12 and not wavefront_animating
+	var can_trim := not coarse_mode and has_segment and (absf(segment_error) > 0.12 or wavefront_trim_input_active) and not wavefront_animating
 	if wavefront_fine_minus_button != null and is_instance_valid(wavefront_fine_minus_button):
 		wavefront_fine_minus_button.visible = not coarse_mode and not wavefront_convergence_complete
 		wavefront_fine_minus_button.disabled = not can_trim
@@ -3062,7 +3226,8 @@ func _draw_filter() -> void:
 		model.target_kind,
 		model.observation_seed,
 		clampf(model.snr() / 20.0, 0.25, 1.0),
-		filter_preview_band
+		filter_preview_band,
+		_science_band_textures()
 	)
 	_label_to(scope, GameManager.dict_text(GameManager.current_target(), "name") + "  ·  " +
 		(GameManager.text("single-band grayscale", "单波段灰度") if filter_preview_band != "" else GameManager.text("structural false colour", "结构假彩色")),
@@ -3071,7 +3236,17 @@ func _draw_filter() -> void:
 		_filter_band_short_label(str(model.channel_map["R"])) if str(model.channel_map["R"]) != "" else "-",
 		_filter_band_short_label(str(model.channel_map["G"])) if str(model.channel_map["G"]) != "" else "-",
 		_filter_band_short_label(str(model.channel_map["B"])) if str(model.channel_map["B"]) != "" else "-"]
-	_label_to(scope, mapped, Vector2(60, 380), Vector2(480, 20), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	_label_to(scope, mapped, Vector2(60, 380), Vector2(336, 20), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	var diagnostics := _button(
+		GameManager.text(
+			"Overlay: On" if filter_diagnostics_visible else "Overlay: Off",
+			"诊断标注：开" if filter_diagnostics_visible else "诊断标注：关"),
+		Vector2(406, 378), Vector2(134, 24), Color("143247"))
+	diagnostics.add_theme_font_size_override("font_size", 10)
+	diagnostics.pressed.connect(func() -> void:
+		filter_diagnostics_visible = not filter_diagnostics_visible
+		_draw_filter())
+	scope.add_child(diagnostics)
 	if model.mapping_complete():
 		_draw_filter_evidence(scope)
 	else:
@@ -3091,7 +3266,10 @@ func _draw_filter_evidence(parent: Control) -> void:
 	for index in range(mini(3, evidence.size())):
 		_label_to(parent, "▸ " + str(evidence[index]), Vector2(70, 422 + index * 18), Vector2(466, 18), 10,
 			P_BRIGHT if model.mapping_is_scientific() else MUTED)
-	# A restrained callout points at the diagnostic feature without covering it.
+	# Diagnostic geometry is optional. The default science view stays clean so
+	# no callout crosses the target's core or dust lanes.
+	if not filter_diagnostics_visible:
+		return
 	var feature_pos := Vector2(360, 230)
 	var feature_text := GameManager.text("DIAGNOSTIC FEATURE", "诊断结构")
 	if model.true_science == "star_forming":
@@ -3173,7 +3351,34 @@ func _confirm_filter() -> void:
 # ============================================================ REPORT
 func _build_report() -> void:
 	var rep := model.report()
-	_panel_to(content, Vector2(212, 8), Vector2(600, 480), PANEL, GOLD, GameManager.text("SCIENCE OBSERVATION REPORT", "科学观测报告"))
+	_panel_to(content, Vector2(40, 8), Vector2(944, 500), PANEL, GOLD, GameManager.text("SCIENCE OBSERVATION REPORT", "科学观测报告"))
+	var science_texture: Texture2D
+	var science_image_path := str(_profile().get("science_image_path", ""))
+	if science_image_path != "" and ResourceLoader.exists(science_image_path):
+		science_texture = load(science_image_path) as Texture2D
+	var report_display := SpaceFalseColourDisplayScript.new()
+	report_display.name = "ReportScienceComposite"
+	report_display.position = Vector2(70, 58)
+	report_display.size = Vector2(440, 248)
+	report_display.clip_contents = true
+	report_display.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(report_display)
+	report_display.call(
+		"configure",
+		science_texture,
+		model.channel_map,
+		model.band_signatures,
+		model.target_kind,
+		model.observation_seed,
+		clampf(model.snr() / 20.0, 0.35, 0.72),
+		"",
+		_science_band_textures())
+	_label_to(content, GameManager.text("FINAL INFRARED COMPOSITE", "最终红外合成图"),
+		Vector2(70, 32), Vector2(440, 20), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	_label_to(content, GameManager.dict_text(GameManager.current_target(), "name"),
+		Vector2(70, 312), Vector2(440, 22), 14, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_label_to(content, "NASA/JPL-Caltech  ·  WISE / Spitzer",
+		Vector2(70, 336), Vector2(440, 18), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	var rows := [
 		[GameManager.text("Signal-to-noise", "信噪比"), "%.1f" % float(rep["snr"])],
 		[GameManager.text("Exposure quality", "曝光质量"), "%d%%" % int(float(rep["exposure_quality"]) * 100)],
@@ -3191,13 +3396,13 @@ func _build_report() -> void:
 		var row: Array = rows[index]
 		var holder := Control.new()
 		holder.name = "ReportRow_%02d" % index
-		holder.position = Vector2(246, y)
-		holder.size = Vector2(540, 28)
+		holder.position = Vector2(530, y)
+		holder.size = Vector2(430, 28)
 		holder.modulate.a = 0.0
 		holder.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		content.add_child(holder)
-		_label_to(holder, str(row[0]), Vector2(6, 0), Vector2(280, 24), 14, MUTED)
-		_label_to(holder, str(row[1]), Vector2(294, 0), Vector2(240, 24), 14, TEXT)
+		_label_to(holder, str(row[0]), Vector2(6, 0), Vector2(204, 24), 13, MUTED)
+		_label_to(holder, str(row[1]), Vector2(216, 0), Vector2(208, 24), 13, TEXT)
 		var pulse := ColorRect.new()
 		pulse.color = Color(1, 1, 1, 0.22)
 		pulse.position = Vector2(0, 25)
@@ -3206,11 +3411,11 @@ func _build_report() -> void:
 		holder.add_child(pulse)
 		var delay := float(index) * 0.075
 		reveal.tween_property(holder, "modulate:a", 1.0, 0.16).set_delay(delay)
-		reveal.tween_property(holder, "position:x", 252.0, 0.18).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		reveal.tween_property(pulse, "size:x", 534.0, 0.18).set_delay(delay)
+		reveal.tween_property(holder, "position:x", 536.0, 0.18).set_delay(delay).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		reveal.tween_property(pulse, "size:x", 424.0, 0.18).set_delay(delay)
 		reveal.tween_property(pulse, "modulate:a", 0.0, 0.14).set_delay(delay + 0.15)
 		y += 38.0
-	var submit := _button(GameManager.text("Submit Report", "提交报告"), Vector2(392, 430), Vector2(240, 46), Color("175238"))
+	var submit := _button(GameManager.text("Submit Report", "提交报告"), Vector2(630, 438), Vector2(240, 46), Color("175238"))
 	submit.modulate.a = 0.28
 	submit.pressed.connect(_submit)
 	content.add_child(submit)
@@ -3403,7 +3608,10 @@ func _label_to(parent: Control, value: String, pos: Vector2, size_value: Vector2
 	label.text = value; label.position = pos; label.size = size_value
 	label.horizontal_alignment = alignment; label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_color", _readable_text_color(color))
+	label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.80))
+	label.add_theme_constant_override("shadow_offset_x", 1)
+	label.add_theme_constant_override("shadow_offset_y", 1)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(label)
 	return label
@@ -3436,12 +3644,22 @@ func _button(value: String, pos: Vector2, size_value: Vector2, color: Color) -> 
 		button.add_theme_color_override("font_hover_color", P_HOT)
 		button.add_theme_color_override("font_pressed_color", BG)
 	button.add_theme_stylebox_override("disabled", _flat(Color("0a0a0a"), P_FAINT, 1))
-	button.add_theme_color_override("font_disabled_color", P_DIM)
+	button.add_theme_color_override("font_disabled_color", P_MID)
 	# Every press makes the console react - this is the "the machine is doing
 	# what I told it" feedback. Connected FIRST so it fires before the specific
 	# handler (which may rebuild the stage and re-render the log).
 	button.pressed.connect(_emit_button.bind(value))
 	return button
+
+
+func _readable_text_color(color: Color) -> Color:
+	var alpha := color.a
+	var luma := color.r * 0.2126 + color.g * 0.7152 + color.b * 0.0722
+	if luma >= MIN_TEXT_LUMA:
+		return color
+	var boosted := color.lerp(P_BRIGHT, clampf((MIN_TEXT_LUMA - luma) * 0.95, 0.0, 0.45))
+	boosted.a = alpha
+	return boosted
 
 
 # Turn a button label into a plausible command line the console prints back.

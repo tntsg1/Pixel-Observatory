@@ -1071,6 +1071,7 @@ func _animate_install_error_if_idle(part_type: String) -> void:
 
 func _finish() -> void:
 	if GameManager.telescope_is_ready():
+		InteractionFeedback.feedback_sfx_requested.emit("assembly_completed")
 		GameManager.update_room_guidance_for_level()
 		GameManager.set_observatory_spawn("assembly")
 		GameManager.save()

@@ -435,7 +435,7 @@
       "finder_scope"
     ],
     "required_part_ids": [
-      "basic_mount",
+      "reflector_mount",
       "newtonian_reflector_tube",
       "newtonian_mirror_cell",
       "newtonian_primary_mirror",
@@ -539,7 +539,7 @@
       "collimation_tool"
     ],
     "required_assembly_score": 75,
-    "minimum_success_quality": "Good",
+    "minimum_success_quality": "Fair",
     "required_concept_card": "dark_adaptation_averted_vision",
     "teaching_steps": [],
     "hint_text_en": "Avoid high power. Dark-adapt fully and hold Shift beside the thin glow.",
@@ -1837,7 +1837,9 @@
     "success_text_en": "A narrow field punishes sloppy aiming. Use the finder scope discipline you learned long ago.",
     "success_text_zh": "窄视场惩罚粗糙的瞄准。用上你很久以前学会的寻星镜纪律。",
     "reward_credits": 160,
-    "unlock_parts": [],
+    "unlock_parts": [
+      "cassegrain_40mm_eyepiece"
+    ],
     "unlock_equipment_stage": "cassegrain",
     "badge": "",
     "chapter_id": "ch9_cassegrain",
@@ -1883,7 +1885,7 @@
       "cassegrain_primary_mirror",
       "cassegrain_convex_secondary",
       "cassegrain_rear_focuser",
-      "cassegrain_12mm_eyepiece"
+      "cassegrain_40mm_eyepiece"
     ],
     "assembly_order": [
       "mount",
@@ -1896,8 +1898,8 @@
     "required_assembly_score": 82,
     "minimum_success_quality": "Fair",
     "required_concept_card": "seeing_turbulence",
-    "hint_text_en": "The secondary is convex and sends light back through the primary. This is a different folded path, not a Newtonian copy.",
-    "hint_text_zh": "凸面副镜将光送回主镜中心孔。这是不同的折叠光路，不是牛顿镜的复制品。",
+    "hint_text_en": "Poor seeing ruins the 12mm view. Fit the 40mm eyepiece, focus carefully, and wait for the disk to settle.",
+    "hint_text_zh": "视宁度差时，12mm 目镜只会放大扰动。换上 40mm 目镜，仔细调焦并等待圆面稳定。",
     "success_text_en": "Mars is tiny. The folded path gives you the scale - the atmosphere decides if you keep it.",
     "success_text_zh": "火星很小。折叠光路给了你放大倍数——大气决定你能不能保住它。",
     "reward_credits": 160,
@@ -1947,7 +1949,7 @@
       "cassegrain_primary_mirror",
       "cassegrain_convex_secondary",
       "cassegrain_rear_focuser",
-      "cassegrain_12mm_eyepiece"
+      "cassegrain_40mm_eyepiece"
     ],
     "assembly_order": [
       "mount",
@@ -1960,8 +1962,8 @@
     "required_assembly_score": 82,
     "minimum_success_quality": "Fair",
     "required_concept_card": "seeing_turbulence",
-    "hint_text_en": "The secondary is convex and sends light back through the primary. This is a different folded path, not a Newtonian copy.",
-    "hint_text_zh": "凸面副镜将光送回主镜中心孔。这是不同的折叠光路，不是牛顿镜的复制品。",
+    "hint_text_en": "Use the 40mm eyepiece while the air boils. Center Jupiter, wait for a cloud gap, then focus during a steady instant.",
+    "hint_text_zh": "大气翻涌时使用 40mm 目镜。让木星居中，等云隙经过，再在稳定瞬间完成调焦。",
     "success_text_en": "High power amplifies every ripple of air. Wait for the still moments; drop power if they never come.",
     "success_text_zh": "高倍率会放大每一丝大气抖动。等待平静的瞬间；等不到就降低倍率。",
     "reward_credits": 170,
@@ -3654,6 +3656,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_aerial"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -3728,6 +3733,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_active_reflector"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -3815,6 +3823,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "pulsar_science"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -3882,6 +3893,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_feed_cabin"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -3953,6 +3967,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_active_reflector"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -4021,6 +4038,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "pulsar_science"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -4088,6 +4108,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_feed_cabin"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -4159,6 +4182,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_active_reflector"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -4234,6 +4260,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "pulsar_science"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",
@@ -4301,6 +4330,9 @@
     "telescope_family": "fast_radio",
     "requires_telescope": false,
     "target_object_id": "pulsar_b0329",
+    "observation_media": {
+      "id": "fast_aerial"
+    },
     "required_parts": [
       "radio_dish",
       "receiver",

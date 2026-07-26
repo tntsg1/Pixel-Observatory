@@ -5,6 +5,160 @@ const GRAIN_SHADER := preload("res://shaders/grain.gdshader")
 const LENS_RING_OCCLUDER_SHADER := preload("res://shaders/lens_ring_occluder.gdshader")
 const NAKED_EYE_OUTER_RING_SHADER := preload("res://shaders/naked_eye_outer_ring.gdshader")
 const OPTICAL_LENS_SHADER := preload("res://shaders/optical_lens.gdshader")
+const OPTICAL_TARGET_STATE_SHADER := preload("res://shaders/optical_target_state.gdshader")
+const EXTENDED_FIELD_ENVIRONMENT_SHADER_CODE := """
+shader_type canvas_item;
+uniform float sky_lift : hint_range(0.0, 1.0) = 0.0;
+uniform float faint_suppression : hint_range(0.0, 1.0) = 0.0;
+uniform float contrast_loss : hint_range(0.0, 1.0) = 0.0;
+uniform float desaturation : hint_range(0.0, 1.0) = 0.0;
+uniform float emission_filter_gain : hint_range(0.0, 1.0) = 0.0;
+uniform float cluster_mode : hint_range(0.0, 1.0) = 0.0;
+uniform float seeing_strength : hint_range(0.0, 1.0) = 0.0;
+
+float hash21(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+
+vec4 environment_response(vec4 source, vec2 uv) {
+	vec3 rgb = source.rgb;
+	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+	float bright_core = smoothstep(0.30, 0.78, lum);
+	float faint_structure = 1.0 - bright_core;
+	rgb *= 1.0 - faint_suppression * faint_structure * 0.76;
+	float gray = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+	rgb = mix(rgb, vec3(gray), desaturation);
+	vec3 lifted_floor = vec3(0.030, 0.034, 0.052) * sky_lift;
+	rgb = mix(rgb, max(rgb, lifted_floor), contrast_loss * faint_structure);
+	float emission_structure = smoothstep(0.05, 0.42, max(rgb.r, rgb.b) - rgb.g * 0.28);
+	rgb *= 1.0 + emission_filter_gain * emission_structure * 0.22;
+	if (cluster_mode > 0.5) {
+		float cell = hash21(floor(uv * 150.0));
+		float faint_star = smoothstep(0.06, 0.42, gray) * (1.0 - bright_core);
+		float resolved_fraction = step(seeing_strength * 0.72, cell);
+		rgb *= 1.0 - faint_star * seeing_strength * (1.0 - resolved_fraction) * 0.82;
+		float scintillation = sin(TIME * (2.1 + cell * 2.6) + cell * 31.0);
+		rgb *= 1.0 + bright_core * seeing_strength * scintillation * 0.055;
+	}
+	float structure_visibility = mix(1.0, mix(0.16, 1.0, bright_core), faint_suppression);
+	return vec4(rgb, source.a * structure_visibility);
+}
+
+void fragment() {
+	vec4 source = texture(TEXTURE, UV);
+	COLOR = environment_response(source, UV) * COLOR;
+}
+"""
+const EXTENDED_FIELD_DEFOCUS_SHADER_CODE := """
+shader_type canvas_item;
+uniform float blur_radius_px : hint_range(0.0, 36.0) = 0.0;
+uniform float brightness : hint_range(0.0, 1.4) = 1.0;
+uniform float turbulence : hint_range(0.0, 1.0) = 0.0;
+uniform float sky_lift : hint_range(0.0, 1.0) = 0.0;
+uniform float faint_suppression : hint_range(0.0, 1.0) = 0.0;
+uniform float contrast_loss : hint_range(0.0, 1.0) = 0.0;
+uniform float desaturation : hint_range(0.0, 1.0) = 0.0;
+uniform float emission_filter_gain : hint_range(0.0, 1.0) = 0.0;
+uniform float cluster_mode : hint_range(0.0, 1.0) = 0.0;
+uniform float seeing_strength : hint_range(0.0, 1.0) = 0.0;
+
+float hash21(vec2 p) {
+	p = fract(p * vec2(123.34, 456.21));
+	p += dot(p, p + 45.32);
+	return fract(p.x * p.y);
+}
+
+vec4 environment_response(vec4 source, vec2 uv) {
+	vec3 rgb = source.rgb;
+	float lum = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+	float bright_core = smoothstep(0.30, 0.78, lum);
+	float faint_structure = 1.0 - bright_core;
+	rgb *= 1.0 - faint_suppression * faint_structure * 0.76;
+	float gray = dot(rgb, vec3(0.2126, 0.7152, 0.0722));
+	rgb = mix(rgb, vec3(gray), desaturation);
+	vec3 lifted_floor = vec3(0.030, 0.034, 0.052) * sky_lift;
+	rgb = mix(rgb, max(rgb, lifted_floor), contrast_loss * faint_structure);
+	float emission_structure = smoothstep(0.05, 0.42, max(rgb.r, rgb.b) - rgb.g * 0.28);
+	rgb *= 1.0 + emission_filter_gain * emission_structure * 0.22;
+	if (cluster_mode > 0.5) {
+		float cell = hash21(floor(uv * 150.0));
+		float faint_star = smoothstep(0.06, 0.42, gray) * (1.0 - bright_core);
+		float resolved_fraction = step(seeing_strength * 0.72, cell);
+		rgb *= 1.0 - faint_star * seeing_strength * (1.0 - resolved_fraction) * 0.82;
+		float scintillation = sin(TIME * (2.1 + cell * 2.6) + cell * 31.0);
+		rgb *= 1.0 + bright_core * seeing_strength * scintillation * 0.055;
+	}
+	float structure_visibility = mix(1.0, mix(0.16, 1.0, bright_core), faint_suppression);
+	return vec4(rgb, source.a * structure_visibility);
+}
+
+void fragment() {
+	vec2 uv = UV;
+	// Extended targets should lose fine structure, not behave like rubber.
+	// Cluster registration stays fixed so individual stellar PSFs, rather
+	// than the whole photograph, carry the seeing response.
+	float wobble = turbulence * 0.0007 * (1.0 - cluster_mode);
+	uv.x += sin(uv.y * 29.0 + TIME * 1.7) * wobble;
+	uv.y += cos(uv.x * 25.0 + TIME * 1.4) * wobble * 0.7;
+	// A dense 5x5 Gaussian approximation removes high-frequency structure.
+	// The previous sparse ring of samples left every star and dust filament
+	// intact, so severe defocus looked like several shifted sharp pictures.
+	vec2 step_px = TEXTURE_PIXEL_SIZE * blur_radius_px * 0.5;
+	vec4 sum = vec4(0.0);
+	sum += texture(TEXTURE, uv + step_px * vec2(-2.0, -2.0)) * 0.00390625;
+	sum += texture(TEXTURE, uv + step_px * vec2(-1.0, -2.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2( 0.0, -2.0)) * 0.02343750;
+	sum += texture(TEXTURE, uv + step_px * vec2( 1.0, -2.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2( 2.0, -2.0)) * 0.00390625;
+	sum += texture(TEXTURE, uv + step_px * vec2(-2.0, -1.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2(-1.0, -1.0)) * 0.06250000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 0.0, -1.0)) * 0.09375000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 1.0, -1.0)) * 0.06250000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 2.0, -1.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2(-2.0,  0.0)) * 0.02343750;
+	sum += texture(TEXTURE, uv + step_px * vec2(-1.0,  0.0)) * 0.09375000;
+	sum += texture(TEXTURE, uv)                                  * 0.14062500;
+	sum += texture(TEXTURE, uv + step_px * vec2( 1.0,  0.0)) * 0.09375000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 2.0,  0.0)) * 0.02343750;
+	sum += texture(TEXTURE, uv + step_px * vec2(-2.0,  1.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2(-1.0,  1.0)) * 0.06250000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 0.0,  1.0)) * 0.09375000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 1.0,  1.0)) * 0.06250000;
+	sum += texture(TEXTURE, uv + step_px * vec2( 2.0,  1.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2(-2.0,  2.0)) * 0.00390625;
+	sum += texture(TEXTURE, uv + step_px * vec2(-1.0,  2.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2( 0.0,  2.0)) * 0.02343750;
+	sum += texture(TEXTURE, uv + step_px * vec2( 1.0,  2.0)) * 0.01562500;
+	sum += texture(TEXTURE, uv + step_px * vec2( 2.0,  2.0)) * 0.00390625;
+	COLOR = environment_response(vec4(sum.rgb * brightness, sum.a), UV) * COLOR;
+}
+"""
+const STAR_FIELD_PSF_SHADER_CODE := """
+shader_type canvas_item;
+render_mode unshaded;
+
+uniform float defocus : hint_range(0.0, 1.0) = 0.0;
+uniform float seeing : hint_range(0.0, 1.0) = 0.0;
+uniform float sharp_sigma : hint_range(0.02, 0.14) = 0.055;
+
+void fragment() {
+	vec2 centered = UV - vec2(0.5);
+	float optical_error = clamp(max(defocus, seeing * 0.28), 0.0, 1.0);
+	float sigma = mix(sharp_sigma, 0.255, pow(optical_error, 0.72));
+	float profile = exp(-dot(centered, centered) / max(2.0 * sigma * sigma, 0.0001));
+	// Preserve approximate point-source energy: an unfocused star becomes a
+	// broad, dim disk rather than a larger equally-bright square.
+	float energy_peak = min(1.0, (sharp_sigma * sharp_sigma) / max(sigma * sigma, 0.0001));
+	energy_peak = max(energy_peak, 0.035);
+	vec4 source = COLOR;
+	COLOR = vec4(source.rgb, source.a * profile * energy_peak);
+}
+"""
+
+const EXTENDED_FIELD_OVERSCAN_SIZE := 1120.0
+const STAR_FIELD_PSF_BOX_SIZE := 24.0
 
 const COL_BG := Color(0.004, 0.006, 0.014)
 const COL_NAVY := Color(0.030, 0.045, 0.085, 0.96)
@@ -153,8 +307,10 @@ class AvertedVisionGuide extends Control:
 	var target_position := Vector2.ZERO
 	var enabled := false
 	var active := false
+	var confirmed := false
 	var adaptation := 0.0
 	var hold_visual := 0.0
+	var cursor_progress := 0.0
 	var phase := 0.0
 
 	func _process(delta: float) -> void:
@@ -168,7 +324,11 @@ class AvertedVisionGuide extends Control:
 			return
 		var offset_direction := Vector2(0.84, -0.54)
 		var gaze_position := target_position + offset_direction * 58.0
-		var guide_color := Color(0.38, 0.86, 1.0, 0.72) if not active else Color(1.0, 0.76, 0.30, 0.94)
+		var guide_color := Color(0.38, 0.86, 1.0, 0.72)
+		if active:
+			guide_color = Color(1.0, 0.76, 0.30, 0.94)
+		if confirmed:
+			guide_color = Color(0.46, 1.0, 0.70, 0.98)
 		var start := target_position + offset_direction * 17.0
 		var end := gaze_position - offset_direction * 17.0
 		for index in range(5):
@@ -183,6 +343,10 @@ class AvertedVisionGuide extends Control:
 			var direction := Vector2.RIGHT.rotated(angle)
 			draw_line(gaze_position + direction * 19.0, gaze_position + direction * 25.0, guide_color, 1.5)
 		draw_arc(gaze_position, marker_radius + 5.0, -PI * 0.5, -PI * 0.5 + TAU * hold_visual, 32, Color(0.42, 1.0, 0.62, 0.94), 2.0)
+		var cursor_position := target_position.lerp(gaze_position, cursor_progress)
+		var cursor_radius := lerpf(9.0, 5.0, cursor_progress)
+		draw_arc(cursor_position, cursor_radius, 0.0, TAU, 22, Color(0.86, 0.97, 1.0, 0.92), 1.25)
+		draw_circle(cursor_position, 1.5, Color(0.86, 0.97, 1.0, 0.92))
 		if active:
 			for index in range(3):
 				var angle := phase * (0.35 + float(index) * 0.08) + float(index) * TAU / 3.0
@@ -200,6 +364,7 @@ var quiz_brief_overlay: Control
 var quiz_brief_dismissed := false
 var is_free_observation := false
 var free_result_label: Label
+var free_quality_label: Label
 var mission_return_in_progress := false
 var observation: Dictionary
 var selected_object: Dictionary
@@ -262,9 +427,14 @@ const DARK_ADAPTATION_SECONDS := 8.0
 const DARK_ADAPTATION_ALPHA_BONUS := 0.10
 const AVERTED_VISION_ALPHA_BONUS := 0.10
 const AVERTED_VISION_BRIGHTEN := 1.06
+const AVERTED_VISION_HOLD_SECONDS := 1.25
+const AVERTED_VISION_RELEASE_SECONDS := 0.55
 var dark_adaptation := 0.0
 var averted_vision_active := false
 var averted_hold_visual := 0.0
+var averted_vision_hold_seconds := 0.0
+var averted_vision_confirmed := false
+var averted_vision_success_played := false
 var averted_vision_guide: AvertedVisionGuide
 var dark_adaptation_label: Label
 var averted_vision_label: Label
@@ -276,6 +446,8 @@ var technique_status_label: Label
 var technique_filter_button: Button
 var star_layer_nodes: Array[ColorRect] = []
 var star_layer_container: Control
+var star_field_psf_shader: Shader
+var star_field_psf_materials: Array[ShaderMaterial] = []
 
 # --- Observation-condition realism (E1): conditions snapshot, all smoothed.
 var cond_turbulence := 0.0     # 0-1, atmospheric turbulence (seeing x mag x altitude)
@@ -285,6 +457,9 @@ var effect_seed := 0.0         # per-observation random phase so breathing/jitte
 var turbulence_material_main: ShaderMaterial
 var turbulence_material_blur: ShaderMaterial
 var turbulence_material_ghost: ShaderMaterial
+var extended_field_environment_shader: Shader
+var extended_field_defocus_shader: Shader
+var extended_field_materials: Array[ShaderMaterial] = []
 var grain_layer: ColorRect
 var grain_material: ShaderMaterial
 var grain_intensity := 0.0
@@ -294,6 +469,7 @@ var cloud_velocities: Array[Vector2] = []
 var cloud_strengths: Array[float] = []
 var cloud_veil: Panel
 var cloud_cover_level := 0.0
+var cloud_visual_coverage := 0.0
 var cloud_reevaluate_timer := 0.0
 const CLOUD_TEXTURES := [
 	"res://assets/telescope_view/cloud_wisp_a.png",
@@ -381,8 +557,8 @@ func _show_focus_tutorial() -> void:
 			technique_target,
 			"first_averted_vision",
 			GameManager.text(
-				"Do not stare at the faint object. Hold SHIFT: the side marker shows where to rest your gaze, while peripheral vision reveals the target.",
-				"不要直盯暗弱天体。按住 SHIFT，把视线放在旁边的侧视标记上；周边视觉会逐渐显出目标。"
+				"Do not stare at the faint object. Hold Shift for 1.25 seconds, keep the telescope still, and rest your gaze on the side marker.",
+				"不要直盯暗弱天体。按住 Shift 1.25 秒，保持望远镜不动，并把视线放在目标旁的偏视标记上。"
 			),
 			self
 		)
@@ -449,6 +625,22 @@ func _is_diffuse_target() -> bool:
 	return type_lower.contains("nebula") or type_lower.contains("galaxy")
 
 
+func _is_cluster_target() -> bool:
+	var object_id := str(selected_object.get("id", ""))
+	var type_lower := str(selected_object.get("type_en", "")).to_lower()
+	return type_lower.contains("cluster") or object_id in ["pleiades", "m13", "double_cluster"]
+
+
+func _is_emission_nebula_target() -> bool:
+	var object_id := str(selected_object.get("id", ""))
+	return object_id in [
+		"orion_nebula",
+		"ring_nebula",
+		"lagoon_nebula",
+		"dumbbell_nebula",
+	]
+
+
 func _collimation_severity() -> float:
 	if observation_mode != "telescope" or not bool(GameManager.current_level().get("requires_collimation", false)):
 		return 0.0
@@ -510,6 +702,57 @@ func _target_sky_lift() -> float:
 		"suburban":
 			return 0.5
 	return 0.0
+
+
+func _light_pollution_profile() -> Dictionary:
+	var sky_key := str(GameManager.current_environment().get("sky_brightness", "dark")).to_lower()
+	match sky_key:
+		"city":
+			return {
+				"sky_lift": 1.0,
+				"faint_suppression": 0.82,
+				"contrast_loss": 0.72,
+				"desaturation": 0.32,
+			}
+		"suburban":
+			return {
+				"sky_lift": 0.48,
+				"faint_suppression": 0.42,
+				"contrast_loss": 0.34,
+				"desaturation": 0.14,
+			}
+	return {
+		"sky_lift": 0.0,
+		"faint_suppression": 0.0,
+		"contrast_loss": 0.0,
+		"desaturation": 0.0,
+	}
+
+
+func _apply_extended_field_environment() -> void:
+	if extended_field_materials.is_empty():
+		return
+	var profile := _light_pollution_profile()
+	var filter_gain := 0.0
+	var sky_lift_multiplier := 1.0
+	if active_filter == "nebula" and _is_emission_nebula_target():
+		filter_gain = 1.0
+		# A nebula filter suppresses part of the artificial sky background; it
+		# does not remove the site penalty or brighten galaxies and clusters.
+		sky_lift_multiplier = 0.78
+		profile["faint_suppression"] = float(profile["faint_suppression"]) * 0.82
+		profile["contrast_loss"] = float(profile["contrast_loss"]) * 0.78
+	var cluster_mode := 1.0 if _is_cluster_target() else 0.0
+	for material in extended_field_materials:
+		if material == null:
+			continue
+		material.set_shader_parameter("sky_lift", cond_sky_lift * sky_lift_multiplier)
+		material.set_shader_parameter("faint_suppression", float(profile["faint_suppression"]))
+		material.set_shader_parameter("contrast_loss", float(profile["contrast_loss"]))
+		material.set_shader_parameter("desaturation", float(profile["desaturation"]))
+		material.set_shader_parameter("emission_filter_gain", filter_gain)
+		material.set_shader_parameter("cluster_mode", cluster_mode)
+		material.set_shader_parameter("seeing_strength", cond_turbulence if cluster_mode > 0.5 else 0.0)
 
 
 func _cloud_cover() -> float:
@@ -634,20 +877,28 @@ func _advance_drift(delta: float) -> void:
 	if GameManager.has_tracking_mount_equipped():
 		tracking_cancel = GameManager.tracking_rate()
 	var drift_speed := DRIFT_SPEED_BASE * mag_factor * (1.0 - tracking_cancel)
-	drift_offset += drift_direction * drift_speed * delta
+	var averted_hold := _averted_vision_input_held() and bool(
+		GameManager.current_level().get("observation_requirements", {}).get("require_averted_vision", false)
+	)
+	# During the short side-gaze hold the player is explicitly keeping the
+	# instrument still. Freeze the correction reference and ignore WASD so a
+	# held Shift + movement chord cannot push the centered target away.
+	if not averted_hold:
+		drift_offset += drift_direction * drift_speed * delta
 
 	var correction := Vector2.ZERO
-	if Input.is_key_pressed(KEY_A) or Input.is_action_pressed("move_left"):
-		correction.x -= 1.0
-	if Input.is_key_pressed(KEY_D) or Input.is_action_pressed("move_right"):
-		correction.x += 1.0
-	if Input.is_key_pressed(KEY_W) or Input.is_action_pressed("move_up"):
-		correction.y -= 1.0
-	if Input.is_key_pressed(KEY_S) or Input.is_action_pressed("move_down"):
-		correction.y += 1.0
-	# Mobile: the virtual joystick doubles as the drift-correction stick.
-	if correction == Vector2.ZERO:
-		correction = TouchInput.move_vector()
+	if not averted_hold:
+		if Input.is_key_pressed(KEY_A) or Input.is_action_pressed("move_left"):
+			correction.x -= 1.0
+		if Input.is_key_pressed(KEY_D) or Input.is_action_pressed("move_right"):
+			correction.x += 1.0
+		if Input.is_key_pressed(KEY_W) or Input.is_action_pressed("move_up"):
+			correction.y -= 1.0
+		if Input.is_key_pressed(KEY_S) or Input.is_action_pressed("move_down"):
+			correction.y += 1.0
+		# Mobile: the virtual joystick doubles as the drift-correction stick.
+		if correction == Vector2.ZERO:
+			correction = TouchInput.move_vector()
 	if correction != Vector2.ZERO:
 		drift_offset -= correction.normalized() * DRIFT_CORRECTION_SPEED * delta
 
@@ -716,9 +967,9 @@ func _advance_dark_adaptation(delta: float) -> void:
 	if dark_adaptation < 1.0:
 		dark_adaptation = clampf(dark_adaptation + delta / DARK_ADAPTATION_SECONDS, 0.0, 1.0)
 		moving = true
-	var shift_pressed := Input.is_key_pressed(KEY_SHIFT)
-	if shift_pressed != averted_vision_active:
-		averted_vision_active = shift_pressed
+	var input_held := _averted_vision_input_held()
+	if input_held != averted_vision_active:
+		averted_vision_active = input_held
 		moving = true
 	if moving:
 		var eased := _eased_dark_adaptation()
@@ -730,23 +981,87 @@ func _advance_dark_adaptation(delta: float) -> void:
 				"暗适应：%d%%"
 			) % int(round(eased * 100.0))
 		if averted_vision_label != null:
-			averted_vision_label.text = GameManager.text("Averted vision: Active", "侧视：启用") if averted_vision_active else GameManager.text("Averted vision: Inactive", "侧视：未启用")
-			averted_vision_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.62) if averted_vision_active else Color(0.66, 0.72, 0.80))
+			_refresh_averted_vision_label()
 		_update_target_visuals()
+
+
+func _averted_vision_input_held() -> bool:
+	return (
+		Input.is_action_pressed("dodge")
+		or Input.is_key_pressed(KEY_SHIFT)
+		or bool(TouchInput.boost_held)
+	)
 
 
 func _update_averted_vision_guide(delta: float) -> void:
 	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
 	if not bool(requirements.get("require_averted_vision", false)):
 		return
-	averted_hold_visual = move_toward(averted_hold_visual, 1.0 if averted_vision_active else 0.0, delta * (1.8 if averted_vision_active else 2.8))
+	var was_confirmed := averted_vision_confirmed
+	var target_stable := not drift_enabled or drift_offset.length() <= DRIFT_HOLD_RADIUS
+	if averted_vision_active and target_stable:
+		averted_vision_hold_seconds = minf(
+			averted_vision_hold_seconds + delta,
+			AVERTED_VISION_HOLD_SECONDS
+		)
+		if averted_vision_hold_seconds >= AVERTED_VISION_HOLD_SECONDS - 0.001:
+			averted_vision_confirmed = true
+			if not averted_vision_success_played:
+				averted_vision_success_played = true
+				InteractionFeedback.success(
+					technique_status_label if technique_status_label != null else averted_vision_label,
+					"averted_vision_confirmed"
+				)
+	else:
+		averted_vision_hold_seconds = maxf(
+			0.0,
+			averted_vision_hold_seconds - delta * AVERTED_VISION_HOLD_SECONDS / AVERTED_VISION_RELEASE_SECONDS
+		)
+		if averted_vision_hold_seconds <= 0.001:
+			averted_vision_confirmed = false
+			averted_vision_success_played = false
+	averted_hold_visual = clampf(
+		averted_vision_hold_seconds / AVERTED_VISION_HOLD_SECONDS,
+		0.0,
+		1.0
+	)
 	if averted_vision_guide != null:
 		averted_vision_guide.enabled = true
 		averted_vision_guide.active = averted_vision_active
+		averted_vision_guide.confirmed = averted_vision_confirmed
 		averted_vision_guide.adaptation = _eased_dark_adaptation()
 		averted_vision_guide.hold_visual = averted_hold_visual
+		averted_vision_guide.cursor_progress = move_toward(
+			averted_vision_guide.cursor_progress,
+			1.0 if averted_vision_active else 0.0,
+			delta * (2.4 if averted_vision_active else 3.2)
+		)
 		averted_vision_guide.target_position = visual_target_center
 		averted_vision_guide.queue_redraw()
+	_refresh_averted_vision_label()
+	if was_confirmed != averted_vision_confirmed:
+		observation = _evaluate()
+	_refresh_technique_status()
+
+
+func _refresh_averted_vision_label() -> void:
+	if averted_vision_label == null:
+		return
+	if averted_vision_confirmed:
+		averted_vision_label.text = GameManager.text("Averted vision: Confirmed", "偏视法：已确认")
+		averted_vision_label.add_theme_color_override("font_color", Color(0.55, 1.0, 0.68))
+	elif averted_vision_active:
+		if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
+			averted_vision_label.text = GameManager.text("Center target first", "请先让目标居中")
+		else:
+			averted_vision_label.text = GameManager.text(
+				"Averted vision: %d%%" % roundi(averted_hold_visual * 100.0),
+				"偏视保持：%d%%" % roundi(averted_hold_visual * 100.0)
+			)
+		averted_vision_label.add_theme_color_override("font_color", Color(1.0, 0.78, 0.36))
+	else:
+		averted_vision_label.text = GameManager.text("Averted vision: Ready", "偏视法：待操作")
+		averted_vision_label.add_theme_color_override("font_color", Color(0.66, 0.72, 0.80))
 
 
 func _eased_dark_adaptation() -> float:
@@ -876,6 +1191,8 @@ func _apply_turbulence_uniforms() -> void:
 		turbulence_material_blur.set_shader_parameter("turbulence", cond_turbulence)
 	if turbulence_material_ghost != null:
 		turbulence_material_ghost.set_shader_parameter("turbulence", cond_turbulence)
+	_apply_extended_field_environment()
+	_update_star_field_optics()
 
 
 func _apply_breathing_and_jitter(t: float) -> void:
@@ -891,6 +1208,21 @@ func _apply_breathing_and_jitter(t: float) -> void:
 			cos(t * 2.9 + effect_seed * 1.3) * cond_turbulence * 2.5
 		)
 		main_sprite.position = visual_target_center - main_sprite.size * display_scale * 0.5 + jitter
+	elif _is_cluster_target():
+		# A star cluster is not one elastic object. Keep the field registration
+		# fixed while the material suppresses faint members, expands their PSFs
+		# and gives individual bright stars a restrained scintillation.
+		var cluster_alpha := visual_base_alpha * cloud_mult
+		var seeing_blur := cond_turbulence * 0.30
+		var combined_blur := clampf(blur_weight + seeing_blur, 0.0, 1.0)
+		main_sprite.position = visual_target_center - main_sprite.size * display_scale * 0.5
+		if blur_overlay != null:
+			blur_overlay.position = visual_target_center - blur_overlay.size * display_scale * 0.5
+			main_sprite.modulate.a = cluster_alpha * (1.0 - combined_blur)
+			blur_overlay.modulate.a = cluster_alpha * combined_blur
+		else:
+			main_sprite.modulate.a = cluster_alpha
+		_apply_extended_field_environment()
 	elif _is_diffuse_target():
 		# Nebula/galaxy: low-frequency contrast + blur breathing and a tiny
 		# image wander. Extended targets should not ripple like planets, but
@@ -923,7 +1255,21 @@ func _apply_breathing_and_jitter(t: float) -> void:
 		)
 		var origin: Vector2 = visual_target_center - main_sprite.size * display_scale * 0.5 + jitter
 		main_sprite.position = origin
-		if blur_overlay != null:
+		if _is_solid_body_target() and observation_mode != "naked_eye":
+			# A cloud removes photons, not planetary opacity. Keep the body
+			# opaque and drive dimming/softening through RGB so background stars
+			# can never shine through a planet or the Moon.
+			main_sprite.modulate.a = 1.0
+			if blur_overlay != null:
+				blur_overlay.modulate.a = 0.0
+			if turbulence_material_main != null:
+				var solid_blur := lerpf(0.0, 22.0, pow(clampf(blur_weight + breathing, 0.0, 1.0), 0.72))
+				turbulence_material_main.set_shader_parameter("blur_radius_px", solid_blur)
+				turbulence_material_main.set_shader_parameter(
+					"brightness",
+					_solid_body_brightness(str(observation.get("quality", "Unknown")), str(observation.get("visual_effect", "clear")))
+				)
+		elif blur_overlay != null:
 			blur_overlay.position = visual_target_center - blur_overlay.size * display_scale * 0.5 + jitter
 			blur_overlay.modulate.a = visual_base_alpha * clampf(blur_weight + breathing, 0.0, 1.0) * cloud_mult
 			main_sprite.modulate.a = visual_base_alpha * (1.0 - clampf(blur_weight + breathing, 0.0, 1.0) * 0.85) * cloud_mult
@@ -939,18 +1285,51 @@ func _apply_star_twinkle(t: float) -> void:
 		star_rect.modulate.a = clampf(base_a * twinkle, 0.0, 1.0)
 
 
+func _update_star_field_optics() -> void:
+	# Catalog stars and the selected target are effectively at the same
+	# infinity focus. Reticle/UI nodes are separate, so only photons inside the
+	# eyepiece receive this PSF response.
+	var field_defocus := blur_weight if requires_focus and observation_mode != "naked_eye" else 0.0
+	var field_seeing := _seeing_severity() if observation_mode != "naked_eye" else 0.0
+	for material in star_field_psf_materials:
+		material.set_shader_parameter("defocus", field_defocus)
+		material.set_shader_parameter("seeing", field_seeing)
+
+
 func _cloud_target_atten() -> float:
-	# Weighted overlap of the (invisible) drifting cloud trackers over the
-	# target center - strength comes from cloud_strengths, since the nodes
-	# themselves are hidden (only the full-field veil is visible).
 	if cloud_nodes.is_empty():
+		cloud_visual_coverage = 0.0
 		return 0.0
+	if not _is_extended_target():
+		cloud_visual_coverage = _cloud_at_point(target_center)
+		return cloud_visual_coverage
+	# Extended nebulae, galaxies and clusters cover a measurable part of the
+	# eyepiece. Sample their main structure instead of pretending all their
+	# photons originate at one center pixel. The same coverage drives both
+	# the image response and ObservationSystem's score.
+	var offsets := [
+		Vector2.ZERO,
+		Vector2(108, 0), Vector2(-108, 0),
+		Vector2(0, 108), Vector2(0, -108),
+		Vector2(76, 76), Vector2(-76, 76),
+		Vector2(76, -76), Vector2(-76, -76),
+	]
+	var weights := [0.20, 0.12, 0.12, 0.12, 0.12, 0.08, 0.08, 0.08, 0.08]
+	var total := 0.0
+	for i in range(offsets.size()):
+		total += _cloud_at_point(target_center + offsets[i]) * weights[i]
+	cloud_visual_coverage = clampf(total, 0.0, 1.0)
+	return cloud_visual_coverage
+
+
+func _cloud_at_point(sample_position: Vector2) -> float:
 	var total := 0.0
 	for i in range(cloud_nodes.size()):
 		var cloud := cloud_nodes[i]
 		var cloud_center: Vector2 = cloud.position + cloud.size * 0.5
-		var d := cloud_center.distance_to(target_center)
-		var falloff := clampf(1.0 - d / 170.0, 0.0, 1.0)
+		var sample_radius := maxf(cloud.size.x, cloud.size.y) * 0.45 + 44.0
+		var d := cloud_center.distance_to(sample_position)
+		var falloff := clampf(1.0 - d / maxf(sample_radius, 1.0), 0.0, 1.0)
 		total += falloff * cloud_strengths[i]
 	return clampf(total, 0.0, 1.0)
 
@@ -1027,7 +1406,9 @@ func _evaluate() -> Dictionary:
 	context["exposure"] = exposure_value
 	context["filter"] = active_filter
 	context["dark_adaptation"] = dark_adaptation
-	context["averted_vision"] = averted_vision_active
+	# The science check only receives a completed 1.25-second peripheral-gaze
+	# hold. A raw Shift press is input, not evidence that the technique worked.
+	context["averted_vision"] = averted_vision_confirmed
 	context["tracking_rate"] = GameManager.tracking_rate()
 	context["observation_elapsed"] = observation_elapsed
 	if requires_focus:
@@ -1173,31 +1554,28 @@ func _missing_required_parts_text() -> String:
 
 
 func _quality_shortfall_text() -> String:
+	if target_off_center:
+		return GameManager.text(
+			"The target has drifted out of the field. Use A/D and W/S to bring it back to the center.",
+			"目标已经漂出视场。请用 A/D 和 W/S 把它移回中央。"
+		)
+	if cond_cloud_atten > 0.35:
+		return GameManager.text(
+			"Clouds are crossing the target. Keep the aim steady and wait for a clear gap.",
+			"云层正在遮挡目标。请保持瞄准，等待云隙经过。"
+		)
+	if str(observation.get("seeing_label", "Good")) != "Good":
+		return GameManager.text(
+			"Focus is correct, but the air is unsteady. Lower the magnification and wait for a steadier moment.",
+			"焦点已经正确，但大气仍不稳定。请降低倍率，并等待更平稳的时刻。"
+		)
 	var technique_failure: Dictionary = observation.get("technique_failure", {})
 	if not technique_failure.is_empty():
 		return GameManager.text(
 			str(technique_failure.get("en", "Complete the observing method shown below.")),
 			str(technique_failure.get("zh", "请完成下方标出的观测方法。"))
 		)
-	# Focus is fine - name the REAL limiting factor so the player never
-	# blames the wrong thing (audit: story must match the mechanic).
-	# Priority: focus (already excluded by caller) > collimation > cloud >
-	# seeing > sky brightness > aperture/stability.
-	if _collimation_severity() > 0.28:
-		return GameManager.text(
-			"Focused. Comet tail = coma. Collimate.",
-			"已对焦。彗尾就是彗差；请准直。"
-		)
-	if cond_cloud_atten > 0.35:
-		return GameManager.text(
-			"Clouds are crossing the target. Wait for a gap.",
-			"云层正在遮挡目标。等云隙再观测。"
-		)
-	if str(observation.get("seeing_label", "Good")) != "Good":
-		return GameManager.text(
-			"Focus is fine - the air itself is unsteady. Lower the magnification.",
-			"焦点没问题——是大气在抖动。降低倍率试试。"
-		)
+	# Focus is fine - name the real limiting factor in actionable order.
 	var ratios: Dictionary = observation.get("ratios", {})
 	var light_ratio := float(ratios.get("light", 1.0))
 	var clarity_ratio := float(ratios.get("clarity", 1.0))
@@ -1205,18 +1583,32 @@ func _quality_shortfall_text() -> String:
 	var sky_key := str(GameManager.current_environment().get("sky_brightness", "")).to_lower()
 	if sky_key == "city" and light_ratio <= clarity_ratio and light_ratio <= stability_ratio:
 		return GameManager.text(
-			"City sky-glow is drowning the faint light. A darker site or bigger aperture would help.",
-			"城市光污染淹没了微弱的光。更暗的观测点或更大口径会有帮助。"
+			"City sky-glow is hiding faint structure. Use the nebula filter when applicable, or choose a darker site.",
+			"城市光污染正在淹没微弱结构。若目标适用，请开启星云滤镜；否则更换到更暗的地点。"
 		)
-	var type_lower := str(selected_object.get("type_en", "")).to_lower()
-	if type_lower.contains("nebula") or type_lower.contains("galaxy"):
+	if _collimation_severity() > 0.28:
 		return GameManager.text(
-			"Focus aligned, but deep-sky image is still too faint. Improve aperture/stability.",
-			"焦点已对准，但深空图像仍太暗。需要更大口径或更高稳定性。"
+			"The image is focused, but coma remains. Return to collimation and align the mirrors.",
+			"图像已经对焦，但仍有明显彗差。请返回准直界面对齐镜面。"
+		)
+	if light_ratio <= clarity_ratio and light_ratio <= stability_ratio:
+		if _is_emission_nebula_target() and active_filter != "nebula":
+			return GameManager.text(
+				"The faint emission is being lost in the sky background. Enable the nebula filter.",
+				"微弱发射结构正被天空背景淹没。请开启星云滤镜。"
+			)
+		return GameManager.text(
+			"The image is focused, but not enough light is reaching the eyepiece. Use the mission's unlocked larger aperture.",
+			"图像已经对焦，但进入目镜的光线仍不足。请使用本关已经解锁的更大口径部件。"
+		)
+	if clarity_ratio <= stability_ratio:
+		return GameManager.text(
+			"Focus is correct, but optical detail is still low. Lower magnification or check collimation.",
+			"焦点已经正确，但光学细节仍不足。请降低倍率，或检查准直状态。"
 		)
 	return GameManager.text(
-		"Focus aligned, but telescope quality is still too low.",
-		"焦点已对准，但望远镜性能仍不足。"
+		"The target is focused, but the image is not stable enough. Re-center it and use the mission's stable mount.",
+		"目标已经对焦，但画面仍不够稳定。请重新居中，并使用本关已解锁的稳定支架。"
 	)
 
 
@@ -1427,20 +1819,23 @@ func _build_free_observation_panel() -> void:
 	# directly to the mission target, or leave for the wider sky view.
 	identify_title_label = _plabel(GameManager.text("Free Observation", "自由观测"), Vector2(CONTENT_X, 414), Vector2(CONTENT_W, 22), 17, Color(0.42, 0.82, 1.0))
 	var name_line := GameManager.dict_text(selected_object, "name")
-	_plabel(name_line + "  ·  " + GameManager.dict_text(selected_object, "type"), Vector2(CONTENT_X, 440), Vector2(CONTENT_W, 20), 13, COL_TEXT)
+	var identity := _plabel(name_line + "  ·  " + GameManager.dict_text(selected_object, "type"), Vector2(CONTENT_X, 440), Vector2(CONTENT_W, 34), 12, COL_TEXT)
+	identity.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	identity.max_lines_visible = 2
 	var q := str(observation.get("quality", "Good"))
-	_plabel(GameManager.text("Quality: ", "观测质量：") + q, Vector2(CONTENT_X, 466), Vector2(CONTENT_W, 20), 13, COL_GOLD_LIGHT)
-	var learn := _plabel(GameManager.dict_text(selected_object, "learning_text") if selected_object.has("learning_text_en") else GameManager.dict_text(selected_object, "short_hint"), Vector2(CONTENT_X, 492), Vector2(CONTENT_W, 54), 12, Color(0.82, 0.88, 0.92))
+	free_quality_label = _plabel(GameManager.text("Quality: ", "观测质量：") + q, Vector2(CONTENT_X, 478), Vector2(CONTENT_W, 20), 13, _quality_color(q))
+	free_quality_label.name = "FreeObservationQualityLabel"
+	var learn := _plabel(GameManager.dict_text(selected_object, "learning_text") if selected_object.has("learning_text_en") else GameManager.dict_text(selected_object, "short_hint"), Vector2(CONTENT_X, 502), Vector2(CONTENT_W, 54), 12, Color(0.82, 0.88, 0.92))
 	learn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	learn.max_lines_visible = 3
-	free_result_label = _plabel("", Vector2(CONTENT_X, 548), Vector2(CONTENT_W, 18), 11, Color(0.55, 1.0, 0.68))
+	free_result_label = _plabel("", Vector2(CONTENT_X, 558), Vector2(CONTENT_W, 18), 11, Color(0.55, 1.0, 0.68))
 
 	var mission_id := GameManager.current_target_object_id()
 	var mission_object: Dictionary = GameManager.get_object(mission_id)
 	var mission_name := GameManager.dict_text(mission_object, "name")
 	var mission_button := _pixel_button(GameManager.text("Return to Mission", "返回任务目标"), Vector2(CONTENT_W, 34), 12)
 	mission_button.name = "FreeObservationMissionButton"
-	mission_button.position = Vector2(CONTENT_X, 572)
+	mission_button.position = Vector2(CONTENT_X, 580)
 	mission_button.tooltip_text = GameManager.text(
 		"Continue observing %s without leaving the telescope view." % mission_name,
 		"不退出望远镜界面，继续观测任务目标%s。" % mission_name
@@ -1450,7 +1845,7 @@ func _build_free_observation_panel() -> void:
 	add_child(mission_button)
 
 	var bottom := HBoxContainer.new()
-	bottom.position = Vector2(CONTENT_X, 614)
+	bottom.position = Vector2(CONTENT_X, 620)
 	bottom.size = Vector2(CONTENT_W, 34)
 	var button_gap := 8.0
 	var button_width := (CONTENT_W - button_gap) * 0.5
@@ -1465,7 +1860,7 @@ func _build_free_observation_panel() -> void:
 	back.name = "FreeObservationBackButton"
 	back.pressed.connect(func() -> void: GameManager.go("sky"))
 	bottom.add_child(back)
-	_add_change_equipment_button(656.0, 30.0)
+	_add_change_equipment_button(658.0, 30.0)
 
 
 func _add_change_equipment_button(y := 650.0, height := 34.0) -> void:
@@ -1530,6 +1925,9 @@ func _activate_mission_target_in_place() -> void:
 	dark_adaptation = 0.0
 	averted_vision_active = false
 	averted_hold_visual = 0.0
+	averted_vision_hold_seconds = 0.0
+	averted_vision_confirmed = false
+	averted_vision_success_played = false
 	identify_transition_active = false
 	quiz_brief_dismissed = false
 	focus_lock_feedback_played = false
@@ -1758,13 +2156,16 @@ func _build_technique_panel() -> void:
 		x += 122.0
 	if bool(requirements.get("require_averted_vision", false)):
 		var shift_hint := _plabel(
-			GameManager.text("Hold SHIFT + use side marker", "按住 SHIFT，看侧视标记"),
-			Vector2(x, panel_pos.y + 4), Vector2(172, 14), 9,
+			GameManager.text(
+				"Hold SHIFT 1.25s · keep telescope still",
+				"按住 Shift 1.25 秒，望远镜保持不动"
+			),
+			Vector2(x, panel_pos.y + 4), Vector2(240, 14), 9,
 			Color(0.48, 0.88, 1.0)
 		)
 		shift_hint.autowrap_mode = TextServer.AUTOWRAP_OFF
 		shift_hint.clip_text = true
-		x += 178.0
+		x += 246.0
 	technique_status_label = _plabel("", Vector2(x, panel_pos.y + 4), Vector2(panel_pos.x + panel_size.x - x - 8, 32), 9, Color(0.74, 0.86, 0.96))
 	technique_status_label.max_lines_visible = 2
 	_refresh_technique_status()
@@ -1810,10 +2211,24 @@ func _refresh_technique_status() -> void:
 			"暗适应：%d%% 已达标" % roundi(dark_adaptation * 100.0)
 		))
 	if bool(requirements.get("require_averted_vision", false)):
-		if not averted_vision_active:
-			pending.append(GameManager.text("Averted vision: hold SHIFT, look beside target", "侧视法：按住 SHIFT，看目标旁的标记"))
+		if averted_vision_confirmed:
+			ready.append(GameManager.text("Averted vision confirmed", "偏视结构已确认"))
+		elif averted_vision_active:
+			if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
+				pending.append(GameManager.text(
+					"Release Shift, center the target, then hold again",
+					"先松开 Shift 并让目标居中，再重新按住"
+				))
+			else:
+				pending.append(GameManager.text(
+					"Keep holding SHIFT · %d%%" % roundi(averted_hold_visual * 100.0),
+					"继续按住 Shift，望远镜保持不动 · %d%%" % roundi(averted_hold_visual * 100.0)
+				))
 		else:
-			ready.append(GameManager.text("Averted vision active", "侧视法：已生效"))
+			pending.append(GameManager.text(
+				"Hold SHIFT for 1.25s; keep telescope still",
+				"按住 Shift 1.25 秒，望远镜保持不动"
+			))
 	if requirements.has("seeing_patience"):
 		var steady_seconds := 4.0 + float(requirements.get("seeing_patience", 0.0)) * 4.0
 		if observation_elapsed + 0.001 < steady_seconds:
@@ -1890,20 +2305,20 @@ func _build_drift_panel() -> void:
 
 
 func _drift_status_text() -> String:
-	return GameManager.text("Drift: On", "漂移：开启")
+	return GameManager.text("Earth drift: On", "地球自转漂移：开启")
 
 
 func _tracking_state_label() -> Dictionary:
 	if not GameManager.has_tracking_mount_equipped():
-		return {"en": "Off", "zh": "关"}
+		return {"en": "Manual mount / Hand-guided", "zh": "手动支架 / 手动跟随"}
 	var rate := GameManager.tracking_rate()
 	if rate < 0.05:
-		return {"en": "Off", "zh": "关"}
+		return {"en": "Motor off", "zh": "追踪电机关闭"}
 	if absf(rate - 1.0) <= 0.1:
-		return {"en": "Matched 1x", "zh": "匹配 1倍"}
+		return {"en": "Matched 1x", "zh": "已匹配 1 倍速"}
 	if rate < 1.0:
-		return {"en": "Too slow", "zh": "过慢"}
-	return {"en": "Too fast", "zh": "过快"}
+		return {"en": "Too slow", "zh": "追踪过慢"}
+	return {"en": "Too fast", "zh": "追踪过快"}
 
 
 func _refresh_drift_ui() -> void:
@@ -1923,7 +2338,7 @@ func _refresh_drift_ui() -> void:
 	if hold_label != null:
 		hold_label.text = GameManager.text(
 			"Centered: %.1f/%.1fs" % [hold_timer, hold_seconds_required],
-			"居中：%.1f/%.1f秒" % [hold_timer, hold_seconds_required]
+			"居中保持：%.1f/%.1f 秒" % [hold_timer, hold_seconds_required]
 		)
 	if tracking_label != null:
 		tracking_label.text = "%.2fx" % GameManager.tracking_rate()
@@ -1982,6 +2397,9 @@ func _refresh_focus_ui() -> void:
 	if quality_label != null:
 		quality_label.text = GameManager.text("Quality: ", "质量: ") + quality
 		quality_label.add_theme_color_override("font_color", _quality_color(quality))
+	if free_quality_label != null:
+		free_quality_label.text = GameManager.text("Quality: ", "观测质量：") + quality
+		free_quality_label.add_theme_color_override("font_color", _quality_color(quality))
 	if feedback_label != null:
 		InteractionFeedback.crossfade_text(feedback_label, _current_feedback())
 	if drift_enabled:
@@ -1997,6 +2415,22 @@ func _current_feedback() -> String:
 		)
 	if not _missing_required_parts().is_empty():
 		return _missing_required_parts_text()
+	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	if bool(requirements.get("require_averted_vision", false)) and not averted_vision_confirmed:
+		if averted_vision_active:
+			if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
+				return GameManager.text(
+					"Release Shift and center the target first. Then hold Shift again without moving the telescope.",
+					"请先松开 Shift，让目标回到中心；再重新按住 Shift，并保持望远镜不动。"
+				)
+			return GameManager.text(
+				"Keep holding Shift and keep the telescope still: %.2f / %.2fs.",
+				"继续按住 Shift，望远镜保持不动：%.2f / %.2f 秒。"
+			) % [averted_vision_hold_seconds, AVERTED_VISION_HOLD_SECONDS]
+		return GameManager.text(
+			"Hold Shift for 1.25 seconds and keep the telescope still; rest your gaze on the side marker.",
+			"按住 Shift 1.25 秒并保持望远镜不动；把视线放在目标旁的偏视标记上。"
+		)
 	if is_focus_acceptable() and _collimation_severity() > 0.28:
 		return _quality_shortfall_text()
 	if drift_enabled and not is_hold_satisfied():
@@ -2151,9 +2585,10 @@ func _add_dark_adaptation_row(y: float) -> float:
 		Vector2(CONTENT_X, y), Vector2(CONTENT_W, CONDITION_ROW_H), 8, Color(0.70, 0.82, 0.98)
 	)
 	averted_vision_label = _plabel(
-		GameManager.text("Averted vision: Active", "侧视：启用") if averted_vision_active else GameManager.text("Averted vision: Inactive", "侧视：未启用"),
+		GameManager.text("Averted vision: Confirmed", "偏视法：已确认") if averted_vision_confirmed else GameManager.text("Averted vision: Ready", "偏视法：待操作"),
 		Vector2(CONTENT_X, y), Vector2(CONTENT_W, CONDITION_ROW_H), 8, Color(0.66, 0.72, 0.80), HORIZONTAL_ALIGNMENT_RIGHT
 	)
+	_refresh_averted_vision_label()
 	return y + CONDITION_ROW_H
 
 
@@ -2319,6 +2754,9 @@ func _object_guide_text(obj: Dictionary) -> String:
 
 
 func _guide_thumbnail_path(object_id: String) -> String:
+	var master_path := OpticalMediaRegistry.master_path(object_id)
+	if master_path != "":
+		return master_path
 	if STATE_TEXTURES.has(object_id):
 		return str((STATE_TEXTURES[object_id] as Dictionary).get("clear", ""))
 	return str(SPRITE_MAP.get(object_id, ""))
@@ -2526,8 +2964,10 @@ func _add_averted_vision_guide(parent: Control) -> void:
 	averted_vision_guide.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	averted_vision_guide.enabled = true
 	averted_vision_guide.active = averted_vision_active
+	averted_vision_guide.confirmed = averted_vision_confirmed
 	averted_vision_guide.adaptation = _eased_dark_adaptation()
 	averted_vision_guide.hold_visual = averted_hold_visual
+	averted_vision_guide.cursor_progress = averted_hold_visual
 	averted_vision_guide.target_position = target_center
 	parent.add_child(averted_vision_guide)
 
@@ -2596,6 +3036,8 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 	base_alpha = _quality_alpha(quality)
 	if observation_mode == "naked_eye":
 		base_alpha = _naked_eye_alpha()
+	elif _is_solid_body_target(id):
+		base_alpha = 1.0
 	elif effect == "dim" and quality in ["Poor", "Failed"] and not _city_glow_diffuse_target():
 		base_alpha *= 0.55
 	base_alpha = clampf(base_alpha + _dark_adaptation_alpha_bonus(), 0.0, 1.0)
@@ -2603,6 +3045,8 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 	base_alpha = maxf(base_alpha, _target_alpha_floor())
 	if GameManager.current_level().get("observation_requirements", {}).has("exposure_max"):
 		base_alpha = clampf(base_alpha * lerpf(0.42, 1.35, exposure_value), 0.0, 1.0)
+	if _is_solid_body_target(id) and observation_mode != "naked_eye":
+		base_alpha = 1.0
 
 	var path: String = _sprite_path_for_target(id, quality, effect)
 	current_sprite_path = path
@@ -2610,7 +3054,7 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 
 	var has_blur_variant := _has_blur_variant(id)
 	var ghost_texture := texture
-	if has_blur_variant:
+	if has_blur_variant and STATE_TEXTURES.has(id) and OpticalMediaRegistry.master_path(id) == "":
 		var state_textures: Dictionary = STATE_TEXTURES[id]
 		ghost_texture = _load_target_texture(str(state_textures["blurry"]))
 
@@ -2619,7 +3063,7 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 		sprite_scale = _naked_eye_scale(id)
 	else:
 		sprite_scale = _magnification_scale() * _object_view_scale(id)
-		if base_alpha > 0.0 and _magnification_scale() > 1.0:
+		if base_alpha > 0.0 and _magnification_scale() > 1.0 and not _is_solid_body_target(id):
 			# Higher magnification spreads the same light over a larger
 			# image: bigger but dimmer, same real telescope trade-off.
 			base_alpha *= 0.85
@@ -2630,7 +3074,18 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 			maxf(ghost_texture.get_size().x, ghost_texture.get_size().y)
 		)
 		if largest_dim > 0.0:
-			sprite_scale = minf(sprite_scale, 380.0 / largest_dim)
+			if _target_render_mode(id) == "extended_surface":
+				# The circular field stop is fixed in lens space above this
+				# sprite. Give the science image enough cover for the full
+				# allowed +/-300px sky drift plus seeing/effect offsets, so its
+				# own rectangular edges can never enter the 436px eyepiece.
+				sprite_scale = EXTENDED_FIELD_OVERSCAN_SIZE / largest_dim
+			elif _target_render_mode(id) == "extended_subject":
+				var crop := OpticalMediaRegistry.crop_metadata(id)
+				var subject_scale := clampf(float(crop.get("scale", 0.88)), 0.50, 1.20)
+				sprite_scale = 436.0 * subject_scale / largest_dim
+			else:
+				sprite_scale = minf(sprite_scale, 380.0 / largest_dim)
 	display_scale = sprite_scale
 
 	ghost_a = _add_sprite(parent, ghost_texture, target_center, 0.0, sprite_scale)
@@ -2644,15 +3099,9 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 		ghost_a.modulate.a = base_alpha * 0.30
 		ghost_a.position += Vector2(-9, 5)
 	_setup_turbulence_materials()
-	# Poor/Failed contrast flattening + averted-vision brighten are applied
-	# uniformly in _refresh_target_sprite (called below via
-	# _update_target_visuals), so they stay correct every frame instead of
-	# only at build time.
-	# Deep-sky targets take an extra contrast hit under a city sky.
-	if _is_diffuse_target() and observation_mode != "naked_eye":
-		var sky_key := str(GameManager.current_environment().get("sky_brightness", "")).to_lower()
-		if sky_key == "city":
-			base_alpha *= 0.8
+	# Environment response is material-driven and refreshed continuously.
+	# A one-time city alpha multiplier is incorrect because later focus/cloud
+	# refreshes overwrite it and uniformly fading a photo also erases its core.
 	# Start the smoothed values converged so the scene doesn't animate in.
 	visual_focus_error = focus_error
 	visual_target_center = target_center
@@ -2666,10 +3115,17 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 
 
 func _has_blur_variant(id: String) -> bool:
-	return STATE_TEXTURES.has(id) and requires_focus and observation_mode != "naked_eye"
+	return (
+		(STATE_TEXTURES.has(id) or OpticalMediaRegistry.master_path(id) != "")
+		and requires_focus
+		and observation_mode != "naked_eye"
+	)
 
 
 func _sprite_path_for_target(id: String, quality: String, effect: String) -> String:
+	var clean_master := OpticalMediaRegistry.master_path(id)
+	if clean_master != "":
+		return clean_master
 	if STATE_TEXTURES.has(id):
 		var textures: Dictionary = STATE_TEXTURES[id]
 		if _has_blur_variant(id):
@@ -2707,6 +3163,101 @@ func _load_target_texture(path: String) -> Texture2D:
 	if image != null and not image.is_empty():
 		return ImageTexture.create_from_image(image)
 	return load(SPRITE_MAP["polaris"])
+
+
+func _target_render_mode(object_id := "") -> String:
+	var resolved_id := object_id
+	if resolved_id == "":
+		resolved_id = str(selected_object.get("id", ""))
+	var registry_entry := OpticalMediaRegistry.entry(resolved_id)
+	var declared_mode := str(registry_entry.get("render_mode", "")).strip_edges().to_lower()
+	var media_object := selected_object if resolved_id == str(selected_object.get("id", "")) else GameManager.get_object(resolved_id)
+	var type_lower := str(media_object.get("type_en", "")).to_lower()
+	if declared_mode != "":
+		if declared_mode.contains("transparent") or declared_mode.contains("isolated"):
+			return "transparent_sprite"
+		if declared_mode.contains("field") or declared_mode.contains("extended"):
+			# Lunar close-ups are continuous surfaces and need cover/overscan.
+			# Deep-sky media is a true-alpha science structure layer rendered
+			# over the realtime star field, so no photo boundary exists.
+			if resolved_id.begins_with("moon_") or type_lower.contains("lunar"):
+				return "extended_surface"
+			return "extended_subject"
+		return declared_mode
+	if str(registry_entry.get("media_class", "")).to_lower().contains("extended"):
+		if resolved_id.begins_with("moon_") or type_lower.contains("lunar"):
+			return "extended_surface"
+		return "extended_subject"
+	if type_lower.contains("nebula") or type_lower.contains("galaxy") or type_lower.contains("cluster"):
+		return "extended_subject"
+	return "transparent_sprite"
+
+
+func _is_extended_target(object_id := "") -> bool:
+	return _target_render_mode(object_id).begins_with("extended_")
+
+
+func _is_solid_body_target(object_id := "") -> bool:
+	var resolved_id := object_id
+	if resolved_id == "":
+		resolved_id = str(selected_object.get("id", ""))
+	if OpticalMediaRegistry.is_isolated_planet(resolved_id):
+		return true
+	var media_object := selected_object if resolved_id == str(selected_object.get("id", "")) else GameManager.get_object(resolved_id)
+	var type_lower := str(media_object.get("type_en", "")).to_lower()
+	# "Planetary nebula" is a historical morphology term, not a planet.
+	# Substring matching routed M57/M27 through the opaque solid-body branch,
+	# which disabled their same-source defocus layer entirely.
+	if (
+		type_lower.contains("nebula")
+		or type_lower.contains("galaxy")
+		or type_lower.contains("cluster")
+	):
+		return false
+	return type_lower == "planet" or type_lower == "natural satellite" or type_lower == "moon"
+
+
+func _solid_body_brightness(quality: String, effect: String) -> float:
+	var luminance := 1.0
+	match quality:
+		"Good":
+			luminance = 0.94
+		"Fair":
+			luminance = 0.84
+		"Poor":
+			luminance = 0.66
+		"Failed":
+			luminance = 0.50
+	if effect == "dim":
+		luminance *= 0.82
+	# Clouds and low quality attenuate photons, but never turn an opaque
+	# planetary surface into a translucent decal over the star field.
+	luminance *= lerpf(1.0, 0.55, cond_cloud_atten)
+	return clampf(luminance, 0.28, 1.0)
+
+
+func _extended_field_environment_shader() -> Shader:
+	if extended_field_environment_shader == null:
+		extended_field_environment_shader = Shader.new()
+		extended_field_environment_shader.code = EXTENDED_FIELD_ENVIRONMENT_SHADER_CODE
+	return extended_field_environment_shader
+
+
+func _extended_field_defocus_shader() -> Shader:
+	if extended_field_defocus_shader == null:
+		extended_field_defocus_shader = Shader.new()
+		extended_field_defocus_shader.code = EXTENDED_FIELD_DEFOCUS_SHADER_CODE
+	return extended_field_defocus_shader
+
+
+func _extended_field_material(defocus := false) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = _extended_field_defocus_shader() if defocus else _extended_field_environment_shader()
+	if defocus:
+		material.set_shader_parameter("blur_radius_px", 0.0)
+		material.set_shader_parameter("brightness", 1.0)
+	extended_field_materials.append(material)
+	return material
 
 
 func _naked_eye_alpha() -> float:
@@ -2790,6 +3341,8 @@ func _refresh_target_sprite() -> void:
 	base_alpha = _quality_alpha(quality)
 	if observation_mode == "naked_eye":
 		base_alpha = _naked_eye_alpha()
+	elif _is_solid_body_target(id):
+		base_alpha = 1.0
 	elif effect == "dim" and quality in ["Poor", "Failed"] and not _city_glow_diffuse_target():
 		base_alpha *= 0.55
 	base_alpha = clampf(base_alpha + _dark_adaptation_alpha_bonus(), 0.0, 1.0)
@@ -2797,6 +3350,8 @@ func _refresh_target_sprite() -> void:
 	base_alpha = maxf(base_alpha, _target_alpha_floor())
 	if GameManager.current_level().get("observation_requirements", {}).has("exposure_max"):
 		base_alpha = clampf(base_alpha * lerpf(0.42, 1.35, exposure_value), 0.0, 1.0)
+	if _is_solid_body_target(id) and observation_mode != "naked_eye":
+		base_alpha = 1.0
 	var path := _sprite_path_for_target(id, quality, effect)
 	if path != current_sprite_path:
 		current_sprite_path = path
@@ -2809,7 +3364,10 @@ func _refresh_target_sprite() -> void:
 			ghost_a.size = texture.get_size()
 			ghost_b.texture = texture
 			ghost_b.size = texture.get_size()
-	if effect == "dim" and quality in ["Poor", "Failed"] and observation_mode != "naked_eye":
+	if _is_solid_body_target(id) and observation_mode != "naked_eye":
+		var solid_luminance := _solid_body_brightness(quality, effect)
+		main_sprite.modulate = Color(solid_luminance, solid_luminance, solid_luminance, 1.0)
+	elif effect == "dim" and quality in ["Poor", "Failed"] and observation_mode != "naked_eye":
 		main_sprite.modulate = Color(0.62, 0.62, 0.74, main_sprite.modulate.a)
 	else:
 		var rgb := 1.0
@@ -2821,6 +3379,7 @@ func _refresh_target_sprite() -> void:
 			# Averted vision: subtle contour brighten, not a flat clean-up.
 			rgb *= AVERTED_VISION_BRIGHTEN
 		main_sprite.modulate = Color(rgb, rgb, rgb, main_sprite.modulate.a)
+	_apply_extended_field_environment()
 	_rebuild_quality_noise()
 
 
@@ -2832,15 +3391,18 @@ func _cloud_alpha_multiplier() -> float:
 	# them but can never turn them into an unreadable black disc. Faint diffuse
 	# targets keep the full range - fading out IS their observing challenge.
 	var raw := 1.0 - 0.75 * cond_cloud_atten
-	if _is_diffuse_target():
-		return raw
+	if _is_extended_target():
+		# Local cloud sprites and the dark veil already provide spatial
+		# obstruction. A restrained integrated attenuation keeps the picture
+		# aligned with the area-sampled score instead of dimming it twice.
+		return 1.0 - 0.25 * cond_cloud_atten
 	return maxf(raw, 0.45)
 
 
 func _target_alpha_floor() -> float:
 	# Minimum brightness a lit target may reach after seeing/cloud/low-light so
 	# it is always still IDENTIFIABLE. Diffuse deep-sky is allowed to go faint.
-	if _is_diffuse_target():
+	if _is_extended_target():
 		return 0.12
 	return 0.55
 
@@ -2853,6 +3415,7 @@ func _update_target_visuals() -> void:
 	if main_sprite == null:
 		return
 	_refresh_target_sprite()
+	_update_star_field_optics()
 	var collimation_severity := _collimation_severity()
 	if not requires_focus and collimation_severity <= 0.001:
 		return
@@ -2861,19 +3424,42 @@ func _update_target_visuals() -> void:
 	# NOTE: TextureRect scales from its top-left corner, so centering must
 	# use size * display_scale, not the raw texture size.
 	var spread := visual_focus_error * 130.0
-	var cloud_mult := _cloud_alpha_multiplier()
+	var solid_body := _is_solid_body_target() and observation_mode != "naked_eye"
+	var cloud_mult := 1.0 if solid_body else _cloud_alpha_multiplier()
 	var ghost_alpha := clampf(visual_focus_error * 2.6, 0.0, 0.55) * visual_base_alpha * cloud_mult
 	var collimation_blur := collimation_severity * (0.24 if _is_star_target() else 0.42)
 	var combined_blur := maxf(blur_weight, collimation_blur)
-	var origin := visual_target_center - main_sprite.size * display_scale * 0.5
 	if blur_overlay != null:
+		# The same-source optical blur is the primary defocus cue. Ghosts remain
+		# a restrained secondary aberration instead of carrying the whole effect.
+		ghost_alpha *= 0.34
+	var origin := visual_target_center - main_sprite.size * display_scale * 0.5
+	if solid_body:
+		# Opaque bodies use one continuously blurred source. Cross-fading two
+		# translucent copies would let background stars leak through the disk.
+		main_sprite.modulate.a = 1.0
+		if blur_overlay != null:
+			blur_overlay.visible = false
+			blur_overlay.modulate.a = 0.0
+		if turbulence_material_main != null:
+			var solid_blur := lerpf(0.0, 22.0, pow(combined_blur, 0.72))
+			turbulence_material_main.set_shader_parameter("blur_radius_px", solid_blur)
+			turbulence_material_main.set_shader_parameter("brightness", lerpf(1.0, 0.68, combined_blur))
+	elif blur_overlay != null:
 		# Cross-fade: blurry photo dissolves into the sharp art.
 		# At full defocus the sharp base must be completely hidden. Leaving even
 		# a small clear-art alpha made some diffuse targets appear to switch back
 		# to their sharp texture after the focus input stopped.
+		blur_overlay.visible = combined_blur > 0.002
 		main_sprite.modulate.a = visual_base_alpha * (1.0 - combined_blur) * cloud_mult
 		blur_overlay.modulate.a = visual_base_alpha * combined_blur * cloud_mult
 		blur_overlay.position = visual_target_center - blur_overlay.size * display_scale * 0.5
+		if turbulence_material_blur != null:
+			# A continuous, inexpensive multi-sample PSF removes high-frequency
+			# detail on Web builds. Radius and brightness both follow real focus.
+			var optical_blur := lerpf(0.8, 32.0, pow(combined_blur, 0.72))
+			turbulence_material_blur.set_shader_parameter("blur_radius_px", optical_blur)
+			turbulence_material_blur.set_shader_parameter("brightness", lerpf(1.0, 0.48, combined_blur))
 	else:
 		main_sprite.modulate.a = visual_base_alpha * clampf(1.0 - visual_focus_error * 1.1, 0.30, 1.0) * cloud_mult
 	main_sprite.position = origin
@@ -2917,24 +3503,42 @@ func _setup_turbulence_materials() -> void:
 	turbulence_material_main = null
 	turbulence_material_blur = null
 	turbulence_material_ghost = null
-	if _is_star_target() or _is_diffuse_target():
-		return
-	if main_sprite != null:
+	extended_field_materials.clear()
+	var extended_field := _is_extended_target()
+	var solid_body := _is_solid_body_target() and observation_mode != "naked_eye"
+	if extended_field and main_sprite != null:
+		var field_main := _extended_field_material(false)
+		main_sprite.material = field_main
+		if ghost_a != null:
+			ghost_a.material = _extended_field_material(false)
+			ghost_b.material = _extended_field_material(false)
+	elif solid_body and main_sprite != null:
+		var solid_material := ShaderMaterial.new()
+		solid_material.shader = OPTICAL_TARGET_STATE_SHADER
+		solid_material.set_shader_parameter("blur_radius_px", 0.0)
+		solid_material.set_shader_parameter("brightness", 1.0)
+		main_sprite.material = solid_material
+		turbulence_material_main = solid_material
+	elif not _is_star_target() and not _is_diffuse_target() and main_sprite != null:
 		var mat_main := ShaderMaterial.new()
 		mat_main.shader = TURBULENCE_SHADER
 		main_sprite.material = mat_main
 		turbulence_material_main = mat_main
 	if blur_overlay != null:
-		var mat_blur := ShaderMaterial.new()
-		mat_blur.shader = TURBULENCE_SHADER
+		var mat_blur := _extended_field_material(true) if extended_field else ShaderMaterial.new()
+		if not extended_field:
+			mat_blur.shader = OPTICAL_TARGET_STATE_SHADER
+		mat_blur.set_shader_parameter("blur_radius_px", 5.0)
+		mat_blur.set_shader_parameter("brightness", 0.76)
 		blur_overlay.material = mat_blur
 		turbulence_material_blur = mat_blur
-	if ghost_a != null:
+	if not extended_field and not _is_star_target() and not _is_diffuse_target() and ghost_a != null:
 		var mat_ghost := ShaderMaterial.new()
 		mat_ghost.shader = TURBULENCE_SHADER
 		ghost_a.material = mat_ghost
 		ghost_b.material = mat_ghost
 		turbulence_material_ghost = mat_ghost
+	_apply_extended_field_environment()
 
 
 func _add_sprite(parent: Control, texture: Texture2D, center: Vector2, alpha: float, sprite_scale: float = 1.0) -> TextureRect:
@@ -2953,6 +3557,14 @@ func _add_sprite(parent: Control, texture: Texture2D, center: Vector2, alpha: fl
 
 func _add_scope_stars(parent: Control, scope_center: Vector2) -> void:
 	star_layer_nodes.clear()
+	star_field_psf_materials.clear()
+	star_field_psf_shader = Shader.new()
+	star_field_psf_shader.code = STAR_FIELD_PSF_SHADER_CODE
+	for sharp_sigma in [0.050, 0.068, 0.088]:
+		var material := ShaderMaterial.new()
+		material.shader = star_field_psf_shader
+		material.set_shader_parameter("sharp_sigma", sharp_sigma)
+		star_field_psf_materials.append(material)
 	# All star dots live inside one container so drift (E2) can translate the
 	# whole star field with a single position set - "the sky is turning",
 	# not each star repositioned individually.
@@ -2978,6 +3590,7 @@ func _add_scope_stars(parent: Control, scope_center: Vector2) -> void:
 			"suburban":
 				mag_limit = 7.2
 	_add_real_sky_stars(star_layer_container, scope_center, fov_radius, mag_limit)
+	_update_star_field_optics()
 
 
 static var _deep_stars_cache: Array = []
@@ -3060,7 +3673,19 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 			dot_size = 4.0
 		elif magnitude <= 3.5:
 			dot_size = 3.0
-		var star_rect := _rect(parent, pos - Vector2(dot_size, dot_size) * 0.5, Vector2(dot_size, dot_size), Color(0.88, 0.90, 0.97, alpha))
+		var material_index := 0
+		if dot_size >= 4.0:
+			material_index = 2
+		elif dot_size >= 3.0:
+			material_index = 1
+		var render_size := Vector2.ONE * STAR_FIELD_PSF_BOX_SIZE
+		var star_rect := _rect(
+			parent,
+			pos - render_size * 0.5,
+			render_size,
+			Color(0.88, 0.90, 0.97, alpha)
+		)
+		star_rect.material = star_field_psf_materials[material_index]
 		star_layer_nodes.append(star_rect)
 		added += 1
 		if added >= 170:

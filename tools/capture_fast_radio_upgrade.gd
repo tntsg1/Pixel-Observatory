@@ -19,6 +19,7 @@ func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
 	await _capture_array_takeover()
 	await _capture_aim_inertia()
+	await _capture_tuned_receiver()
 	await _capture_rfi_cleanup()
 	await _capture_fold_discovery()
 	await _capture_first_pulse()
@@ -60,6 +61,25 @@ func _capture_aim_inertia() -> void:
 	scene.call("_refresh_aim")
 	await process_frame
 	_save("01_aim_inertia_and_cable_tension.png")
+	await _remove_scene(scene)
+
+
+func _capture_tuned_receiver() -> void:
+	var scene := await _open_level(82)
+	var model: RadioSignalModel = scene.get("model")
+	model.azimuth = model.true_azimuth
+	model.altitude = model.true_altitude
+	model.az_velocity = 0.0
+	model.alt_velocity = 0.0
+	model.window_center_mhz = model.true_center_mhz
+	model.window_bandwidth_mhz = model.true_bandwidth_mhz
+	scene.set("stage", 1)
+	scene.call("_rebuild")
+	scene.call("_terminal_event", "FEED CABIN LOCK", "ACQUIRED", "CABLE LOAD NOMINAL")
+	scene.call("_terminal_event", "RECEIVER WINDOW", "HOLD", "%.0f MHz" % model.true_center_mhz)
+	scene.call("_terminal_event", "CANDIDATE BAND", "PRESERVED", "QUALITY %d%%" % int(model.tuning_quality() * 100.0))
+	await create_timer(1.30).timeout
+	_save("01b_receiver_band_locked.png")
 	await _remove_scene(scene)
 
 
