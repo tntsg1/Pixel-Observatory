@@ -35,6 +35,10 @@ const STATS_TERMINAL_OPEN_DURATION := 0.72
 const STATS_TERMINAL_OPEN_DURATION_REDUCED := 0.52
 const STATS_TERMINAL_CLOSE_DURATION := 0.58
 const STATS_TERMINAL_CLOSE_DURATION_REDUCED := 0.44
+const SPACE_REMOTE_FIRST_LEVEL := 66
+const SPACE_REMOTE_LAST_LEVEL := 75
+const FAST_REMOTE_FIRST_LEVEL := 76
+const FAST_REMOTE_LAST_LEVEL := 85
 
 # Screen-space geometry for the 1024x768 observatory artwork. Interaction
 # frames, click targets, route guidance, spawn points, and collision all share
@@ -200,6 +204,7 @@ var player_is_moving := false
 var room_transition_active := false
 var room_guidance_suspended := false
 var pending_remote_console_scene := ""
+var pending_remote_console_kind := ""
 var furniture_interaction_active := false
 var arrival_furniture_id := ""
 
@@ -439,6 +444,72 @@ func _remote_console_destination() -> String:
 	return "radio_observation" if _remote_console_kind() == "radio" else "space_observation"
 
 
+func _remote_destination_for_kind(kind: String) -> String:
+	return "radio_observation" if kind == "radio" else "space_observation"
+
+
+func _remote_console_status(kind: String) -> Dictionary:
+	var first_level := FAST_REMOTE_FIRST_LEVEL if kind == "radio" else SPACE_REMOTE_FIRST_LEVEL
+	var last_level := FAST_REMOTE_LAST_LEVEL if kind == "radio" else SPACE_REMOTE_LAST_LEVEL
+	var current_number := int(GameManager.current_level().get("level_number", GameManager.progress.get("current_level", 1)))
+	var current_kind := _remote_console_kind()
+	var completed: Array = GameManager.progress.get("completed_levels", [])
+	var chapter_complete := true
+	for level_number in range(first_level, last_level + 1):
+		if not completed.has(level_number) and not completed.has(str(level_number)):
+			chapter_complete = false
+			break
+	if chapter_complete:
+		return {
+			"state": "completed",
+			"label": GameManager.text("COMPLETED", "已完成"),
+			"reason": GameManager.text("Campaign archived. Independent observing time is available.", "主线观测已归档，现在可以申请自主观测。"),
+			"enabled": false,
+			"campaign_enabled": false,
+			"free_enabled": true,
+		}
+	if current_kind == kind:
+		var gate: Dictionary = GameManager.can_enter_observation()
+		if bool(gate.get("ok", false)):
+			return {
+				"state": "active",
+				"label": GameManager.text("ACTIVE", "任务进行中"),
+				"reason": GameManager.text("The current mission is ready for remote operation.", "当前任务已经可以进行远程操作。"),
+				"enabled": true,
+				"campaign_enabled": true,
+				"free_enabled": GameManager.remote_free_unlocked(kind),
+			}
+		return {
+			"state": "ready",
+			"label": GameManager.text("READY", "已解锁"),
+			"reason": GameManager.text(
+				str(gate.get("reason_en", "Complete the required assembly before opening the link.")),
+				str(gate.get("reason_zh", "请先完成本关要求的组装，再打开远程链路。"))),
+			"enabled": true,
+			"campaign_enabled": true,
+			"free_enabled": GameManager.remote_free_unlocked(kind),
+		}
+	if current_number < first_level:
+		return {
+			"state": "locked",
+			"label": GameManager.text("LOCKED", "未解锁"),
+			"reason": GameManager.text(
+				"Unlocked when the campaign reaches Level %d." % first_level,
+				"主线推进至第 %d 关后解锁。" % first_level),
+			"enabled": false,
+			"campaign_enabled": false,
+			"free_enabled": false,
+		}
+	return {
+		"state": "ready",
+		"label": GameManager.text("READY", "已解锁"),
+		"reason": GameManager.text("No matching remote mission is active tonight.", "今晚没有与这台仪器对应的远程任务。"),
+		"enabled": false,
+		"campaign_enabled": false,
+		"free_enabled": GameManager.remote_free_unlocked(kind),
+	}
+
+
 func _draw_space_console_overlay() -> void:
 	# The furniture art already contains a complete green monitor. Add only a
 	# clipped status strip inside its glass; a second framed panel would cover
@@ -486,13 +557,11 @@ func _register_hitboxes() -> void:
 	# the interaction center there also makes the route cue say "lower-left"
 	# from the room's central telescope instead of incorrectly pointing upward.
 	_register_interactable("journal", GameManager.text("Learning Journal", "学习日志"), GameManager.text("Review completed observations and learning cards.", "查看已完成的观测和学习卡。"), INTERACTION_RECTS["journal"])
-	var remote_console := _remote_console_kind()
-	if remote_console == "space":
-		_register_interactable("computer", GameManager.text("Space Telescope Console", "空间望远镜控制台"), GameManager.text("Open the segmented infrared observatory command link.", "打开分段式红外空间望远镜指挥链路。"), INTERACTION_RECTS["computer"])
-	elif remote_console == "radio":
-		_register_interactable("computer", GameManager.text("FAST Radio Telescope Console", "FAST 射电望远镜控制台"), GameManager.text("Open the FAST radio telescope command link.", "打开 FAST 射电望远镜指挥链路。"), INTERACTION_RECTS["computer"])
-	else:
-		_register_interactable("computer", GameManager.text("Stats Terminal", "统计终端"), GameManager.text("Check telescope performance and readiness.", "查看望远镜性能和就绪状态。"), INTERACTION_RECTS["computer"])
+	_register_interactable(
+		"computer",
+		GameManager.text("Remote Instrument Console", "远程仪器控制台"),
+		GameManager.text("Control the space infrared observatory and FAST radio array.", "控制空间红外天文台与 FAST 射电阵列。"),
+		INTERACTION_RECTS["computer"])
 
 	# Foot blockers preserve the top-down walkable floor while preventing the
 	# player from standing inside furniture, the telescope base, or stools.
@@ -1075,6 +1144,11 @@ func _handle_interaction(id: String) -> void:
 	elif id == "door":
 		_play_furniture_action("door", _enter_observatory_door)
 	elif id == "telescope":
+		if _space_console_active():
+			_show_feedback(GameManager.text(
+				"This pad controls local optical observing. Use the lower-right Remote Instrument Console for this mission.",
+				"中央观测台只负责本地光学观测。本关请使用右下角的远程仪器控制台。"), 4200)
+			return
 		if GameManager.try_story_for_trigger("before_observation", "sky"):
 			GameManager.set_observatory_spawn("telescope")
 			return
@@ -1152,27 +1226,277 @@ func _enter_learning_journal() -> void:
 
 func _open_computer_station() -> void:
 	GameManager.set_observatory_spawn("computer")
-	if _space_console_active():
-		_enter_space_console()
-	else:
+	_toggle_remote_instrument_console()
+
+
+func _toggle_remote_instrument_console() -> void:
+	if stats_terminal_animating:
+		return
+	if stats_terminal_popup != null:
+		_animate_stats_terminal_close()
+		return
+	_suspend_room_guidance_for_modal()
+	stats_terminal_popup = Control.new()
+	stats_terminal_popup.name = "RemoteInstrumentConsole"
+	stats_terminal_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_terminal_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	stats_terminal_popup.z_index = COMPUTER_MODAL_LAYER
+	stats_terminal_popup.pivot_offset = Vector2(512, 384)
+	add_child(stats_terminal_popup)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_terminal_popup.add_child(dim)
+	var panel := Panel.new()
+	panel.position = Vector2(170, 112)
+	panel.size = Vector2(684, 520)
+	panel.add_theme_stylebox_override("panel", _style(Color(0.018, 0.035, 0.052, 0.985), Color(0.30, 0.76, 0.82), 2, 4))
+	stats_terminal_popup.add_child(panel)
+	_terminal_label(GameManager.text("REMOTE INSTRUMENT CONSOLE", "远程仪器控制台"), Vector2(194, 132), Vector2(636, 34), 20, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	_terminal_label(
+		GameManager.text("Local optical observing remains on the central pad.", "中央观测台继续负责本地光学观测。"),
+		Vector2(214, 170), Vector2(596, 24), 12, Color(0.62, 0.74, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
+	_add_remote_instrument_card("space", Vector2(202, 214), GameManager.text("SPACE INFRARED OBSERVATORY", "空间红外天文台"))
+	_add_remote_instrument_card("radio", Vector2(202, 368), GameManager.text("FAST RADIO ARRAY", "FAST 射电阵列"))
+
+	var stats := Button.new()
+	stats.text = GameManager.text("SYSTEM STATS", "系统状态")
+	stats.position = Vector2(222, 558)
+	stats.size = Vector2(186, 44)
+	stats.pressed.connect(func() -> void:
+		if stats_terminal_popup != null:
+			stats_terminal_popup.queue_free()
+			stats_terminal_popup = null
+			stats_terminal_animating = false
 		_toggle_stats_terminal()
+	)
+	stats_terminal_popup.add_child(stats)
+	var close := Button.new()
+	close.text = GameManager.text("CLOSE", "关闭")
+	close.position = Vector2(616, 558)
+	close.size = Vector2(186, 44)
+	close.pressed.connect(_toggle_remote_instrument_console)
+	stats_terminal_popup.add_child(close)
+	_animate_stats_terminal_open()
 
 
-func _enter_space_console() -> void:
+func _add_remote_instrument_card(kind: String, pos: Vector2, title: String) -> void:
+	var status := _remote_console_status(kind)
+	var card := Panel.new()
+	card.position = pos
+	card.size = Vector2(620, 132)
+	var state := str(status.get("state", "locked"))
+	var border := Color(0.28, 0.82, 0.72) if state == "active" else (Color(0.82, 0.62, 0.27) if state == "ready" else Color(0.34, 0.40, 0.48))
+	card.add_theme_stylebox_override("panel", _style(Color(0.025, 0.052, 0.072, 0.96), border, 2, 2))
+	stats_terminal_popup.add_child(card)
+	var title_label := Label.new()
+	title_label.text = title
+	title_label.position = Vector2(18, 14)
+	title_label.size = Vector2(390, 26)
+	title_label.add_theme_font_size_override("font_size", 15)
+	title_label.add_theme_color_override("font_color", WARM_TEXT)
+	card.add_child(title_label)
+	var state_label := Label.new()
+	state_label.text = str(status.get("label", ""))
+	state_label.position = Vector2(420, 14)
+	state_label.size = Vector2(176, 26)
+	state_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	state_label.add_theme_font_size_override("font_size", 13)
+	state_label.add_theme_color_override("font_color", border)
+	card.add_child(state_label)
+	var reason := Label.new()
+	reason.text = str(status.get("reason", ""))
+	reason.position = Vector2(18, 48)
+	reason.size = Vector2(390, 66)
+	reason.custom_minimum_size = Vector2.ZERO
+	reason.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	reason.clip_text = true
+	reason.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	reason.add_theme_font_size_override("font_size", 11)
+	reason.add_theme_color_override("font_color", Color(0.78, 0.86, 0.88))
+	card.add_child(reason)
+	var campaign := Button.new()
+	campaign.text = (
+		GameManager.text("CAMPAIGN COMPLETE", "主线已完成")
+		if state == "completed"
+		else GameManager.text("CAMPAIGN", "主线观测"))
+	campaign.position = Vector2(430, 48)
+	campaign.size = Vector2(166, 32)
+	campaign.disabled = not bool(status.get("campaign_enabled", status.get("enabled", false)))
+	campaign.pressed.connect(_launch_remote_from_selector.bind(kind, "campaign"))
+	card.add_child(campaign)
+	var free_observe := Button.new()
+	free_observe.text = GameManager.text("FREE OBSERVATION", "自由观测")
+	free_observe.position = Vector2(430, 86)
+	free_observe.size = Vector2(166, 32)
+	free_observe.disabled = not bool(status.get("free_enabled", false))
+	free_observe.tooltip_text = GameManager.text(
+		"Choose an independent observing program. This never advances the campaign.",
+		"选择自主观测计划；自由观测不会推进主线。")
+	free_observe.pressed.connect(_launch_remote_from_selector.bind(kind, "free"))
+	card.add_child(free_observe)
+
+
+func _launch_remote_from_selector(kind: String, mode: String = "campaign") -> void:
+	if mode == "free":
+		_show_remote_free_catalog(kind)
+		return
+	if stats_terminal_popup != null:
+		stats_terminal_popup.queue_free()
+		stats_terminal_popup = null
+		stats_terminal_animating = false
+	GameManager.begin_remote_campaign(kind)
+	_enter_space_console(kind, "campaign")
+
+
+func _show_remote_free_catalog(kind: String) -> void:
+	if not GameManager.remote_free_unlocked(kind):
+		_show_feedback(GameManager.text(
+			"Complete the instrument's first campaign observation to unlock independent time.",
+			"请先完成这台仪器的首个主线观测，再申请自主观测。"), 3200)
+		return
+	if stats_terminal_popup != null:
+		stats_terminal_popup.queue_free()
+	stats_terminal_popup = Control.new()
+	stats_terminal_popup.name = "RemoteFreeObservationCatalog"
+	stats_terminal_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_terminal_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	stats_terminal_popup.z_index = COMPUTER_MODAL_LAYER
+	add_child(stats_terminal_popup)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.78)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	stats_terminal_popup.add_child(dim)
+	var panel := Panel.new()
+	panel.position = Vector2(142, 74)
+	panel.size = Vector2(740, 620)
+	panel.add_theme_stylebox_override("panel", _style(Color(0.018, 0.035, 0.052, 0.99), Color(0.30, 0.76, 0.82), 2, 4))
+	stats_terminal_popup.add_child(panel)
+	_terminal_label(
+		GameManager.text("DEEP-SKY PROGRAM" if kind == "space" else "RADIO SCIENCE PROGRAM",
+			"深空观测计划" if kind == "space" else "射电科学计划"),
+		Vector2(170, 94), Vector2(684, 34), 20, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	var first_intro := GameManager.consume_remote_free_intro(kind)
+	var intro_en := (
+		"Campaign complete, but observing time remains. Choose a deep-sky target and decide how to reveal it."
+		if kind == "space"
+		else "There is no assigned answer this time. Choose a radio target and build the evidence.")
+	var intro_zh := (
+		"主线结束了，但观测时间还在。挑一个深空目标，自己决定怎样把它显出来。"
+		if kind == "space"
+		else "这次没有指定答案。挑一个无线电目标，把证据做出来。")
+	_terminal_label(
+		GameManager.text(
+			intro_en if first_intro else "Choose an independent observing program.",
+			intro_zh if first_intro else "选择一项自主观测计划。"),
+		Vector2(174, 130), Vector2(676, 30), 11, Color(0.70, 0.82, 0.85), HORIZONTAL_ALIGNMENT_CENTER)
+
+	var catalog := GameManager.remote_free_catalog(kind)
+	if catalog.is_empty():
+		_terminal_label(GameManager.text("No programs are available.", "暂无可用观测计划。"), Vector2(186, 190), Vector2(650, 40), 14, WARM_TEXT)
+		return
+	stats_terminal_popup.set_meta("remote_catalog_kind", kind)
+	stats_terminal_popup.set_meta("remote_catalog_entry_id", str((catalog[0] as Dictionary).get("id", "")))
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(174, 176)
+	scroll.size = Vector2(318, 426)
+	stats_terminal_popup.add_child(scroll)
+	var list := VBoxContainer.new()
+	list.custom_minimum_size = Vector2(298, 0)
+	list.add_theme_constant_override("separation", 8)
+	scroll.add_child(list)
+	var details := Label.new()
+	details.name = "CatalogDetails"
+	details.position = Vector2(516, 178)
+	details.size = Vector2(326, 344)
+	details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	details.add_theme_font_size_override("font_size", 12)
+	details.add_theme_color_override("font_color", Color(0.82, 0.90, 0.92))
+	stats_terminal_popup.add_child(details)
+	for value in catalog:
+		var entry := value as Dictionary
+		var button := Button.new()
+		button.text = GameManager.text(str(entry.get("name_en", "")), str(entry.get("name_zh", "")))
+		button.custom_minimum_size = Vector2(292, 50)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.pressed.connect(_select_remote_catalog_entry.bind(kind, str(entry.get("id", "")), details))
+		list.add_child(button)
+	_select_remote_catalog_entry(kind, str((catalog[0] as Dictionary).get("id", "")), details)
+	var start := Button.new()
+	start.text = GameManager.text("BEGIN FREE OBSERVATION", "开始自由观测")
+	start.position = Vector2(516, 540)
+	start.size = Vector2(326, 54)
+	start.pressed.connect(_start_selected_remote_free_observation)
+	stats_terminal_popup.add_child(start)
+	var back := Button.new()
+	back.text = GameManager.text("BACK", "返回")
+	back.position = Vector2(516, 608)
+	back.size = Vector2(156, 44)
+	back.pressed.connect(func() -> void:
+		if stats_terminal_popup != null:
+			stats_terminal_popup.queue_free()
+			stats_terminal_popup = null
+		_toggle_remote_instrument_console()
+	)
+	stats_terminal_popup.add_child(back)
+	_animate_stats_terminal_open()
+
+
+func _select_remote_catalog_entry(kind: String, entry_id: String, details: Label) -> void:
+	if stats_terminal_popup == null:
+		return
+	var entry := GameManager.remote_free_entry(kind, entry_id)
+	if entry.is_empty():
+		return
+	stats_terminal_popup.set_meta("remote_catalog_entry_id", entry_id)
+	details.text = "%s\n\n%s\n%s\n\n%s\n\n%s" % [
+		GameManager.text(str(entry.get("name_en", "")), str(entry.get("name_zh", ""))),
+		GameManager.text("TYPE: " + str(entry.get("category_en", "")), "类型：" + str(entry.get("category_zh", ""))),
+		GameManager.text("DIFFICULTY: " + str(entry.get("difficulty_en", "")), "难度：" + str(entry.get("difficulty_zh", ""))),
+		GameManager.text("RECOMMENDED: " + str(entry.get("recommended_band_en", "Measured radio data")),
+			"推荐：" + str(entry.get("recommended_band_zh", "射电数据分析"))),
+		GameManager.text(str(entry.get("science_en", "")), str(entry.get("science_zh", ""))),
+	]
+
+
+func _start_selected_remote_free_observation() -> void:
+	if stats_terminal_popup == null:
+		return
+	var kind := str(stats_terminal_popup.get_meta("remote_catalog_kind", ""))
+	var entry_id := str(stats_terminal_popup.get_meta("remote_catalog_entry_id", ""))
+	if not GameManager.begin_remote_free_observation(kind, entry_id):
+		_show_feedback(GameManager.text("This observing program is not available.", "该观测计划当前不可用。"), 2600)
+		return
+	stats_terminal_popup.queue_free()
+	stats_terminal_popup = null
+	stats_terminal_animating = false
+	_enter_space_console(kind, "free")
+
+
+func _enter_space_console(kind: String = "", mode: String = "campaign") -> void:
 	if room_transition_active:
 		return
+	var selected_kind := kind if kind != "" else _remote_console_kind()
+	var free_mode := mode == "free" and GameManager.is_remote_free_observation(selected_kind)
+	if selected_kind == "" or (not free_mode and selected_kind != _remote_console_kind()):
+		_show_feedback(GameManager.text(
+			"No matching remote mission is active for this instrument.",
+			"当前没有与这台仪器对应的远程任务。"), 3200)
+		return
 	var gate: Dictionary = GameManager.can_enter_observation()
-	if not bool(gate.get("ok", false)):
+	if not free_mode and not bool(gate.get("ok", false)):
 		_show_feedback(GameManager.text(
 			str(gate.get("reason_en", "Finish assembling the space observatory before opening the command link.")),
 			str(gate.get("reason_zh", "请先完成空间望远镜组装，再打开指挥链路。"))), 3600)
 		return
-	var destination := _remote_console_destination()
-	if GameManager.try_story_for_trigger("before_observation", destination):
+	var destination := _remote_destination_for_kind(selected_kind)
+	if not free_mode and GameManager.try_story_for_trigger("before_observation", destination):
 		return
-	if GameManager.try_teaching_intercept("before_observation", destination):
+	if not free_mode and GameManager.try_teaching_intercept("before_observation", destination):
 		return
 	_suspend_room_guidance_for_modal()
+	pending_remote_console_kind = selected_kind
 	pending_remote_console_scene = destination
 	room_transition_active = true
 	var overlay := Control.new()
@@ -1195,7 +1519,7 @@ func _enter_space_console() -> void:
 	terminal.pivot_offset = terminal.size * 0.5
 	terminal.add_theme_stylebox_override("panel", _style(Color(0.005, 0.005, 0.005, 0.98), Color.WHITE, 2, 0))
 	overlay.add_child(terminal)
-	var radio_console := _remote_console_kind() == "radio"
+	var radio_console := selected_kind == "radio"
 	_board_label(terminal, "UPLINK / FAST" if radio_console else "UPLINK / L2", Vector2(8, 8), Vector2(122, 18), 10, Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER)
 	for row in range(5):
 		_rect_to(terminal, Vector2(12, 34 + row * 12), Vector2(110 - row * 9, 2), Color(0.72, 0.72, 0.72, 0.82))
@@ -1245,7 +1569,7 @@ func _finish_space_console_transition() -> void:
 	GameManager.clear_room_guidance()
 	var destination := pending_remote_console_scene
 	if destination == "":
-		destination = _remote_console_destination()
+		destination = _remote_destination_for_kind(pending_remote_console_kind if pending_remote_console_kind != "" else _remote_console_kind())
 	GameManager.go(destination)
 
 
@@ -1272,8 +1596,10 @@ func _open_mission_board() -> void:
 	var route := _mission_board_route()
 
 	mission_board_popup = Control.new()
+	mission_board_popup.name = "MissionBoardModal"
 	mission_board_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
 	mission_board_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	mission_board_popup.z_index = COMPUTER_MODAL_LAYER
 	add_child(mission_board_popup)
 	InteractionFeedback.page_enter(mission_board_popup, Vector2(0, 8))
 
@@ -1328,8 +1654,10 @@ func _open_mission_board() -> void:
 func _open_graduated_mission_board() -> void:
 	_suspend_room_guidance_for_modal()
 	mission_board_popup = Control.new()
+	mission_board_popup.name = "GraduatedMissionBoardModal"
 	mission_board_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
 	mission_board_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	mission_board_popup.z_index = COMPUTER_MODAL_LAYER
 	add_child(mission_board_popup)
 	InteractionFeedback.page_enter(mission_board_popup, Vector2(0, 8))
 
@@ -2140,6 +2468,13 @@ func _has_feedback_override() -> bool:
 
 func _suspend_room_guidance_for_modal() -> void:
 	room_guidance_suspended = true
+	# Furniture cutouts only exist to occlude the player while walking behind a
+	# prop. They are not modal decoration and must never float over mission,
+	# unlock, or remote-console content.
+	for data in furniture_occluders:
+		var occluder := data.get("node") as CanvasItem
+		if occluder != null:
+			occluder.visible = false
 	_update_guidance_toggle_button()
 	if guidance_panel != null:
 		guidance_panel.visible = false
@@ -2158,6 +2493,7 @@ func _suspend_room_guidance_for_modal() -> void:
 
 func _resume_room_guidance_after_modal() -> void:
 	room_guidance_suspended = false
+	_update_furniture_occlusion()
 	_update_guidance_toggle_button()
 	_update_room_guidance_panel()
 
@@ -2308,9 +2644,7 @@ func _route_target_prompt(target_id: String) -> String:
 		"mission":
 			return GameManager.text("Go to the Mission Board", "前往任务板")
 		"computer":
-			if _space_console_active():
-				return GameManager.text("Go to the Space Telescope Console", "前往空间望远镜控制台")
-			return GameManager.text("Go to the Stats Terminal", "前往统计终端")
+			return GameManager.text("Go to the Remote Instrument Console", "前往远程仪器控制台")
 		"door":
 			return GameManager.text("Go to the Observatory Door", "前往天文台门")
 	return target_id.capitalize()

@@ -11,6 +11,8 @@ assets/audio/music/*.mp3 filter=lfs diff=lfs merge=lfs -text
 assets/reference/observatory_occluders/*.png -filter -diff -merge -text
 assets/reference/observatory_room_hall_*.png -filter -diff -merge -text
 assets/telescope_view/official/*.png -filter -diff -merge -text
+assets/assembly/fast_blueprint_center_cropped.png -filter -diff -merge -text
+assets/assembly/fast_blueprint_reference.png -filter -diff -merge -text
 assets/fonts/*.ttf -filter -diff -merge -text
 assets/audio/music/*.mp3 -filter -diff -merge -text
 

@@ -407,8 +407,11 @@ func _test_scene(gm: Node) -> void:
 		scene.call("_set_filter_channel", str(mapping[0]), str(mapping[1]))
 		await process_frame
 		_check(bool(scene.get("filter_animating")), "filter. mapping %s starts a visible recomposition scan" % str(mapping[0]))
-		await create_timer(0.45).timeout
-	_check(_tree_has_label(scene.get("scope") as Node, "STRUCTURE EVIDENCE"),
+		# The structural scan lasts 0.48 s and finishes through a callback.
+		# Wait past that boundary so the next channel is not intentionally
+		# ignored while the previous detector pass is still active.
+		await create_timer(0.60).timeout
+	_check(_tree_has_label(scene.get("scope") as Node, "EVIDENCE CONFIDENCE"),
 		"filter. a complete mapping teaches the visible structure evidence")
 	scene.call("_set_science_choice", "hot_gas")
 	await create_timer(0.45).timeout
@@ -429,7 +432,9 @@ func _test_scene(gm: Node) -> void:
 	await process_frame
 	_check(scene.find_child("SpaceConsoleShutdown", true, false) != null,
 		"science. Submit Report plays the console shutdown transition")
-	await create_timer(1.75).timeout
+	# Archive, detector-safe, link-close, and shutter-close are now separate
+	# physical beats rather than the former single fade.
+	await create_timer(2.85).timeout
 	await process_frame
 	_check(_completed(gm), "science. Submit Report completes the mission")
 	if is_instance_valid(scene):
@@ -459,8 +464,8 @@ func _test_hall_console(gm: Node) -> void:
 	for _i in range(4):
 		await process_frame
 	var computer: Dictionary = room.call("_get_interactable", "computer")
-	_check(str(computer.get("name", "")).contains("Space Telescope") or str(computer.get("name", "")).contains("空间望远镜"),
-		"hall. the stats terminal becomes the Space Telescope Console")
+	_check(str(computer.get("name", "")).contains("Remote Instrument") or str(computer.get("id", "")) == "computer",
+		"hall. the bottom-right computer is the shared Remote Instrument Console")
 	_check(room.find_child("SpaceConsoleScreen", true, false) != null,
 		"hall. the furniture screen visibly shows the L2 command link")
 	room.call("_enter_space_console")

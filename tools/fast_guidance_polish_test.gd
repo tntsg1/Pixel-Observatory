@@ -120,7 +120,7 @@ func _test_idle_hints_and_terminal_throttle() -> void:
 	for i in range(12):
 		scene.set("terminal_clock", 12.0 + float(i))
 		scene.call("_terminal_event", "EVENT %d" % i, "OK")
-	_check((scene.get("terminal_log") as Array).size() == 7, "terminal keeps seven readable lines of real event history")
+	_check((scene.get("terminal_log") as Array).size() == 6, "terminal keeps six readable lines of real event history")
 	scene.queue_free()
 	await process_frame
 
@@ -174,8 +174,10 @@ func _test_chinese_layout() -> void:
 	gm.progress["language_mode"] = "zh"
 	gm.progress["tutorial_assistance"] = "free"
 	var scene := await _new_fast_scene()
+	gm.language_mode = "zh"
+	gm.progress["language_mode"] = "zh"
 	scene.call("_rebuild")
-	await create_timer(0.35).timeout
+	await create_timer(0.20).timeout
 	var terminal := scene.get("terminal_panel") as Control
 	var status := scene.get("status_label") as Control
 	var help := scene.get("tutorial_help_button") as Control
@@ -185,12 +187,61 @@ func _test_chinese_layout() -> void:
 		"Chinese terminal remains separate from the footer at 1024x768"
 	)
 	_check(status != null and help != null and not status.get_global_rect().intersects(help.get_global_rect()), "Chinese status text does not overlap the Help control")
+
+	scene.set("stage", 1)
+	scene.call("_rebuild")
+	await process_frame
+	var tune_controls := scene.find_child("TuneControlsPanel", true, false) as Control
+	var tune_title := scene.find_child("TuneControlsTitle", true, false) as Control
+	var center_caption := scene.find_child("TuneCenterLabel", true, false) as Control
+	var width_caption := scene.find_child("TuneWidthLabel", true, false) as Control
+	terminal = scene.get("terminal_panel") as Control
+	_check(tune_controls != null and terminal != null and tune_controls.get_global_rect().end.y <= terminal.get_global_rect().position.y - 3.0, "Tune controls end above the terminal band")
+	_check(tune_title != null and center_caption != null and not tune_title.get_global_rect().intersects(center_caption.get_global_rect()), "Chinese center-frequency caption stays below the Tune title")
+	_check(tune_title != null and width_caption != null and not tune_title.get_global_rect().intersects(width_caption.get_global_rect()), "Chinese bandwidth caption stays below the Tune title")
+
+	scene.call("_radio_operation_chain", "锁定馈源舱", "运动速度收束，缆索张力稳定", "接收机现在可以搜索射电频段")
+	await process_frame
+	var chain := scene.get_node_or_null("OperationChainFeedback") as Control
+	var back := scene.find_child("FastBackButton", true, false) as Control
+	terminal = scene.get("terminal_panel") as Control
+	help = scene.get("tutorial_help_button") as Control
+	_check(
+		chain != null and terminal != null
+		and terminal.get_global_rect().encloses(chain.get_global_rect()),
+		"FAST operation feedback temporarily occupies and remains clipped to the event terminal bay"
+	)
+	_check(chain != null and back != null and not chain.get_global_rect().intersects(back.get_global_rect()), "FAST operation feedback never covers Back")
+	_check(chain != null and help != null and not chain.get_global_rect().intersects(help.get_global_rect()), "FAST operation feedback never covers Help")
+	if chain != null:
+		for value_index in range(3):
+			var chain_value := chain.get_node_or_null("OperationChainValue%d" % value_index) as Control
+			_check(
+				chain_value != null and chain.get_global_rect().encloses(chain_value.get_global_rect()),
+				"FAST operation feedback column %d remains inside its clipped terminal bay" % (value_index + 1)
+			)
+
+	for stage_index in range(5):
+		scene.set("stage", stage_index)
+		scene.call("_rebuild")
+		await process_frame
+		terminal = scene.get("terminal_panel") as Control
+		var stage_content := scene.get("content") as Control
+		var stage_clear := true
+		for child in stage_content.get_children():
+			if child is Control and (child as Control).visible:
+				stage_clear = stage_clear and (child as Control).get_global_rect().end.y <= terminal.get_global_rect().position.y - 2.0
+		_check(stage_clear, "Chinese FAST stage %d content remains above the terminal band" % (stage_index + 1))
+
 	var shader_text := FileAccess.get_file_as_string("res://shaders/fast_crt_monitor.gdshader")
 	_check(not shader_text.contains("SCREEN_UV"), "CRT glass never resamples the full-screen UI")
 	_check(not shader_text.contains("hint_screen_texture"), "CRT glass uses no mipmapped screen texture")
 	_check(not shader_text.contains("curvature"), "CRT glass cannot warp text or control geometry")
 	_check(shader_text.contains("smoothstep(0.80, 1.0"), "CRT darkening is restricted to the outer glass")
 	_check(shader_text.contains("scanline_strength") and shader_text.contains("0.022"), "CRT scanlines are reduced for text readability")
+	scene.set("stage", 0)
+	scene.call("_rebuild")
+	await process_frame
 	var glass := scene.get("crt_glass") as Control
 	var lock := scene.get("lock_button") as Control
 	var rect_before := lock.get_global_rect() if lock != null else Rect2()

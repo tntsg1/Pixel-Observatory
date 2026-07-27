@@ -92,6 +92,7 @@ func _test_model() -> void:
 	_check(m.fold_snr() < 8.0, "4. no integration + wrong period -> SNR too low")
 	m.trial_period_ms = m.true_period_ms
 	m.trial_dm = m.true_dm
+	m.trial_phase = m.true_phase
 	var short_snr := m.fold_snr()
 	m.set_integration(60.0)
 	var mid_snr := m.fold_snr()
@@ -106,6 +107,10 @@ func _test_model() -> void:
 	_check(m.conclusion_state() == "stable_pulsar", "4. correct evidence yields the stable-pulsar conclusion")
 	_check(m.evaluate_conclusion("stable_pulsar"), "4. only the evidence-backed conclusion is accepted")
 	_check(not m.evaluate_conclusion("insufficient_signal"), "4. a contradictory report conclusion is rejected")
+	m.trial_phase = fposmod(m.true_phase + 0.25, 1.0)
+	_check(m.phase_match() < 0.72, "4. an offset arrival phase remains outside the receiver gate")
+	m.trial_phase = m.true_phase
+	_check(m.phase_match() >= 0.99, "4. the correct arrival phase sits inside the receiver gate")
 
 
 # ---------------------------------------------------------------- 6 profiles
@@ -232,7 +237,9 @@ func _test_scene(gm: Node) -> void:
 	await process_frame
 	_check(int(scene.get("stage")) == 3, "5. correct classification advances to Fold")
 
-	# wrong fold -> blocked; correct + integration -> advances
+	# wrong fold -> blocked; correct + integration starts the clock prediction.
+	# Missing the first window preserves all science state; arming the next beat
+	# completes the timing proof and advances to Report.
 	m.trial_period_ms = m.true_period_ms + 40.0
 	m.set_integration(0.0)
 	scene.call("_confirm_fold")
@@ -241,10 +248,22 @@ func _test_scene(gm: Node) -> void:
 	_check(not gm_completed(gm), "5. Fold stage never completes the mission on its own")
 	m.trial_period_ms = m.true_period_ms
 	m.trial_dm = m.true_dm
+	m.trial_phase = m.true_phase
 	m.set_integration(300.0)
 	scene.call("_confirm_fold")
-	await create_timer(2.55).timeout
+	await process_frame
+	_check(bool(scene.get("prediction_running")), "5. valid fold opens the next-pulse prediction instead of auto-completing")
+	var integration_before_miss := m.integration_s
+	scene.call("_resolve_prediction_window")
+	await process_frame
+	_check(int(scene.get("prediction_misses")) == 1, "5. an unarmed receiver visibly misses the predicted window")
+	_check(is_equal_approx(m.integration_s, integration_before_miss), "5. a missed window preserves accumulated science data")
+	_check(int(scene.get("stage")) == 3, "5. missing the window stays in Fold for a retry")
+	scene.call("_arm_prediction_receiver")
+	scene.call("_resolve_prediction_window")
+	await create_timer(3.65).timeout
 	_check(int(scene.get("stage")) == 4, "5. confirmed pulse advances to Report")
+	_check(bool(scene.get("prediction_confirmed")), "5. report unlock requires a captured predicted arrival")
 	_check(scene.get("discovery_phase") >= 0.99, "5. FIRST PULSE sequence synchronizes sub-bands, waterfall, and folded profile")
 
 	# Report is evidence-gated: a wrong conclusion cannot complete; the correct

@@ -12,6 +12,7 @@ const DeveloperConsoleScript := preload("res://scripts/ui/developer_console.gd")
 const ADVANCED_LEVELS_PATH := "res://data/advanced_levels.json"
 const ADVANCED_PARTS_PATH := "res://data/advanced_telescope_parts.json"
 const EXPANSION_DIR := "res://data/expansion/"
+const REMOTE_FREE_CATALOG_PATH := "res://data/remote_free_observation_catalog.json"
 const CAMPAIGN_VERSION := 94
 const FINAL_CAMPAIGN_LEVEL := 85
 const RETIRED_POST_FAST_LEVEL := 86
@@ -151,6 +152,10 @@ var last_sky_aim: Dictionary = {"valid": false}
 var assembly_family_id := ""
 var developer_console: Control
 var foundation_training_time_cache: Dictionary = {}
+# Remote campaign and free-observation sessions share the same instrument
+# scenes, but never the same progression path. This context is transient; only
+# completed free observations are written to the save archive.
+var remote_observation_context: Dictionary = {}
 
 
 func _ready() -> void:
@@ -398,6 +403,8 @@ func default_progress() -> Dictionary:
 		"observed_objects": [],
 		"badges": [],
 		"journal_entries": [],
+		"remote_observation_archive": [],
+		"remote_free_intro_seen": [],
 		"completed_concept_cards": [],
 		"seen_teaching_steps": [],
 		"seen_concept_briefs": [],
@@ -433,6 +440,7 @@ func new_game() -> void:
 	current_sky_positions.clear()
 	current_sky_location_id = ""
 	foundation_training_time_cache.clear()
+	remote_observation_context.clear()
 	last_observation = {}
 	last_learning_card = {}
 	last_guidance = ""
@@ -1259,6 +1267,115 @@ func record_free_observation(object_id: String, observation: Dictionary) -> Dict
 		"credits_awarded": FREE_OBSERVATION_CREDITS,
 		"credits_total": int(progress.get("credits", 0))
 	}
+
+
+func remote_free_catalog(kind: String) -> Array:
+	var root := _load_json_dict(REMOTE_FREE_CATALOG_PATH)
+	var entries: Variant = root.get(kind, [])
+	return (entries as Array).duplicate(true) if entries is Array else []
+
+
+func remote_free_entry(kind: String, entry_id: String) -> Dictionary:
+	for value in remote_free_catalog(kind):
+		var entry := value as Dictionary
+		if str(entry.get("id", "")) == entry_id:
+			return entry.duplicate(true)
+	return {}
+
+
+func remote_free_unlocked(kind: String) -> bool:
+	var first_level := 76 if kind == "radio" else 66
+	var completed: Array = progress.get("completed_levels", [])
+	if completed.has(first_level) or completed.has(str(first_level)):
+		return true
+	# Old saves from earlier campaign orders may have a later chapter lesson
+	# completed without retaining the first lesson id. Preserve that legal
+	# progress instead of relocking the instrument.
+	for level_value in completed:
+		var number := int(level_value)
+		if kind == "space" and number >= 66 and number <= 75:
+			return true
+		if kind == "radio" and number >= 76 and number <= 85:
+			return true
+	return int(progress.get("current_level", 1)) > first_level
+
+
+func begin_remote_campaign(kind: String) -> void:
+	remote_observation_context = {
+		"mode": "campaign",
+		"kind": kind,
+		"entry_id": "",
+	}
+
+
+func begin_remote_free_observation(kind: String, entry_id: String) -> bool:
+	if not remote_free_unlocked(kind):
+		return false
+	var entry := remote_free_entry(kind, entry_id)
+	if entry.is_empty():
+		return false
+	remote_observation_context = {
+		"mode": "free",
+		"kind": kind,
+		"entry_id": entry_id,
+		"target_id": str(entry.get("target_id", entry_id)),
+	}
+	return true
+
+
+func consume_remote_free_intro(kind: String) -> bool:
+	_ensure_progress_array("remote_free_intro_seen")
+	if progress["remote_free_intro_seen"].has(kind):
+		return false
+	progress["remote_free_intro_seen"].append(kind)
+	save()
+	return true
+
+
+func is_remote_free_observation(kind: String = "") -> bool:
+	if str(remote_observation_context.get("mode", "")) != "free":
+		return false
+	return kind == "" or str(remote_observation_context.get("kind", "")) == kind
+
+
+func active_remote_free_entry(kind: String = "") -> Dictionary:
+	if not is_remote_free_observation(kind):
+		return {}
+	return remote_free_entry(
+		str(remote_observation_context.get("kind", "")),
+		str(remote_observation_context.get("entry_id", "")))
+
+
+func record_remote_free_observation(kind: String, observation: Dictionary) -> Dictionary:
+	var entry := active_remote_free_entry(kind)
+	if entry.is_empty():
+		return {"recorded": false}
+	_ensure_progress_array("remote_observation_archive")
+	var now := Time.get_datetime_dict_from_system(true)
+	var record := {
+		"entry_kind": "remote_free_observation",
+		"instrument_kind": kind,
+		"catalog_entry_id": str(entry.get("id", "")),
+		"target_id": str(entry.get("target_id", "")),
+		"target_name_en": str(entry.get("name_en", "")),
+		"target_name_zh": str(entry.get("name_zh", "")),
+		"category_en": str(entry.get("category_en", "")),
+		"category_zh": str(entry.get("category_zh", "")),
+		"quality": str(observation.get("quality", "Good")),
+		"instrument": str(observation.get("instrument", kind)),
+		"filter": str(observation.get("filter", "")),
+		"exposure": float(observation.get("exposure", observation.get("integration_s", 0.0))),
+		"snr": float(observation.get("snr", 0.0)),
+		"result_kind": str(entry.get("result_kind", "infrared_composite")),
+		"science_en": str(entry.get("science_en", "")),
+		"science_zh": str(entry.get("science_zh", "")),
+		"observation_utc": "%04d-%02d-%02dT%02d:%02d:%02dZ" % [
+			int(now.get("year", 0)), int(now.get("month", 0)), int(now.get("day", 0)),
+			int(now.get("hour", 0)), int(now.get("minute", 0)), int(now.get("second", 0))],
+	}
+	progress["remote_observation_archive"].append(record)
+	save()
+	return {"recorded": true, "record": record}
 
 
 func badge_display_name(badge: String) -> String:
@@ -3004,6 +3121,8 @@ func _normalize_progress() -> void:
 	_ensure_progress_array("seen_concept_briefs")
 	_ensure_progress_array("seen_story_events")
 	_ensure_progress_array("pending_unlock_notice")
+	_ensure_progress_array("remote_observation_archive")
+	_ensure_progress_array("remote_free_intro_seen")
 	var tutorial_mode := str(progress.get("tutorial_assistance", TUTORIAL_ASSIST_FULL))
 	if not tutorial_mode in TUTORIAL_ASSIST_MODES:
 		progress["tutorial_assistance"] = TUTORIAL_ASSIST_FULL

@@ -71,16 +71,23 @@ func _build() -> void:
 
 func _populate() -> void:
 	var entries: Array = GameManager.progress.get("journal_entries", [])
-	if entries.is_empty():
+	var remote_entries: Array = GameManager.progress.get("remote_observation_archive", [])
+	if entries.is_empty() and remote_entries.is_empty():
 		var empty := _label(GameManager.text("No observations recorded yet.\nComplete a mission to create your first observing report.", "还没有观测记录。\n完成任务后，这里会保存你的第一份观测报告。"), Vector2(0, 180), Vector2(938, 70), 18, Color(0.82, 0.86, 0.94), HORIZONTAL_ALIGNMENT_CENTER)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_entry_list.add_child(empty)
 		return
+	var display_index := 1
 	for i in range(entries.size()):
 		var entry: Dictionary = entries[i]
 		if str(entry.get("object_id", "")) == "":
 			continue
-		_entry_list.add_child(_build_entry_card(i + 1, entry))
+		_entry_list.add_child(_build_entry_card(display_index, entry))
+		display_index += 1
+	for value in remote_entries:
+		var entry := value as Dictionary
+		_entry_list.add_child(_build_remote_observation_card(display_index, entry))
+		display_index += 1
 
 
 func _build_entry_card(index: int, entry: Dictionary) -> Control:
@@ -200,6 +207,47 @@ func _build_heritage_card(index: int, entry: Dictionary) -> Control:
 		text_width,
 		Color(0.58, 0.94, 0.76)
 	)
+	return card
+
+
+func _build_remote_observation_card(index: int, entry: Dictionary) -> Control:
+	var instrument_kind := str(entry.get("instrument_kind", "space"))
+	var quality := str(entry.get("quality", "Good"))
+	var accent := Color(0.30, 0.82, 0.76) if instrument_kind == "space" else Color(0.56, 0.78, 0.92)
+	var card := Panel.new()
+	card.custom_minimum_size = Vector2(938, 190)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel", _style(Color(0.034, 0.052, 0.074, 0.98), accent, 2))
+	var target_name := GameManager.text(
+		str(entry.get("target_name_en", entry.get("target_id", ""))),
+		str(entry.get("target_name_zh", entry.get("target_id", ""))))
+	var record_title := GameManager.text("Infrared Composite Archive", "红外合成图档案") \
+		if instrument_kind == "space" else GameManager.text("FAST Signal Archive", "FAST 信号档案")
+	card.add_child(_label("#%02d   %s" % [index, target_name], Vector2(18, 12), Vector2(560, 26), 20, Color(0.98, 0.92, 0.76)))
+	card.add_child(_label(record_title, Vector2(590, 14), Vector2(320, 22), 13, accent, HORIZONTAL_ALIGNMENT_RIGHT))
+	var category := GameManager.text(str(entry.get("category_en", "")), str(entry.get("category_zh", "")))
+	var evidence := str(entry.get("result_kind", "infrared_composite")).replace("_", " ").capitalize()
+	var setup := ""
+	if instrument_kind == "space":
+		setup = GameManager.text(
+			"Instrument: %s | Filter: %s | Exposure: %.0f s",
+			"仪器：%s | 滤镜：%s | 曝光：%.0f 秒") % [
+				str(entry.get("instrument", "space")),
+				str(entry.get("filter", "")),
+				float(entry.get("exposure", 0.0))]
+	else:
+		setup = GameManager.text(
+			"Evidence: %s | Integration: %.0f s | SNR: %.1f",
+			"证据：%s | 积分：%.0f 秒 | 信噪比：%.1f") % [
+				evidence,
+				float(entry.get("exposure", 0.0)),
+				float(entry.get("snr", 0.0))]
+	_add_record_line(card, GameManager.text("Program", "计划"), category, 48, accent)
+	_add_record_line(card, GameManager.text("Observation", "观测参数"), setup, 76, Color(0.76, 0.86, 0.96))
+	_add_record_line(card, GameManager.text("Quality", "质量"), quality, 104, Color(0.76, 0.92, 0.72))
+	_add_record_line(card, GameManager.text("Science note", "科学说明"),
+		GameManager.text(str(entry.get("science_en", "")), str(entry.get("science_zh", ""))), 132, Color(0.96, 0.86, 0.58))
+	_add_record_line(card, "UTC", str(entry.get("observation_utc", "")), 160, Color(0.62, 0.74, 0.82))
 	return card
 
 

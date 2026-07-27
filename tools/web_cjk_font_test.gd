@@ -36,7 +36,7 @@ func _init() -> void:
 
 	var music_paths := [
 		"res://assets/audio/music/lobby.mp3",
-		"res://assets/audio/music/giant_telescope.mp3",
+		"res://assets/audio/music/space_fast_theme.mp3",
 		"res://assets/audio/music/outdoor_stargazing.mp3",
 		"res://assets/audio/music/telescope_assembly.mp3"
 	]

@@ -62,6 +62,8 @@ const BAND_MAX := 1500.0
 # ---- folding / integration ----
 var trial_period_ms := 500.0
 var trial_dm := 0.0
+var true_phase := 0.5
+var trial_phase := 0.5
 var integration_s := 0.0
 var required_integration_s := 180.0
 var report_snr_threshold := 8.0
@@ -105,6 +107,14 @@ func configure(profile: Dictionary) -> void:
 	window_bandwidth_mhz = float(profile.get("start_bandwidth_mhz", window_bandwidth_mhz))
 	trial_period_ms = float(profile.get("start_period_ms", 500.0))
 	trial_dm = float(profile.get("start_dm", 0.0))
+	true_phase = fposmod(float(profile.get("pulse_phase", 0.5)), 1.0)
+	# Start with a modest, readable phase residual unless a level explicitly
+	# supplies its own. This makes the arrival gate an actual operation rather
+	# than opening already solved.
+	trial_phase = fposmod(
+		float(profile.get("start_phase", true_phase + float(profile.get("start_phase_offset", 0.16)))),
+		1.0
+	)
 	integration_s = 0.0
 	aim_drift_phase = 0.0
 	aim_disturbance_timer_s = aim_disturbance_interval_s
@@ -407,6 +417,13 @@ func dm_match() -> float:
 	return clampf(1.0 - err / 12.0, 0.0, 1.0)
 
 
+func phase_match() -> float:
+	if target_kind != "pulsar":
+		return 1.0
+	var wrapped_error := absf(fposmod(trial_phase - true_phase + 0.5, 1.0) - 0.5)
+	return clampf(1.0 - wrapped_error / 0.28, 0.0, 1.0)
+
+
 func subband_offsets(count: int) -> Array:
 	var out: Array = []
 	var mismatch := 1.0 - dm_match()
@@ -437,10 +454,11 @@ func folded_profile(bins: int) -> Array:
 	var width := lerpf(0.5, 0.045, sharp)         # phase width of the pulse
 	var amp := clampf(fold_snr() / 20.0, 0.05, 1.0)
 	var split := (1.0 - period_match()) * 0.23
+	var phase_shift := (trial_phase - true_phase) * 0.42
 	for i in range(bins):
 		var phase := float(i) / float(bins)
-		var dphi_a := (phase - (0.5 - split)) / width
-		var dphi_b := (phase - (0.5 + split)) / width
+		var dphi_a := (phase - (0.5 + phase_shift - split)) / width
+		var dphi_b := (phase - (0.5 + phase_shift + split)) / width
 		var v := amp * exp(-dphi_a * dphi_a)
 		if split > 0.015:
 			v += amp * 0.72 * exp(-dphi_b * dphi_b)
@@ -487,6 +505,8 @@ func report() -> Dictionary:
 		"pointing_error": pointing_error(),
 		"trial_period_ms": trial_period_ms,
 		"trial_dm": trial_dm,
+		"trial_phase": trial_phase,
+		"phase_match": phase_match(),
 		"challenge": challenge,
 		"result_en": narrative_result_en,
 		"result_zh": narrative_result_zh,
@@ -503,6 +523,10 @@ func conclusion_state() -> String:
 		return "insufficient_signal"
 	if period_match() <= period_threshold or dm_match() <= dm_threshold:
 		return "unstable_candidate"
+	if target_kind in ["hi_line", "hydrogen"]:
+		return "confirmed_hi"
+	if target_kind in ["repeating_frb", "frb"]:
+		return "confirmed_frb"
 	return "stable_pulsar"
 
 

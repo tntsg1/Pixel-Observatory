@@ -302,6 +302,20 @@ func _leave_observatory() -> void:
 
 
 func _profile() -> Dictionary:
+	if GameManager.is_remote_free_observation("space"):
+		var free_entry := GameManager.active_remote_free_entry("space")
+		var free_profile: Variant = free_entry.get("profile", {})
+		if free_profile is Dictionary and not (free_profile as Dictionary).is_empty():
+			var result := (free_profile as Dictionary).duplicate(true)
+			result["free_observation"] = true
+			result["catalog_entry_id"] = str(free_entry.get("id", ""))
+			var free_target_id := str(result.get("target_id", free_entry.get("target_id", "")))
+			var free_assets: Dictionary = TARGET_SCIENCE_ASSETS.get(free_target_id, {})
+			for key in free_assets:
+				if not result.has(key):
+					result[key] = free_assets[key]
+			result["guide_seed"] = abs(str(free_entry.get("id", "")).hash())
+			return result
 	var level := GameManager.current_level()
 	var prof: Dictionary = (level.get("space_profile", {}) as Dictionary).duplicate(true)
 	if prof.is_empty():
@@ -349,7 +363,8 @@ func _stage_list() -> Array:
 	# First-ever entry: a Maya teaching briefing, then deployment. Both are
 	# first-time only; later visits skip straight to planning.
 	var out: Array = []
-	if GameManager.uses_full_tutorials() and not bool(GameManager.progress.get("space_intro_seen", false)):
+	var free_observation := GameManager.is_remote_free_observation("space")
+	if not free_observation and GameManager.uses_full_tutorials() and not bool(GameManager.progress.get("space_intro_seen", false)):
 		out.append("intro")
 	if not bool(GameManager.progress.get("space_deployed", false)):
 		out.append("deploy")
@@ -407,7 +422,12 @@ func _rebuild() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_panel(Vector2.ZERO, Vector2(1024, 768), BG, BG)
 	_label(GameManager.text("SPACE INFRARED OBSERVATORY", "太空红外天文台"), Vector2(24, 14), Vector2(976, 28), 22, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	_label(GameManager.text("Target: ", "目标：") + GameManager.dict_text(GameManager.current_target(), "name")
+	var free_entry := GameManager.active_remote_free_entry("space")
+	var target_name := (
+		GameManager.text(str(free_entry.get("name_en", "")), str(free_entry.get("name_zh", "")))
+		if not free_entry.is_empty()
+		else GameManager.dict_text(GameManager.current_target(), "name"))
+	_label(GameManager.text("Target: ", "目标：") + target_name
 		+ "   ·   " + GameManager.text("A space science observation, not a point-and-look image.", "这是一次空间科学观测，不是对准就看的简单成像。"),
 		Vector2(24, 44), Vector2(976, 20), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	_build_stage_bar()
@@ -1234,6 +1254,8 @@ func _build_thermal() -> void:
 
 
 func _show_thermal_tutorial(gimbal: Control) -> void:
+	if GameManager.is_remote_free_observation("space"):
+		return
 	if gimbal == null or not is_instance_valid(gimbal):
 		return
 	InteractionFeedback.tutorial_highlight_once(
@@ -2624,6 +2646,8 @@ func _process_next_help() -> String:
 
 
 func _show_process_tutorial_if_needed() -> void:
+	if GameManager.is_remote_free_observation("space"):
+		return
 	if _key() != "process" or not GameManager.uses_full_tutorials() or not InteractionFeedback.guidance_highlights_enabled():
 		return
 	var seen: Array = GameManager.progress.get("seen_teaching_steps", [])
@@ -3436,9 +3460,19 @@ func _submit() -> void:
 		"snr": float(rep["snr"]), "observation_mode": "space_infrared",
 		"instrument": rep["instrument"], "filter": rep["filter"],
 		"science_finding": rep["science_finding"],
+		"exposure": model.exposure_time * float(model.integrations),
 		"feedback_en": "Infrared science image confirmed the target's structure.",
 		"feedback_zh": "红外科学图像确认了目标的结构。",
 	}
+	if GameManager.is_remote_free_observation("space"):
+		var archived := GameManager.record_remote_free_observation("space", observation)
+		_log_line("FREE OBSERVATION", "ARCHIVED" if bool(archived.get("recorded", false)) else "HOLD")
+		_power_down(func() -> void:
+			GameManager.remote_observation_context.clear()
+			GameManager.set_observatory_spawn("computer")
+			GameManager.go("observatory"),
+			true)
+		return
 	_power_down(func() -> void:
 		GameManager.complete_current_mission(GameManager.current_target_object_id(), observation),
 		true)
