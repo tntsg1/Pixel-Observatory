@@ -6,10 +6,10 @@ extends SceneTree
 
 # spot name -> [player_pos, facing]
 const SPOTS: Array = [
-	["telescope_pad", Vector2(515, 545), "up"],
-	["stats_terminal", Vector2(800, 630), "right"],
-	["assembly_table", Vector2(770, 400), "left"],
-	["facing_down", Vector2(515, 620), "down"]
+	["telescope_pad", Vector2(512, 575), "up"],
+	["stats_terminal", Vector2(730, 592), "right"],
+	["assembly_table", Vector2(688, 430), "right"],
+	["facing_down", Vector2(512, 646), "down"]
 ]
 
 var frames := 0

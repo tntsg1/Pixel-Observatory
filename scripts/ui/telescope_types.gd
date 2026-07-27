@@ -102,6 +102,7 @@ const FAMILIES := [
 
 
 var browse_only := false
+var postgraduate_free_build := false
 var selected_family := ""
 var cards: Dictionary = {}
 var detail_container: VBoxContainer
@@ -113,6 +114,7 @@ func _ready() -> void:
 	# browse_only when opened from the observatory info entry; otherwise this is
 	# the confirm step for the current lesson's advanced assembly.
 	browse_only = bool(GameManager.get_meta("telescope_types_browse", false))
+	postgraduate_free_build = GameManager.postgraduate_free_build()
 	selected_family = GameManager.assembly_family()
 	if _entry(selected_family).is_empty() or not _is_unlocked(_entry(selected_family)):
 		selected_family = _recommended_family()
@@ -121,6 +123,8 @@ func _ready() -> void:
 
 
 func _recommended_family() -> String:
+	if postgraduate_free_build:
+		return GameManager.assembly_family()
 	if browse_only:
 		return "refractor"
 	var family := str(GameManager.current_level().get("telescope_family", "refractor"))
@@ -157,6 +161,10 @@ func _build() -> void:
 	var subtitle := GameManager.text(
 		"Browse every design. Unlocked types can be built now; the mission's recommendation is marked.",
 		"浏览每一种设计。已解锁的类型现在就能装配；任务推荐的类型已标出。")
+	if postgraduate_free_build:
+		subtitle = GameManager.text(
+			"Campaign complete. Choose any unlocked telescope family and keep a separate build for each.",
+			"主线已完成。你可以自由选择已解锁的望远镜家族，并分别保存每套装配。")
 	if browse_only:
 		subtitle = GameManager.text("Reference catalog of every telescope family you can unlock.",
 			"你可以解锁的所有望远镜家族参考手册。")
@@ -242,6 +250,11 @@ func _select(id: String) -> void:
 		status_text = GameManager.text("Locked - reach campaign level %d to unlock." % int(entry.get("unlock", 0)),
 			"未解锁——推进到第 %d 关即可解锁。" % int(entry.get("unlock", 0)))
 		status_color = LOCK
+	elif postgraduate_free_build:
+		status_text = GameManager.text(
+			"Unlocked - free build. Your equipment for this family is saved separately.",
+			"已解锁 - 自由组装。这个家族的装备配置会单独保存。")
+		status_color = CYAN
 	elif not browse_only and id == _recommended_family():
 		status_text = GameManager.text("Recommended for tonight's mission.", "今晚任务推荐使用。")
 		status_color = GOLD
@@ -249,7 +262,7 @@ func _select(id: String) -> void:
 		status_text = GameManager.text("Unlocked - ready to build.", "已解锁——可以装配。")
 	detail_container.add_child(_free_label(status_text, 14, status_color))
 
-	if not browse_only and id == _recommended_family():
+	if not postgraduate_free_build and not browse_only and id == _recommended_family():
 		var why := _recommendation_reason(id)
 		if why != "":
 			detail_container.add_child(_wrapped(why, 13, CYAN))
@@ -263,9 +276,11 @@ func _select(id: String) -> void:
 	if not _is_unlocked(entry):
 		proceed_button.disabled = true
 		proceed_button.text = GameManager.text("Locked", "未解锁")
-	elif browse_only:
+	elif browse_only or postgraduate_free_build:
 		proceed_button.disabled = false
-		proceed_button.text = GameManager.text("Open %s bench" % GameManager.dict_text(entry, "name"), "打开 %s 装配台" % GameManager.dict_text(entry, "name"))
+		proceed_button.text = GameManager.text(
+			("Open %s free-build bench" if postgraduate_free_build else "Open %s bench") % GameManager.dict_text(entry, "name"),
+			("打开 %s 自由组装台" if postgraduate_free_build else "打开 %s 装配台") % GameManager.dict_text(entry, "name"))
 	else:
 		proceed_button.disabled = false
 		if id == _recommended_family():

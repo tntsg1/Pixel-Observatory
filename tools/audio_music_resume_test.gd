@@ -1,0 +1,125 @@
+extends SceneTree
+
+# Run:
+# godot --headless --path <project> --script res://tools/audio_music_resume_test.gd
+
+var failures := 0
+
+
+func _initialize() -> void:
+	await process_frame
+	await process_frame
+	var audio := root.get_node_or_null("/root/AudioManager")
+	_check(audio != null, "AudioManager autoload exists")
+	if audio == null:
+		quit(1)
+		return
+
+	audio.music_enabled = true
+	audio._stop_music(true)
+	var lobby_path := str(audio.MUSIC_PATHS["lobby"])
+	var assembly_path := str(audio.MUSIC_PATHS["assembly"])
+	var giant_path := str(audio.MUSIC_PATHS["giant"])
+	_check(
+		giant_path == "res://assets/audio/music/space_fast_theme.mp3",
+		"giant category uses the shared Space and FAST theme"
+	)
+	_check(ResourceLoader.exists(giant_path), "shared Space and FAST theme exists")
+	_check(load(giant_path) is AudioStreamMP3, "shared Space and FAST theme loads as MP3")
+	_check(
+		audio._music_category_for_scene("res://scenes/space_observation.tscn") == "giant"
+			and audio._music_category_for_scene("res://scenes/radio_observation.tscn") == "giant",
+		"Space and FAST observations share the giant music category"
+	)
+
+	audio.play_music(lobby_path)
+	await create_timer(0.75).timeout
+	var lobby_leave_position: float = audio._active_music_player.get_playback_position()
+	_check(lobby_leave_position > 0.1, "lobby music advances before leaving")
+
+	audio.play_music(assembly_path)
+	await create_timer(0.15).timeout
+	var cached_position := float(audio._music_playback_positions.get(lobby_path, 0.0))
+	_check(
+		absf(cached_position - lobby_leave_position) < 0.25,
+		"leaving lobby caches its playback position"
+	)
+
+	audio.play_music(lobby_path)
+	await create_timer(0.15).timeout
+	var resumed_position: float = audio._active_music_player.get_playback_position()
+	_check(resumed_position > 0.1, "returning to lobby does not restart at zero")
+	_check(
+		resumed_position >= cached_position - 0.12
+			and resumed_position <= cached_position + 0.65,
+		"lobby resumes near the position recorded before assembly"
+	)
+
+	# Let the newest crossfade finish. A callback from either killed transition
+	# must not stop the player that reclaimed its channel.
+	await create_timer(audio.MUSIC_FADE_SECONDS + 0.15).timeout
+	_check(audio._current_music_path == lobby_path, "rapid return keeps lobby as the current path")
+	_check(
+		audio._active_music_player != null and audio._active_music_player.playing,
+		"stale crossfade callbacks do not stop the resumed music"
+	)
+
+	audio.play_music(giant_path)
+	await create_timer(0.75).timeout
+	var space_leave_position: float = audio._active_music_player.get_playback_position()
+	_check(space_leave_position > 0.1, "Space theme advances before leaving the remote scene")
+
+	# Space and FAST resolve to the same resource path. Re-requesting it during
+	# a scene change must keep the active decoder running continuously.
+	audio.play_music(giant_path)
+	await create_timer(0.15).timeout
+	var direct_fast_position: float = audio._active_music_player.get_playback_position()
+	_check(
+		direct_fast_position >= space_leave_position,
+		"direct Space to FAST switch keeps the shared decoder position advancing"
+	)
+
+	audio.play_music(assembly_path)
+	await create_timer(0.15).timeout
+	var giant_cached_position := float(audio._music_playback_positions.get(giant_path, 0.0))
+	_check(
+		absf(giant_cached_position - direct_fast_position) < 0.25,
+		"leaving Space caches the shared remote-observatory position"
+	)
+
+	# FAST resolves to the same giant path. Returning through its scene route
+	# must resume the shared theme instead of treating it as a new track.
+	var fast_category: String = audio._music_category_for_scene("res://scenes/radio_observation.tscn")
+	audio.play_music(str(audio.MUSIC_PATHS[fast_category]))
+	await create_timer(0.15).timeout
+	var fast_resume_position: float = audio._active_music_player.get_playback_position()
+	_check(
+		fast_resume_position >= giant_cached_position - 0.12
+			and fast_resume_position <= giant_cached_position + 0.65,
+		"FAST resumes the Space theme near the shared cached position"
+	)
+	_check(fast_resume_position > 0.1, "Space to FAST shared theme does not restart at zero")
+
+	var lobby_stream := load(lobby_path) as AudioStream
+	var lobby_length := lobby_stream.get_length()
+	if lobby_length > 0.1:
+		audio._music_playback_positions[lobby_path] = lobby_length + 0.25
+		var wrapped_position: float = audio._resume_position_for(lobby_path, lobby_stream)
+		_check(
+			wrapped_position >= 0.0 and wrapped_position < lobby_length,
+			"saved positions beyond the MP3 duration wrap to a legal offset"
+		)
+
+	audio.clear_music_progress(false)
+	_check(audio._music_playback_positions.is_empty(), "session progress can be cleared without audio.cfg")
+	audio._stop_music(true)
+	print("AUDIO MUSIC RESUME TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
+	quit(0 if failures == 0 else 1)
+
+
+func _check(condition: bool, label: String) -> void:
+	if condition:
+		print("  ok: " + label)
+	else:
+		failures += 1
+		push_error("  fail: " + label)

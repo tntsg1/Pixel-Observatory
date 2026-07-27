@@ -66,17 +66,30 @@ func _test_lobby_guidance_visibility(feedback: Node, gm: Node) -> void:
 	var panel: Control = room.get("guidance_panel")
 	var overlay: Control = room.get("guidance_overlay")
 	var route_indicator: Control = room.get("route_edge_indicator")
+	var toggle: Button = room.get("guidance_toggle_button")
 	room.call("_update_room_guidance_panel")
 	_check(panel != null and not panel.visible, "disabled setting hides the persistent lobby guidance panel")
 	_check(overlay != null and not overlay.visible, "disabled setting hides lobby dimming and gold frame")
 	_check(route_indicator != null and not route_indicator.visible, "disabled setting hides route arrows")
+	_check(toggle != null and toggle.visible and toggle.text == "Show highlights", "lobby exposes a persistent restore-highlight button")
 
-	feedback.set_guidance_highlights_enabled(true)
+	room.call("_toggle_guidance_highlights")
 	await process_frame
-	_check(panel.visible, "re-enabling guidance restores the current route without reloading")
-	feedback.set_guidance_highlights_enabled(false)
+	_check(feedback.guidance_highlights_enabled() and panel.visible, "lobby button restores the current route without reloading")
+	room.call("_update_room_guidance_panel")
+	await process_frame
+	var corner_frames := overlay.find_children("GuidanceCornerFrame*", "", true, false)
+	_check(corner_frames.size() == 2, "route target uses two restrained corner-bracket layers")
+	for frame_value in corner_frames:
+		var frame := frame_value as Control
+		_check(frame.get_child_count() == 8, "each route layer is made from eight short corner arms")
+		for arm_value in frame.get_children():
+			var arm := arm_value as ColorRect
+			_check(arm.size.x < frame.size.x and arm.size.y < frame.size.y, "route highlight contains no full hard-frame edge")
+	room.call("_toggle_guidance_highlights")
 	await process_frame
 	_check(not panel.visible and not overlay.visible and not route_indicator.visible, "disabling guidance updates an open lobby immediately")
+	_check(toggle.visible and toggle.text == "Show highlights", "highlight control remains available after guidance is hidden")
 	room.queue_free()
 	await process_frame
 

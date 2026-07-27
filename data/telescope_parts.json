@@ -15,6 +15,7 @@
   {
     "id": "basic_mount",
     "type": "mount",
+    "telescope_family": "refractor",
     "name_en": "Basic Mount",
     "name_zh": "基础支架",
     "stability": 45,
@@ -113,6 +114,7 @@
   {
     "id": "stable_mount",
     "type": "mount",
+    "telescope_family": "refractor",
     "name_en": "Heavy Stable Mount",
     "name_zh": "重型稳定支架",
     "stability": 70,
@@ -126,6 +128,7 @@
   {
     "id": "tracking_mount",
     "type": "mount",
+    "telescope_family": "refractor",
     "name_en": "Tracking Mount",
     "name_zh": "追踪支架",
     "stability": 82,

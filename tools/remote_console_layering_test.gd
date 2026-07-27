@@ -3,26 +3,32 @@ extends SceneTree
 var failures := 0
 var had_save := false
 var saved_bytes := PackedByteArray()
+var previous_reduced_motion := false
 
 
 func _initialize() -> void:
 	_backup_save()
 	await process_frame
 	root.size = Vector2i(1024, 768)
+	var feedback := root.get_node_or_null("/root/InteractionFeedback")
+	if feedback != null:
+		previous_reduced_motion = bool(feedback.call("is_reduced_motion"))
+		feedback.set("reduced_motion", false)
 	var gm := root.get_node_or_null("/root/GameManager")
 	if gm == null:
 		_fail("GameManager autoload is missing")
 		_finish()
 		return
 
-	await _test_remote_console(gm, 66, "space", "space_observation", "Space Telescope")
-	await _test_remote_console(gm, 76, "radio", "radio_observation", "FAST Radio Telescope")
+	await _test_remote_console(gm, 66, "space", "space_observation")
+	await _test_remote_console(gm, 76, "radio", "radio_observation")
+	await _test_console_power_timings(gm)
 	await _test_stats_terminal_layer(gm)
 	await _test_unlock_popup_layer(gm)
 	_finish()
 
 
-func _test_remote_console(gm: Node, level_number: int, kind: String, destination: String, name_fragment: String) -> void:
+func _test_remote_console(gm: Node, level_number: int, kind: String, destination: String) -> void:
 	_prepare_remote_level(gm, level_number)
 	var route: Dictionary = gm.current_room_route()
 	_check(str(route.get("target", "")) == "computer", "L%d route points to the lower-right computer" % level_number)
@@ -35,11 +41,27 @@ func _test_remote_console(gm: Node, level_number: int, kind: String, destination
 	_check(str(room.call("_remote_console_kind")) == kind, "L%d resolves the %s console" % [level_number, kind])
 	_check(str(room.call("_remote_console_destination")) == destination, "L%d routes to %s" % [level_number, destination])
 	var computer: Dictionary = room.call("_get_interactable", "computer")
-	_check(str(computer.get("name", "")).contains(name_fragment), "L%d computer has the correct instrument name" % level_number)
+	_check(str(computer.get("name", "")).contains("Remote Instrument"), "L%d computer exposes the shared remote instrument console" % level_number)
 	if kind == "radio":
 		_check(_tree_has_label(room, "FAST LINK"), "FAST chapter paints the FAST link on the physical computer")
 	else:
 		_check(_tree_has_label(room, "L2 LINK"), "space chapter paints the L2 link on the physical computer")
+
+	room.call("_toggle_remote_instrument_console")
+	await process_frame
+	var selector := room.get("stats_terminal_popup") as Control
+	_check(selector != null and selector.name == "RemoteInstrumentConsole", "L%d opens the two-instrument selector" % level_number)
+	_check(_tree_has_label(selector, "SPACE INFRARED OBSERVATORY"), "selector lists the space infrared observatory")
+	_check(_tree_has_label(selector, "FAST RADIO ARRAY"), "selector lists the FAST radio array")
+	_check(_tree_has_label(selector, "ACTIVE"), "current remote mission is marked active")
+	if selector != null:
+		selector.queue_free()
+		room.set("stats_terminal_popup", null)
+		room.set("stats_terminal_animating", false)
+
+	room.call("_handle_interaction", "telescope")
+	await process_frame
+	_check(room.find_child("SpaceConsoleTransition", true, false) == null, "L%d central optical pad cannot open a remote instrument" % level_number)
 
 	var fake_maya := Control.new()
 	fake_maya.name = "FakeMayaTutorialLayer"
@@ -51,12 +73,54 @@ func _test_remote_console(gm: Node, level_number: int, kind: String, destination
 	var transition := room.find_child("SpaceConsoleTransition", true, false) as Control
 	_check(transition != null, "L%d opens a guarded computer transition" % level_number)
 	_check(transition != null and transition.z_index == 1100, "L%d computer transition is above Maya's tutorial layer" % level_number)
+	_check(
+		transition != null and float(transition.get_meta("transition_duration", 0.0)) >= 1.5,
+		"L%d normal console hand-off preserves a readable three-beat duration" % level_number)
 	_check(not is_instance_valid(fake_maya), "L%d dismisses the lobby Maya bubble before opening" % level_number)
 	_check(bool(room.get("room_guidance_suspended")), "L%d suspends lobby guidance while the console owns the screen" % level_number)
 	_check(str(room.get("pending_remote_console_scene")) == destination, "L%d preserves the correct remote destination" % level_number)
 	var guidance_panel := room.get("guidance_panel") as Control
 	_check(guidance_panel == null or not guidance_panel.visible, "L%d hides the persistent Maya panel during transition" % level_number)
 	room.queue_free()
+	for _i in range(3):
+		await process_frame
+
+
+func _test_console_power_timings(gm: Node) -> void:
+	_prepare_remote_level(gm, 66)
+	var space_scene := load("res://scenes/space_observation.tscn").instantiate() as Control
+	root.add_child(space_scene)
+	await process_frame
+	var space_boot := space_scene.find_child("BootCover", true, false) as Control
+	_check(
+		space_boot != null and float(space_boot.get_meta("transition_duration", 0.0)) >= 0.9,
+		"space console CRT boot is paced long enough to read as a power-on")
+	space_scene.call("_power_down", func() -> void: pass, false)
+	await process_frame
+	var space_shutdown := space_scene.find_child("SpaceConsoleShutdown", true, false) as Control
+	_check(
+		space_shutdown != null and float(space_shutdown.get_meta("transition_beat", 0.0)) >= 0.3,
+		"space console shutdown retains its archive, safe, link and collapse beats")
+	space_scene.queue_free()
+	await process_frame
+
+	_prepare_remote_level(gm, 76)
+	var radio_scene := load("res://scenes/radio_observation.tscn").instantiate() as Control
+	root.add_child(radio_scene)
+	await process_frame
+	var radio_boot := radio_scene.find_child("FastConsoleBoot", true, false) as Control
+	_check(
+		radio_boot != null and float(radio_boot.get_meta("transition_duration", 0.0)) >= 0.9,
+		"FAST console repeats a readable receiver warm-up on entry")
+	if radio_boot != null:
+		radio_boot.queue_free()
+	radio_scene.call("_radio_console_power_down")
+	await process_frame
+	var radio_shutdown := radio_scene.find_child("FastConsoleShutdown", true, false) as Control
+	_check(
+		radio_shutdown != null and float(radio_shutdown.get_meta("transition_duration", 0.0)) >= 1.6,
+		"FAST console release and link-close sequence is not an instant scene cut")
+	radio_scene.queue_free()
 	for _i in range(3):
 		await process_frame
 
@@ -76,11 +140,18 @@ func _test_stats_terminal_layer(gm: Node) -> void:
 	await process_frame
 	var popup := room.get("stats_terminal_popup") as Control
 	_check(popup != null and popup.z_index == 1100, "stats terminal also owns the computer modal layer")
+	_check(
+		popup != null and float(popup.get_meta("transition_duration", 0.0)) >= 0.7,
+		"stats terminal uses a readable screen warm-up instead of appearing instantly")
 	_check(not is_instance_valid(fake_maya), "stats terminal dismisses the lobby Maya bubble")
 	_check(bool(room.get("room_guidance_suspended")), "stats terminal suspends room guidance")
+	await _settle(0.8)
 	room.call("_toggle_stats_terminal")
-	for _i in range(2):
-		await process_frame
+	await process_frame
+	_check(
+		popup != null and float(popup.get_meta("close_transition_duration", 0.0)) >= 0.55,
+		"stats terminal uses a readable screen collapse instead of disappearing instantly")
+	await _settle(0.7)
 	_check(not bool(room.get("room_guidance_suspended")), "closing stats terminal restores room guidance")
 	room.queue_free()
 	for _i in range(3):
@@ -163,9 +234,10 @@ func _prepare_remote_level(gm: Node, level_number: int) -> void:
 			if skill_event_id != "" and not seen_story_events.has(skill_event_id):
 				seen_story_events.append(skill_event_id)
 		gm.progress["seen_story_events"] = seen_story_events
-	gm.reset_assembly()
-	for part_type_value in gm.current_level().get("assembly_order", []):
-		gm.install_part(str(part_type_value), 0)
+	# debug_jump_to_level(..., true) already prepares the exact required IDs
+	# through GameManager's family-aware assembly path. Resetting here used to
+	# erase a valid space telescope and then rebuild it through the ground-rig
+	# path, making L66 appear incorrectly locked at the remote console.
 	if level_number == 66:
 		gm.progress["space_intro_seen"] = true
 		gm.progress["space_deployed"] = true
@@ -178,6 +250,10 @@ func _tree_has_label(node: Node, needle: String) -> bool:
 		if _tree_has_label(child, needle):
 			return true
 	return false
+
+
+func _settle(seconds: float) -> void:
+	await create_timer(seconds).timeout
 
 
 func _backup_save() -> void:
@@ -208,6 +284,9 @@ func _fail(label: String) -> void:
 
 
 func _finish() -> void:
+	var feedback := root.get_node_or_null("/root/InteractionFeedback")
+	if feedback != null:
+		feedback.set("reduced_motion", previous_reduced_motion)
 	_restore_save()
 	print("REMOTE CONSOLE LAYERING TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

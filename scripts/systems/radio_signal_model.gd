@@ -38,6 +38,11 @@ var alt_velocity := 0.0
 var cable_tension := 0.30            # 0..1, rises with speed
 var aim_drift_deg_s := 0.0
 var aim_drift_phase := 0.0
+var aim_disturbance_interval_s := 10.0
+var aim_disturbance_timer_s := 10.0
+var aim_disturbance_remaining_s := 0.0
+var aim_disturbance_vector := Vector2.ZERO
+var aim_disturbance_serial := 0
 var damping_scale := 1.0
 var acceleration_scale := 1.0
 const MAX_SLEW := 18.0               # deg/s cap
@@ -45,6 +50,8 @@ const DAMPING := 2.4                 # velocity damping per second
 const ACCEL := 26.0                  # deg/s^2 per nudge unit
 const LOCK_TOLERANCE := 2.2          # deg pointing error to count as on-target
 const STABLE_SPEED := 1.4            # deg/s below which pointing is "settled"
+const FAST_MAX_ZENITH_ANGLE_DEG := 40.0
+const AIM_DISTURBANCE_DURATION_S := 0.72
 
 # ---- frequency window ----
 var window_center_mhz := 1400.0
@@ -55,6 +62,8 @@ const BAND_MAX := 1500.0
 # ---- folding / integration ----
 var trial_period_ms := 500.0
 var trial_dm := 0.0
+var true_phase := 0.5
+var trial_phase := 0.5
 var integration_s := 0.0
 var required_integration_s := 180.0
 var report_snr_threshold := 8.0
@@ -70,8 +79,15 @@ var classifications := {}            # index -> "rfi" | "source"
 func configure(profile: Dictionary) -> void:
 	target_id = str(profile.get("target_id", target_id))
 	target_kind = str(profile.get("kind", target_kind))
-	true_azimuth = float(profile.get("azimuth", true_azimuth))
-	true_altitude = float(profile.get("altitude", true_altitude))
+	true_azimuth = wrapf(float(profile.get("azimuth", true_azimuth)), 0.0, 360.0)
+	# FAST can illuminate a 300 m paraboloid only inside its 40 degree
+	# zenith-angle envelope. Clamp legacy profiles here so an old save cannot
+	# create several visually identical targets on the unreachable outer rim.
+	true_altitude = clampf(
+		float(profile.get("altitude", true_altitude)),
+		90.0 - FAST_MAX_ZENITH_ANGLE_DEG,
+		88.0
+	)
 	true_period_ms = float(profile.get("period_ms", true_period_ms))
 	true_dm = float(profile.get("dm", true_dm))
 	true_center_mhz = float(profile.get("center_mhz", true_center_mhz))
@@ -81,6 +97,7 @@ func configure(profile: Dictionary) -> void:
 	narrative_result_en = str(profile.get("result_en", narrative_result_en))
 	narrative_result_zh = str(profile.get("result_zh", narrative_result_zh))
 	aim_drift_deg_s = float(profile.get("aim_drift_deg_s", 0.0))
+	aim_disturbance_interval_s = maxf(6.0, float(profile.get("aim_disturbance_interval_s", 10.0)))
 	damping_scale = maxf(0.35, float(profile.get("damping_scale", 1.0)))
 	acceleration_scale = maxf(0.35, float(profile.get("acceleration_scale", 1.0)))
 	required_integration_s = clampf(float(profile.get("required_integration_s", 180.0)), 30.0, MAX_INTEGRATION)
@@ -88,17 +105,45 @@ func configure(profile: Dictionary) -> void:
 	period_threshold = clampf(float(profile.get("period_threshold", 0.60)), 0.35, 0.95)
 	dm_threshold = clampf(float(profile.get("dm_threshold", 0.60)), 0.35, 0.95)
 	rfi_threshold = clampf(float(profile.get("rfi_threshold", 0.75)), 0.50, 1.0)
-	# start the cabin a realistic distance off-target
-	azimuth = true_azimuth + float(profile.get("start_offset_az", 24.0))
-	altitude = true_altitude - float(profile.get("start_offset_alt", 16.0))
+	# Campaign profiles may provide an absolute start point so each observing
+	# session has a distinct cable path. Offset fields remain supported for old
+	# saves and free-observation catalog entries.
+	azimuth = wrapf(
+		float(profile.get(
+			"start_azimuth",
+			true_azimuth + float(profile.get("start_offset_az", 24.0))
+		)),
+		0.0,
+		360.0
+	)
+	altitude = clampf(
+		float(profile.get(
+			"start_altitude",
+			true_altitude - float(profile.get("start_offset_alt", 16.0))
+		)),
+		90.0 - FAST_MAX_ZENITH_ANGLE_DEG,
+		88.0
+	)
 	az_velocity = 0.0
 	alt_velocity = 0.0
 	window_center_mhz = float(profile.get("start_center_mhz", 1400.0))
 	window_bandwidth_mhz = float(profile.get("start_bandwidth_mhz", window_bandwidth_mhz))
 	trial_period_ms = float(profile.get("start_period_ms", 500.0))
 	trial_dm = float(profile.get("start_dm", 0.0))
+	true_phase = fposmod(float(profile.get("pulse_phase", 0.5)), 1.0)
+	# Start with a modest, readable phase residual unless a level explicitly
+	# supplies its own. This makes the arrival gate an actual operation rather
+	# than opening already solved.
+	trial_phase = fposmod(
+		float(profile.get("start_phase", true_phase + float(profile.get("start_phase_offset", 0.16)))),
+		1.0
+	)
 	integration_s = 0.0
 	aim_drift_phase = 0.0
+	aim_disturbance_timer_s = aim_disturbance_interval_s
+	aim_disturbance_remaining_s = 0.0
+	aim_disturbance_vector = Vector2.ZERO
+	aim_disturbance_serial = 0
 	classifications.clear()
 	_build_rfi(profile)
 
@@ -156,8 +201,10 @@ func step(dt: float) -> void:
 	# inertia + exponential damping = the cabin coasts and settles, never snaps
 	aim_drift_phase += dt
 	if aim_drift_deg_s > 0.0:
-		az_velocity += sin(aim_drift_phase * 1.7) * aim_drift_deg_s * dt
-		alt_velocity += cos(aim_drift_phase * 1.15) * aim_drift_deg_s * 0.55 * dt
+		aim_disturbance_timer_s -= dt
+		if aim_disturbance_timer_s <= 0.0:
+			_begin_aim_disturbance()
+	aim_disturbance_remaining_s = maxf(0.0, aim_disturbance_remaining_s - dt)
 	azimuth += az_velocity * dt
 	altitude += alt_velocity * dt
 	var damp := clampf(1.0 - DAMPING * damping_scale * dt, 0.0, 1.0)
@@ -167,6 +214,65 @@ func step(dt: float) -> void:
 	var speed := pointing_speed()
 	# cable tension tracks how hard the drive is working
 	cable_tension = clampf(0.22 + speed / MAX_SLEW * 0.85, 0.0, 1.0)
+
+
+func _begin_aim_disturbance() -> void:
+	aim_disturbance_serial += 1
+	var phase_deg := fposmod(
+		true_azimuth * 0.73 + true_altitude * 1.37 + float(aim_disturbance_serial) * 137.5,
+		360.0
+	)
+	var phase := deg_to_rad(phase_deg)
+	aim_disturbance_vector = Vector2(cos(phase), sin(phase) * 0.68).normalized()
+	var impulse := aim_drift_deg_s * 0.58
+	az_velocity = clampf(az_velocity + aim_disturbance_vector.x * impulse, -MAX_SLEW, MAX_SLEW)
+	alt_velocity = clampf(alt_velocity + aim_disturbance_vector.y * impulse, -MAX_SLEW, MAX_SLEW)
+	aim_disturbance_remaining_s = AIM_DISTURBANCE_DURATION_S
+	aim_disturbance_timer_s = aim_disturbance_interval_s
+
+
+func aim_disturbance_active() -> bool:
+	return aim_disturbance_remaining_s > 0.0
+
+
+func seconds_to_aim_disturbance() -> float:
+	if aim_drift_deg_s <= 0.0:
+		return -1.0
+	return maxf(0.0, aim_disturbance_timer_s)
+
+
+func target_feed_offset_normalized() -> Vector2:
+	return _feed_offset_for_direction(true_azimuth, true_altitude)
+
+
+func cabin_feed_offset_normalized() -> Vector2:
+	return _feed_offset_for_direction(azimuth, altitude)
+
+
+func _feed_offset_for_direction(azimuth_deg: float, altitude_deg: float) -> Vector2:
+	# FAST forms an off-axis paraboloid beneath the suspended receiver. The
+	# receiver projection therefore rotates around the dish with azimuth and
+	# moves radially with zenith angle instead of always sitting at screen centre.
+	var zenith_deg := clampf(90.0 - altitude_deg, 0.0, FAST_MAX_ZENITH_ANGLE_DEG)
+	var radial := sin(deg_to_rad(zenith_deg)) / sin(deg_to_rad(FAST_MAX_ZENITH_ANGLE_DEG))
+	var azimuth_rad := deg_to_rad(azimuth_deg)
+	return Vector2(sin(azimuth_rad), -cos(azimuth_rad)) * radial
+
+
+func active_reflector_center_normalized() -> Vector2:
+	# The illuminated 300 m paraboloid follows the receiver projection, but over
+	# a smaller fraction of the full 500 m aperture.
+	return target_feed_offset_normalized() * 0.46
+
+
+func panel_tilt_vector(panel_position_normalized: Vector2) -> Vector2:
+	# Relative slope of z=(x^2+y^2)/(4f), plus the off-axis steering term. This
+	# is a visualization quantity: it exposes that neighbouring cable-net panels
+	# use different actuator angles without changing the pointing success model.
+	var local := panel_position_normalized - active_reflector_center_normalized()
+	var paraboloid_gradient := local / 0.94
+	var steering_gradient := target_feed_offset_normalized() * 0.34
+	return paraboloid_gradient + steering_gradient
 
 
 func pointing_error() -> float:
@@ -334,6 +440,13 @@ func dm_match() -> float:
 	return clampf(1.0 - err / 12.0, 0.0, 1.0)
 
 
+func phase_match() -> float:
+	if target_kind != "pulsar":
+		return 1.0
+	var wrapped_error := absf(fposmod(trial_phase - true_phase + 0.5, 1.0) - 0.5)
+	return clampf(1.0 - wrapped_error / 0.28, 0.0, 1.0)
+
+
 func subband_offsets(count: int) -> Array:
 	var out: Array = []
 	var mismatch := 1.0 - dm_match()
@@ -364,10 +477,11 @@ func folded_profile(bins: int) -> Array:
 	var width := lerpf(0.5, 0.045, sharp)         # phase width of the pulse
 	var amp := clampf(fold_snr() / 20.0, 0.05, 1.0)
 	var split := (1.0 - period_match()) * 0.23
+	var phase_shift := (trial_phase - true_phase) * 0.42
 	for i in range(bins):
 		var phase := float(i) / float(bins)
-		var dphi_a := (phase - (0.5 - split)) / width
-		var dphi_b := (phase - (0.5 + split)) / width
+		var dphi_a := (phase - (0.5 + phase_shift - split)) / width
+		var dphi_b := (phase - (0.5 + phase_shift + split)) / width
 		var v := amp * exp(-dphi_a * dphi_a)
 		if split > 0.015:
 			v += amp * 0.72 * exp(-dphi_b * dphi_b)
@@ -414,6 +528,8 @@ func report() -> Dictionary:
 		"pointing_error": pointing_error(),
 		"trial_period_ms": trial_period_ms,
 		"trial_dm": trial_dm,
+		"trial_phase": trial_phase,
+		"phase_match": phase_match(),
 		"challenge": challenge,
 		"result_en": narrative_result_en,
 		"result_zh": narrative_result_zh,
@@ -430,6 +546,10 @@ func conclusion_state() -> String:
 		return "insufficient_signal"
 	if period_match() <= period_threshold or dm_match() <= dm_threshold:
 		return "unstable_candidate"
+	if target_kind in ["hi_line", "hydrogen"]:
+		return "confirmed_hi"
+	if target_kind in ["repeating_frb", "frb"]:
+		return "confirmed_frb"
 	return "stable_pulsar"
 
 

@@ -92,6 +92,7 @@ func _test_model() -> void:
 	_check(m.fold_snr() < 8.0, "4. no integration + wrong period -> SNR too low")
 	m.trial_period_ms = m.true_period_ms
 	m.trial_dm = m.true_dm
+	m.trial_phase = m.true_phase
 	var short_snr := m.fold_snr()
 	m.set_integration(60.0)
 	var mid_snr := m.fold_snr()
@@ -106,6 +107,10 @@ func _test_model() -> void:
 	_check(m.conclusion_state() == "stable_pulsar", "4. correct evidence yields the stable-pulsar conclusion")
 	_check(m.evaluate_conclusion("stable_pulsar"), "4. only the evidence-backed conclusion is accepted")
 	_check(not m.evaluate_conclusion("insufficient_signal"), "4. a contradictory report conclusion is rejected")
+	m.trial_phase = fposmod(m.true_phase + 0.25, 1.0)
+	_check(m.phase_match() < 0.72, "4. an offset arrival phase remains outside the receiver gate")
+	m.trial_phase = m.true_phase
+	_check(m.phase_match() >= 0.99, "4. the correct arrival phase sits inside the receiver gate")
 
 
 # ---------------------------------------------------------------- 6 profiles
@@ -208,6 +213,7 @@ func _test_scene(gm: Node) -> void:
 	m.alt_velocity = 0.0
 	scene.call("_try_lock")
 	await create_timer(1.55).timeout
+	await _wait_stage_handoff(scene)
 	_check(int(scene.get("stage")) == 1, "5. locking advances to Tune")
 	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. feed-cabin lock reveals receiver tuning through radio-specific feedback")
 	_check(scene.get("tune_waterfall").size() > 0, "5. Tune opens with a persistent receiver-history waterfall")
@@ -216,7 +222,7 @@ func _test_scene(gm: Node) -> void:
 	m.window_center_mhz = m.true_center_mhz
 	m.window_bandwidth_mhz = m.true_bandwidth_mhz
 	scene.call("_confirm_tune")
-	await process_frame
+	await _wait_stage_handoff(scene)
 	_check(int(scene.get("stage")) == 2, "5. good tuning advances to RFI")
 	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. tuning feedback explains passband and RFI classification")
 
@@ -229,10 +235,12 @@ func _test_scene(gm: Node) -> void:
 	for i in range(m.rfi_peaks.size()):
 		m.classify(i, bool(m.rfi_peaks[i]["is_rfi"]))
 	scene.call("_confirm_rfi")
-	await process_frame
+	await _wait_stage_handoff(scene)
 	_check(int(scene.get("stage")) == 3, "5. correct classification advances to Fold")
 
-	# wrong fold -> blocked; correct + integration -> advances
+	# wrong fold -> blocked; correct + integration starts the clock prediction.
+	# Missing the first window preserves all science state; arming the next beat
+	# completes the timing proof and advances to Report.
 	m.trial_period_ms = m.true_period_ms + 40.0
 	m.set_integration(0.0)
 	scene.call("_confirm_fold")
@@ -241,10 +249,22 @@ func _test_scene(gm: Node) -> void:
 	_check(not gm_completed(gm), "5. Fold stage never completes the mission on its own")
 	m.trial_period_ms = m.true_period_ms
 	m.trial_dm = m.true_dm
+	m.trial_phase = m.true_phase
 	m.set_integration(300.0)
 	scene.call("_confirm_fold")
-	await create_timer(2.55).timeout
+	await process_frame
+	_check(bool(scene.get("prediction_running")), "5. valid fold opens the next-pulse prediction instead of auto-completing")
+	var integration_before_miss := m.integration_s
+	scene.call("_resolve_prediction_window")
+	await process_frame
+	_check(int(scene.get("prediction_misses")) == 1, "5. an unarmed receiver visibly misses the predicted window")
+	_check(is_equal_approx(m.integration_s, integration_before_miss), "5. a missed window preserves accumulated science data")
+	_check(int(scene.get("stage")) == 3, "5. missing the window stays in Fold for a retry")
+	scene.call("_arm_prediction_receiver")
+	scene.call("_resolve_prediction_window")
+	await create_timer(3.65).timeout
 	_check(int(scene.get("stage")) == 4, "5. confirmed pulse advances to Report")
+	_check(bool(scene.get("prediction_confirmed")), "5. report unlock requires a captured predicted arrival")
 	_check(scene.get("discovery_phase") >= 0.99, "5. FIRST PULSE sequence synchronizes sub-bands, waterfall, and folded profile")
 
 	# Report is evidence-gated: a wrong conclusion cannot complete; the correct
@@ -267,6 +287,16 @@ func gm_completed(gm: Node) -> bool:
 	return completed.has(76)
 
 
+func _wait_stage_handoff(scene: Node) -> void:
+	if not bool(scene.get("stage_transition_active")):
+		return
+	await create_timer(1.12).timeout
+	await process_frame
+	if not bool(scene.get("stage_transition_active")):
+		return
+	_check(false, "5. stage handoff completed within the bounded wait")
+
+
 # ---------------------------------------------------------------- 7 no optical
 func _test_no_optical() -> void:
 	var file := FileAccess.open("res://scripts/ui/radio_observation.gd", FileAccess.READ)
@@ -278,9 +308,19 @@ func _test_no_optical() -> void:
 		_check(not src.contains(term), "8. FAST screen uses no optical concept '%s'" % term)
 	_check(src.contains("objective:"), "8. FAST keeps a concise stage objective instead of a tutorial wall")
 	_check(src.contains("fast array takeover"), "8. FAST opens with a facility-scale array takeover")
+	_check(src.contains("fast_crt_monitor.gdshader"), "8. FAST uses its state-driven CRT presentation layer")
+	_check(src.contains("feed cabin drive"), "8. FAST logs real feed-cabin drive commands")
+	_check(src.contains("spectrum verify"), "8. FAST logs real RFI verification results")
+	_check(src.contains("pulse profile"), "8. FAST logs the confirmed pulse result")
 	for term in ["snr", "dispersion", "period", "spectrum", "rfi", "integration"]:
 		_check(src.contains(term), "8. FAST screen uses radio concept '%s'" % term)
 	_check(not src.contains("\"success\": true"), "8. report submission is not hard-coded to success")
+	var shader := FileAccess.open("res://shaders/fast_crt_monitor.gdshader", FileAccess.READ)
+	_check(shader != null, "8. FAST CRT shader exists")
+	if shader != null:
+		var shader_source := shader.get_as_text().to_lower()
+		_check(shader_source.contains("instability"), "8. CRT instability is driven by the scientific state")
+		_check(shader_source.contains("lock_stability"), "8. CRT settles as the receiver chain locks")
 
 
 func _check(condition: bool, label: String) -> void:

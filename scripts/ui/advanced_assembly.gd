@@ -71,12 +71,41 @@ const SPACE_INSTRUMENT_TYPES := [
 	"miri",
 	"fgs_niriss",
 ]
+const FAST_BLUEPRINT_REFERENCE := "res://assets/assembly/fast_blueprint_reference.png"
+const FAST_BLUEPRINT_CROPPED := "res://assets/assembly/fast_blueprint_center_cropped.png"
+const FAST_BLUEPRINT_CONFIG := {
+	"dish": {
+		"path": FAST_BLUEPRINT_CROPPED,
+		"source_size": Vector2(765.0, 956.0),
+		"part_type": "radio_dish",
+		"slot": Rect2(176.0, 374.0, 400.0, 194.0),
+		"title_en": "500m Active Radio Dish",
+		"title_zh": "500 米主动反射面",
+	},
+	"feed": {
+		"path": FAST_BLUEPRINT_CROPPED,
+		"source_size": Vector2(765.0, 956.0),
+		"part_type": "receiver",
+		"slot": Rect2(322.0, 99.0, 106.0, 108.0),
+		"title_en": "Suspended Feed Cabin",
+		"title_zh": "悬吊馈源舱",
+	},
+	"signal": {
+		"path": FAST_BLUEPRINT_CROPPED,
+		"source_size": Vector2(765.0, 956.0),
+		"part_type": "signal_processor",
+		"slot": Rect2(321.0, 722.0, 106.0, 104.0),
+		"title_en": "Radio Signal Processor",
+		"title_zh": "射电信号处理器",
+	},
+}
 
 var selected_type := ""
 var order: Array[String] = []
 var status_label: Label
 var flat_inspector_detail: Label
 var blueprint: Control
+var flat_parts_scroll: ScrollContainer
 var template_parts_scroll: ScrollContainer
 var template_parts_list: Control
 var template_blueprint_layer: Control
@@ -89,6 +118,8 @@ var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
 var space_blueprint_page := "core"
+var fast_blueprint_page := "dish"
+var remembered_parts_scroll_y := 0
 
 
 func _ready() -> void:
@@ -118,22 +149,27 @@ func _show_assembly_tutorial() -> void:
 
 
 func _build() -> void:
+	_remember_parts_scroll_position()
 	for child in get_children():
 		child.queue_free()
+	flat_parts_scroll = null
+	template_parts_scroll = null
 	part_card_controls.clear()
 	slot_controls.clear()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	if _family() in ["newtonian", "dobsonian", "cassegrain"]:
 		_build_newtonian_template_main()
+		_queue_parts_scroll_restore()
 		return
 	if _is_nested_ground_family():
 		_build_nested_main()
+		_queue_parts_scroll_restore()
 		return
 	order.clear()
 	var install_order: Array = (
 		GameManager.space_segmented_install_types()
 		if _family() == "space_segmented"
-		else GameManager.current_level().get("assembly_order", [])
+		else _assembly_level().get("assembly_order", [])
 	)
 	for type_value in install_order:
 		order.append(str(type_value))
@@ -144,6 +180,7 @@ func _build() -> void:
 
 	var tray := _panel(Vector2(20, 88), Vector2(278, 614), _flat_tray_title())
 	var scroll := ScrollContainer.new()
+	flat_parts_scroll = scroll
 	scroll.position = Vector2(12, 42)
 	scroll.size = Vector2(254, 558)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -163,7 +200,7 @@ func _build() -> void:
 	_draw_specialized_blueprint()
 
 	var inspector := _panel(Vector2(782, 88), Vector2(222, 614), GameManager.text("ASSEMBLY CHECK", "组装检查"))
-	var level := GameManager.current_level()
+	var level := _assembly_level()
 	var mission_title := _label(
 		GameManager.dict_text(level, "title"),
 		Vector2(12, 38),
@@ -218,6 +255,37 @@ func _build() -> void:
 	)
 	inspector.add_child(back)
 	_update_flat_inspector(selected_type)
+	_queue_parts_scroll_restore()
+
+
+func _active_parts_scroll() -> ScrollContainer:
+	if is_instance_valid(template_parts_scroll):
+		return template_parts_scroll
+	if is_instance_valid(flat_parts_scroll):
+		return flat_parts_scroll
+	return null
+
+
+func _remember_parts_scroll_position() -> void:
+	var scroll := _active_parts_scroll()
+	if scroll != null:
+		remembered_parts_scroll_y = scroll.scroll_vertical
+
+
+func _queue_parts_scroll_restore() -> void:
+	call_deferred("_restore_parts_scroll_position")
+
+
+func _restore_parts_scroll_position() -> void:
+	# ScrollContainer calculates its range during layout. Waiting one frame
+	# prevents a rebuilt list from clamping the remembered value back to zero.
+	await get_tree().process_frame
+	var scroll := _active_parts_scroll()
+	if scroll == null:
+		return
+	var bar := scroll.get_v_scroll_bar()
+	var maximum := maxi(0, floori(bar.max_value - bar.page))
+	scroll.scroll_vertical = clampi(remembered_parts_scroll_y, 0, maximum)
 
 
 func _is_nested_ground_family() -> bool:
@@ -412,13 +480,9 @@ func _tube_total_count() -> int:
 
 
 func _can_open_tube() -> bool:
-	# The tube bench opens only after the external support exists - but once
-	# open-able it stays open-able forever, installed or not.
-	for part_type in _main_parts():
-		if part_type in ["tripod", "mount"] and not _installed(part_type):
-			return false
+	# Advanced benches expose the tube workspace immediately; completeness is
+	# checked only when the player saves the assembled telescope.
 	return true
-
 
 func _open_tube_or_hint() -> void:
 	if not _can_open_tube():
@@ -462,7 +526,7 @@ func _main_template_part(part_type: String) -> Dictionary:
 			var equipped_mount := GameManager.get_part(GameManager.equipped_part_id("mount"))
 			if not equipped_mount.is_empty() and str(equipped_mount.get("telescope_family", "")) in ["", _family()]:
 				return equipped_mount
-			return GameManager.get_part("basic_mount")
+			return _part_for_type(part_type)
 		"finder_scope":
 			return GameManager.get_part("basic_finder_scope")
 	if part_type == "optical_tube_assembly":
@@ -523,7 +587,7 @@ func _refresh_newtonian_main_inspector() -> void:
 	# ASSEMBLING; everything mounted but collimation pending -> NEEDS
 	# COLLIMATION; all conditions met -> READY.
 	var parts_ready := GameManager.telescope_is_ready()
-	var needs_collimation := bool(GameManager.current_level().get("requires_collimation", false)) \
+	var needs_collimation := bool(_assembly_level().get("requires_collimation", false)) \
 		and not GameManager.collimation_is_acceptable()
 	if not parts_ready:
 		template_inspector_title.text = GameManager.text("ASSEMBLING", "组装中")
@@ -618,6 +682,7 @@ func _build_newtonian_reference_main() -> void:
 	add_child(_label(GameManager.text("Install the external support here. Open the Optical Tube Assembly to build the internal reflector path.", "此处安装外部支撑。打开光学镜筒组件，完成内部反射光路。"), Vector2(24, 46), Vector2(976, 26), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER))
 	var tray := _panel(Vector2(20, 88), Vector2(278, 614), GameManager.text("PARTS TRAY", "零件托盘"))
 	var scroll := ScrollContainer.new()
+	flat_parts_scroll = scroll
 	scroll.position = Vector2(12, 42)
 	scroll.size = Vector2(254, 558)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -656,7 +721,7 @@ func _build_newtonian_reference_main() -> void:
 	inspector.add_theme_stylebox_override("panel", _style(Color(0.025, 0.05, 0.08, 0.93), GOLD, 2))
 	add_child(inspector)
 	var hardware_ready := GameManager.telescope_is_ready()
-	var needs_collimation := hardware_ready and bool(GameManager.current_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable()
+	var needs_collimation := hardware_ready and bool(_assembly_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable()
 	var ready := hardware_ready and not needs_collimation
 	var status := GameManager.text("READY", "已就绪") if ready else (GameManager.text("NEEDS COLLIMATION", "需要准直") if needs_collimation else GameManager.text("NOT READY", "未就绪"))
 	inspector.add_child(_label(status, Vector2(10, 18), Vector2(196, 34), 20, GREEN if ready else (GOLD if needs_collimation else RED), HORIZONTAL_ALIGNMENT_CENTER))
@@ -1012,16 +1077,14 @@ func _install_main_part(part_type: String) -> void:
 	if selected_type != part_type:
 		status_label.text = GameManager.text("Select this main component from the left first.", "请先从左侧选择该主组件。")
 		return
-	var index := _main_parts().find(part_type)
-	if index > 0 and not _installed(_main_parts()[index - 1]):
-		status_label.text = GameManager.text("Install " + _short_type(_main_parts()[index - 1]) + " first.", "请先安装" + _short_type(_main_parts()[index - 1]) + "。")
-		return
 	if part_type == "optical_tube_assembly" and not GameManager.advanced_tube_completed():
 		status_label.text = GameManager.text("Complete the Optical Tube Assembly first.", "请先完成光学镜筒组件。")
 		return
 	install_animation_active = true
 	var animation := _capture_part_animation(part_type)
-	if GameManager.install_part(part_type, 0) < 0:
+	var selected_part := _main_template_part(part_type)
+	var selected_part_id := str(selected_part.get("id", ""))
+	if GameManager.install_part(part_type, 0, selected_part_id) < 0:
 		install_animation_active = false
 		status_label.text = GameManager.install_part_block_reason(part_type)
 		return
@@ -1039,8 +1102,8 @@ func _main_status_text() -> String:
 	var missing: Array = GameManager.missing_parts()
 	if not missing.is_empty():
 		return GameManager.text("Install the remaining main components: " + ", ".join(missing) + ".", "请安装剩余主组件：" + ", ".join(missing) + "。")
-	if bool(GameManager.current_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable():
-		var threshold := int(GameManager.current_level().get("collimation_threshold", 80))
+	if bool(_assembly_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable():
+		var threshold := int(_assembly_level().get("collimation_threshold", 80))
 		return GameManager.text(
 			"Hardware complete. Click Collimate Mirrors and align the optical axis to at least %d%%." % threshold,
 			"硬件已装齐。点击“准直镜面”，将光轴校准到至少 %d%%。" % threshold
@@ -1076,14 +1139,21 @@ func _part_card(part_type: String) -> Control:
 	var installed := _installed(part_type)
 	var is_selected := selected_type == part_type and not installed
 	var card := Panel.new()
+	card.name = "PartCard_%s" % part_type
 	card.custom_minimum_size = Vector2(236, 54)
 	var border := GREEN if installed else (GOLD if is_selected else Color(0.25, 0.43, 0.66))
 	card.add_theme_stylebox_override("panel", _style(Color(0.075, 0.10, 0.15), border, 3 if is_selected else 2))
-	var title := _label(GameManager.dict_text(part, "name"), Vector2(10, 5), Vector2(166, 18), 12, TEXT)
+	var text_x := 10.0
+	var icon := _part_texture_control(part, Rect2(6, 6, 42, 42))
+	if icon != null:
+		icon.name = "PartCardIcon_%s" % part_type
+		card.add_child(icon)
+		text_x = 56.0
+	var title := _label(GameManager.dict_text(part, "name"), Vector2(text_x, 5), Vector2(188.0 - text_x, 18), 12, TEXT)
 	title.clip_text = true
 	card.add_child(title)
 	var state_text := GameManager.text("Installed", "已安装") if installed else (GameManager.text("Selected", "已选择") if is_selected else GameManager.text("Tap to select", "点击选择"))
-	card.add_child(_label(state_text, Vector2(10, 27), Vector2(120, 16), 11, GREEN if installed else (GOLD if is_selected else CYAN)))
+	card.add_child(_label(state_text, Vector2(text_x, 27), Vector2(132.0, 16), 11, GREEN if installed else (GOLD if is_selected else CYAN)))
 	# The whole card is the select control (a tap selects; it never observes,
 	# never installs, never completes the mission). A green check marks installed.
 	if installed:
@@ -1107,6 +1177,8 @@ func _select_flat_part(part_type: String) -> void:
 	selected_type = part_type
 	if _family() == "space_segmented":
 		space_blueprint_page = _space_page_for_part(part_type)
+	elif _family() == "fast_radio":
+		fast_blueprint_page = _fast_page_for_part(part_type)
 	_build()  # rebuild recreates the cards/labels and re-applies the gold border
 	var part := _part_for_type(part_type)
 	status_label.text = GameManager.text(
@@ -1120,10 +1192,17 @@ func _family() -> String:
 	return GameManager.assembly_family()
 
 
+func _assembly_level() -> Dictionary:
+	return GameManager.assembly_level_context() if GameManager.postgraduate_free_build() else GameManager.current_level()
+
+
 func _draw_specialized_blueprint() -> void:
 	var family := _family()
 	if family == "space_segmented":
 		_draw_space_blueprint_page()
+		return
+	if family == "fast_radio":
+		_draw_fast_blueprint_page()
 		return
 	var art := TextureRect.new()
 	art.texture = _family_art_texture(family)
@@ -1160,6 +1239,120 @@ func _draw_specialized_blueprint() -> void:
 	blueprint.add_child(caption_bg)
 	var caption := _label_to(blueprint, _family_caption(family), Vector2(22, 458), Vector2(384, 28), 13, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+func _draw_fast_blueprint_page() -> void:
+	var page_id := fast_blueprint_page
+	if not FAST_BLUEPRINT_CONFIG.has(page_id):
+		page_id = "dish"
+		fast_blueprint_page = page_id
+	var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+	var source_size: Vector2 = config["source_size"]
+	var layout := _calculate_blueprint_layout(
+		source_size,
+		Rect2(Vector2.ZERO, source_size),
+		Rect2(4, 6, 420, 438)
+	)
+	var art := TextureRect.new()
+	art.name = "FastBlueprintArt"
+	art.custom_minimum_size = Vector2.ZERO
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.texture = load(str(config["path"])) as Texture2D
+	art.position = layout["display_rect"].position
+	art.size = layout["display_rect"].size
+	art.set_meta("fast_blueprint_page", page_id)
+	blueprint.add_child(art)
+
+	# The supplied blueprint already contains all three cyan installation
+	# windows. Keep that original composition visible, then add only restrained
+	# interaction/status overlays at the exact printed windows.
+	for slot_page_id in FAST_BLUEPRINT_CONFIG:
+		var slot_config: Dictionary = FAST_BLUEPRINT_CONFIG[slot_page_id]
+		var part_type := str(slot_config["part_type"])
+		if order.has(part_type):
+			var slot_rect := _source_rect_to_blueprint(slot_config["slot"], layout)
+			_draw_fast_blueprint_slot(part_type, slot_rect)
+	_draw_fast_blueprint_tabs()
+
+
+func _draw_fast_blueprint_slot(part_type: String, rect: Rect2) -> void:
+	var installed := _installed(part_type)
+	var active := selected_type == part_type and not installed
+	var color := GREEN if installed else (GOLD if active else CYAN)
+	var slot := Control.new()
+	slot.name = "FastBlueprintSlot_%s" % part_type
+	slot.position = rect.position
+	slot.size = rect.size
+	slot.clip_contents = true
+	blueprint.add_child(slot)
+	slot_controls[part_type] = slot
+
+	var frame := Panel.new()
+	frame.name = "FastBlueprintFrame_%s" % part_type
+	frame.position = Vector2.ZERO
+	frame.size = rect.size
+	frame.visible = active or installed
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.02, 0.10, 0.15, 0.06 if not active else 0.16), color, 3 if active else 2)
+	)
+	slot.add_child(frame)
+	if installed:
+		var ok := _label("OK", Vector2(rect.size.x - 28, 2), Vector2(24, 15), 9, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(ok)
+
+	var hit := Button.new()
+	hit.name = "FastBlueprintHit_%s" % part_type
+	hit.flat = true
+	hit.position = Vector2.ZERO
+	hit.size = rect.size
+	hit.pressed.connect(func() -> void: _install_at_slot(part_type))
+	slot.add_child(hit)
+
+
+func _draw_fast_blueprint_tabs() -> void:
+	var tabs := [
+		["dish", GameManager.text("Active Dish", "主动反射面")],
+		["feed", GameManager.text("Feed Cabin", "馈源舱")],
+		["signal", GameManager.text("Signal Chain", "信号链")],
+	]
+	var x := 4.0
+	for tab_value in tabs:
+		var page_id := str(tab_value[0])
+		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+		var part_type := str(config["part_type"])
+		var suffix := "  OK" if _installed(part_type) else ""
+		var tab := _button(str(tab_value[1]) + suffix, Vector2(x, 458), Vector2(136, 34), Color(0.055, 0.10, 0.17))
+		tab.name = "FastBlueprintTab_%s" % page_id
+		tab.tooltip_text = GameManager.text(str(config["title_en"]), str(config["title_zh"]))
+		if page_id == fast_blueprint_page:
+			tab.add_theme_stylebox_override("normal", _style(Color(0.08, 0.18, 0.23), GOLD, 2))
+			tab.add_theme_color_override("font_color", GOLD)
+		elif _installed(part_type):
+			tab.add_theme_color_override("font_color", GREEN)
+		tab.pressed.connect(_set_fast_blueprint_page.bind(page_id))
+		blueprint.add_child(tab)
+		x += 142.0
+
+
+func _set_fast_blueprint_page(page_id: String) -> void:
+	if not FAST_BLUEPRINT_CONFIG.has(page_id):
+		return
+	fast_blueprint_page = page_id
+	_build()
+
+
+func _fast_page_for_part(part_type: String) -> String:
+	for page_id in FAST_BLUEPRINT_CONFIG:
+		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+		if str(config["part_type"]) == part_type:
+			return str(page_id)
+	return "dish"
 
 
 func _draw_space_blueprint_page() -> void:
@@ -1433,6 +1626,8 @@ func _specialized_slot_positions(family: String) -> Dictionary:
 func _family_art_texture(family: String) -> Texture2D:
 	if family == "space_segmented":
 		return load(SPACE_SEGMENTED_BLUEPRINT) as Texture2D
+	if family == "fast_radio":
+		return load(FAST_BLUEPRINT_CROPPED) as Texture2D
 	var source_texture := load(ADVANCED_FAMILY_ATLAS) as Texture2D
 	if source_texture == null:
 		return null
@@ -1443,7 +1638,6 @@ func _family_art_texture(family: String) -> Texture2D:
 		"cassegrain": atlas.region = Rect2(628, 0, 626, 630)
 		"gregorian": atlas.region = Rect2(0, 632, 370, 622)
 		"space_segmented": atlas.region = Rect2(372, 632, 380, 622)
-		"fast_radio": atlas.region = Rect2(754, 632, 500, 622)
 		_: atlas.region = Rect2(0, 0, 626, 630)
 	return atlas
 
@@ -1481,25 +1675,17 @@ func _install_at_slot(slot_type: String) -> void:
 	if selected_type != slot_type:
 		status_label.text = GameManager.text("That part does not belong there. Newtonian optics must follow the reflected light path.", "该零件不属于这里。牛顿镜光学部件必须遵循反射光路。")
 		return
-	if _family() == "space_segmented":
-		var prerequisite := _space_part_prerequisite(slot_type)
-		if prerequisite != "" and order.has(prerequisite) and not _installed(prerequisite):
-			status_label.text = GameManager.text(
-				"Install %s first; it physically supports this component." % _short_type(prerequisite),
-				"请先安装%s；它是当前组件的物理支撑。" % _short_type(prerequisite)
-			)
-			return
-	var index := order.find(slot_type)
-	if _family() != "space_segmented" and index > 0 and not _installed(order[index - 1]):
-		status_label.text = GameManager.text("Install " + _short_type(order[index - 1]) + " first.", "请先安装" + _short_type(order[index - 1]) + "。")
-		return
 	install_animation_active = true
 	var animation := _capture_part_animation(slot_type)
-	if GameManager.install_part(slot_type, 0) < 0:
+	var selected_part := _part_for_type(slot_type)
+	var selected_part_id := str(selected_part.get("id", ""))
+	if GameManager.install_part(slot_type, 0, selected_part_id) < 0:
 		install_animation_active = false
 		status_label.text = GameManager.install_part_block_reason(slot_type)
 		return
 	selected_type = ""
+	if _family() == "fast_radio":
+		fast_blueprint_page = _fast_page_for_part(slot_type)
 	install_animation_active = false
 	status_label.text = GameManager.text("Installed. The reflected light path is taking shape.", "已安装，反射光路正在成形。")
 	_build()
@@ -1515,36 +1701,42 @@ func _finish_advanced_install_feedback(part_type: String, main_mode: bool) -> vo
 	if flat_inspector_detail != null:
 		flat_inspector_detail.text = "%s\n%s" % [_short_type(part_type), reason]
 	status_label.text = reason
-	var next_part := _next_advanced_install_part(_main_parts() if main_mode else order)
-	var next_card := part_card_controls.get(next_part) as Control
-	var next_slot := slot_controls.get(next_part) as Control
-	if next_card != null:
-		InteractionFeedback.pulse(next_card, Color(0.96, 0.70, 0.24), 0.58)
+	var remaining := _remaining_advanced_install_parts(_main_parts() if main_mode else order)
+	if GameManager.assembly_hints_enabled():
+		for remaining_type_value in remaining:
+			var remaining_type := str(remaining_type_value)
+			var remaining_card := part_card_controls.get(remaining_type) as Control
+			var remaining_slot := slot_controls.get(remaining_type) as Control
+			if remaining_card != null:
+				InteractionFeedback.pulse(remaining_card, Color(0.32, 0.86, 1.0), 0.42)
+			if remaining_slot != null:
+				InteractionFeedback.pulse(remaining_slot, Color(0.32, 0.86, 1.0), 0.42)
+	var ready := remaining.is_empty()
 	InteractionFeedback.operation_chain(
 		self,
 		GameManager.text("Installed %s" % _short_type(part_type), "已安装%s" % _short_type(part_type)),
 		reason,
 		GameManager.text(
-			"Assembly check is ready" if next_part == "" else "Next: %s" % _short_type(next_part),
-			"装配检查已就绪" if next_part == "" else "下一步：%s" % _short_type(next_part)
+			"Assembly check is ready" if ready else "%d components remain; choose any" % remaining.size(),
+			"装配检查已就绪" if ready else "还剩 %d 个组件，可任选一个继续" % remaining.size()
 		),
-		next_slot,
-		Color(0.42, 0.96, 0.58) if next_part == "" else Color(0.32, 0.86, 1.0)
+		null,
+		Color(0.42, 0.96, 0.58) if ready else Color(0.32, 0.86, 1.0)
 	)
 
 
-func _next_advanced_install_part(part_types: Array) -> String:
+func _remaining_advanced_install_parts(part_types: Array) -> Array[String]:
+	var remaining: Array[String] = []
 	for part_type_value in part_types:
 		var part_type := str(part_type_value)
-		if _installed(part_type):
-			continue
-		if _family() == "space_segmented":
-			var prerequisite := _space_part_prerequisite(part_type)
-			if prerequisite != "" and not _installed(prerequisite):
-				continue
-		return part_type
-	return ""
+		if not _installed(part_type):
+			remaining.append(part_type)
+	return remaining
 
+
+func _next_advanced_install_part(part_types: Array) -> String:
+	var remaining := _remaining_advanced_install_parts(part_types)
+	return "" if remaining.is_empty() else remaining[0]
 
 func _advanced_part_operation_effect(part_type: String) -> String:
 	match part_type:
@@ -1657,13 +1849,14 @@ func _finish() -> void:
 			return
 		status_label.text = GameManager.text("Install every marked reflector component first.", "请先安装全部标记的反射镜组件。")
 		return
-	if bool(GameManager.current_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable():
+	if bool(_assembly_level().get("requires_collimation", false)) and not GameManager.collimation_is_acceptable():
 		if GameManager.try_story_mechanic("collimation", "collimation", "before_collimation"):
 			return
 		if GameManager.try_teaching_intercept("before_collimation", "collimation"):
 			return
 		GameManager.go("collimation")
 		return
+	InteractionFeedback.feedback_sfx_requested.emit("assembly_completed")
 	GameManager.update_room_guidance_for_level()
 	GameManager.set_observatory_spawn("assembly")
 	GameManager.go("observatory")
@@ -1673,20 +1866,31 @@ func _part_for_type(part_type: String) -> Dictionary:
 	# Advanced lessons prescribe exact components. Prefer that exact ID over a
 	# previously equipped refractor part with the same broad type (eyepiece,
 	# mount, and so on).
-	for required_id_value in GameManager.current_level().get("required_part_ids", []):
+	for required_id_value in ([] if GameManager.postgraduate_free_build() else GameManager.current_level().get("required_part_ids", [])):
 		var required := GameManager.get_part(str(required_id_value))
 		if str(required.get("type", "")) == part_type:
 			if GameManager.equipped_part_id(part_type) != str(required.get("id", "")):
 				GameManager.equip_part(str(required.get("id", "")))
 			return required
 	var equipped := GameManager.get_part(GameManager.equipped_part_id(part_type))
-	if not equipped.is_empty():
+	if not equipped.is_empty() and GameManager.is_part_compatible_with_current_level(equipped):
 		return equipped
 	var options: Array = GameManager.unlocked_parts_by_type(part_type)
-	if not options.is_empty():
-		var selected: Dictionary = options[0]
-		GameManager.equip_part(str(selected.get("id", "")))
-		return selected
+	# Prefer a component built for this telescope family. Generic parts remain
+	# a fallback, but an incompatible part left equipped by the previous bench
+	# must never block an otherwise legal advanced assembly.
+	for option_index in range(options.size() - 1, -1, -1):
+		var option: Dictionary = options[option_index]
+		if str(option.get("telescope_family", "")) != _family():
+			continue
+		GameManager.equip_part(str(option.get("id", "")))
+		return option
+	for option_index in range(options.size() - 1, -1, -1):
+		var option: Dictionary = options[option_index]
+		if not GameManager.is_part_compatible_with_current_level(option):
+			continue
+		GameManager.equip_part(str(option.get("id", "")))
+		return option
 	return {"id": part_type, "name_en": part_type, "name_zh": part_type}
 
 
@@ -1777,7 +1981,7 @@ func _flat_tray_title() -> String:
 func _flat_board_title() -> String:
 	match _family():
 		"space_segmented": return GameManager.text("INFRARED LIGHT PATH", "红外光路")
-		"fast_radio": return GameManager.text("RADIO SIGNAL PATH", "无线电信号路径")
+		"fast_radio": return GameManager.text("FAST ENGINEERING BLUEPRINTS", "FAST 工程蓝图")
 	return GameManager.text("REFLECTOR LIGHT PATH", "反射光路")
 
 

@@ -94,6 +94,23 @@ func _test_postgraduate_board_and_duplicate_protection(gm: Node) -> void:
 	_check(bool(route.get("completed", false)), "post-graduation lobby uses a completed route")
 	_check(str(route.get("title", "")).contains("Program Complete"), "post-graduation guidance says the program is complete")
 	_check(not str(route.get("hint", "")).contains("next unfinished lesson"), "post-graduation guidance does not promise another lesson")
+	_check(str(route.get("target", "")) == "", "post-graduation lobby has no mandatory furniture route")
+	_check(gm.room_guidance_target == "", "post-graduation room guidance remains cleared")
+	_check(get_nodes_in_group("guidance_highlight").is_empty(), "post-graduation lobby creates no guidance highlight")
+
+	if current_scene != null and current_scene.has_method("_enter_learning_journal"):
+		current_scene.call("_enter_learning_journal")
+		await process_frame
+		await process_frame
+	_check(current_scene != null and current_scene.name == "LearningJournal", "graduate can open the journal voluntarily")
+	if current_scene != null and current_scene.has_method("_go_back"):
+		current_scene.call("_go_back")
+		await process_frame
+		await process_frame
+	_check(current_scene != null and current_scene.name == "ObservatoryRoom", "journal returns to the observatory")
+	_check(gm.room_guidance_target == "", "journal return does not recreate postgraduate guidance")
+	_check(get_nodes_in_group("guidance_highlight").is_empty(), "journal return does not recreate a highlight")
+
 
 	if current_scene != null and current_scene.has_method("_open_mission_board"):
 		current_scene.call("_open_mission_board")

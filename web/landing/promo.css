@@ -13,6 +13,9 @@
   --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   font-family:
     Inter,
+    "Noto Sans SC",
+    "Microsoft YaHei",
+    "PingFang SC",
     ui-sans-serif,
     system-ui,
     -apple-system,

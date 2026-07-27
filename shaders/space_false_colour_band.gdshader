@@ -6,6 +6,7 @@ uniform vec4 mapped_color : source_color = vec4(1.0);
 uniform vec4 feature_weights = vec4(1.0);
 uniform float reveal_progress : hint_range(0.0, 1.0) = 1.0;
 uniform float signal_strength : hint_range(0.0, 1.0) = 1.0;
+uniform bool direct_band_source = false;
 
 float luminance(vec3 value) {
 	return dot(value, vec3(0.2126, 0.7152, 0.0722));
@@ -35,7 +36,12 @@ void fragment() {
 	float diffuse = smoothstep(0.045, 0.58, local_mean) * compact_rejection;
 
 	float intensity = 0.0;
-	if (band_mode == 0) {
+	if (direct_band_source) {
+		// Dedicated wavelength frames already contain the physical spatial
+		// structure for this band. Convert that frame to intensity instead of
+		// trying to infer stars/dust from one shared colour photograph.
+		intensity = pow(clamp(center * 1.35 + high_pass * 1.15, 0.0, 1.0), 0.82);
+	} else if (band_mode == 0) {
 		intensity = compact * feature_weights.x + diffuse * feature_weights.w * 0.035;
 	} else if (band_mode == 1) {
 		intensity = embedded * feature_weights.y + compact * feature_weights.x * 0.08

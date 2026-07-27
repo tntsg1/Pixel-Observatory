@@ -237,6 +237,32 @@ cinematic polish and clearer first-use explanation.
 
 ## Dated Recent Updates
 
+### 2026-07-25 — Official Landing Page Rebuild
+
+- Replaced the landing source with a new official website built around the
+  game's own artwork: the observatory hero scene, the exploded refractor, the
+  workshop bench, the observation console, and eight individual instrument
+  plates instead of one combined sheet.
+- Structured the page as chapters covering assembly, optics, the limits of
+  glass, the three observation modes, the living sky, the instrument path, how
+  the Newtonian, Dobsonian, infrared space and radio designs actually work,
+  what distinguishes the project, and the current development status.
+- Checked every quantitative claim against project data: active campaign
+  length, part and telescope-family counts, catalogued star totals, Concept
+  Brief and skill-tutorial counts, observing sites, and the optical and
+  atmospheric limits enforced by the observation system.
+- Kept the site English-first with a Chinese toggle, and pointed every play
+  action at the relative same-origin `game/` route.
+- Preserved the anonymous Cloudflare visitor counter, canonical URL, Open Graph
+  and Twitter cards, theme colour, structured data and favicon. Added `CNAME`,
+  `robots.txt` and `sitemap.xml` to the published root.
+- Rewrote `tools/import_user_landing.mjs` so every transform is asserted. A
+  replacement that no longer matches the authored source now fails the import
+  instead of publishing the page without that feature; the previous version
+  would have silently dropped the navigation animation and mis-aligned the
+  bilingual tooltip column. Tooltips are now keyed by their authored text
+  rather than by position.
+
 ### 2026-07-25 - Canonical Website and Game Route
 
 - Corrected the custom-domain release structure so

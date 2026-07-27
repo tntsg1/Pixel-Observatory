@@ -9,7 +9,9 @@
     "breakthrough_zh": "认真记录肉眼所见，为后来每一种仪器提供了可以比较和超越的基线。",
     "learned_en": "Use your own eyes first: name what is visible on the Moon and what remains unresolved.",
     "learned_zh": "先用自己的眼睛观测：说出月球上看得见的部分，也记下仍然分辨不清的部分。",
-    "diagram": ""
+    "diagram": "res://assets/learning_media/heritage/naked_eye_observation_scene.png",
+    "diagram_caption_en": "Naked-eye observers compare and record the sky.",
+    "diagram_caption_zh": "肉眼观测者比较并记录天空。"
   },
   "level_3_before_assembly": {
     "id": "refractor",
@@ -21,7 +23,7 @@
     "breakthrough_zh": "17 世纪初望远镜式窥镜出现后，伽利略改进望远镜并用于天文观测，揭示了月球并非平滑表面。",
     "learned_en": "Build a refractor, return to the same Moon, and compare maria and crater rims with your first record.",
     "learned_zh": "组装折射镜，回到同一轮月球，把月海与环形山边缘和第一份记录作比较。",
-    "diagram": "res://assets/learning_diagrams/refractor_light_path.png"
+    "diagram": "res://assets/learning_media/heritage/galileo_refractor.jpg"
   },
   "level_6_before": {
     "id": "finder_scope",
@@ -45,7 +47,7 @@
     "breakthrough_zh": "更大口径、暗适应的眼睛、更暗的天空和耐心比较，会逐渐把真实结构从背景微光中分离出来。",
     "learned_en": "Accept Orion's honest softness, then hold Andromeda long enough for faint structure to emerge.",
     "learned_zh": "接受猎户座星云真实的柔和，再把仙女座稳住足够久，让暗弱结构慢慢显现。",
-    "diagram": "res://assets/learning_diagrams/nebula_nursery.png"
+    "diagram": "res://assets/learning_media/heritage/herschel_forty_foot.jpg"
   },
   "level_26_before_assembly": {
     "id": "newtonian",
@@ -57,7 +59,7 @@
     "breakthrough_zh": "艾萨克·牛顿制造了实用反射望远镜，以避开大型物镜造成的颜色分离。",
     "learned_en": "Build the primary, secondary, side focuser, and shared optical axis; mirrors solve color but demand collimation.",
     "learned_zh": "组装主镜、副镜、侧置调焦器和共同光轴；镜面解决色差，也要求你学会准直。",
-    "diagram": "res://assets/learning_diagrams/newtonian_light_path.png"
+    "diagram": "res://assets/learning_media/heritage/newton_1668_replica.jpg"
   },
   "level_36_before_assembly": {
     "id": "dobsonian",
@@ -69,7 +71,7 @@
     "breakthrough_zh": "约翰·多布森推广了安装在简单摇箱上的大口径牛顿镜，并通过街头公众观测把它分享给更多人。",
     "learned_en": "Trade automatic tracking for gentle alt-az nudges, a wide field, and more faint deep-sky light.",
     "learned_zh": "用轻柔的经纬式手动推镜取代自动追踪，换来宽视场和更多暗弱深空光线。",
-    "diagram": "res://assets/assembly/dobsonian_main_blueprint.png"
+    "diagram": "res://assets/learning_media/heritage/dobsonian_20_inch.jpg"
   },
   "level_46_before_assembly": {
     "id": "cassegrain",
@@ -93,7 +95,7 @@
     "breakthrough_zh": "现代低温红外观测站运行在地球之外，包括日地 L2 附近，以遮蔽和低温保护暗弱信号。",
     "learned_en": "There is no eyepiece: deploy, protect, guide, align wavefronts, accumulate photons, process frames, and map filters.",
     "learned_zh": "这里没有目镜：你要展开、热防护、导星、校准波前、累积光子、处理帧并映射滤镜。",
-    "diagram": "res://assets/learning_diagrams/jwst_spectrum.png"
+    "diagram": "res://assets/learning_media/heritage/jwst_official.jpg"
   },
   "level_76_before_assembly": {
     "id": "fast_radio",
@@ -105,6 +107,6 @@
     "breakthrough_zh": "贵州 FAST 的 500 米反射面会在悬吊馈源舱下主动变形，用来收集并测量射电信号。",
     "learned_en": "Position the feed cabin, tune frequency, reject RFI, fold pulses, match dispersion measure, integrate, and raise SNR.",
     "learned_zh": "定位馈源舱、调谐频率、抑制射频干扰、折叠脉冲、匹配色散量、积分并提高信噪比。",
-    "diagram": "res://assets/assembly/fast_main_blueprint.png"
+    "diagram": "res://assets/learning_media/heritage/fast_aerial.jpg"
   }
 }

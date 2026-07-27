@@ -1,7 +1,7 @@
 extends Control
 class_name ObservatoryFurnitureAnimator
 
-const ROOM_TEXTURE := "res://assets/reference/observatory_room_clean_bg_1024.png"
+const ROOM_TEXTURE := "res://assets/reference/observatory_room_hall_1024.png"
 const BRASS := Color(0.78, 0.52, 0.23)
 const INTERIOR_TINT := Color(0.42, 0.48, 0.58, 1.0)
 
@@ -9,37 +9,40 @@ const INTERIOR_TINT := Color(0.42, 0.48, 0.58, 1.0)
 # state is pixel-identical to the painted furniture beneath it.
 const SPECS := {
 	"cabinet": {
-		"rect": Rect2(83, 297, 224, 61),
-		"interior_source": Rect2(88, 211, 212, 76),
+		"rect": Rect2(94, 258, 240, 39),
+		"interior_source": Rect2(98, 170, 232, 74),
 		"mode": "drawer",
 		"travel": 9.0,
 	},
 	"door": {
-		"rect": Rect2(471, 91, 86, 187),
-		"interior_source": Rect2(358, 95, 68, 128),
+		"rect": Rect2(449, 69, 126, 179),
+		"interior_source": Rect2(355, 92, 70, 132),
 		"mode": "hinge",
 	},
 	"mission": {
-		"rect": Rect2(604, 94, 152, 140),
-		"interior_source": Rect2(606, 96, 148, 136),
+		"rect": Rect2(692, 87, 191, 130),
+		"interior_source": Rect2(694, 89, 187, 126),
 		"mode": "shutter",
 	},
 	"assembly": {
-		"rect": Rect2(782, 214, 170, 160),
-		"interior_source": Rect2(782, 214, 170, 160),
+		"rect": Rect2(730, 330, 246, 168),
+		"interior_source": Rect2(730, 330, 246, 168),
 		"mode": "workbench",
-		"focus_rect": Rect2(10, 5, 112, 88),
+		"focus_rect": Rect2(72, 10, 158, 92),
 	},
 	"journal": {
-		"rect": Rect2(82, 568, 225, 68),
-		"interior_source": Rect2(88, 211, 212, 76),
+		"rect": Rect2(48, 539, 256, 44),
+		"interior_source": Rect2(98, 170, 232, 74),
 		"mode": "drawer",
 		"travel": 8.0,
 	},
 	"computer": {
-		"rect": Rect2(721, 472, 131, 93),
-		"interior_source": Rect2(721, 472, 131, 93),
+		"rect": Rect2(785, 535, 165, 117),
+		"interior_source": Rect2(785, 535, 165, 117),
 		"mode": "screen",
+		# The clean furniture cutout already contains the cabinet and monitor.
+		# Online feedback belongs on the CRT glass only, never over the desk.
+		"screen_rect": Rect2(21, 13, 91, 46),
 	},
 }
 
@@ -90,15 +93,15 @@ func open_immediately(id: String) -> void:
 			door.modulate = Color(1.08, 1.045, 0.94, 1.0)
 		elif mode == "screen":
 			door.position = base_position
-			door.scale = Vector2(1.012, 1.012)
-			door.modulate = Color(0.66, 1.05, 0.76, 1.0)
+			door.scale = Vector2.ONE
+			door.modulate = Color.WHITE
 		else:
 			door.position = base_position
 			door.scale = Vector2(0.08, 1.0)
 			door.modulate = Color(0.82, 0.84, 0.88, 0.94)
 	var glow := rig.get("glow") as ColorRect
 	if glow != null:
-		glow.color.a = 0.30 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
+		glow.color.a = 0.10 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
 	for mote_value in rig.get("motes", []):
 		var mote := mote_value as ColorRect
 		if mote != null:
@@ -110,6 +113,10 @@ func open_immediately(id: String) -> void:
 		if mode == "workbench":
 			scanline.position.x = maxf(8.0, scanline.get_parent().size.x - scanline.size.x - 8.0)
 			scanline.color.a = 0.58
+		elif mode == "screen":
+			var screen_rect: Rect2 = rig.get("screen_rect", Rect2(8, 8, 90, 42))
+			scanline.position.y = screen_rect.end.y - 3.0
+			scanline.color.a = 0.24
 		else:
 			scanline.position.y = maxf(8.0, scanline.get_parent().size.y - 9.0)
 			scanline.color.a = 0.72
@@ -133,7 +140,11 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 	states[id] = "opening"
 	var rig: Dictionary = rigs[id]
 	var mode := str(rig.get("mode", "shutter"))
-	var duration := 0.10 if _reduced_motion_enabled() else 0.42
+	# Reduced motion keeps the same readable mechanical cadence while trimming
+	# travel and overshoot. It must never turn furniture into a 100 ms flash.
+	var duration := 0.44 if _reduced_motion_enabled() else 0.64
+	if mode == "screen":
+		duration = 0.56 if _reduced_motion_enabled() else 0.78
 	var tween := create_tween().bind_node(self).set_parallel(true)
 	active_tweens[id] = tween
 	var doors: Array = rig.get("doors", [])
@@ -151,14 +162,17 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 			tween.tween_property(door, "scale", Vector2(1.008, 1.008), duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 			tween.tween_property(door, "modulate", Color(1.08, 1.045, 0.94, 1.0), duration * 0.66).set_trans(Tween.TRANS_SINE)
 		elif mode == "screen":
-			tween.tween_property(door, "scale", Vector2(1.012, 1.012), duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			tween.tween_property(door, "modulate", Color(0.66, 1.05, 0.76, 1.0), duration * 0.72).set_trans(Tween.TRANS_SINE)
+			# Keep the supplied cutout pixel-perfect. The CRT itself provides
+			# the proximity/open response, so the furniture never grows or
+			# receives a full-surface green tint.
+			tween.tween_property(door, "scale", Vector2.ONE, duration).set_trans(Tween.TRANS_SINE)
+			tween.tween_property(door, "modulate", Color.WHITE, duration * 0.72).set_trans(Tween.TRANS_SINE)
 		else:
 			tween.tween_property(door, "scale", Vector2(0.08, 1.0), duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 			tween.tween_property(door, "modulate", Color(0.82, 0.84, 0.88, 0.94), duration * 0.72).set_trans(Tween.TRANS_SINE)
 	var glow := rig.get("glow") as ColorRect
 	if glow != null:
-		var glow_alpha := 0.30 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
+		var glow_alpha := 0.10 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
 		tween.tween_property(glow, "color:a", glow_alpha, duration * 0.72).set_trans(Tween.TRANS_SINE)
 	var scanline := rig.get("scanline") as ColorRect
 	if scanline != null:
@@ -166,6 +180,11 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 			scanline.position.x = 10.0
 			tween.tween_property(scanline, "position:x", maxf(10.0, scanline.get_parent().size.x - scanline.size.x - 10.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 			tween.tween_property(scanline, "color:a", 0.58, duration * 0.20)
+		elif mode == "screen":
+			var screen_rect: Rect2 = rig.get("screen_rect", Rect2(8, 8, 90, 42))
+			scanline.position.y = screen_rect.position.y + 2.0
+			tween.tween_property(scanline, "position:y", screen_rect.end.y - 3.0, duration).set_trans(Tween.TRANS_LINEAR)
+			tween.tween_property(scanline, "color:a", 0.24, duration * 0.20)
 		else:
 			scanline.position.y = 7.0
 			tween.tween_property(scanline, "position:y", maxf(8.0, scanline.get_parent().size.y - 9.0), duration).set_trans(Tween.TRANS_LINEAR)
@@ -205,7 +224,9 @@ func play_close(id: String, finished: Callable = Callable()) -> void:
 	states[id] = "closing"
 	var rig: Dictionary = rigs[id]
 	var mode := str(rig.get("mode", "shutter"))
-	var duration := 0.08 if _reduced_motion_enabled() else 0.32
+	var duration := 0.36 if _reduced_motion_enabled() else 0.52
+	if mode == "screen":
+		duration = 0.48 if _reduced_motion_enabled() else 0.66
 	var tween := create_tween().bind_node(self).set_parallel(true)
 	active_tweens[id] = tween
 	for door_value in rig.get("doors", []):
@@ -275,6 +296,10 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	rig_root.size = rect.size
 	rig_root.clip_contents = mode in ["hinge", "shutter", "screen", "workbench"]
 	rig_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# Keep the animated CRT above the furniture cutout. The console footprint
+	# prevents the player from entering this rect, so depth sorting stays intact.
+	if mode == "screen":
+		rig_root.z_index = 4
 	add_child(rig_root)
 
 	var interior := TextureRect.new()
@@ -310,6 +335,10 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	elif mode == "workbench":
 		glow.position = Vector2(7, 5)
 		glow.size = Vector2(rect.size.x - 14, 88)
+	elif mode == "screen":
+		var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
+		glow.position = screen_rect.position
+		glow.size = screen_rect.size
 	else:
 		glow.position = Vector2(5, 5)
 		glow.size = rect.size - Vector2(10, 10)
@@ -373,10 +402,11 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		focus_frame.add_theme_stylebox_override("panel", _workbench_focus_style())
 		rig_root.add_child(focus_frame)
 	elif mode == "screen":
+		var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
 		scanline = ColorRect.new()
 		scanline.name = "CRTScanline"
-		scanline.position = Vector2(6, 7)
-		scanline.size = Vector2(rect.size.x - 12, 2)
+		scanline.position = screen_rect.position + Vector2(2, 2)
+		scanline.size = Vector2(screen_rect.size.x - 4, 1)
 		scanline.color = Color(0.55, 1.0, 0.68, 0.0)
 		scanline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rig_root.add_child(scanline)
@@ -392,10 +422,36 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		"motes": motes,
 		"mode": mode,
 		"travel": float(spec.get("travel", 0.0)),
+		"screen_rect": spec.get("screen_rect", Rect2()),
 		"scanline": scanline,
 		"focus_frame": focus_frame,
 	}
 	states[id] = "closed"
+
+
+func set_proximity(id: String, active: bool) -> void:
+	if not rigs.has(id) or is_animating(id) or is_open(id):
+		return
+	var rig: Dictionary = rigs[id]
+	if str(rig.get("mode", "")) != "screen":
+		return
+	for door_value in rig.get("doors", []):
+		var door := door_value as Control
+		if door != null:
+			door.scale = Vector2.ONE
+			door.modulate = Color.WHITE
+	var scanline := rig.get("scanline") as ColorRect
+	if scanline == null:
+		return
+	if active:
+		var glow := rig.get("glow") as ColorRect
+		var screen_top := glow.position.y if glow != null else 7.0
+		var screen_height := glow.size.y if glow != null else 42.0
+		var travel := maxf(1.0, screen_height - 5.0)
+		scanline.position.y = screen_top + 2.0 + fmod(float(Time.get_ticks_msec()) * 0.022, travel)
+		scanline.color.a = 0.24
+	else:
+		scanline.color.a = 0.0
 
 
 func _door_piece(source_rect: Rect2, local_rect: Rect2, local_position: Vector2) -> TextureRect:
