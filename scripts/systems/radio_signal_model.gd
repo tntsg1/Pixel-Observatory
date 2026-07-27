@@ -79,8 +79,15 @@ var classifications := {}            # index -> "rfi" | "source"
 func configure(profile: Dictionary) -> void:
 	target_id = str(profile.get("target_id", target_id))
 	target_kind = str(profile.get("kind", target_kind))
-	true_azimuth = float(profile.get("azimuth", true_azimuth))
-	true_altitude = float(profile.get("altitude", true_altitude))
+	true_azimuth = wrapf(float(profile.get("azimuth", true_azimuth)), 0.0, 360.0)
+	# FAST can illuminate a 300 m paraboloid only inside its 40 degree
+	# zenith-angle envelope. Clamp legacy profiles here so an old save cannot
+	# create several visually identical targets on the unreachable outer rim.
+	true_altitude = clampf(
+		float(profile.get("altitude", true_altitude)),
+		90.0 - FAST_MAX_ZENITH_ANGLE_DEG,
+		88.0
+	)
 	true_period_ms = float(profile.get("period_ms", true_period_ms))
 	true_dm = float(profile.get("dm", true_dm))
 	true_center_mhz = float(profile.get("center_mhz", true_center_mhz))
@@ -98,9 +105,25 @@ func configure(profile: Dictionary) -> void:
 	period_threshold = clampf(float(profile.get("period_threshold", 0.60)), 0.35, 0.95)
 	dm_threshold = clampf(float(profile.get("dm_threshold", 0.60)), 0.35, 0.95)
 	rfi_threshold = clampf(float(profile.get("rfi_threshold", 0.75)), 0.50, 1.0)
-	# start the cabin a realistic distance off-target
-	azimuth = true_azimuth + float(profile.get("start_offset_az", 24.0))
-	altitude = true_altitude - float(profile.get("start_offset_alt", 16.0))
+	# Campaign profiles may provide an absolute start point so each observing
+	# session has a distinct cable path. Offset fields remain supported for old
+	# saves and free-observation catalog entries.
+	azimuth = wrapf(
+		float(profile.get(
+			"start_azimuth",
+			true_azimuth + float(profile.get("start_offset_az", 24.0))
+		)),
+		0.0,
+		360.0
+	)
+	altitude = clampf(
+		float(profile.get(
+			"start_altitude",
+			true_altitude - float(profile.get("start_offset_alt", 16.0))
+		)),
+		90.0 - FAST_MAX_ZENITH_ANGLE_DEG,
+		88.0
+	)
 	az_velocity = 0.0
 	alt_velocity = 0.0
 	window_center_mhz = float(profile.get("start_center_mhz", 1400.0))

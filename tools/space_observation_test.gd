@@ -128,13 +128,11 @@ func _test_model() -> void:
 	# but cannot skip the diagnostic.
 	_check(not m.wavefront_ok(), "align. starts with a large wavefront error")
 	var before := m.psf_sharpness()
-	var dominant_bank := m.max_wavefront_group()
-	var wrong_bank := (dominant_bank + 1) % 3
-	var wrong_before := m.wavefront_group_error(wrong_bank)
-	_check(not m.coarse_adjust_group(wrong_bank), "align. a non-dominant bank is diagnosed, not accepted")
-	_check(m.wavefront_group_error(wrong_bank) < wrong_before, "align. wrong bank actuation gives only a small physical improvement")
-	_check(not m.wavefront_coarse_complete, "align. wrong bank cannot complete coarse phasing")
-	_check(m.coarse_adjust_group(dominant_bank), "align. the dominant six-segment bank completes coarse phasing")
+	for bank_index in [1, 0, 2]:
+		_check(m.coarse_adjust_group(bank_index), "align. bank %s completes its own actuator cycle" % String.chr(65 + bank_index))
+		if bank_index != 2:
+			_check(not m.wavefront_coarse_complete, "align. unfinished banks cannot be skipped")
+	_check(m.wavefront_coarse_complete, "align. all three verified banks complete coarse phasing")
 	_check(m.wavefront_anomaly_segments().size() == 4, "align. coarse phasing leaves four visible residual segments")
 	for segment_index in m.wavefront_anomaly_segments():
 		while absf(m.segment_phase_error(segment_index)) > 0.12:
@@ -331,19 +329,18 @@ func _test_scene(gm: Node) -> void:
 	var guide_chain := scene.get_node_or_null("OperationChainFeedback")
 	_check(guide_chain != null, "guide. success reveals wavefront alignment without optical-telescope wording")
 
-	# wavefront: the player diagnoses one of three banks. A wrong choice is
-	# visible but gentle; the correct bank reveals four clickable residuals.
-	var scene_dominant := m.max_wavefront_group()
-	var scene_wrong := (scene_dominant + 1) % 3
-	scene.call("_select_wavefront_group", scene_wrong)
-	scene.call("_execute_wavefront_group")
-	await create_timer(0.95).timeout
-	_check(not m.wavefront_coarse_complete, "align. wrong visual bank does not auto-complete coarse phasing")
-	scene.call("_select_wavefront_group", scene_dominant)
-	scene.call("_execute_wavefront_group")
-	await create_timer(0.95).timeout
+	# wavefront: A/B/C are independent actuator banks. Selection is not
+	# completion, and any order is valid as long as each bank settles.
+	for bank_index in [2, 0, 1]:
+		scene.call("_select_wavefront_group", bank_index)
+		_check(m.wavefront_bank_state(bank_index) == "selected",
+			"align. bank %s selection is explicit" % String.chr(65 + bank_index))
+		scene.call("_execute_wavefront_group")
+		await create_timer(1.05).timeout
+		_check(m.wavefront_bank_state(bank_index) == "resolved",
+			"align. bank %s resolves after actuation and settling" % String.chr(65 + bank_index))
 	_check(m.wavefront_coarse_complete and not m.wavefront_ok(),
-		"align. correct bank actuation stops before precision completion")
+		"align. three bank cycles stop before precision completion")
 	_check(m.wavefront_anomaly_segments().size() == 4,
 		"align. correct bank exposes four amber residual segments")
 	var coarse_execute := scene.find_child("CoarseWavefrontExecute", true, false) as Button

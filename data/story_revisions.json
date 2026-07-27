@@ -391,7 +391,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "image": "res://assets/assembly/fast_main_blueprint.png",
+      "image": "res://assets/assembly/fast_blueprint_center_cropped.png",
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "FAST is a 500-meter radio telescope in Guizhou. Its active reflector reshapes below a suspended feed cabin, directing radio waves into receivers that turn an invisible sky into measurable signals.",

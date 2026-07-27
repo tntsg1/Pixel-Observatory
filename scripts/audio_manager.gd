@@ -39,6 +39,7 @@ const EVENT_PATHS := {
 	"ui_confirm": ["res://assets/audio/sfx/ui_click_mechanical.ogg"],
 	"ui_select": ["res://assets/audio/sfx/ui_click_mechanical.ogg"],
 	"ui_adjust": ["res://assets/audio/sfx/mechanical_adjust.ogg"],
+	"collimation_adjust_loop": ["res://assets/audio/sfx/collimation_adjust_loop.ogg"],
 	"ui_error": ["res://assets/audio/sfx/ui_error.wav"],
 	"ui_blocked": ["res://assets/audio/sfx/ui_error.wav"],
 	"assembly_part_installed": ["res://assets/audio/sfx/assembly_drawer_open.ogg"],
@@ -46,6 +47,7 @@ const EVENT_PATHS := {
 	"focus_locked": ["res://assets/audio/sfx/focus_lock.wav"],
 	"finder_lock": ["res://assets/audio/sfx/target_lock.wav"],
 	"target_locked": ["res://assets/audio/sfx/target_lock.wav"],
+	"mode_switch": ["res://assets/audio/sfx/mechanical_lock.ogg"],
 	"assembly_completed": ["res://assets/audio/sfx/mechanical_lock.ogg"],
 	"mission_completed": ["res://assets/audio/sfx/mechanical_lock.ogg"],
 	"guide_locked": ["res://assets/audio/sfx/space_lock.wav"],
@@ -61,6 +63,7 @@ const EVENT_PATHS := {
 	"fast_cabin_lock": ["res://assets/audio/sfx/mechanical_lock.ogg"],
 	"fast_tune_window": ["res://assets/audio/sfx/mechanical_adjust.ogg"],
 	"fast_tune_locked": ["res://assets/audio/sfx/space_lock.wav"],
+	"fast_fold_adjust": ["res://assets/audio/sfx/collimation_adjust_loop.ogg"],
 	"fast_rfi_mark": ["res://assets/audio/sfx/ui_click_mechanical.ogg"],
 	"fast_rfi_clean": ["res://assets/audio/sfx/space_lock.wav"],
 	"fast_fold_step": ["res://assets/audio/sfx/mechanical_adjust.ogg"],
@@ -163,7 +166,9 @@ func set_music_volume_db(value: float) -> void:
 func play_event(event_name: String) -> void:
 	if not SFX_OUTPUT_ENABLED or not sfx_enabled:
 		return
-	var paths: Array = EVENT_PATHS.get(event_name, EVENT_PATHS.get("ui_confirm", []))
+	# Visual feedback events may intentionally be silent. Unknown names must not
+	# turn into surprise generic clicks.
+	var paths: Array = EVENT_PATHS.get(event_name, [])
 	if paths.is_empty():
 		return
 	var now := Time.get_ticks_msec() / 1000.0

@@ -534,12 +534,21 @@ func _ready() -> void:
 	call_deferred("_show_focus_tutorial")
 
 
+func _active_observation_requirements() -> Dictionary:
+	if not is_free_observation:
+		return GameManager.current_level().get("observation_requirements", {})
+	var free_requirements = selected_object.get("free_observation_requirements", {})
+	if free_requirements is Dictionary:
+		return (free_requirements as Dictionary).duplicate(true)
+	return {}
+
+
 func _show_focus_tutorial() -> void:
 	# The object guide is modal. Queue first-use focus/weather/tracking help
 	# until it closes so the shared tutorial layer cannot pierce the dialog.
 	if quiz_brief_overlay != null and is_instance_valid(quiz_brief_overlay):
 		return
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	if requirements.has("filter") and not InteractionFeedback.was_tutorial_seen("first_nebula_filter"):
 		InteractionFeedback.tutorial_highlight_once(
 			technique_filter_button,
@@ -557,7 +566,7 @@ func _show_focus_tutorial() -> void:
 			technique_target,
 			"first_averted_vision",
 			GameManager.text(
-				"Do not stare at the faint object. Hold Shift for 1.25 seconds, keep the telescope still, and rest your gaze on the side marker.",
+				"Do not stare at the faint object. Hold Shift for 1.25 seconds and keep the target near the side-view marker while you guide the telescope.",
 				"不要直盯暗弱天体。按住 Shift 1.25 秒，保持望远镜不动，并把视线放在目标旁的偏视标记上。"
 			),
 			self
@@ -608,7 +617,7 @@ func _is_dark_adaptation_target() -> bool:
 	if not requires_focus:
 		return false
 	var type_lower := str(selected_object.get("type_en", "")).to_lower()
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	return type_lower.contains("nebula") or type_lower.contains("galaxy") or requirements.has("dark_adaptation_min")
 
 
@@ -820,7 +829,7 @@ func _process(delta: float) -> void:
 	if _is_dark_adaptation_target():
 		_advance_dark_adaptation(delta)
 		_update_averted_vision_guide(delta)
-	if technique_reevaluate_timer >= 0.25 and not GameManager.current_level().get("observation_requirements", {}).is_empty():
+	if technique_reevaluate_timer >= 0.25 and not _active_observation_requirements().is_empty():
 		technique_reevaluate_timer = 0.0
 		observation = _evaluate()
 		_refresh_target_sprite()
@@ -877,28 +886,23 @@ func _advance_drift(delta: float) -> void:
 	if GameManager.has_tracking_mount_equipped():
 		tracking_cancel = GameManager.tracking_rate()
 	var drift_speed := DRIFT_SPEED_BASE * mag_factor * (1.0 - tracking_cancel)
-	var averted_hold := _averted_vision_input_held() and bool(
-		GameManager.current_level().get("observation_requirements", {}).get("require_averted_vision", false)
-	)
-	# During the short side-gaze hold the player is explicitly keeping the
-	# instrument still. Freeze the correction reference and ignore WASD so a
-	# held Shift + movement chord cannot push the centered target away.
-	if not averted_hold:
-		drift_offset += drift_direction * drift_speed * delta
+	# Shift changes the observer's gaze, not the telescope drive. Earth drift,
+	# tracking compensation, keyboard correction, and the touch stick all keep
+	# running while averted vision is held.
+	drift_offset += drift_direction * drift_speed * delta
 
 	var correction := Vector2.ZERO
-	if not averted_hold:
-		if Input.is_key_pressed(KEY_A) or Input.is_action_pressed("move_left"):
-			correction.x -= 1.0
-		if Input.is_key_pressed(KEY_D) or Input.is_action_pressed("move_right"):
-			correction.x += 1.0
-		if Input.is_key_pressed(KEY_W) or Input.is_action_pressed("move_up"):
-			correction.y -= 1.0
-		if Input.is_key_pressed(KEY_S) or Input.is_action_pressed("move_down"):
-			correction.y += 1.0
-		# Mobile: the virtual joystick doubles as the drift-correction stick.
-		if correction == Vector2.ZERO:
-			correction = TouchInput.move_vector()
+	if Input.is_key_pressed(KEY_A) or Input.is_action_pressed("move_left"):
+		correction.x -= 1.0
+	if Input.is_key_pressed(KEY_D) or Input.is_action_pressed("move_right"):
+		correction.x += 1.0
+	if Input.is_key_pressed(KEY_W) or Input.is_action_pressed("move_up"):
+		correction.y -= 1.0
+	if Input.is_key_pressed(KEY_S) or Input.is_action_pressed("move_down"):
+		correction.y += 1.0
+	# Mobile: the virtual joystick doubles as the drift-correction stick.
+	if correction == Vector2.ZERO:
+		correction = TouchInput.move_vector()
 	if correction != Vector2.ZERO:
 		drift_offset -= correction.normalized() * DRIFT_CORRECTION_SPEED * delta
 
@@ -994,7 +998,7 @@ func _averted_vision_input_held() -> bool:
 
 
 func _update_averted_vision_guide(delta: float) -> void:
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	if not bool(requirements.get("require_averted_vision", false)):
 		return
 	var was_confirmed := averted_vision_confirmed
@@ -1263,7 +1267,9 @@ func _apply_breathing_and_jitter(t: float) -> void:
 			if blur_overlay != null:
 				blur_overlay.modulate.a = 0.0
 			if turbulence_material_main != null:
-				var solid_blur := lerpf(0.0, 22.0, pow(clampf(blur_weight + breathing, 0.0, 1.0), 0.72))
+				var solid_blur := _solid_body_defocus_texture_radius(
+					clampf(blur_weight + breathing, 0.0, 1.0)
+				)
 				turbulence_material_main.set_shader_parameter("blur_radius_px", solid_blur)
 				turbulence_material_main.set_shader_parameter(
 					"brightness",
@@ -1359,7 +1365,7 @@ func _init_focus() -> void:
 	# Quantize to the slider grid so dragging can land EXACTLY on target.
 	target_focus_value = snappedf(target_focus_value, 0.005)
 	focus_tolerance = _tolerance_for(selected_object)
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	focus_tolerance *= float(requirements.get("focus_multiplier", 1.0))
 	focus_value = 0.5
 	if absf(focus_value - target_focus_value) < 0.12:
@@ -1402,7 +1408,7 @@ func _evaluate() -> Dictionary:
 			"ratios": {"light": 1.0, "clarity": 1.0, "stability": 1.0}
 		}
 	var context := {"observation_mode": observation_mode}
-	context["observation_requirements"] = GameManager.current_level().get("observation_requirements", {})
+	context["observation_requirements"] = _active_observation_requirements()
 	context["exposure"] = exposure_value
 	context["filter"] = active_filter
 	context["dark_adaptation"] = dark_adaptation
@@ -1639,7 +1645,7 @@ func _build() -> void:
 	else:
 		_title_bar(GameManager.text("Telescope View", "望远镜视野"))
 	_build_observation_panel()
-	if _uses_observation_method(GameManager.current_level().get("observation_requirements", {})):
+	if _uses_observation_method(_active_observation_requirements()):
 		_build_technique_panel()
 	if drift_enabled:
 		_build_drift_panel()
@@ -2115,7 +2121,7 @@ const DRIFT_ROW_H := 20.0
 
 
 func _build_technique_panel() -> void:
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	var panel_pos := Vector2(54, 614)
 	var panel_size := Vector2(680, 44)
 	_pixel_panel(self, panel_pos, panel_size, COL_NAVY, COL_BRASS)
@@ -2157,8 +2163,8 @@ func _build_technique_panel() -> void:
 	if bool(requirements.get("require_averted_vision", false)):
 		var shift_hint := _plabel(
 			GameManager.text(
-				"Hold SHIFT 1.25s · keep telescope still",
-				"按住 Shift 1.25 秒，望远镜保持不动"
+				"Hold SHIFT 1.25s · keep target near the side marker",
+				"按住 Shift 1.25 秒，让目标保持在侧视标记附近"
 			),
 			Vector2(x, panel_pos.y + 4), Vector2(240, 14), 9,
 			Color(0.48, 0.88, 1.0)
@@ -2181,7 +2187,7 @@ func _uses_observation_method(requirements: Dictionary) -> bool:
 func _refresh_technique_status() -> void:
 	if technique_status_label == null:
 		return
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	var pending: Array[String] = []
 	var ready: Array[String] = []
 	if requirements.has("filter"):
@@ -2216,18 +2222,18 @@ func _refresh_technique_status() -> void:
 		elif averted_vision_active:
 			if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
 				pending.append(GameManager.text(
-					"Release Shift, center the target, then hold again",
-					"先松开 Shift 并让目标居中，再重新按住"
+					"Keep SHIFT held; guide the target back toward the side-view marker",
+					"继续按住 Shift，把目标带回侧视标记附近"
 				))
 			else:
 				pending.append(GameManager.text(
 					"Keep holding SHIFT · %d%%" % roundi(averted_hold_visual * 100.0),
-					"继续按住 Shift，望远镜保持不动 · %d%%" % roundi(averted_hold_visual * 100.0)
+					"继续按住 Shift，让目标保持在侧视标记附近 · %d%%" % roundi(averted_hold_visual * 100.0)
 				))
 		else:
 			pending.append(GameManager.text(
-				"Hold SHIFT for 1.25s; keep telescope still",
-				"按住 Shift 1.25 秒，望远镜保持不动"
+				"Hold SHIFT for 1.25s; keep the target near the side-view marker",
+				"按住 Shift 1.25 秒，让目标保持在侧视标记附近"
 			))
 	if requirements.has("seeing_patience"):
 		var steady_seconds := 4.0 + float(requirements.get("seeing_patience", 0.0)) * 4.0
@@ -2415,21 +2421,21 @@ func _current_feedback() -> String:
 		)
 	if not _missing_required_parts().is_empty():
 		return _missing_required_parts_text()
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	if bool(requirements.get("require_averted_vision", false)) and not averted_vision_confirmed:
 		if averted_vision_active:
 			if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
 				return GameManager.text(
-					"Release Shift and center the target first. Then hold Shift again without moving the telescope.",
-					"请先松开 Shift，让目标回到中心；再重新按住 Shift，并保持望远镜不动。"
+					"Keep Shift held and guide the target back toward the side-view marker.",
+					"继续按住 Shift，把目标带回侧视标记附近。"
 				)
 			return GameManager.text(
-				"Keep holding Shift and keep the telescope still: %.2f / %.2fs.",
-				"继续按住 Shift，望远镜保持不动：%.2f / %.2f 秒。"
+				"Keep holding Shift; keep the target near the side marker: %.2f / %.2fs.",
+				"继续按住 Shift，让目标保持在侧视标记附近：%.2f / %.2f 秒。"
 			) % [averted_vision_hold_seconds, AVERTED_VISION_HOLD_SECONDS]
 		return GameManager.text(
-			"Hold Shift for 1.25 seconds and keep the telescope still; rest your gaze on the side marker.",
-			"按住 Shift 1.25 秒并保持望远镜不动；把视线放在目标旁的偏视标记上。"
+			"Hold Shift for 1.25 seconds and keep the target near the side marker.",
+			"按住 Shift 1.25 秒，让目标保持在旁边的偏视标记附近。"
 		)
 	if is_focus_acceptable() and _collimation_severity() > 0.28:
 		return _quality_shortfall_text()
@@ -2955,7 +2961,7 @@ func _add_optical_lens_effect(parent: Control, center: Vector2) -> void:
 
 
 func _add_averted_vision_guide(parent: Control) -> void:
-	var requirements: Dictionary = GameManager.current_level().get("observation_requirements", {})
+	var requirements: Dictionary = _active_observation_requirements()
 	if not bool(requirements.get("require_averted_vision", false)) or not _is_diffuse_target():
 		return
 	averted_vision_guide = AvertedVisionGuide.new()
@@ -3043,7 +3049,7 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 	base_alpha = clampf(base_alpha + _dark_adaptation_alpha_bonus(), 0.0, 1.0)
 	# Brightness floor: a solid target never fades below identifiability.
 	base_alpha = maxf(base_alpha, _target_alpha_floor())
-	if GameManager.current_level().get("observation_requirements", {}).has("exposure_max"):
+	if _active_observation_requirements().has("exposure_max"):
 		base_alpha = clampf(base_alpha * lerpf(0.42, 1.35, exposure_value), 0.0, 1.0)
 	if _is_solid_body_target(id) and observation_mode != "naked_eye":
 		base_alpha = 1.0
@@ -3230,10 +3236,39 @@ func _solid_body_brightness(quality: String, effect: String) -> float:
 			luminance = 0.50
 	if effect == "dim":
 		luminance *= 0.82
+	if str(selected_object.get("id", "")) == "saturn":
+		# The official Saturn master is intentionally restrained, but at eyepiece
+		# scale its rings and globe must remain readable without making the body
+		# translucent. Lift RGB only; alpha remains fully opaque on the globe.
+		luminance *= 1.28
 	# Clouds and low quality attenuate photons, but never turn an opaque
 	# planetary surface into a translucent decal over the star field.
 	luminance *= lerpf(1.0, 0.55, cond_cloud_atten)
-	return clampf(luminance, 0.28, 1.0)
+	return clampf(luminance, 0.28, 1.20)
+
+
+func _solid_body_defocus_screen_radius(weight: float, object_id := "") -> float:
+	# Planet masters are large transparent canvases rendered at a small scale.
+	# Define the PSF in final eyepiece pixels so distant planets do not receive
+	# a token one-pixel blur while larger lunar targets become over-softened.
+	var resolved_id := object_id if object_id != "" else str(selected_object.get("id", ""))
+	var maximum_radius := 13.0
+	match resolved_id:
+		"moon", "moon_crater_copernicus", "moon_mare_tranquillitatis", "moon_terminator":
+			maximum_radius = 10.0
+		"jupiter", "saturn":
+			maximum_radius = 12.0
+		"mercury", "venus", "mars":
+			maximum_radius = 13.5
+		"uranus", "neptune":
+			maximum_radius = 16.0
+	return lerpf(0.0, maximum_radius, pow(clampf(weight, 0.0, 1.0), 0.78))
+
+
+func _solid_body_defocus_texture_radius(weight: float, object_id := "") -> float:
+	# TextureRect scale is applied after its shader. Compensating here makes
+	# the visible blur radius independent of the 1024px source-canvas scale.
+	return _solid_body_defocus_screen_radius(weight, object_id) / maxf(display_scale, 0.01)
 
 
 func _extended_field_environment_shader() -> Shader:
@@ -3285,11 +3320,14 @@ func _object_view_scale(id: String) -> float:
 			return 0.62
 		"orion_nebula":
 			return 0.70
-		"mercury": return 0.28
-		"venus": return 0.44
-		"saturn": return 0.72
-		"uranus": return 0.24
-		"neptune": return 0.20
+		# Licensed planet masters are 1024px transparent canvases. These values
+		# scale the measured opaque subject, not the canvas, so distant planets
+		# remain small resolved discs instead of large photographic decals.
+		"mercury": return 0.09
+		"venus": return 0.11
+		"saturn": return 0.14
+		"uranus": return 0.075
+		"neptune": return 0.07
 		"moon_crater_copernicus", "moon_mare_tranquillitatis", "moon_terminator": return 0.92
 		"albireo": return 0.46
 		"pleiades": return 0.90
@@ -3348,7 +3386,7 @@ func _refresh_target_sprite() -> void:
 	base_alpha = clampf(base_alpha + _dark_adaptation_alpha_bonus(), 0.0, 1.0)
 	# Brightness floor: a solid target never fades below identifiability.
 	base_alpha = maxf(base_alpha, _target_alpha_floor())
-	if GameManager.current_level().get("observation_requirements", {}).has("exposure_max"):
+	if _active_observation_requirements().has("exposure_max"):
 		base_alpha = clampf(base_alpha * lerpf(0.42, 1.35, exposure_value), 0.0, 1.0)
 	if _is_solid_body_target(id) and observation_mode != "naked_eye":
 		base_alpha = 1.0
@@ -3442,9 +3480,9 @@ func _update_target_visuals() -> void:
 			blur_overlay.visible = false
 			blur_overlay.modulate.a = 0.0
 		if turbulence_material_main != null:
-			var solid_blur := lerpf(0.0, 22.0, pow(combined_blur, 0.72))
+			var solid_blur := _solid_body_defocus_texture_radius(combined_blur)
 			turbulence_material_main.set_shader_parameter("blur_radius_px", solid_blur)
-			turbulence_material_main.set_shader_parameter("brightness", lerpf(1.0, 0.68, combined_blur))
+			turbulence_material_main.set_shader_parameter("brightness", lerpf(1.0, 0.54, combined_blur))
 	elif blur_overlay != null:
 		# Cross-fade: blurry photo dissolves into the sharp art.
 		# At full defocus the sharp base must be completely hidden. Leaving even
@@ -3467,6 +3505,13 @@ func _update_target_visuals() -> void:
 	ghost_b.scale = Vector2.ONE * display_scale
 	ghost_a.rotation = 0.0
 	ghost_b.rotation = 0.0
+	if solid_body:
+		# Planets and the Moon are one opaque optical image. Defocus is already
+		# applied by OPTICAL_TARGET_STATE_SHADER, so offset duplicate sprites
+		# would create a false multi-image "sticker" instead of a broadened PSF.
+		ghost_a.modulate.a = 0.0
+		ghost_b.modulate.a = 0.0
+		return
 	if bool(GameManager.current_level().get("chromatic_aberration", false)):
 		# The separation remains visible at best focus. Extended targets need a
 		# wider split than star points so the colored rims read at the same scale.
@@ -3545,7 +3590,10 @@ func _add_sprite(parent: Control, texture: Texture2D, center: Vector2, alpha: fl
 	var icon := TextureRect.new()
 	icon.texture = texture
 	icon.stretch_mode = TextureRect.STRETCH_KEEP
-	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	# These are photographic observation masters. Linear sampling keeps their
+	# short alpha edge and limb gradient clean; pixel UI assets use separate
+	# controls and retain nearest-neighbour filtering.
+	icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	icon.size = texture.get_size()
 	icon.scale = Vector2.ONE * sprite_scale
 	icon.position = center - icon.size * sprite_scale * 0.5

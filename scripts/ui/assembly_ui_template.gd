@@ -198,6 +198,9 @@ static func add_slot_hit_target(parent: Control, rect: Rect2, on_pressed: Callab
 	hit.text = ""
 	hit.flat = true
 	hit.focus_mode = Control.FOCUS_NONE
+	# Slots emit a semantic install/error event. A generic key click would make
+	# one physical placement sound like two unrelated actions.
+	hit.set_meta("feedback_sfx_suppressed", true)
 	hit.pressed.connect(on_pressed)
 	parent.add_child(hit)
 	# Soft gold hover glow: clickable blueprint slots answer the cursor with

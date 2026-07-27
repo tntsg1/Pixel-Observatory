@@ -103,7 +103,6 @@ const ALT_LABEL_POOL := 12
 const CENTER_TOLERANCE_FINDER := 2.0
 const CENTER_TOLERANCE_TELESCOPE := 0.5
 const EYE_LOCK_RADIUS_PX := 64.0
-const FAINT_MISSION_WAYPOINT_DIAMETER := 40.0
 const CONSTELLATION_SPAN_AZIMUTH := 26.0
 const CONSTELLATION_SPAN_ALTITUDE := 18.0
 
@@ -233,27 +232,17 @@ class ConstellationPatternOverlay extends Control:
 			draw_line(corner, corner + Vector2(0.0, sy * arm), color, 1.5)
 
 
-class FaintMissionTargetWaypoint extends Control:
-	var accent := CYAN
-	var locked := false
-
-	func configure(next_diameter: float, next_accent: Color, next_locked: bool) -> void:
+class FaintMissionTargetWaypoint extends TextureRect:
+	func configure(next_diameter: float, next_accent: Color, next_locked: bool, ring_texture: Texture2D) -> void:
 		size = Vector2.ONE * next_diameter
 		pivot_offset = size * 0.5
-		accent = next_accent
-		locked = next_locked
-		queue_redraw()
-
-	func _draw() -> void:
-		var center := size * 0.5
-		var radius := maxf(3.0, minf(size.x, size.y) * 0.5 - 2.0)
-		var color := Color(accent.r, accent.g, accent.b, 0.98 if locked else 0.86)
-		draw_arc(center, radius, 0.0, TAU, 48, color, 1.5, true)
-		var notch_inner := radius - 4.0
-		var notch_outer := radius + 1.0
-		for angle in [0.0, PI * 0.5, PI, PI * 1.5]:
-			var direction := Vector2.RIGHT.rotated(angle)
-			draw_line(center + direction * notch_inner, center + direction * notch_outer, color, 1.5, true)
+		texture = ring_texture
+		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		# Keep the authored brass highlights intact. Multiplying this texture by
+		# GOLD made its four mechanical nodes collapse into a dim dotted circle.
+		modulate = Color(1.0, 1.0, 1.0, 0.98 if next_locked else 0.88)
 
 
 var telescope_azimuth := 180.0
@@ -929,9 +918,8 @@ func _set_view_mode(mode: String) -> void:
 	if not bool(check.get("ok", false)):
 		if guidance_label != null:
 			guidance_label.text = GameManager.text(str(check.get("en", "")), str(check.get("zh", "")))
-			InteractionFeedback.error(guidance_label)
-		if mode_buttons.has(mode):
-			InteractionFeedback.error((mode_buttons[mode] as Dictionary).get("button") as Control)
+		var error_target: Control = (mode_buttons[mode] as Dictionary).get("button") as Control if mode_buttons.has(mode) else guidance_label
+		InteractionFeedback.error(error_target)
 		return
 	var previous_mode := view_mode
 	view_mode = mode
@@ -1921,28 +1909,32 @@ func _build_view_layer() -> void:
 	az_readout.z_index = Z_DYNAMIC_READOUT
 	alt_readout.z_index = Z_DYNAMIC_READOUT
 
-	# Reserve one HUD band at the bottom of the viewport. The permanent key
-	# legend comes first; live target guidance sits below it and never covers
-	# the telescope's optical center.
-	guidance_banner_bg = _rect(view_layer, Vector2(0, VIEW_RECT.size.y - 118), Vector2(VIEW_RECT.size.x, 118), Color(0.01, 0.02, 0.035, 0.90))
+	# Guidance belongs to the frame utility strip, not to the clipped sky canvas.
+	# Keeping this layer in screen space preserves the full horizon and leaves
+	# celestial hit testing constrained to VIEW_RECT.
+	var utility_y := VIEW_RECT.position.y + VIEW_RECT.size.y + 1.0
+	guidance_banner_bg = _rect(self, Vector2(VIEW_RECT.position.x, utility_y), Vector2(VIEW_RECT.size.x, 74), Color(0.01, 0.02, 0.035, 0.94))
 	guidance_banner_bg.z_index = Z_GUIDANCE
-	guidance_banner = _label(view_layer, "", Vector2(18, VIEW_RECT.size.y - 80), Vector2(VIEW_RECT.size.x - 36, 72), 15, Color(1.0, 0.85, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
+	guidance_banner = _label(self, "", Vector2(VIEW_RECT.position.x + 12, utility_y + 2), Vector2(VIEW_RECT.size.x - 24, 29), 14, Color(1.0, 0.85, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
 	guidance_banner.z_index = Z_GUIDANCE + 1
 	guidance_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	guidance_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	guidance_banner.max_lines_visible = 2
 
-	# Persistent control legend. Live guidance is deliberately below this row.
+	var controls_text := GameManager.text(
+		"DRAG: aim   BOOST: faster   TAP: change view",
+		"拖动：瞄准   加速：快速移动   点击：切换视野"
+	) if TouchInput.is_mobile() else GameManager.text(
+		"A/D: west/east   W/S: up/down   Shift: faster   1/2/3: view",
+		"A/D：向西/向东   W/S：抬高/降低   Shift：加速   1/2/3：视野"
+	)
 	controls_help = _label(
-		view_layer,
-		GameManager.text(
-			"MOVE  A/D: west/east   W/S: up/down   Shift: faster   1/2/3: view",
-			"移动  A/D：向西/向东   W/S：抬高/降低   Shift：加速   1/2/3：视野"
-		),
-		Vector2(12, VIEW_RECT.size.y - 112),
-		Vector2(VIEW_RECT.size.x - 24, 30),
-		14,
-		Color(0.88, 0.91, 0.94),
+		self,
+		controls_text,
+		Vector2(VIEW_RECT.position.x + 12, utility_y + 30),
+		Vector2(VIEW_RECT.size.x - 24, 22),
+		12,
+		Color(0.70, 0.74, 0.79),
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
 	controls_help.z_index = Z_GUIDANCE + 1
@@ -1994,7 +1986,7 @@ func _build_mode_buttons() -> void:
 	# icons. Labels and availability remain dynamic in both languages.
 	_rect(self, MODE_BUTTONS_OVERLAY_RECT.position, MODE_BUTTONS_OVERLAY_RECT.size, PANEL_COVER)
 
-	view_mode_caption = _label(self, "", Vector2(288, 708), Vector2(230, 20), 13, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	view_mode_caption = _label(self, "", Vector2(VIEW_RECT.position.x + 200, VIEW_RECT.position.y + VIEW_RECT.size.y + 53), Vector2(230, 18), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var icon_paths := {
 		"naked_eye": OBS_UI_DIR + "mode_eye_icon.png",
 		"finder": OBS_UI_DIR + "mode_finder_icon.png",
@@ -2013,6 +2005,8 @@ func _build_mode_buttons() -> void:
 		var caption := _label(self, _mode_label(mode), rect.position + Vector2(2, 51), Vector2(rect.size.x - 4, 18), 11, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 		var status := _label(self, "", rect.position + Vector2(50, 3), Vector2(18, 18), 12, WARNING, HORIZONTAL_ALIGNMENT_CENTER)
 		var hot := _transparent_button(rect, _mode_label(mode))
+		# A successful mode change has one semantic sound from the transition.
+		hot.set_meta("feedback_sfx_suppressed", true)
 		var captured := mode
 		hot.pressed.connect(func() -> void: _set_view_mode(captured))
 		add_child(hot)
@@ -2045,7 +2039,7 @@ func _update_mode_buttons() -> void:
 		caption.add_theme_color_override("font_color", CYAN if active else (Color(0.58, 0.58, 0.58) if not available else TEXT))
 		status.text = "!" if not available else ""
 		button.disabled = not available
-		InteractionFeedback.selection(button, active, CYAN, true, "mode_selected")
+		InteractionFeedback.selection(button, active, CYAN, true, "")
 		button.tooltip_text = _mode_label(mode) if available else GameManager.text(str(availability.get("en", "Unavailable")), str(availability.get("zh", "不可用")))
 	if view_mode_caption != null:
 		var captions := {"naked_eye": GameManager.text("EYE VIEW", "肉眼视野"), "finder": GameManager.text("FINDER VIEW", "寻星镜视野"), "telescope": GameManager.text("SCOPE VIEW", "望远镜视野")}
@@ -2282,6 +2276,8 @@ func _draw_action_hitboxes() -> void:
 	observe_disabled_shade = _rect(self, OBSERVE_RECT.position + Vector2(4, 4), OBSERVE_RECT.size - Vector2(8, 8), Color(0.0, 0.0, 0.0, 0.52))
 	observe_disabled_shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	observe_button = _transparent_button(OBSERVE_RECT, "Observe")
+	# The transition owns the single accepted button sound; suppress the automatic generic click.
+	observe_button.set_meta("feedback_sfx_suppressed", true)
 	observe_button.pressed.connect(_observe)
 	add_child(observe_button)
 
@@ -2460,7 +2456,7 @@ func _object_visual_for_mode(obj: Dictionary) -> Dictionary:
 	var shown := true
 	match view_mode:
 		"naked_eye":
-			if magnitude > 7.5:
+			if not bool(obj.get("naked_eye_visible", magnitude <= 7.5)) or magnitude > 7.5:
 				shown = false
 			elif category == "deep_sky" or magnitude > 5.5:
 				alpha = 0.14  # unknown faint smudge
@@ -2582,10 +2578,12 @@ func _rebuild_view(sync_camera := true) -> void:
 			alpha *= 0.7
 		icon.set_meta("base_alpha", alpha)
 		icon.modulate = Color(1, 1, 1, alpha)
-		# The visible target marker and the real pointer/click detection region
-		# are deliberately identical.
-		var detection_diameter := _target_feedback_ring_size(maxf(icon_size.x, icon_size.y))
-		var hit_rect := Rect2(center_local - Vector2.ONE * detection_diameter * 0.5, Vector2.ONE * detection_diameter)
+		# Visual guidance and pointer hit testing are separate concerns. Catalog
+		# angular size must never inflate the lock art or change the angular lock
+		# threshold.
+		var marker_diameter := _target_feedback_ring_size(maxf(icon_size.x, icon_size.y))
+		var hit_diameter := _target_hit_diameter(maxf(icon_size.x, icon_size.y))
+		var hit_rect := Rect2(center_local - Vector2.ONE * hit_diameter * 0.5, Vector2.ONE * hit_diameter)
 		button.position = hit_rect.position
 		button.size = hit_rect.size
 		in_view_targets[object_id] = {
@@ -2593,6 +2591,7 @@ func _rebuild_view(sync_camera := true) -> void:
 			"delta_alt": delta_alt,
 			"rect": rect,
 			"detection_rect": hit_rect,
+			"marker_diameter": marker_diameter,
 			"object_visible": object_visible,
 			"faint_waypoint": faint_mission_target and not object_visible
 		}
@@ -3080,11 +3079,9 @@ func _update_marker_frames() -> void:
 		# Approach and lock use the same target-derived footprint. The feedback
 		# ring must always surround the rendered object instead of shrinking
 		# inside large Moon/planet/deep-sky textures.
-		var detection_rect: Rect2 = target_info.get("detection_rect", target_rect)
-		# The moving marker belongs to the celestial object, not to the whole
-		# telescope aperture. Keep it close to small stars while allowing Moon
-		# and deep-sky textures to grow the ring just beyond their visible edge.
-		var ring_size := maxf(detection_rect.size.x, detection_rect.size.y)
+		var ring_size := float(target_info.get(
+			"marker_diameter",
+			_target_feedback_ring_size(maxf(target_rect.size.x, target_rect.size.y))))
 		var ring_path := LOCK_RING_TEXTURE if centered else APPROACH_RING_TEXTURE
 		var alpha := 1.0 if centered else 0.82
 		next_state = "locked" if centered else ("approach" if offset <= maxf(fov_x, fov_y) * 0.22 else "search")
@@ -3149,10 +3146,15 @@ func _update_faint_mission_target_waypoint(object_id: String) -> bool:
 	var info: Dictionary = in_view_targets.get(object_id, {})
 	if info.is_empty() or not bool(info.get("faint_waypoint", false)):
 		return false
-	var diameter := FAINT_MISSION_WAYPOINT_DIAMETER
+	var diameter := _target_feedback_ring_size(2.0)
 	var center: Vector2 = (info.get("rect", Rect2()) as Rect2).get_center()
 	var centered := _is_target_centered(object_id)
-	faint_mission_target_waypoint.configure(diameter, GOLD if centered else CYAN, centered)
+	# Faint mission targets use the same formal four-node brass ring in every
+	# view mode. The old cyan approach texture read as a placeholder circle,
+	# while the small locked version collapsed into a dotted ring. State is
+	# communicated by opacity and the existing lock feedback instead of
+	# swapping to a second, visually unrelated marker.
+	faint_mission_target_waypoint.configure(diameter, GOLD, centered, _load_png_texture(LOCK_RING_TEXTURE))
 	faint_mission_target_waypoint.position = center - faint_mission_target_waypoint.size * 0.5
 	faint_mission_target_waypoint.visible = true
 	faint_mission_target_waypoint_id = object_id
@@ -3188,7 +3190,7 @@ func _update_edge_target_indicator(object_id: String) -> void:
 		direction = Vector2.RIGHT
 	var half_bounds := Vector2(
 		center.x - edge_target_indicator.size.x * 0.5 - 12.0,
-		center.y - edge_target_indicator.size.y * 0.5 - 118.0)
+		center.y - edge_target_indicator.size.y * 0.5 - 12.0)
 	var edge_distance := INF
 	if absf(direction.x) > 0.0001:
 		edge_distance = minf(edge_distance, half_bounds.x / absf(direction.x))
@@ -3199,7 +3201,7 @@ func _update_edge_target_indicator(object_id: String) -> void:
 		Vector2(10.0, 10.0),
 		Vector2(
 			VIEW_RECT.size.x - 20.0,
-			VIEW_RECT.size.y - 118.0
+			VIEW_RECT.size.y - 20.0
 		)
 	)
 	desired.x = clampf(desired.x, safe_rect.position.x, safe_rect.end.x - edge_target_indicator.size.x)
@@ -3300,9 +3302,18 @@ func _fade_edge_target_indicator_to_object(object_id: String) -> void:
 
 
 func _target_feedback_ring_size(target_diameter: float) -> float:
-	var ring_minimum := 40.0 if view_mode == "naked_eye" else (44.0 if view_mode == "finder" else 48.0)
-	var ring_padding := maxf(12.0, target_diameter * 0.25)
-	return maxf(ring_minimum, target_diameter + ring_padding)
+	var ring_minimum := 42.0 if view_mode == "naked_eye" else (42.0 if view_mode == "finder" else 48.0)
+	var ring_maximum := 42.0 if view_mode == "naked_eye" else (64.0 if view_mode == "finder" else 88.0)
+	var ring_padding := maxf(8.0, target_diameter * 0.18)
+	return clampf(target_diameter + ring_padding, ring_minimum, ring_maximum)
+
+
+func _target_hit_diameter(target_diameter: float) -> float:
+	# Comfortable pointer/touch acquisition without coupling the click target to
+	# the authored lock ring or to the actual angular centering tolerance.
+	var minimum := 40.0 if view_mode == "naked_eye" else (44.0 if view_mode == "finder" else 48.0)
+	var maximum := 64.0 if view_mode == "naked_eye" else (72.0 if view_mode == "finder" else 88.0)
+	return clampf(target_diameter + 16.0, minimum, maximum)
 
 
 func _target_ring(parent: Control, texture_path: String, center: Vector2, diameter: float, alpha: float) -> TextureRect:
@@ -3769,7 +3780,7 @@ func _observe() -> void:
 func _go_to_telescope_with_lock_feedback() -> void:
 	observe_transition_active = true
 	target_lock_state = "success"
-	InteractionFeedback.success(observe_button, "target_observed")
+	InteractionFeedback.success(observe_button, "ui_confirm")
 	if target_state_ring != null and is_instance_valid(target_state_ring):
 		target_state_ring.texture = _load_png_texture(LOCK_RING_TEXTURE)
 		target_state_ring.modulate = Color(1.15, 1.08, 0.72, 1.0)

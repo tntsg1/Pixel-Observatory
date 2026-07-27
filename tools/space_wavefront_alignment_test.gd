@@ -33,23 +33,34 @@ func _initialize() -> void:
 	]
 	_check(groups.all(func(node): return node is Button), "three six-segment diagnostic banks are available")
 
-	var dominant := model.max_wavefront_group()
-	var wrong := (dominant + 1) % 3
-	var wrong_before := model.wavefront_group_error(wrong)
-	scene.call("_select_wavefront_group", wrong)
+	scene.call("_select_wavefront_group", 1)
+	_check(model.wavefront_bank_state(1) == "selected", "selecting B does not complete or actuate any bank")
+	_check(model.wavefront_bank_state(0) == "unresolved" and model.wavefront_bank_state(2) == "unresolved",
+		"selecting B leaves A and C unresolved")
 	scene.call("_execute_wavefront_group")
 	await _settle(0.12)
 	_check(str(display.get("actuation_mode")) == "COARSE", "coarse actuation enters a visible mechanical RUN state")
-	await _settle(0.9)
-	_check(not model.wavefront_coarse_complete, "a wrong bank cannot complete coarse phasing")
-	_check(model.wavefront_group_error(wrong) < wrong_before, "a wrong bank produces a small physical improvement")
+	_check(model.wavefront_bank_state(1) == "actuating" or model.wavefront_bank_state(1) == "settling",
+		"B enters an explicit actuating or settling state")
+	await _settle(1.25)
+	_check(model.wavefront_bank_state(1) == "resolved", "B resolves only after actuation and settling")
+	_check(model.wavefront_bank_state(0) == "unresolved" and model.wavefront_bank_state(2) == "unresolved",
+		"resolving B cannot resolve A or C")
+	_check(not model.wavefront_coarse_complete, "one resolved bank cannot complete coarse phasing")
 	_check(scene.find_child("WavefrontDisplay", true, false).get_instance_id() == display_id,
 		"coarse actuation redraws the existing display instead of rebuilding the page")
 
-	scene.call("_select_wavefront_group", dominant)
-	scene.call("_execute_wavefront_group")
-	await _settle(1.0)
-	_check(model.wavefront_coarse_complete, "the dominant bank completes coarse phasing")
+	for group_index in [2, 0]:
+		scene.call("_select_wavefront_group", group_index)
+		_check(model.wavefront_bank_state(group_index) == "selected",
+			"bank %s selection is separate from execution" % String.chr(65 + group_index))
+		scene.call("_execute_wavefront_group")
+		# A repeated submit while RUN must be ignored.
+		scene.call("_execute_wavefront_group")
+		await _settle(1.4)
+		_check(model.wavefront_bank_state(group_index) == "resolved",
+			"bank %s resolves after its own mechanical cycle" % String.chr(65 + group_index))
+	_check(model.wavefront_coarse_complete, "B-C-A random order completes coarse phasing only after all banks")
 	_check(model.wavefront_anomaly_segments().size() == 4, "coarse phasing leaves four amber residual segments")
 	_check(not model.wavefront_ok(), "coarse phasing alone cannot pass the precision threshold")
 	display = scene.find_child("WavefrontDisplay", true, false)

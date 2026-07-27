@@ -1148,9 +1148,12 @@ func _handle_interaction(id: String) -> void:
 		_play_furniture_action("door", _enter_observatory_door)
 	elif id == "telescope":
 		if _space_console_active():
+			if GameManager.go_to_local_optical_observation("telescope"):
+				GameManager.clear_room_guidance()
+				return
 			_show_feedback(GameManager.text(
-				"This pad controls local optical observing. Use the lower-right Remote Instrument Console for this mission.",
-				"中央观测台只负责本地光学观测。本关请使用右下角的远程仪器控制台。"), 4200)
+				"This pad uses your assembled ground telescope. Finish a local optical build, or use the lower-right console for the remote mission.",
+				"中央观测台使用你已组装的地面光学望远镜。请先完成一台地面望远镜，远程任务则从右下角控制台进入。"), 4200)
 			return
 		if GameManager.try_story_for_trigger("before_observation", "sky"):
 			GameManager.set_observatory_spawn("telescope")
@@ -1354,6 +1357,33 @@ func _launch_remote_from_selector(kind: String, mode: String = "campaign") -> vo
 
 
 func _show_remote_free_catalog(kind: String) -> void:
+	# Free targets are acquired from the instrument itself. This compatibility
+	# entrypoint seeds the session and opens the console without presenting the
+	# legacy name-list modal.
+	if not GameManager.remote_free_unlocked(kind):
+		_show_feedback(GameManager.text(
+			"Complete the instrument's first campaign observation to unlock independent time.",
+			"请先完成这台仪器的首个主线观测，再进入自由观测。"), 3200)
+		return
+	var acquisition_catalog := GameManager.remote_free_catalog(kind)
+	if acquisition_catalog.is_empty():
+		_show_feedback(GameManager.text(
+			"No independent observing programs are available.",
+			"当前没有可用的自由观测计划。"), 2600)
+		return
+	var seed_entry := acquisition_catalog[0] as Dictionary
+	if not GameManager.begin_remote_free_observation(kind, str(seed_entry.get("id", ""))):
+		_show_feedback(GameManager.text(
+			"The remote acquisition console could not start.",
+			"远程目标截获控制台无法启动。"), 2600)
+		return
+	GameManager.consume_remote_free_intro(kind)
+	if stats_terminal_popup != null:
+		stats_terminal_popup.queue_free()
+		stats_terminal_popup = null
+	stats_terminal_animating = false
+	_enter_space_console(kind, "free")
+	return
 	if not GameManager.remote_free_unlocked(kind):
 		_show_feedback(GameManager.text(
 			"Complete the instrument's first campaign observation to unlock independent time.",

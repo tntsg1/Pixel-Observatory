@@ -9,7 +9,7 @@ const TARGET_LEVELS := {
 const AIM := Vector2(180.0, 45.0)
 const IN_VIEW_POSITION := Vector2(198.0, 51.0)
 const OUT_OF_VIEW_POSITION := Vector2(292.0, 51.0)
-const EXPECTED_WAYPOINT_DIAMETER := 40.0
+const EXPECTED_WAYPOINT_DIAMETER := 42.0
 
 var failures := 0
 var gm: Node
@@ -74,10 +74,13 @@ func _verify_in_view_waypoint(view: Control, target_id: String) -> void:
 	_check(hit_target != null and hit_target.visible, "%s waypoint remains selectable" % target_id)
 
 	var waypoint := view.get("faint_mission_target_waypoint") as Control
-	_check(waypoint != null and waypoint.visible, "%s hollow waypoint is visible" % target_id)
+	_check(waypoint != null and waypoint.visible, "%s formal asset waypoint is visible" % target_id)
 	_check(str(view.get("faint_mission_target_waypoint_id")) == target_id, "%s owns the active waypoint state" % target_id)
 	if waypoint != null:
-		_check(waypoint.size.distance_to(Vector2.ONE * EXPECTED_WAYPOINT_DIAMETER) < 0.1, "%s waypoint is approximately 40px" % target_id)
+		_check(waypoint is TextureRect, "%s faint waypoint uses the shared asset-backed ring control" % target_id)
+		var waypoint_texture := (waypoint as TextureRect).texture if waypoint is TextureRect else null
+		_check(waypoint_texture != null and waypoint_texture.resource_path.ends_with("target_lock_ring.png"), "%s faint waypoint uses the formal four-node target ring asset" % target_id)
+		_check(waypoint.size.distance_to(Vector2.ONE * EXPECTED_WAYPOINT_DIAMETER) < 0.1, "%s waypoint stays within the naked-eye 42px marker limit" % target_id)
 		var expected_center: Vector2 = (target_info.get("rect", Rect2()) as Rect2).get_center()
 		var actual_center := waypoint.position + waypoint.size * 0.5
 		_check(actual_center.distance_to(expected_center) < 0.5, "%s waypoint is centered on the real projection" % target_id)

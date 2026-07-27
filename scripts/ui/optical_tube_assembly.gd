@@ -84,10 +84,9 @@ func _ready() -> void:
 
 func _show_tube_tutorial() -> void:
 	InteractionFeedback.tutorial_highlight_once(blueprint, "first_tube_subassembly", GameManager.text(
-		"Build the internal reflected light path in order, then save the completed tube.",
-		"按顺序搭建内部反射光路，再保存完整镜筒。"
+		"Choose any uninstalled tube part, then place it in the matching blueprint slot. The optical-path diagram explains its function, not a forced order.",
+		"任选一个尚未安装的镜筒零件，再放入对应的蓝图槽位。光路图用于解释功能，不代表强制安装顺序。"
 	), self)
-
 
 func _build() -> void:
 	for child in get_children():
@@ -101,7 +100,7 @@ func _build() -> void:
 	_rect(Vector2.ZERO, Vector2(1024, 768), BG)
 	var is_newtonian := str(config.get("family", "")) == "newtonian"
 	var page_title := GameManager.text("NEWTONIAN OPTICAL TUBE SUB-ASSEMBLY", "牛顿光学镜筒子组装") if is_newtonian else GameManager.text("OPTICAL TUBE ASSEMBLY", "光学镜筒组件")
-	var page_subtitle := GameManager.text("Build the internal reflected light path in order, then save the completed tube component.", "按顺序完成内部反射光路，再保存完成的镜筒组件。") if is_newtonian else _subtitle()
+	var page_subtitle := GameManager.text("Install every internal optical component in any order, then save the completed tube.", "以任意顺序安装全部内部光学组件，再保存完成的镜筒。") if is_newtonian else _subtitle()
 	add_child(_label(page_title, Vector2(20, 14), Vector2(984, 30), 24, GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	add_child(_label(page_subtitle, Vector2(26, 46), Vector2(972, 24), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER))
 
@@ -330,10 +329,10 @@ func _clear_control(parent: Control) -> void:
 func _subtitle() -> String:
 	var family := str(config.get("family", ""))
 	match family:
-		"newtonian": return GameManager.text("Primary mirror -> diagonal secondary -> side focuser. Install the reflected path in order.", "主镜 -> 斜副镜 -> 侧置调焦座。请按反射光路顺序安装。")
+		"newtonian": return GameManager.text("Optical path: primary mirror -> diagonal secondary -> side focuser. Install matching parts in any order.", "光路：主镜 -> 斜副镜 -> 侧置调焦座。零件可按任意顺序装入对应槽位。")
 		"dobsonian": return GameManager.text("The large optical tube is separate from the Dobsonian rocker base.", "大口径光学镜筒与多布森摇臂底座分开组装。")
 		"cassegrain": return GameManager.text("Folded path: primary -> convex secondary -> central baffle -> rear focuser.", "折叠光路：主镜 -> 凸面副镜 -> 中央挡板 -> 后端调焦座。")
-		"gregorian": return GameManager.text("Install the optical support before the concave secondary mirror.", "请先安装光学支撑结构，再安装凹面副镜。")
+		"gregorian": return GameManager.text("Optical path: primary focus -> concave secondary -> final focus. Install matching parts in any order.", "光路：主焦点 -> 凹面副镜 -> 最终焦点。零件可按任意顺序安装。")
 	return ""
 
 
@@ -406,7 +405,7 @@ func _draw_blueprint() -> void:
 
 func _draw_slot(subpart: String, rect: Rect2) -> void:
 	var installed_now := bool(installed.get(subpart, false))
-	var next := _next_required_subpart() == subpart and GameManager.assembly_hints_enabled()
+	var next := not installed_now and GameManager.assembly_hints_enabled()
 	var selected := selected_subpart == subpart
 	# Cassegrain shares the printed-blueprint style: the art already carries every
 	# dashed box and label, so it uses the clean state-only slot (no duplicate
@@ -504,19 +503,17 @@ func _newtonian_installed_texture(subpart: String, final_rect: Rect2) -> Texture
 func _install_subpart(slot_subpart: String) -> void:
 	if install_animation_active:
 		return
-	call_deferred("_animate_install_error_if_idle", slot_subpart)
 	if bool(installed.get(slot_subpart, false)):
 		status_label.text = GameManager.text("This subpart is already installed.", "该子零件已经安装。")
+		_animate_install_error_if_idle(slot_subpart)
 		return
 	if selected_subpart == "":
 		status_label.text = GameManager.text("Select a tube subpart from the left first.", "请先从左侧选择镜筒子零件。")
+		_animate_install_error_if_idle(slot_subpart)
 		return
 	if selected_subpart != slot_subpart:
 		status_label.text = _mismatch_reason(selected_subpart, slot_subpart)
-		return
-	var next := _next_required_subpart()
-	if slot_subpart != next:
-		status_label.text = GameManager.text("Install " + _short_name(next) + " first.", "请先安装" + _short_name(next) + "。")
+		_animate_install_error_if_idle(slot_subpart)
 		return
 	install_animation_active = true
 	var animation := _capture_part_animation(slot_subpart)
@@ -601,6 +598,14 @@ func _mismatch_reason(selected: String, slot: String) -> String:
 	return GameManager.text("That part belongs to another position in this telescope.", "该零件属于这台望远镜的其他安装位置。")
 
 
+func _missing_subparts() -> Array[String]:
+	var missing: Array[String] = []
+	for item in config.get("order", []):
+		var subpart := str(item)
+		if not bool(installed.get(subpart, false)):
+			missing.append(subpart)
+	return missing
+
 func _next_required_subpart() -> String:
 	for item in config.get("order", []):
 		var subpart := str(item)
@@ -621,9 +626,15 @@ func _completion_ratio() -> float:
 
 
 func _save_assembly() -> void:
-	var next := _next_required_subpart()
-	if next != "":
-		status_label.text = GameManager.text("Tube assembly is incomplete. Install " + _short_name(next) + " first.", "镜筒组装未完成。请先安装" + _short_name(next) + "。")
+	var missing := _missing_subparts()
+	if not missing.is_empty():
+		var missing_names: Array[String] = []
+		for subpart in missing:
+			missing_names.append(_short_name(subpart))
+		status_label.text = GameManager.text(
+			"Tube assembly is incomplete. Missing: %s." % ", ".join(missing_names),
+			"镜筒组装尚未完成。缺少：%s。" % "、".join(missing_names)
+		)
 		InteractionFeedback.error(template_finish if template_finish != null else status_label)
 		return
 	var score := 100.0
@@ -798,13 +809,15 @@ func _light_path_text() -> String:
 
 
 func _status_text() -> String:
-	var next := _next_required_subpart()
-	if next == "":
-		return GameManager.text("All tube subparts are installed. Save this completed optical tube assembly.", "所有镜筒子零件已安装。请保存这个完整光学镜筒组件。")
+	var missing := _missing_subparts()
+	if missing.is_empty():
+		return GameManager.text("All tube subparts are installed. Save this completed optical tube assembly.", "所有镜筒子零件均已安装。请保存这个完整的光学镜筒组件。")
 	if not GameManager.assembly_hints_enabled():
-		return GameManager.text("Hints off. Install the tube parts in a valid order.", "提示已关闭。请按有效顺序安装镜筒零件。")
-	return GameManager.text("Next: " + _short_name(next) + ". The gold slot marks the required position.", "下一步：" + _short_name(next) + "。金色槽位标记当前安装位置。")
-
+		return GameManager.text("Hints off. Choose any uninstalled part and place it in its matching slot.", "提示已关闭。任选未安装零件，放入对应槽位即可。")
+	return GameManager.text(
+		"%d tube parts remain. Any matching part can be installed next." % missing.size(),
+		"还剩 %d 个镜筒零件，可任选一个安装到对应槽位。" % missing.size()
+	)
 
 func _short_name(value: String) -> String:
 	return value.replace("_", " ").capitalize()

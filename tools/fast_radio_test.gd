@@ -213,6 +213,7 @@ func _test_scene(gm: Node) -> void:
 	m.alt_velocity = 0.0
 	scene.call("_try_lock")
 	await create_timer(1.55).timeout
+	await _wait_stage_handoff(scene)
 	_check(int(scene.get("stage")) == 1, "5. locking advances to Tune")
 	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. feed-cabin lock reveals receiver tuning through radio-specific feedback")
 	_check(scene.get("tune_waterfall").size() > 0, "5. Tune opens with a persistent receiver-history waterfall")
@@ -221,7 +222,7 @@ func _test_scene(gm: Node) -> void:
 	m.window_center_mhz = m.true_center_mhz
 	m.window_bandwidth_mhz = m.true_bandwidth_mhz
 	scene.call("_confirm_tune")
-	await process_frame
+	await _wait_stage_handoff(scene)
 	_check(int(scene.get("stage")) == 2, "5. good tuning advances to RFI")
 	_check(scene.get_node_or_null("OperationChainFeedback") != null, "5. tuning feedback explains passband and RFI classification")
 
@@ -234,7 +235,7 @@ func _test_scene(gm: Node) -> void:
 	for i in range(m.rfi_peaks.size()):
 		m.classify(i, bool(m.rfi_peaks[i]["is_rfi"]))
 	scene.call("_confirm_rfi")
-	await process_frame
+	await _wait_stage_handoff(scene)
 	_check(int(scene.get("stage")) == 3, "5. correct classification advances to Fold")
 
 	# wrong fold -> blocked; correct + integration starts the clock prediction.
@@ -284,6 +285,16 @@ func _test_scene(gm: Node) -> void:
 func gm_completed(gm: Node) -> bool:
 	var completed: Array = gm.progress.get("completed_levels", [])
 	return completed.has(76)
+
+
+func _wait_stage_handoff(scene: Node) -> void:
+	if not bool(scene.get("stage_transition_active")):
+		return
+	await create_timer(1.12).timeout
+	await process_frame
+	if not bool(scene.get("stage_transition_active")):
+		return
+	_check(false, "5. stage handoff completed within the bounded wait")
 
 
 # ---------------------------------------------------------------- 7 no optical

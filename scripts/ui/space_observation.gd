@@ -5,6 +5,7 @@ const SpaceGuideFieldScript := preload("res://scripts/ui/space_guide_field.gd")
 const SpaceGuideAttitudeDisplayScript := preload("res://scripts/ui/space_guide_attitude_display.gd")
 const SpaceWavefrontDisplayScript := preload("res://scripts/ui/space_wavefront_display.gd")
 const SpaceFalseColourDisplayScript := preload("res://scripts/ui/space_false_colour_display.gd")
+const StageHandoffTransitionScript := preload("res://scripts/ui/stage_handoff_transition.gd")
 
 const TARGET_SCIENCE_ASSETS := {
 	"andromeda": {
@@ -52,6 +53,13 @@ var stage := 0
 var running := false
 var status_label: Label
 var content: Control
+var stage_bar_holder: Control
+var stage_transition = StageHandoffTransitionScript.new()
+var stage_transition_active := false
+var stage_handoff_snapshot: Dictionary = {}
+var stage_handoff_summary := ""
+var stage_transition_duration := 0.0
+var stage_handoff_summary_label: Label
 var readout: Label
 var scope: Control
 var elapsed := 0.0
@@ -116,6 +124,21 @@ var process_generate_button: Button
 var shutdown_overlay: Control
 var shutdown_status_label: Label
 var shutdown_phase := ""
+var acquisition_display: Control
+var acquisition_entries: Array[Dictionary] = []
+var acquisition_attitude := Vector2.ZERO
+var acquisition_velocity := Vector2.ZERO
+var acquisition_candidate_id := ""
+var acquisition_lock_button: Button
+var acquisition_readout: Label
+var acquisition_status_chip: Label
+var acquisition_locking := false
+var acquisition_lock_progress := 0.0
+var acquisition_lock_confirmed := false
+var acquisition_dragging := false
+var acquisition_last_error_band := -1
+var acquisition_drive_logged := false
+var acquisition_initialized := false
 
 const WAVEFRONT_FINE_STEP := 0.12
 const WAVEFRONT_MECHANICAL_DELAY := 0.15
@@ -126,6 +149,9 @@ const CONSOLE_BOOT_DURATION := 0.96
 const CONSOLE_BOOT_DURATION_REDUCED := 0.64
 const CONSOLE_SHUTDOWN_BEAT := 0.34
 const CONSOLE_SHUTDOWN_BEAT_REDUCED := 0.24
+const ACQUISITION_FINE_TOLERANCE_DEG := 2.2
+const ACQUISITION_SUN_ANGLE_MIN := 85.0
+const ACQUISITION_SUN_ANGLE_MAX := 135.0
 
 
 func _ready() -> void:
@@ -136,6 +162,10 @@ func _ready() -> void:
 	set_process(true)
 	_rebuild()
 	_boot_animation()
+
+
+func _exit_tree() -> void:
+	stage_transition.abort()
 
 
 # ---- power-on / power-off tube animation --------------------------------
@@ -296,6 +326,9 @@ func _set_shutdown_phase(phase_name: String, message: String) -> void:
 
 
 func _leave_observatory() -> void:
+	if stage_transition_active:
+		stage_transition.abort()
+		stage_transition_active = false
 	_power_down(func() -> void:
 		GameManager.set_observatory_spawn("telescope")
 		GameManager.go("observatory"))
@@ -364,6 +397,8 @@ func _stage_list() -> Array:
 	# first-time only; later visits skip straight to planning.
 	var out: Array = []
 	var free_observation := GameManager.is_remote_free_observation("space")
+	if free_observation:
+		out.append("acquire")
 	if not free_observation and GameManager.uses_full_tutorials() and not bool(GameManager.progress.get("space_intro_seen", false)):
 		out.append("intro")
 	if not bool(GameManager.progress.get("space_deployed", false)):
@@ -384,6 +419,10 @@ func _process(delta: float) -> void:
 	if console_reveal < 1.0:
 		console_reveal = minf(1.0, console_reveal + delta * 2.6)
 		_render_console()
+	if stage_transition_active:
+		return
+	if _key() == "acquire":
+		_process_acquisition(delta)
 	if _key() == "guide":
 		if guide_slew_active:
 			_refresh_guide()
@@ -417,6 +456,8 @@ func _process(delta: float) -> void:
 
 # ------------------------------------------------------------ shell
 func _rebuild() -> void:
+	stage_transition.abort()
+	stage_transition_active = false
 	for child in get_children():
 		child.queue_free()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -427,6 +468,8 @@ func _rebuild() -> void:
 		GameManager.text(str(free_entry.get("name_en", "")), str(free_entry.get("name_zh", "")))
 		if not free_entry.is_empty()
 		else GameManager.dict_text(GameManager.current_target(), "name"))
+	if not stages.is_empty() and _key() == "acquire":
+		target_name = GameManager.text("FREE DEEP-SKY FIELD", "自由深空天区")
 	_label(GameManager.text("Target: ", "目标：") + target_name
 		+ "   ·   " + GameManager.text("A space science observation, not a point-and-look image.", "这是一次空间科学观测，不是对准就看的简单成像。"),
 		Vector2(24, 44), Vector2(976, 20), 12, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
@@ -463,6 +506,9 @@ func _rebuild() -> void:
 
 func _stage_tip() -> String:
 	match _key():
+		"acquire": return GameManager.text(
+			"Drive the boresight across the sky. A catalog entry is only a coordinate beacon; the target is selected after fine lock.",
+			"移动视轴扫描天区。目录只提供坐标信标，完成精确锁定后才会正式选择目标。")
 		"intro": return GameManager.text("First-time briefing. Read each page.", "首次教学，逐页阅读。")
 		"deploy": return GameManager.text("Watch the order: solar array, then sunshield, mirrors, hinges, actuators. Wrong order is blocked and explained.", "注意顺序：太阳能板→遮阳罩→镜面→铰链→执行器。乱序会被拦截并说明原因。")
 		"plan": return GameManager.text("Pick the instrument and filter that fit THIS target. Each shows what it's good and bad for.", "为当前目标选择合适的仪器和滤镜。每个选项都会说明擅长与不擅长的方面。")
@@ -478,15 +524,20 @@ func _stage_tip() -> String:
 
 func _build_stage_bar() -> void:
 	var titles := {
+		"acquire": GameManager.text("Acquire", "目标截获"),
 		"intro": GameManager.text("Learn", "教学"),
 		"deploy": GameManager.text("Deploy", "部署"), "plan": GameManager.text("Plan", "规划"),
 		"thermal": GameManager.text("Thermal", "热控"), "guide": GameManager.text("Guide", "导星"),
 		"wavefront": GameManager.text("Align", "对准"), "expose": GameManager.text("Expose", "曝光"),
 		"process": GameManager.text("Process", "处理"), "filter": GameManager.text("Filter", "滤镜"),
 		"report": GameManager.text("Report", "报告")}
-	var holder := Control.new()
-	holder.position = Vector2(24, 74)
-	add_child(holder)
+	if stage_bar_holder != null and is_instance_valid(stage_bar_holder):
+		if stage_bar_holder.get_parent() != null:
+			stage_bar_holder.get_parent().remove_child(stage_bar_holder)
+		stage_bar_holder.queue_free()
+	stage_bar_holder = Control.new()
+	stage_bar_holder.position = Vector2(24, 74)
+	add_child(stage_bar_holder)
 	var w := 976.0 / float(stages.size())
 	for i in range(stages.size()):
 		var done := i < stage
@@ -512,7 +563,7 @@ func _build_stage_bar() -> void:
 			chip.disabled = not reachable
 			chip.add_theme_stylebox_override("disabled", _flat(fill, border, 2))
 			chip.add_theme_color_override("font_disabled_color", MUTED)
-		holder.add_child(chip)
+		stage_bar_holder.add_child(chip)
 
 
 func _goto_stage(index: int) -> void:
@@ -553,6 +604,7 @@ func _build_stage() -> void:
 	_clear()
 	_update_crt_colour_mode()
 	match _key():
+		"acquire": _build_acquire()
 		"intro": _build_intro()
 		"deploy": _build_deploy()
 		"plan": _build_plan()
@@ -581,13 +633,703 @@ func _update_crt_colour_mode() -> void:
 
 
 func _advance() -> void:
-	if _key() == "intro":
+	var completed_key := _key()
+	if completed_key == "intro":
 		GameManager.progress["space_intro_seen"] = true
-	if _key() == "deploy":
+	if completed_key == "deploy":
 		GameManager.progress["space_deployed"] = true
-	stage = mini(stage + 1, stages.size() - 1)
+	var target_stage := mini(stage + 1, stages.size() - 1)
+	if target_stage == stage or stage_transition_active:
+		return
+	_begin_space_stage_handoff(target_stage)
+
+
+func _begin_space_stage_handoff(target_stage: int) -> void:
+	var previous_stage := stage
+	var completed_key := str(stages[previous_stage])
+	var target_key := str(stages[target_stage])
+	var outgoing_workspace := content
+	var commit_control := get_viewport().gui_get_focus_owner() as Control
+	stage_handoff_snapshot = _space_handoff_snapshot(completed_key)
+	stage_handoff_summary = _space_handoff_summary(completed_key, stage_handoff_snapshot)
+	_log_line(completed_key.to_upper() + " HANDOFF", "VERIFIED", stage_handoff_summary)
+
+	var incoming_workspace := Control.new()
+	incoming_workspace.name = "SpaceStageWorkspace_%s" % target_key
+	incoming_workspace.position = outgoing_workspace.position
+	incoming_workspace.size = outgoing_workspace.size
+	add_child(incoming_workspace)
+	content = incoming_workspace
+	stage = target_stage
 	furthest_stage = maxi(furthest_stage, stage)
-	_rebuild()
+	_build_stage()
+
+	stage_transition_active = true
+	var chip_width := 976.0 / float(stages.size())
+	# Travel along the lower rail rather than through the stage label glyphs.
+	var from_point := Vector2(24.0 + (float(previous_stage) + 0.5) * chip_width, 101.0)
+	var to_point := Vector2(24.0 + (float(target_stage) + 0.5) * chip_width, 101.0)
+	stage_transition.begin(
+		self,
+		outgoing_workspace,
+		incoming_workspace,
+		from_point,
+		to_point,
+		InteractionFeedback.is_reduced_motion(),
+		func() -> void:
+			_build_stage_bar()
+			_add_space_handoff_summary()
+			_log_line(
+				"TELEMETRY PACKET",
+				"LOCKED",
+				"%s > %s" % [completed_key.to_upper(), target_key.to_upper()]
+			)
+			AudioManager.play_event("fast_array_relay"),
+		func() -> void:
+			stage_transition_active = false
+			stage_transition_duration = stage_transition.duration
+			_log_line(target_key.to_upper() + " PANEL", "READY", stage_handoff_summary)
+			_say(_stage_tip(), CYAN)
+			call_deferred("_focus_first_space_stage_control", incoming_workspace),
+		commit_control,
+		P_BRIGHT
+	)
+	stage_transition_duration = stage_transition.duration
+
+
+func _space_handoff_snapshot(completed_key: String) -> Dictionary:
+	match completed_key:
+		"acquire":
+			return {
+				"target": acquisition_candidate_id,
+				"error_deg": acquisition_attitude.distance_to(Vector2.ZERO),
+				"locked": acquisition_lock_confirmed,
+			}
+		"intro":
+			return {"briefing": "complete"}
+		"deploy":
+			return {"deployed": model.deployed.size(), "locked": model.deploy_locked}
+		"plan":
+			return {
+				"instrument": model.instrument,
+				"filter": model.filter,
+				"exposure_s": model.exposure_time,
+				"integrations": model.integrations,
+				"sun_angle": model.sun_angle,
+			}
+		"thermal":
+			return {
+				"sun_angle": model.sun_angle,
+				"attitude_deg": model.attitude_deg,
+				"stability": model.thermal_stability(),
+				"cold_k": model.cold_side_temp,
+			}
+		"guide":
+			return {
+				"pointing_error": model.pointing_error,
+				"drift_rate": model.drift_rate,
+				"guide_quality": model.guide_quality(),
+				"locked": model.guide_locked,
+			}
+		"wavefront":
+			return {
+				"wfe_nm": model.wavefront_error_nm,
+				"psf": model.psf_sharpness(),
+				"alignment": model.segment_alignment,
+			}
+		"expose":
+			return {
+				"frames": model.frames.size(),
+				"exposure_s": model.exposure_time,
+				"integrations": model.integrations,
+				"snr": model.snr(),
+			}
+		"process":
+			return {
+				"frames": model.frames.size(),
+				"kept": _space_kept_frame_count(),
+				"snr": model.snr(),
+				"aligned": model.frames_aligned,
+			}
+		"filter":
+			return {
+				"mapping_quality": model.mapping_quality(),
+				"channels": model.channel_map.duplicate(true),
+				"science": model.chosen_science,
+			}
+	return model.report().duplicate(true)
+
+
+func _space_kept_frame_count() -> int:
+	var kept := 0
+	for frame_value in model.frames:
+		if frame_value is Dictionary and bool((frame_value as Dictionary).get("kept", false)):
+			kept += 1
+	return kept
+
+
+func _space_handoff_summary(completed_key: String, snapshot: Dictionary) -> String:
+	match completed_key:
+		"acquire":
+			return "BEACON %s  LOCK %s" % [
+				str(snapshot.get("target", "FIELD")).to_upper(),
+				"NOMINAL" if bool(snapshot.get("locked", false)) else "CAPTURED",
+			]
+		"intro":
+			return GameManager.text("BRIEFING ACKNOWLEDGED", "教学说明已确认")
+		"deploy":
+			return "DEPLOYED %d  LATCH %s" % [
+				int(snapshot.get("deployed", 0)),
+				"LOCKED" if bool(snapshot.get("locked", false)) else "READY",
+			]
+		"plan":
+			return "%s / %s  %.0fs x%d  SUN %.1f deg" % [
+				str(snapshot.get("instrument", "")).to_upper(),
+				str(snapshot.get("filter", "")).to_upper(),
+				float(snapshot.get("exposure_s", 0.0)),
+				int(snapshot.get("integrations", 0)),
+				float(snapshot.get("sun_angle", 0.0)),
+			]
+		"thermal":
+			return "SUN %.1f deg  COLD %.1f K  STAB %.0f%%" % [
+				float(snapshot.get("sun_angle", 0.0)),
+				float(snapshot.get("cold_k", 0.0)),
+				float(snapshot.get("stability", 0.0)) * 100.0,
+			]
+		"guide":
+			return "ERROR %.2f arcsec  DRIFT %.2f arcsec/s  Q %.0f%%" % [
+				float(snapshot.get("pointing_error", 0.0)),
+				float(snapshot.get("drift_rate", 0.0)),
+				float(snapshot.get("guide_quality", 0.0)) * 100.0,
+			]
+		"wavefront":
+			return "WFE %.0f nm  PSF %.0f%%  ALIGN %.0f%%" % [
+				float(snapshot.get("wfe_nm", 0.0)),
+				float(snapshot.get("psf", 0.0)) * 100.0,
+				float(snapshot.get("alignment", 0.0)) * 100.0,
+			]
+		"expose":
+			return "FRAMES %d  %.0fs x%d  SNR %.1f" % [
+				int(snapshot.get("frames", 0)),
+				float(snapshot.get("exposure_s", 0.0)),
+				int(snapshot.get("integrations", 0)),
+				float(snapshot.get("snr", 0.0)),
+			]
+		"process":
+			return "KEPT %d/%d  STACK SNR %.1f" % [
+				int(snapshot.get("kept", 0)),
+				int(snapshot.get("frames", 0)),
+				float(snapshot.get("snr", 0.0)),
+			]
+		"filter":
+			return "RGB MAPPING %.0f%%  SCIENCE %s" % [
+				float(snapshot.get("mapping_quality", 0.0)) * 100.0,
+				str(snapshot.get("science", "")).to_upper(),
+			]
+	return GameManager.text("SCIENCE REPORT ARCHIVED", "科学报告已归档")
+
+
+func _add_space_handoff_summary() -> void:
+	if stage_handoff_summary_label != null and is_instance_valid(stage_handoff_summary_label):
+		if stage_handoff_summary_label.get_parent() != null:
+			stage_handoff_summary_label.get_parent().remove_child(stage_handoff_summary_label)
+		stage_handoff_summary_label.queue_free()
+	stage_handoff_summary_label = Label.new()
+	stage_handoff_summary_label.name = "SpaceHandoffInputSummary"
+	stage_handoff_summary_label.position = Vector2(44, 100)
+	stage_handoff_summary_label.size = Vector2(936, 14)
+	stage_handoff_summary_label.text = GameManager.text("TELEMETRY INPUT  ", "遥测输入  ") + stage_handoff_summary
+	stage_handoff_summary_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	stage_handoff_summary_label.add_theme_font_size_override("font_size", 9)
+	stage_handoff_summary_label.add_theme_color_override("font_color", P_DIM)
+	stage_handoff_summary_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	stage_handoff_summary_label.z_index = 80
+	add_child(stage_handoff_summary_label)
+
+
+func _focus_first_space_stage_control(root: Control) -> void:
+	if not is_instance_valid(root):
+		return
+	var queue: Array[Node] = [root]
+	while not queue.is_empty():
+		var node: Node = queue.pop_front()
+		if node is BaseButton:
+			var button := node as BaseButton
+			if button.visible and not button.disabled:
+				button.focus_mode = Control.FOCUS_ALL
+				button.grab_focus()
+				return
+		for child in node.get_children():
+			queue.append(child)
+
+
+# ============================================================ ACQUIRE
+func _build_acquire() -> void:
+	_initialize_acquisition()
+	var sky_panel := _open_view_to(
+		content, Vector2(36, 6), Vector2(632, 458),
+		GameManager.text("TARGET ACQUISITION / ATTITUDE SKY", "目标截获 / 姿态天区"))
+	var display := TargetAcquisitionDisplay.new()
+	display.name = "SpaceTargetAcquisitionDisplay"
+	display.position = Vector2(12, 42)
+	display.size = Vector2(608, 396)
+	display.on_drag = _drag_acquisition_attitude
+	var telescope_path := "res://assets/learning_media/heritage/jwst_official.jpg"
+	if ResourceLoader.exists(telescope_path):
+		display.telescope_texture = load(telescope_path) as Texture2D
+	sky_panel.add_child(display)
+	acquisition_display = display
+
+	var control_panel := _panel_to(
+		content, Vector2(680, 6), Vector2(308, 458), PANEL, P_MID,
+		GameManager.text("SPACECRAFT POINTING", "航天器指向"))
+	acquisition_status_chip = _label_to(
+		control_panel, "", Vector2(16, 45), Vector2(276, 30), 14, P_BRIGHT,
+		HORIZONTAL_ALIGNMENT_CENTER)
+	acquisition_status_chip.add_theme_stylebox_override(
+		"normal", _flat(Color("0b1114"), P_MID, 1))
+	acquisition_readout = _wrap_to(
+		control_panel, "", Vector2(18, 84), Vector2(272, 238), 12, P_MID)
+	acquisition_readout.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	acquisition_lock_button = _button(
+		GameManager.text("FINE LOCK TARGET", "精确锁定目标"),
+		Vector2(18, 334), Vector2(272, 52), Color("175238"))
+	acquisition_lock_button.name = "SpaceFineLockButton"
+	acquisition_lock_button.pressed.connect(_begin_acquisition_lock)
+	control_panel.add_child(acquisition_lock_button)
+	var input_help := _wrap_to(
+		control_panel,
+		GameManager.text(
+			"DRIVE: A/D + W/S or drag sky\nSHIFT: fine drive  |  lock only inside capture box",
+			"驱动：A/D + W/S，或拖动天区\nShift：精细驱动；目标进入捕获框后才能锁定"),
+		Vector2(20, 394), Vector2(268, 52), 10, P_DIM)
+	input_help.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_refresh_acquisition()
+	_say(GameManager.text(
+		"Move the boresight, not a menu cursor. Read the changing error vector and bring a safe deep-sky beacon into the capture box.",
+		"请移动航天器视轴，而不是选择菜单。观察实时误差矢量，把热安全的深空信标送入捕获框。"),
+		P_MID)
+
+
+func _initialize_acquisition() -> void:
+	acquisition_entries = _space_acquisition_entries()
+	if acquisition_initialized or acquisition_entries.is_empty():
+		return
+	var seed_entry: Dictionary = acquisition_entries[0]
+	for entry in acquisition_entries:
+		if bool(entry.get("thermal_safe", false)):
+			seed_entry = entry
+			break
+	acquisition_attitude = Vector2(
+		wrapf(float(seed_entry.get("yaw", 0.0)) - 18.0 + 180.0, 0.0, 360.0) - 180.0,
+		clampf(float(seed_entry.get("pitch", 0.0)) - 9.0, -68.0, 68.0))
+	acquisition_velocity = Vector2.ZERO
+	acquisition_candidate_id = ""
+	acquisition_locking = false
+	acquisition_lock_progress = 0.0
+	acquisition_lock_confirmed = false
+	acquisition_initialized = true
+	_log_line("DEEP-SKY CATALOG", "LOADED", "%d BEACONS" % acquisition_entries.size())
+	_log_line("ATTITUDE CONTROL", "MANUAL", "BORESIGHT FREE")
+
+
+func _space_acquisition_entries() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var sun := _approximate_sun_position()
+	for value in GameManager.remote_free_catalog("space"):
+		if not value is Dictionary:
+			continue
+		var catalog_entry := value as Dictionary
+		var target_id := str(catalog_entry.get("target_id", ""))
+		var radec := GameManager.object_radec(target_id)
+		var target_yaw := 0.0
+		var target_pitch := 0.0
+		if not radec.is_empty():
+			target_yaw = wrapf(float(radec.get("ra_hours", 0.0)) * 15.0 + 180.0, 0.0, 360.0) - 180.0
+			target_pitch = clampf(float(radec.get("dec_degrees", 0.0)), -70.0, 70.0)
+		else:
+			# A few generated deep-sky program targets do not yet live in the
+			# ground-observation catalog. Their fallback is stable per target,
+			# never random per visit, and remains separate from science results.
+			var stable_hash: int = absi(target_id.hash())
+			target_yaw = float(stable_hash % 330) - 165.0
+			target_pitch = float((stable_hash / 331) % 116) - 58.0
+		var solar_angle := _sky_angular_error(
+			Vector2(target_yaw, target_pitch), sun)
+		var profile: Dictionary = catalog_entry.get("profile", {})
+		var scheduled_solar_angle := clampf(
+			float(profile.get("start_attitude", 105.0)),
+			ACQUISITION_SUN_ANGLE_MIN,
+			ACQUISITION_SUN_ANGLE_MAX)
+		var thermal_safe := _acquisition_solar_angle_safe(solar_angle)
+		result.append({
+			"id": str(catalog_entry.get("id", "")),
+			"target_id": target_id,
+			"name": GameManager.text(
+				str(catalog_entry.get("name_en", target_id)),
+				str(catalog_entry.get("name_zh", target_id))),
+			"name_en": str(catalog_entry.get("name_en", target_id)),
+			"name_zh": str(catalog_entry.get("name_zh", target_id)),
+			"category": GameManager.text(
+				str(catalog_entry.get("category_en", "Deep-sky target")),
+				str(catalog_entry.get("category_zh", "深空目标"))),
+			"band": GameManager.text(
+				str(catalog_entry.get("recommended_band_en", "Infrared")),
+				str(catalog_entry.get("recommended_band_zh", "红外波段"))),
+			"science": GameManager.text(
+				str(catalog_entry.get("science_en", "")),
+				str(catalog_entry.get("science_zh", ""))),
+			"yaw": target_yaw,
+			"pitch": target_pitch,
+			"solar_angle": solar_angle,
+			"current_solar_angle": solar_angle,
+			"scheduled_solar_angle": scheduled_solar_angle,
+			"thermal_safe": thermal_safe,
+			"safe_window_available": not thermal_safe,
+			"safe_window_scheduled": false,
+			"visible_hours": clampf(10.0 - absf(target_pitch) / 18.0, 2.0, 10.0),
+		})
+	return result
+
+
+func _acquisition_solar_angle_safe(angle: float) -> bool:
+	return angle >= ACQUISITION_SUN_ANGLE_MIN and angle <= ACQUISITION_SUN_ANGLE_MAX
+
+
+func _schedule_acquisition_safe_window(entry_id: String) -> Dictionary:
+	for index in range(acquisition_entries.size()):
+		var entry := acquisition_entries[index]
+		if str(entry.get("id", "")) != entry_id:
+			continue
+		var scheduled_angle := clampf(
+			float(entry.get("scheduled_solar_angle", 105.0)),
+			ACQUISITION_SUN_ANGLE_MIN,
+			ACQUISITION_SUN_ANGLE_MAX)
+		entry["solar_angle"] = scheduled_angle
+		entry["thermal_safe"] = true
+		entry["safe_window_scheduled"] = true
+		entry["scheduled_sun_position"] = _sun_position_for_target_angle(
+			Vector2(
+				float(entry.get("yaw", 0.0)),
+				float(entry.get("pitch", 0.0))),
+			_approximate_sun_position(),
+			scheduled_angle)
+		acquisition_entries[index] = entry
+		return entry
+	return {}
+
+
+func _sun_position_for_target_angle(
+	target_position: Vector2,
+	reference_sun: Vector2,
+	required_angle: float
+) -> Vector2:
+	# The acquisition page schedules observations rather than changing a fixed
+	# target coordinate. Keep the season's solar declination, then find the
+	# future solar longitude that produces the scheduled field-of-regard angle.
+	var best := reference_sun
+	var best_error := INF
+	for degree in range(360):
+		var candidate := Vector2(float(degree) - 180.0, reference_sun.y)
+		var candidate_error := absf(
+			_sky_angular_error(target_position, candidate) - required_angle)
+		if candidate_error < best_error:
+			best = candidate
+			best_error = candidate_error
+	return best
+
+
+func _approximate_sun_position() -> Vector2:
+	var now := Time.get_datetime_dict_from_system(true)
+	var month_days := [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
+	var month := clampi(int(now.get("month", 1)), 1, 12)
+	var day_of_year := int(month_days[month - 1]) + int(now.get("day", 1))
+	var longitude := fposmod(280.46 + 0.9856474 * float(day_of_year), 360.0)
+	var declination := 23.44 * sin(deg_to_rad(longitude - 80.0))
+	return Vector2(wrapf(longitude + 180.0, 0.0, 360.0) - 180.0, declination)
+
+
+func _sky_angular_error(a: Vector2, b: Vector2) -> float:
+	var yaw_delta := deg_to_rad(wrapf(a.x - b.x + 180.0, 0.0, 360.0) - 180.0)
+	var pitch_a := deg_to_rad(a.y)
+	var pitch_b := deg_to_rad(b.y)
+	var cosine := (
+		sin(pitch_a) * sin(pitch_b)
+		+ cos(pitch_a) * cos(pitch_b) * cos(yaw_delta))
+	return rad_to_deg(acos(clampf(cosine, -1.0, 1.0)))
+
+
+func _acquisition_entry(entry_id: String) -> Dictionary:
+	for entry in acquisition_entries:
+		if str(entry.get("id", "")) == entry_id:
+			return entry
+	return {}
+
+
+func _nearest_acquisition_entry() -> Dictionary:
+	var nearest: Dictionary = {}
+	var nearest_error := INF
+	for entry in acquisition_entries:
+		var error := _sky_angular_error(
+			acquisition_attitude,
+			Vector2(float(entry.get("yaw", 0.0)), float(entry.get("pitch", 0.0))))
+		if error < nearest_error:
+			nearest_error = error
+			nearest = entry
+	if nearest_error > 38.0:
+		return {}
+	return nearest
+
+
+func _acquisition_drive_input() -> Vector2:
+	var horizontal := 0.0
+	var vertical := 0.0
+	if Input.is_action_pressed("move_left") or Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+		horizontal -= 1.0
+	if Input.is_action_pressed("move_right") or Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+		horizontal += 1.0
+	if Input.is_action_pressed("move_up") or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+		vertical += 1.0
+	if Input.is_action_pressed("move_down") or Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+		vertical -= 1.0
+	return Vector2(horizontal, vertical).normalized()
+
+
+func _process_acquisition(delta: float) -> void:
+	if acquisition_entries.is_empty():
+		return
+	var drive := _acquisition_drive_input()
+	if not acquisition_locking:
+		var fine_drive := Input.is_key_pressed(KEY_SHIFT)
+		var drive_speed := 8.0 if fine_drive else 28.0
+		var desired_velocity := drive * drive_speed
+		var acceleration := 72.0 if not InteractionFeedback.is_reduced_motion() else 120.0
+		acquisition_velocity = acquisition_velocity.move_toward(desired_velocity, acceleration * delta)
+		if drive == Vector2.ZERO:
+			acquisition_velocity = acquisition_velocity.move_toward(Vector2.ZERO, 34.0 * delta)
+		elif not acquisition_drive_logged:
+			acquisition_drive_logged = true
+			_log_line("REACTION WHEEL DRIVE", "RUN", "MANUAL INPUT")
+		if drive == Vector2.ZERO and acquisition_drive_logged and acquisition_velocity.length() < 0.3:
+			acquisition_drive_logged = false
+			_log_line("ATTITUDE RATE", "HOLD", "SETTLED")
+		acquisition_attitude.x = wrapf(
+			acquisition_attitude.x + acquisition_velocity.x * delta + 180.0,
+			0.0, 360.0) - 180.0
+		acquisition_attitude.y = clampf(
+			acquisition_attitude.y + acquisition_velocity.y * delta, -70.0, 70.0)
+	else:
+		acquisition_velocity = acquisition_velocity.move_toward(Vector2.ZERO, 80.0 * delta)
+
+	var nearest := _nearest_acquisition_entry()
+	acquisition_candidate_id = str(nearest.get("id", "")) if not nearest.is_empty() else ""
+	var error := 99.0
+	var safe := false
+	if not nearest.is_empty():
+		error = _sky_angular_error(
+			acquisition_attitude,
+			Vector2(float(nearest.get("yaw", 0.0)), float(nearest.get("pitch", 0.0))))
+		safe = bool(nearest.get("thermal_safe", false))
+	var error_band := 3 if error > 12.0 else (2 if error > 3.0 else (1 if error > 1.2 else 0))
+	if error_band != acquisition_last_error_band:
+		acquisition_last_error_band = error_band
+		if error_band == 2:
+			_log_line("TARGET BEACON", "ACQUIRED", "%.1f DEG" % error)
+		elif error_band == 1:
+			_log_line("COARSE SLEW", "HOLD", "FINE CAPTURE")
+		elif error_band == 0:
+			_log_line("ERROR VECTOR", "NOMINAL", "%.2f DEG" % error)
+
+	if acquisition_locking:
+		if nearest.is_empty() or error > 2.8 or not safe:
+			acquisition_locking = false
+			acquisition_lock_progress = 0.0
+			_log_line("FINE LOCK", "ABORT", "VECTOR LEFT CAPTURE")
+			_say(GameManager.text(
+				"Fine lock paused because the target left the safe capture box.",
+				"目标离开热安全捕获框，精确锁定已暂停。"), AMBER)
+		else:
+			acquisition_lock_progress = minf(
+				1.0, acquisition_lock_progress + delta / (
+					0.72 if InteractionFeedback.is_reduced_motion() else 1.15))
+			if acquisition_lock_progress >= 1.0:
+				acquisition_locking = false
+				acquisition_lock_confirmed = true
+				_refresh_acquisition()
+				call_deferred("_complete_acquisition_lock")
+	_refresh_acquisition()
+
+
+func _drag_acquisition_attitude(delta_angle: Vector2) -> void:
+	if acquisition_locking:
+		return
+	acquisition_attitude.x = wrapf(
+		acquisition_attitude.x + delta_angle.x + 180.0, 0.0, 360.0) - 180.0
+	acquisition_attitude.y = clampf(
+		acquisition_attitude.y - delta_angle.y, -70.0, 70.0)
+	acquisition_velocity = delta_angle * 3.2
+	_refresh_acquisition()
+
+
+func _begin_acquisition_lock() -> void:
+	if acquisition_locking:
+		return
+	var entry := _acquisition_entry(acquisition_candidate_id)
+	if entry.is_empty():
+		_say(GameManager.text(
+			"No deep-sky beacon is inside the capture box.",
+			"捕获框内还没有深空目标信标。"), AMBER)
+		InteractionFeedback.error(acquisition_lock_button)
+		return
+	var error := _sky_angular_error(
+		acquisition_attitude,
+		Vector2(float(entry.get("yaw", 0.0)), float(entry.get("pitch", 0.0))))
+	if error > ACQUISITION_FINE_TOLERANCE_DEG:
+		_say(GameManager.text(
+			"Reduce the angular error below %.1f degrees before fine lock."
+				% ACQUISITION_FINE_TOLERANCE_DEG,
+			"请先把角误差降到 %.1f 度以内，再执行精确锁定。"
+				% ACQUISITION_FINE_TOLERANCE_DEG), AMBER)
+		InteractionFeedback.error(acquisition_lock_button)
+		return
+	if not bool(entry.get("thermal_safe", false)):
+		if not bool(entry.get("safe_window_available", false)):
+			_say(GameManager.text(
+				"No sunshield-safe observing window is available for this target.",
+				"当前没有适合该目标的遮阳罩安全观测窗口。"), AMBER)
+			InteractionFeedback.error(acquisition_lock_button)
+			return
+		entry = _schedule_acquisition_safe_window(str(entry.get("id", "")))
+		if entry.is_empty():
+			InteractionFeedback.error(acquisition_lock_button)
+			return
+		_log_line(
+			"OBSERVING WINDOW",
+			"SCHEDULED",
+			"SUN %.1f DEG" % float(entry.get("solar_angle", 105.0)))
+		_say(GameManager.text(
+			"The current line of sight is sun-blocked. The console has moved this exposure to the next safe window; fine lock can continue.",
+			"当前视线受太阳热约束。控制台已把本次曝光安排到下一个安全窗口，精确锁定可以继续。"),
+			P_BRIGHT)
+	acquisition_locking = true
+	acquisition_lock_progress = 0.01
+	acquisition_lock_confirmed = false
+	_log_line("TARGET ACQUIRE %s" % str(entry.get("target_id", "")).to_upper(), "RUN", "REACTION WHEELS")
+	_say(GameManager.text(
+		"Coarse slew complete. Fine steering is closing the residual error.",
+		"粗转向完成。精细转向机构正在收敛残余误差。"), P_BRIGHT)
+	_refresh_acquisition()
+
+
+func _complete_acquisition_lock() -> void:
+	var entry := _acquisition_entry(acquisition_candidate_id)
+	if entry.is_empty():
+		return
+	if not GameManager.begin_remote_free_observation("space", str(entry.get("id", ""))):
+		_say(GameManager.text(
+			"The selected deep-sky program is no longer available.",
+			"所选深空观测计划当前不可用。"), AMBER)
+		return
+	_log_line("FINE GUIDANCE", "LOCKED", str(entry.get("target_id", "")).to_upper())
+	_log_line("SUNSHIELD CORRIDOR", "NOMINAL", "%.1f DEG" % float(entry.get("solar_angle", 0.0)))
+	InteractionFeedback.success(acquisition_lock_button, "target_locked")
+	_say(GameManager.text(
+		"Target locked. The planning console now belongs to this deep-sky field.",
+		"目标已锁定。规划控制台现在使用该深空天区的数据。"), P_BRIGHT)
+	await get_tree().create_timer(
+		0.28 if InteractionFeedback.is_reduced_motion() else 0.62).timeout
+	if _key() != "acquire":
+		return
+	model = SpaceObservationModel.new()
+	model.configure(_profile())
+	_advance()
+
+
+func _refresh_acquisition() -> void:
+	if acquisition_display == null or not is_instance_valid(acquisition_display):
+		return
+	var sun := _approximate_sun_position()
+	var selected_entry := _acquisition_entry(acquisition_candidate_id)
+	if (
+		not selected_entry.is_empty()
+		and bool(selected_entry.get("safe_window_scheduled", false))
+		and selected_entry.get("scheduled_sun_position", null) is Vector2
+	):
+		sun = selected_entry.get("scheduled_sun_position", sun) as Vector2
+	(acquisition_display as TargetAcquisitionDisplay).set_state(
+		acquisition_entries, acquisition_attitude, acquisition_velocity,
+		acquisition_candidate_id, acquisition_lock_progress, sun)
+	var entry := _acquisition_entry(acquisition_candidate_id)
+	if entry.is_empty():
+		acquisition_status_chip.text = GameManager.text("SEARCHING SKY", "正在扫描天区")
+		acquisition_readout.text = GameManager.text(
+			"BORESIGHT\nYaw %+.2f°\nPitch %+.2f°\n\nNo catalog beacon in the acquisition field.\n\nMove the spacecraft attitude; target names appear only after a real coordinate beacon enters the sensor field."
+				% [acquisition_attitude.x, acquisition_attitude.y],
+			"当前视轴\n航向 %+.2f°\n俯仰 %+.2f°\n\n截获视场内暂时没有目录信标。\n\n请继续调整航天器姿态；只有真实坐标信标进入传感器视场后，目标名称才会显示。"
+				% [acquisition_attitude.x, acquisition_attitude.y])
+		acquisition_lock_button.disabled = true
+		return
+	var target_position := Vector2(float(entry.get("yaw", 0.0)), float(entry.get("pitch", 0.0)))
+	var error := _sky_angular_error(acquisition_attitude, target_position)
+	var safe := bool(entry.get("thermal_safe", false))
+	var schedulable := bool(entry.get("safe_window_available", false))
+	var scheduled := bool(entry.get("safe_window_scheduled", false))
+	var thermal_status_en := (
+		"SAFE • SCHEDULED" if scheduled else
+		("SAFE" if safe else ("BLOCKED • WINDOW READY" if schedulable else "BLOCKED")))
+	var thermal_status_zh := (
+		"安全・已安排" if scheduled else
+		("安全" if safe else ("受限・可安排窗口" if schedulable else "受限")))
+	var phase := (
+		GameManager.text("TARGET LOCKED", "目标已锁定")
+		if acquisition_lock_confirmed else
+		GameManager.text("FINE LOCK", "精确锁定")
+		if acquisition_locking else
+		(GameManager.text("FINE CAPTURE", "精细捕获") if error <= 3.0 else
+		(GameManager.text("COARSE SLEW", "粗转向") if error <= 12.0 else
+		GameManager.text("BEACON ACQUIRED", "已发现目标信标"))))
+	acquisition_status_chip.text = phase
+	acquisition_readout.text = GameManager.text(
+		"%s\n%s\n\nATTITUDE ERROR  %.2f°\nSOLAR ANGLE     %.1f°\nTHERMAL PATH    %s\nVISIBLE WINDOW  %.1f h\n\nRECOMMENDED\n%s\n\n%s"
+			% [
+				str(entry.get("name", "")), str(entry.get("category", "")), error,
+				float(entry.get("solar_angle", 0.0)), thermal_status_en,
+				float(entry.get("visible_hours", 0.0)), str(entry.get("band", "")),
+				str(entry.get("science", ""))],
+		"%s\n%s\n\n姿态误差  %.2f°\n太阳夹角  %.1f°\n热控路径  %s\n可用窗口  %.1f 小时\n\n推荐波段\n%s\n\n%s"
+			% [
+				str(entry.get("name", "")), str(entry.get("category", "")), error,
+				float(entry.get("solar_angle", 0.0)), thermal_status_zh,
+				float(entry.get("visible_hours", 0.0)), str(entry.get("band", "")),
+				str(entry.get("science", ""))])
+	acquisition_lock_button.disabled = (
+		acquisition_locking
+		or acquisition_lock_confirmed
+		or error > ACQUISITION_FINE_TOLERANCE_DEG
+		or (not safe and not schedulable))
+	acquisition_lock_button.tooltip_text = (
+		GameManager.text(
+			"The target is aligned. Fine lock will schedule the next sunshield-safe observing window.",
+			"目标已经对准。精确锁定将自动安排下一个遮阳罩安全观测窗口。")
+		if not safe and schedulable else
+		GameManager.text(
+			"Bring the target below %.1f° attitude error."
+				% ACQUISITION_FINE_TOLERANCE_DEG,
+			"把姿态误差降到 %.1f° 以下。"
+				% ACQUISITION_FINE_TOLERANCE_DEG)
+		if error > ACQUISITION_FINE_TOLERANCE_DEG else
+		GameManager.text("Begin fine target lock.", "开始目标精确锁定。"))
+	acquisition_lock_button.text = (
+		GameManager.text("TARGET LOCKED", "目标已锁定")
+		if acquisition_lock_confirmed else
+		GameManager.text("FINE LOCK  %d%%" % roundi(acquisition_lock_progress * 100.0),
+			"精确锁定  %d%%" % roundi(acquisition_lock_progress * 100.0))
+		if acquisition_locking else
+		GameManager.text(
+			"SCHEDULE SAFE WINDOW + LOCK",
+			"安排安全窗口并锁定")
+		if not safe and schedulable else
+		GameManager.text("FINE LOCK TARGET", "精确锁定目标"))
 
 
 # ============================================================ INTRO (Maya teaching)
@@ -634,6 +1376,194 @@ func _build_intro() -> void:
 		start.pressed.connect(_advance)
 		content.add_child(start)
 	_say(GameManager.text("First-time briefing - shown only once. Read each page, then deploy.", "首次教学——只播放一次。逐页阅读后开始部署。"), MUTED)
+
+
+# ============================================================ TARGET ACQUISITION
+class TargetAcquisitionDisplay extends Control:
+	var entries: Array[Dictionary] = []
+	var attitude := Vector2.ZERO
+	var velocity := Vector2.ZERO
+	var candidate_id := ""
+	var lock_progress := 0.0
+	var sun_position := Vector2.ZERO
+	var dragging := false
+	var on_drag: Callable
+	var telescope_texture: Texture2D
+
+	func _init() -> void:
+		mouse_filter = Control.MOUSE_FILTER_STOP
+		clip_contents = true
+
+	func set_state(
+		new_entries: Array[Dictionary],
+		new_attitude: Vector2,
+		new_velocity: Vector2,
+		new_candidate_id: String,
+		new_lock_progress: float,
+		new_sun_position: Vector2
+	) -> void:
+		entries = new_entries
+		attitude = new_attitude
+		velocity = new_velocity
+		candidate_id = new_candidate_id
+		lock_progress = new_lock_progress
+		sun_position = new_sun_position
+		queue_redraw()
+
+	func _gui_input(event: InputEvent) -> void:
+		if event is InputEventMouseButton:
+			var mouse_button := event as InputEventMouseButton
+			if mouse_button.button_index == MOUSE_BUTTON_LEFT:
+				dragging = mouse_button.pressed
+				accept_event()
+		elif event is InputEventMouseMotion and dragging:
+			var motion := event as InputEventMouseMotion
+			if on_drag.is_valid():
+				on_drag.call(Vector2(-motion.relative.x * 0.12, motion.relative.y * 0.10))
+			accept_event()
+		elif event is InputEventScreenDrag:
+			var screen_drag := event as InputEventScreenDrag
+			if on_drag.is_valid():
+				on_drag.call(Vector2(-screen_drag.relative.x * 0.12, screen_drag.relative.y * 0.10))
+			accept_event()
+		elif event is InputEventScreenTouch:
+			dragging = (event as InputEventScreenTouch).pressed
+			accept_event()
+
+	func _yaw_delta(value: float) -> float:
+		return wrapf(value - attitude.x + 180.0, 0.0, 360.0) - 180.0
+
+	func _entry_position(entry: Dictionary) -> Vector2:
+		return Vector2(
+			size.x * 0.5 + _yaw_delta(float(entry.get("yaw", 0.0))) * 5.2,
+			size.y * 0.5 - (float(entry.get("pitch", 0.0)) - attitude.y) * 4.6
+		)
+
+	func _sky_position_from_screen(point: Vector2) -> Vector2:
+		return Vector2(
+			wrapf(attitude.x + (point.x - size.x * 0.5) / 5.2 + 180.0, 0.0, 360.0) - 180.0,
+			clampf(attitude.y - (point.y - size.y * 0.5) / 4.6, -90.0, 90.0))
+
+	func _angular_separation(a: Vector2, b: Vector2) -> float:
+		var yaw_delta := deg_to_rad(wrapf(a.x - b.x + 180.0, 0.0, 360.0) - 180.0)
+		var pitch_a := deg_to_rad(a.y)
+		var pitch_b := deg_to_rad(b.y)
+		var cosine := (
+			sin(pitch_a) * sin(pitch_b)
+			+ cos(pitch_a) * cos(pitch_b) * cos(yaw_delta))
+		return rad_to_deg(acos(clampf(cosine, -1.0, 1.0)))
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color("03070b"), true)
+		var font := ThemeDB.fallback_font
+		# Build the grid around the current attitude. Raw tick values can continue
+		# for any number of turns; only the displayed celestial longitude wraps.
+		var half_yaw_span := size.x * 0.5 / 5.2
+		var first_yaw_tick := floori((attitude.x - half_yaw_span) / 10.0) * 10
+		var last_yaw_tick := ceili((attitude.x + half_yaw_span) / 10.0) * 10
+		for raw_degree in range(first_yaw_tick, last_yaw_tick + 1, 10):
+			var x := size.x * 0.5 + (float(raw_degree) - attitude.x) * 5.2
+			var wrapped_degree := wrapi(raw_degree, 0, 360)
+			var major := wrapped_degree % 30 == 0
+			draw_line(Vector2(x, 18), Vector2(x, size.y - 18),
+				Color(0.42, 0.48, 0.50, 0.36 if major else 0.16), 1.0)
+			if major:
+				draw_string(font, Vector2(x + 3, 14), "%d°" % wrapped_degree,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color(0.72, 0.78, 0.80, 0.82))
+		for degree in range(-60, 61, 10):
+			var y := size.y * 0.5 - (float(degree) - attitude.y) * 4.6
+			if y < 18.0 or y > size.y - 18.0:
+				continue
+			draw_line(Vector2(18, y), Vector2(size.x - 18, y),
+				Color(0.42, 0.48, 0.50, 0.25 if degree % 30 == 0 else 0.12), 1.0)
+
+		# The safe field of regard is 85-135 degrees from the Sun. Draw it from
+		# the same spherical-angle test used by lock eligibility so the display
+		# can never suggest that an unsafe target is clear of the exclusion zone.
+		var safety_cell := Vector2(24, 22)
+		for cell_y in range(0, ceili(size.y / safety_cell.y)):
+			for cell_x in range(0, ceili(size.x / safety_cell.x)):
+				var cell_center := Vector2(
+					(float(cell_x) + 0.5) * safety_cell.x,
+					(float(cell_y) + 0.5) * safety_cell.y)
+				var solar_angle := _angular_separation(
+					_sky_position_from_screen(cell_center), sun_position)
+				if solar_angle < ACQUISITION_SUN_ANGLE_MIN:
+					draw_rect(
+						Rect2(
+							Vector2(cell_x, cell_y) * safety_cell,
+							safety_cell - Vector2.ONE),
+						Color(0.70, 0.42, 0.20, 0.045),
+						true)
+				elif solar_angle > ACQUISITION_SUN_ANGLE_MAX:
+					draw_rect(
+						Rect2(
+							Vector2(cell_x, cell_y) * safety_cell,
+							safety_cell - Vector2.ONE),
+						Color(0.24, 0.34, 0.42, 0.035),
+						true)
+		var sun_x := size.x * 0.5 + _yaw_delta(sun_position.x) * 5.2
+		var sun_y := size.y * 0.5 - (sun_position.y - attitude.y) * 4.6
+		var sun_screen_position := Vector2(sun_x, sun_y)
+		if Rect2(Vector2(-40, -40), size + Vector2(80, 80)).has_point(sun_screen_position):
+			draw_circle(sun_screen_position, 9.0, Color(0.78, 0.62, 0.40, 0.18))
+			draw_arc(sun_screen_position, 13.0, 0.0, TAU, 32,
+				Color(0.78, 0.62, 0.40, 0.74), 1.5)
+			draw_string(
+				font,
+				sun_screen_position + Vector2(16, -8),
+				"SUN",
+				HORIZONTAL_ALIGNMENT_LEFT,
+				-1,
+				10,
+				Color(0.84, 0.72, 0.52, 0.88))
+
+		# Stable stars give the attitude motion visual weight. They are generated
+		# deterministically and are only navigation references, never targets.
+		for index in range(72):
+			var star_yaw := wrapf(float(index * 47 + 13), 0.0, 360.0) - 180.0
+			var star_pitch := sin(float(index) * 1.77) * 52.0
+			var star_pos := Vector2(
+				size.x * 0.5 + _yaw_delta(star_yaw) * 5.2,
+				size.y * 0.5 - (star_pitch - attitude.y) * 4.6)
+			if Rect2(Vector2(10, 18), size - Vector2(20, 36)).has_point(star_pos):
+				var star_radius := 0.7 + float(index % 4) * 0.32
+				draw_circle(star_pos, star_radius, Color(0.78, 0.82, 0.84, 0.45 + float(index % 3) * 0.12))
+
+		for entry in entries:
+			var position := _entry_position(entry)
+			if not Rect2(Vector2(14, 20), size - Vector2(28, 40)).has_point(position):
+				continue
+			var selected := str(entry.get("id", "")) == candidate_id
+			var safe := bool(entry.get("thermal_safe", false))
+			var beacon_color := (
+				Color(0.80, 0.94, 0.96, 0.95)
+				if safe else Color(0.90, 0.58, 0.42, 0.82))
+			draw_circle(position, 4.0 if selected else 2.5, beacon_color)
+			draw_arc(position, 14.0 if selected else 9.0, 0.0, TAU, 24, beacon_color, 1.5)
+			if selected:
+				draw_line(size * 0.5, position, Color(beacon_color, 0.35), 1.0)
+				draw_string(font, position + Vector2(18, -8), str(entry.get("name", "")),
+					HORIZONTAL_ALIGNMENT_LEFT, 210, 11, beacon_color)
+
+		var center := size * 0.5
+		var speed_tail := velocity * 1.8
+		draw_line(center, center + speed_tail, Color(0.68, 0.86, 0.90, 0.68), 2.0)
+		var corner_gap := 24.0 - lock_progress * 10.0
+		var corner_length := 13.0
+		var lock_color := Color(0.82, 0.96, 0.98, 0.96)
+		for sign_x in [-1.0, 1.0]:
+			for sign_y in [-1.0, 1.0]:
+				var corner := center + Vector2(sign_x, sign_y) * corner_gap
+				draw_line(corner, corner - Vector2(sign_x * corner_length, 0), lock_color, 2.0)
+				draw_line(corner, corner - Vector2(0, sign_y * corner_length), lock_color, 2.0)
+		draw_circle(center, 3.0 + lock_progress * 2.0, lock_color)
+
+		if telescope_texture != null:
+			draw_texture_rect(telescope_texture, Rect2(Vector2(14, size.y - 96), Vector2(132, 82)),
+				false, Color(0.68, 0.72, 0.74, 0.62))
+			draw_string(font, Vector2(18, size.y - 101), "SPACECRAFT ATTITUDE",
+				HORIZONTAL_ALIGNMENT_LEFT, 180, 9, Color(0.66, 0.72, 0.74, 0.78))
 
 
 # ============================================================ 3D ATTITUDE GIMBAL
@@ -1881,12 +2811,20 @@ func _build_wavefront() -> void:
 func _select_wavefront_group(group_index: int) -> void:
 	if wavefront_animating or model.wavefront_coarse_complete:
 		return
+	if model.wavefront_bank_state(group_index) == "resolved":
+		_say(GameManager.text(
+			"Bank %s is already verified. Select another unresolved bank." % String.chr(65 + group_index),
+			"%s 组已经通过验证，请选择其他未校正镜片组。" % String.chr(65 + group_index)
+		), P_MID)
+		return
+	if not model.select_wavefront_group(group_index):
+		return
 	wavefront_selected_group = group_index
 	if wavefront_display != null and is_instance_valid(wavefront_display):
 		wavefront_display.set_selected_group(group_index)
 	_say(GameManager.text(
-		"Bank %s selected. Compare its phase offset before actuation." % String.chr(65 + group_index),
-		"已选择 %s 组。驱动前先比较三组相位偏差。" % String.chr(65 + group_index)
+		"Bank %s selected. Execute it when you are ready to watch its six segments settle." % String.chr(65 + group_index),
+		"已选择 %s 组。准备好后驱动它，观察六块镜片逐步稳定。" % String.chr(65 + group_index)
 	), CYAN)
 	_refresh_wavefront()
 
@@ -1896,15 +2834,26 @@ func _execute_wavefront_group() -> void:
 		return
 	if wavefront_selected_group < 0:
 		_say(GameManager.text(
-			"Select the bank with the largest phase offset first.",
-			"请先选择相位偏差最大的一组镜片。"
+			"Select one unresolved bank, then execute it.",
+			"请先选择一组未校正镜片，再执行驱动。"
+		), AMBER)
+		InteractionFeedback.error(wavefront_execute_button)
+		return
+	if model.wavefront_bank_state(wavefront_selected_group) != "selected":
+		_say(GameManager.text(
+			"The selected bank is not ready for actuation. Select an unresolved bank again.",
+			"当前镜片组尚未进入可驱动状态，请重新选择未校正镜片组。"
 		), AMBER)
 		InteractionFeedback.error(wavefront_execute_button)
 		return
 	wavefront_animating = true
-	_refresh_wavefront()
 	var group_index := wavefront_selected_group
 	var display_ref := wavefront_display
+	if not model.begin_wavefront_group_actuation(group_index):
+		wavefront_animating = false
+		_refresh_wavefront()
+		return
+	_refresh_wavefront()
 	_log_line("WFS BANK %s ACTUATION" % String.chr(65 + group_index), "RUN", "6 SEG")
 	if display_ref != null and is_instance_valid(display_ref):
 		display_ref.start_group_actuation(group_index)
@@ -1913,8 +2862,14 @@ func _execute_wavefront_group() -> void:
 	if not _wavefront_context_active(display_ref):
 		wavefront_animating = false
 		return
+	model.settle_wavefront_group(group_index)
+	_log_line("WFS BANK %s SETTLE" % String.chr(65 + group_index), "RUN", "VERIFYING")
+	_refresh_wavefront(false)
 	await get_tree().create_timer(_wavefront_duration(WAVEFRONT_MECHANICAL_DELAY)).timeout
-	var correct := model.coarse_adjust_group(group_index)
+	if not _wavefront_context_active(display_ref):
+		wavefront_animating = false
+		return
+	var resolved := model.resolve_wavefront_group(group_index)
 	if display_ref != null and is_instance_valid(display_ref):
 		display_ref.animate_sensor_response(
 			model.segment_phase_errors,
@@ -1927,20 +2882,30 @@ func _execute_wavefront_group() -> void:
 		wavefront_animating = false
 		return
 	wavefront_animating = false
-	_log_line("WFS BANK %s ACTUATION" % String.chr(65 + group_index), "HOLD", "%d NM" % roundi(model.wavefront_error_nm))
-	if correct:
+	_log_line("WFS BANK %s VERIFY" % String.chr(65 + group_index), "HOLD", "%d NM" % roundi(model.wavefront_error_nm))
+	if resolved:
+		var remaining := 0
+		for bank_index in range(3):
+			if model.wavefront_bank_state(bank_index) != "resolved":
+				remaining += 1
 		wavefront_selected_group = -1
 		if display_ref != null and is_instance_valid(display_ref):
 			display_ref.set_selected_group(-1)
-		_say(GameManager.text(
-			"Dominant bank corrected. Four amber residual segments remain; select one on the mirror.",
-			"主误差镜片组已校正。还剩四块琥珀色异常镜片，请在主镜上选择。"
-		), CYAN)
+		if model.wavefront_coarse_complete:
+			_say(GameManager.text(
+				"All three banks are verified. Four amber residual segments remain for fine phasing.",
+				"三组镜片均已通过验证。现在还剩四块琥珀色残差镜片需要精调。"
+			), CYAN)
+		else:
+			_say(GameManager.text(
+				"Bank %s settled and verified. %d unresolved bank(s) remain." % [String.chr(65 + group_index), remaining],
+				"%s 组已稳定并通过验证，还剩 %d 组未校正。" % [String.chr(65 + group_index), remaining]
+			), CYAN)
 		InteractionFeedback.success(wavefront_execute_button, "wavefront_bank_lock")
 	else:
 		_say(GameManager.text(
-			"Small improvement only: this bank is not in the dominant error channel. Compare the other offsets.",
-			"仅有轻微改善：该组不在主误差通道。请继续比较其他镜片组。"
+			"That actuation did not verify. The bank remains available; select it and try again.",
+			"本次驱动未通过验证。该镜片组仍可选择，请重新执行。"
 		), AMBER)
 		if group_index < wavefront_group_buttons.size():
 			InteractionFeedback.pulse(wavefront_group_buttons[group_index], AMBER, 0.35)
@@ -2190,22 +3155,35 @@ func _refresh_wavefront(sync_display := true) -> void:
 				"18 块镜片已完成相位锁定，分裂星像已经收束为一个稳定核心。")
 		else:
 			wavefront_control_hint.text = GameManager.text(
-				"Compare A/B/C. Select the largest offset, then actuate that six-segment bank."
+				"Select any unresolved A/B/C bank, then actuate and verify its six segments."
 				if coarse_mode else
 				"Click an amber segment. Drag the phase slider, or hold − / + for continuous trim.",
-				"比较 A/B/C 三组偏差，选择最大的一组，再驱动这六块镜片。"
+				"选择任意未校正的 A/B/C 镜片组，再驱动并验证其中六块镜片。"
 				if coarse_mode else
 				"点击琥珀色异常镜片。可拖动相位滑块，或按住 − / + 连续微调。"
 			)
 	for group_index in range(wavefront_group_buttons.size()):
 		var bank := wavefront_group_buttons[group_index]
+		var bank_state := model.wavefront_bank_state(group_index)
 		bank.visible = coarse_mode
-		bank.disabled = wavefront_animating
-		bank.text = "%s\n%.2f λ" % [String.chr(65 + group_index), model.wavefront_group_error(group_index)]
-		bank.modulate = Color(1.12, 1.12, 1.12) if group_index == wavefront_selected_group else Color(0.74, 0.74, 0.74)
+		bank.disabled = wavefront_animating or bank_state == "resolved"
+		bank.text = "%s  %s\n%.2f λ" % [
+			String.chr(65 + group_index),
+			bank_state.to_upper(),
+			model.wavefront_group_error(group_index)
+		]
+		bank.modulate = (
+			Color(0.70, 1.0, 0.78)
+			if bank_state == "resolved" else
+			(Color(1.12, 1.12, 1.12) if group_index == wavefront_selected_group else Color(0.74, 0.74, 0.74))
+		)
 	if wavefront_execute_button != null and is_instance_valid(wavefront_execute_button):
 		wavefront_execute_button.visible = coarse_mode
-		wavefront_execute_button.disabled = wavefront_animating or wavefront_selected_group < 0
+		wavefront_execute_button.disabled = (
+			wavefront_animating
+			or wavefront_selected_group < 0
+			or model.wavefront_bank_state(wavefront_selected_group) != "selected"
+		)
 
 	var has_segment := wavefront_selected_segment >= 0
 	var segment_error := model.segment_phase_error(wavefront_selected_segment) if has_segment else 0.0
@@ -3623,6 +4601,26 @@ func _panel_to(parent: Control, pos: Vector2, size_value: Vector2, fill: Color, 
 		# heading sits on a ruled line, printed like a section header
 		_label_to(panel, title.to_upper(), Vector2(0, 7), Vector2(size_value.x, 22), 14, P_BRIGHT, HORIZONTAL_ALIGNMENT_CENTER)
 		_rect_to(panel, Vector2(10, 32), Vector2(size_value.x - 20, 1), P_FAINT)
+	return panel
+
+
+func _open_view_to(
+	parent: Control,
+	pos: Vector2,
+	size_value: Vector2,
+	title: String
+) -> Panel:
+	# Scientific sky views are intentionally borderless: the bezel belongs to
+	# the terminal, while the celestial field itself has no drawn map boundary.
+	var panel := Panel.new()
+	panel.position = pos
+	panel.size = size_value
+	panel.add_theme_stylebox_override("panel", _flat(PANEL, Color.TRANSPARENT, 0))
+	parent.add_child(panel)
+	_label_to(
+		panel, title.to_upper(), Vector2(0, 7), Vector2(size_value.x, 22),
+		14, P_BRIGHT, HORIZONTAL_ALIGNMENT_CENTER)
+	_rect_to(panel, Vector2(10, 32), Vector2(size_value.x - 20, 1), P_FAINT)
 	return panel
 
 

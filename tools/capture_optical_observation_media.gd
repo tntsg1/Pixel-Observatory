@@ -14,9 +14,19 @@ const REPRESENTATIVES := [
 ]
 
 var gm: Node
+var capture_failures := 0
 
 
 func _initialize() -> void:
+	var watchdog := create_timer(90.0)
+	watchdog.timeout.connect(func() -> void:
+		push_error("OPTICAL MEDIA CAPTURES TIMEOUT")
+		quit(124)
+	)
+	if DisplayServer.get_name() == "headless":
+		push_error("OPTICAL MEDIA CAPTURES REQUIRE A GRAPHICAL DISPLAY DRIVER")
+		quit(2)
+		return
 	await process_frame
 	root.size = Vector2i(1024, 768)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT))
@@ -41,6 +51,10 @@ func _initialize() -> void:
 	await _capture_target("saturn", "19_saturn_defocused_opaque.png", "defocused")
 	await _capture_field_backdrop("dumbbell_nebula", Color(0.20, 0.22, 0.25), "20_dumbbell_radial_mask_gray.png")
 	await _capture_field_backdrop("dumbbell_nebula", Color(0.86, 0.86, 0.84), "21_dumbbell_radial_mask_light.png")
+	if capture_failures > 0:
+		push_error("OPTICAL MEDIA CAPTURES FAIL: %d capture(s) were not saved" % capture_failures)
+		quit(1)
+		return
 	print("OPTICAL MEDIA CAPTURES PASS: ", ProjectSettings.globalize_path(OUTPUT))
 	quit(0)
 
@@ -49,6 +63,7 @@ func _capture_target(object_id: String, file_name: String, state: String) -> voi
 	gm.selected_object_id = object_id
 	var view := load("res://scenes/telescope_view.tscn").instantiate() as Control
 	root.add_child(view)
+	current_scene = view
 	await _settle(0.26)
 	if view.get("quiz_brief_overlay") != null:
 		view.call("_dismiss_pre_quiz_guide")
@@ -82,6 +97,7 @@ func _capture_target(object_id: String, file_name: String, state: String) -> voi
 			view.call("_set_focus_value", target_focus)
 	await _settle(0.22)
 	_save(file_name)
+	current_scene = null
 	view.queue_free()
 	await process_frame
 
@@ -107,8 +123,10 @@ func _capture_focus_result(object_id: String, file_name: String) -> void:
 	teaching.active_card_mode = "complete"
 	var card := load("res://scenes/learning_card.tscn").instantiate() as Control
 	root.add_child(card)
+	current_scene = card
 	await _settle(0.28)
 	_save(file_name)
+	current_scene = null
 	card.queue_free()
 	await process_frame
 
@@ -117,6 +135,7 @@ func _capture_field_backdrop(object_id: String, backdrop: Color, file_name: Stri
 	var stage := Control.new()
 	stage.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(stage)
+	current_scene = stage
 	var background := ColorRect.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.color = backdrop
@@ -158,6 +177,7 @@ void fragment() {
 	stage.add_child(title)
 	await _settle(0.18)
 	_save(file_name)
+	current_scene = null
 	stage.queue_free()
 	await process_frame
 
@@ -184,11 +204,24 @@ func _settle(seconds: float) -> void:
 
 
 func _save(file_name: String) -> void:
-	if DisplayServer.get_name() != "headless":
-		await RenderingServer.frame_post_draw
-	var image := root.get_texture().get_image()
+	if DisplayServer.get_name() == "headless":
+		capture_failures += 1
+		push_error("Cannot capture %s with the headless display driver" % file_name)
+		return
+	await RenderingServer.frame_post_draw
+	var viewport_texture := root.get_texture()
+	if viewport_texture == null:
+		capture_failures += 1
+		push_error("Viewport texture was null for " + file_name)
+		return
+	var image := viewport_texture.get_image()
+	if image == null or image.is_empty():
+		capture_failures += 1
+		push_error("Viewport image was empty for " + file_name)
+		return
 	var path := ProjectSettings.globalize_path(OUTPUT + "/" + file_name)
 	if image.save_png(path) != OK:
+		capture_failures += 1
 		push_error("Could not save " + path)
 	else:
 		print("CAPTURE ", path)

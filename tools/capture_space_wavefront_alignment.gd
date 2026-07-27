@@ -25,20 +25,27 @@ func _initialize() -> void:
 	model = scene.get("model")
 	await _show_wavefront_stage()
 
-	var dominant_group := model.max_wavefront_group()
-	scene.call("_select_wavefront_group", dominant_group)
-	await _settle(0.08)
-	_save("01_group_diagnosis.png")
-
+	_save("01_before_bank_a.png")
+	scene.call("_select_wavefront_group", 0)
 	scene.call("_execute_wavefront_group")
-	await _settle(1.0)
+	await _settle(0.28)
+	_save("02_bank_a_actuating.png")
+	await _settle(1.2)
+	_save("03_only_bank_a_resolved.png")
+
+	for group_index in [2, 1]:
+		scene.call("_select_wavefront_group", group_index)
+		scene.call("_execute_wavefront_group")
+		await _settle(1.45)
+	_save("04_all_banks_resolved.png")
+
 	var anomalies := model.wavefront_anomaly_segments()
 	if anomalies.is_empty():
 		failures += 1
 	else:
 		scene.call("_select_wavefront_segment", int(anomalies[0]))
 	await _settle(0.08)
-	_save("02_residual_segment_trim.png")
+	_save("05_residual_segment_trim.png")
 
 	for segment_index in model.wavefront_anomaly_segments().duplicate():
 		scene.call("_select_wavefront_segment", segment_index)
@@ -49,7 +56,7 @@ func _initialize() -> void:
 	await _settle(1.85)
 	if not bool(scene.get("wavefront_convergence_complete")):
 		failures += 1
-	_save("03_phase_retrieval_converged.png")
+	_save("06_phase_retrieval_converged.png")
 
 	scene.queue_free()
 	await process_frame
