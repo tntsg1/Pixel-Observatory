@@ -1741,12 +1741,12 @@ func _required_equipment_route(required_missing: Array) -> Dictionary:
 	var progress_en := "Required loadout matched: %d/%d." % [matched_required, total_required]
 	var progress_zh := "本关指定配置已匹配：%d/%d。" % [matched_required, total_required]
 	var title_en := "Maya: Equip " + required_name
-	var title_zh := "Maya：装备" + required_name
+	var title_zh := "玛雅：装备" + required_name
 	var hint_en := "Required: " + required_name + ". " + progress_en
 	var hint_zh := "本关指定：" + required_name + "。" + progress_zh
 	if equipped_name != "" and equipped_id != required_id:
 		title_en = "Maya: Replace " + equipped_name
-		title_zh = "Maya：更换" + equipped_name
+		title_zh = "玛雅：更换" + equipped_name
 		hint_en = "Equipped: %s. This mission specifically requires %s; higher stats do not replace the prescribed part. %s" % [equipped_name, required_name, progress_en]
 		hint_zh = "当前装备：%s。本关指定：%s；数值更高也不能替代指定零件。%s" % [equipped_name, required_name, progress_zh]
 	return {
@@ -1773,7 +1773,7 @@ func current_room_route() -> Dictionary:
 	if current_observation_mode() == "naked_eye":
 		return _with_site_route_status({
 			"target": "telescope",
-			"title": text("Maya: Observation Pad", "Maya：观测台"),
+			"title": text("Maya: Observation Pad", "玛雅：观测台"),
 			"hint": text("Use naked-eye observation to find " + target_name + ".", "用肉眼观测寻找" + target_name + "。"),
 			"action": text("Go to the Observation Pad", "前往观测台"),
 			"outcome": route_outcome_text(),
@@ -1784,7 +1784,7 @@ func current_room_route() -> Dictionary:
 		var lock_reason := required_equipment_lock_reason()
 		return {
 			"target": "cabinet",
-			"title": text("Maya: Required equipment locked", "Maya：任务设备尚未解锁"),
+			"title": text("Maya: Required equipment locked", "玛雅：任务设备尚未解锁"),
 			"hint": text(str(lock_reason.get("reason_en", "")), str(lock_reason.get("reason_zh", ""))),
 			"action": text("Review the Parts Cabinet", "查看零件柜"),
 			"outcome": text("The mission opens after the required equipment is unlocked, equipped, and installed.", "解锁、装备并安装所需设备后，本关才会开放。"),
@@ -1818,7 +1818,7 @@ func current_room_route() -> Dictionary:
 			)
 		return {
 			"target": "assembly",
-			"title": text("Maya: Assembly Table", "Maya：组装台"),
+			"title": text("Maya: Assembly Table", "玛雅：组装台"),
 			"hint": hint,
 			"action": text("Prepare %s: install %s" % [target_name, install_text], "准备观测%s：安装%s" % [target_name, install_text]),
 			"outcome": text("A finished telescope unlocks the Observation Pad.", "望远镜组装完成后，观测台即可使用。"),
@@ -1831,7 +1831,7 @@ func current_room_route() -> Dictionary:
 		var collimation_target := int(current_level().get("collimation_threshold", 80))
 		return {
 			"target": "assembly",
-			"title": text("Maya: Collimation Bench", "Maya：准直工作台"),
+			"title": text("Maya: Collimation Bench", "玛雅：准直工作台"),
 			"hint": text(
 				"Collimation is %d%%; this mission requires at least %d%%. Open the Assembly Table and choose Collimate Mirrors." % [collimation_now, collimation_target],
 				"当前准直 %d%%；本关至少需要 %d%%。进入组装台后点击“准直镜面”。" % [collimation_now, collimation_target]
@@ -1844,7 +1844,7 @@ func current_room_route() -> Dictionary:
 	if current_level().get("required_part_ids", []).is_empty() and _deep_sky_target() and str(current_level().get("minimum_success_quality", "Good")) == "Good" and _has_better_unequipped_part():
 		return {
 			"target": "cabinet",
-			"title": text("Maya: Upgrade the optics", "Maya：升级光学部件"),
+			"title": text("Maya: Upgrade the optics", "玛雅：升级光学部件"),
 			"hint": text("Equip the stronger unlocked optics for this faint target.", "为这个暗弱目标装备刚解锁的更强光学部件。"),
 			"action": text("Choose a better optical part", "选择更好的光学部件"),
 			"outcome": text("More aperture means a brighter deep-sky image.", "更大口径意味着更亮的深空图像。"),
@@ -1854,7 +1854,7 @@ func current_room_route() -> Dictionary:
 	if str(current_level().get("telescope_family", "")) == "space_segmented":
 		return _with_site_route_status({
 			"target": "computer",
-			"title": text("Maya: Space Telescope Console", "Maya：空间望远镜控制台"),
+			"title": text("Maya: Space Telescope Console", "玛雅：空间望远镜控制台"),
 			"hint": text("The L2 observatory is ready for %s. Use the bottom-right console to open the command link." % target_name,
 				"L2 望远镜已经准备观测%s。使用右下角控制台打开指挥链路。" % target_name),
 			"action": text("Command the infrared observation of " + target_name, "指挥红外观测" + target_name),
@@ -1865,7 +1865,7 @@ func current_room_route() -> Dictionary:
 			or str(current_level().get("observation_mode", "")) == "radio":
 		return _with_site_route_status({
 			"target": "computer",
-			"title": text("Maya: FAST Radio Telescope Console", "Maya：FAST 射电望远镜控制台"),
+			"title": text("Maya: FAST Radio Telescope Console", "玛雅：FAST 射电望远镜控制台"),
 			"hint": text(
 				"FAST is ready for %s. Use the bottom-right console to open the radio command link." % target_name,
 				"FAST 已准备观测%s。使用右下角控制台打开射电指挥链路。" % target_name),
@@ -1875,7 +1875,7 @@ func current_room_route() -> Dictionary:
 		})
 	return _with_site_route_status({
 		"target": "telescope",
-		"title": text("Maya: Observation Pad", "Maya：观测台"),
+		"title": text("Maya: Observation Pad", "玛雅：观测台"),
 		"hint": text("The telescope is ready. Find and observe " + target_name + ".", "望远镜已准备好。寻找并观测" + target_name + "。"),
 		"action": text("Observe " + target_name, "观测" + target_name),
 		"outcome": route_outcome_text(),
@@ -1946,26 +1946,29 @@ func set_room_guidance_for_scene(scene_key: String, trigger: String = "") -> voi
 	match scene_key:
 		"assembly":
 			target = "assembly"
-			title = "Maya: Assembly Table"
-			hint = "Walk to the Assembly Table and press E."
+			title = text("Maya: Assembly Table", "玛雅：组装台")
+			hint = text("Walk to the Assembly Table and press E.", "前往组装台，按 E 键互动。")
 		"sky", "telescope":
 			target = "telescope"
-			title = "Maya: Observation Pad"
-			hint = "Walk to the Observation Pad and press E."
+			title = text("Maya: Observation Pad", "玛雅：观测台")
+			hint = text("Walk to the Observation Pad and press E.", "前往观测台，按 E 键互动。")
 		"interior":
 			target = "door"
-			title = "Maya: Observatory Door"
-			hint = "Walk to the Observatory Door and press E."
+			title = text("Maya: Observatory Door", "玛雅：天文台入口")
+			hint = text("Walk to the Observatory Door and press E.", "前往天文台入口，按 E 键互动。")
 		"parts":
 			target = "cabinet"
-			title = "Maya: Parts Cabinet"
-			hint = "Walk to the Parts Cabinet and press E."
+			title = text("Maya: Parts Cabinet", "玛雅：零件柜")
+			hint = text("Walk to the Parts Cabinet and press E.", "前往零件柜，按 E 键互动。")
 	var assembly_state: Dictionary = progress.get("assembly_state", {})
 	var focus_entry: Dictionary = assembly_state.get("focus_knob", {})
 	if trigger == "before_focus" and not bool(focus_entry.get("installed", false)):
 		target = "assembly"
-		title = "Maya: Install the Focus Knob"
-		hint = "Install the Focus Knob at the Assembly Table before focusing."
+		title = text("Maya: Install the Focus Knob", "玛雅：安装调焦旋钮")
+		hint = text(
+			"Install the Focus Knob at the Assembly Table before focusing.",
+			"请先在组装台安装调焦旋钮，再进行调焦。"
+		)
 	if target != "":
 		set_room_guidance(target, title, hint)
 
@@ -2812,7 +2815,7 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		_advance_past_completed_current_level()
 		set_room_guidance(
 			str(current_room_route().get("target", "telescope")),
-			text("Maya: Continue the Program", "Maya：继续课程"),
+			text("Maya: Continue the Program", "玛雅：继续课程"),
 			text(
 				"This observation was already logged. The next unfinished lesson is ready.",
 				"这次观测已经记入日志。下一项未完成课程已准备好。"

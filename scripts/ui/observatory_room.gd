@@ -222,7 +222,10 @@ func _ready() -> void:
 	# - quitting and relaunching, loading a save, backing out of a screen - left
 	# it empty, which hid the whole highlight and left the player with no next
 	# step. The lobby always recomputes it from the current level instead.
-	if GameManager.room_guidance_target == "":
+	var current_route := GameManager.current_room_route()
+	var current_route_target := str(current_route.get("target", ""))
+	if GameManager.room_guidance_target == "" \
+			or GameManager.room_guidance_target == current_route_target:
 		GameManager.update_room_guidance_for_level()
 	if GameManager.last_guidance == "ready_to_observe":
 		active_guidance = GameManager.last_guidance
@@ -2160,7 +2163,7 @@ func _maybe_show_unlock_popup() -> void:
 	_popup_label_on(unlock_popup, GameManager.text("NEW EQUIPMENT UNLOCKED!", "新装备已解锁！"), Vector2(panel.position.x + 20, y), Vector2(480, 24), 15, Color(0.98, 0.85, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
 	y += 34.0
 	var maya_line := _popup_label_on(unlock_popup,
-		GameManager.text("Maya: \"New parts just arrived for the club!\"", "Maya：“俱乐部的新零件到货啦！”"),
+		GameManager.text("Maya: \"New parts just arrived for the club!\"", "玛雅：“俱乐部的新零件到货啦！”"),
 		Vector2(x_text, y), Vector2(360, 40), 12, WARM_TEXT)
 	maya_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	y += 44.0
@@ -2838,6 +2841,7 @@ func _setup_label(label: Label, text: String, font_size: int, align: HorizontalA
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 func _on_language_changed() -> void:
+	GameManager.update_room_guidance_for_level()
 	_build()
 
 
