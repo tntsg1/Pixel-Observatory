@@ -733,7 +733,7 @@ func _learned_lines(obj: Dictionary, level: Dictionary, observation: Dictionary,
 
 	var maya_recap := str(data.get("maya_recap_zh", "")) if GameManager.language_mode == "zh" else str(data.get("maya_recap_en", ""))
 	if maya_recap != "":
-		lines.append("Maya: " + maya_recap)
+		lines.append(GameManager.text("Maya: ", "玛雅：") + maya_recap)
 	while lines.size() > 3:
 		lines.pop_back()
 	return lines
