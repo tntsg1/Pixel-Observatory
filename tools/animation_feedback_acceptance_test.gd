@@ -233,7 +233,8 @@ func _test_room_routing() -> void:
 	await process_frame
 	await create_timer(0.12).timeout
 	var player_position: Vector2 = room.get("player_pos")
-	_check(player_position.distance_to(Vector2(756, 410)) < 4.0, "assembly completion returns beside the assembly table")
+	var assembly_spawn: Vector2 = room.call("_spawn_position", "assembly")
+	_check(player_position.distance_to(assembly_spawn) < 4.0, "assembly completion returns beside the assembly table")
 	_check(room.get_node_or_null("OperationChainFeedback") != null, "room arrival confirms Telescope Ready and reveals the routed destination")
 	_check(str(gm.room_guidance_target) in ["telescope", "computer"], "existing route guidance points to the correct observing station")
 	room.queue_free()

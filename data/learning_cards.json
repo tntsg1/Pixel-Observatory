@@ -5,7 +5,7 @@
     "title_zh": "眼睛如何成像",
     "image": "res://assets/learning_diagrams/eye_imaging_diagram.png",
     "text_en": "Light enters through the pupil. The lens focuses the light onto the retina, where cells detect the image.",
-    "text_zh": "光线通过瞳孔进入眼睛。晶状体把光聚焦到视网膜上，视网膜上的细胞接收图像。"
+    "text_zh": "光从瞳孔进入眼睛，再由晶状体聚焦到视网膜。视网膜上的感光细胞把这些光变成我们看到的图像。"
   },
   {
     "id": "naked_eye_limits",
@@ -13,7 +13,7 @@
     "title_zh": "为什么有些天体肉眼难以看见",
     "image": "res://assets/learning_diagrams/naked_eye_limits_light_gathering.png",
     "text_en": "Your eyes collect only a small amount of light. Bright objects like the Moon are easy to see, but faint galaxies need a telescope.",
-    "text_zh": "眼睛能收集的光很少。月亮这样的明亮目标容易看见，但暗淡的星系需要望远镜。"
+    "text_zh": "眼睛的集光能力有限。月球够亮，肉眼就能看见；暗淡的星系通常要靠望远镜多收一些光。"
   },
   {
     "id": "refractor_light_path",
@@ -21,7 +21,7 @@
     "title_zh": "折射望远镜如何工作",
     "image": "res://assets/learning_diagrams/refractor_light_path.png",
     "text_en": "After early-1600s spyglasses appeared, Galileo improved a telescope and used it astronomically; he did not invent it. The objective lens forms an image and the eyepiece magnifies it, so maria and crater rims can be compared with the naked-eye Moon.",
-    "text_zh": "17 世纪初望远镜式窥镜出现后，伽利略改进望远镜并用于天文观测，但他并不是望远镜的发明者。物镜成像，目镜放大，让月海和环形山边缘可以与肉眼月球作比较。"
+    "text_zh": "17 世纪初，伽利略改进望远镜并把它用于观星，但他并不是望远镜的发明者。物镜先成像，目镜再放大，月海和环形山边缘就能从模糊斑块变成可辨认的结构。"
   },
   {
     "id": "focus_focal_plane",
@@ -45,7 +45,7 @@
     "title_zh": "为什么寻星镜有帮助",
     "image": "res://assets/learning_diagrams/finder_scope_alignment_diagram.png",
     "text_en": "A finder scope shows a wider field than the main telescope, because more magnification also makes navigation harder. Align both tubes, then use the real observing rhythm: Eye to Finder to Main Scope. Even experienced observers rely on it.",
-    "text_zh": "寻星镜的视场比主望远镜更宽，因为倍率提高也会让导航变难。先校准两台镜，再使用真实观测节奏：肉眼、寻星镜、主望远镜。即使有经验的观测者也依赖这套流程。"
+    "text_zh": "主望远镜倍率高、视野窄，不适合直接找目标。先把寻星镜和主镜校到同一方向，再按肉眼、寻星镜、主镜的顺序观测，老手也会这么做。"
   },
   {
     "id": "chromatic_aberration",
@@ -53,7 +53,7 @@
     "title_zh": "折射镜为什么出现彩色边缘",
     "image": "res://assets/learning_diagrams/refractor_light_path.png",
     "text_en": "A simple objective lens bends blue light more strongly than red light, so the colors reach focus at slightly different positions. Even when the star looks sharp, red and blue fringes can remain. A reflector uses mirrors instead of a large objective lens, so it avoids this lens chromatic aberration.",
-    "text_zh": "简单物镜对蓝光的折射比红光更强，因此不同颜色会在略有差异的位置聚焦。即使星点已经清晰，红蓝边缘仍可能存在。反射镜用镜面代替大型物镜，因此可以避免这种透镜色差。"
+    "text_zh": "简单物镜对蓝光和红光的弯折程度不同，两种颜色会落在稍有差异的焦点上。所以星点已经清楚时，边缘仍可能留下红蓝彩边。反射镜不用大型物镜，也就避开了这类透镜色差。"
   },
   {
     "id": "newtonian_light_path",
@@ -93,7 +93,7 @@
     "title_zh": "视宁度：星星为什么会晃",
     "image": "res://assets/learning_diagrams/seeing_turbulence.png",
     "text_en": "Warm, moving air bends starlight randomly, like looking through the shimmer above a campfire. Calm air keeps a star's light steady; turbulent air makes it blur and dance. Low targets near the horizon suffer most, since their light passes through much more of that thick, unsteady air.",
-    "text_zh": "温暖流动的空气会随机弯折星光，就像隔着篝火上方的热浪看东西。平静的大气让星光保持稳定；湍流大气则让它模糊、跳动。贴近地平线的低空目标受影响最大，因为它们的光要穿过厚得多的不稳定空气。"
+    "text_zh": "流动的暖空气会不断弯折星光，就像隔着热浪看东西。大气平稳时星点很安静；湍流强时会模糊、跳动。目标越靠近地平线，光穿过的大气越厚，影响也越明显。"
   },
   {
     "id": "light_pollution_compare",
@@ -101,15 +101,15 @@
     "title_zh": "光污染：天空的背景光",
     "image": "res://assets/learning_diagrams/light_pollution_compare.png",
     "text_en": "City lights brighten the whole sky, like leaving every lamp on while hunting fireflies in a room. Faint objects like Andromeda are still there, but the bright background hides most of their light. A darker sky reveals far more stars and lets faint galaxies stand out clearly.",
-    "text_zh": "城市的灯光会照亮整片天空，就像在开着所有灯的房间里找萤火虫一样。仙女座这样的暗弱天体依然存在，只是明亮的背景遮住了它们大部分的光。更暗的夜空能显现出多得多的星星，也能让暗弱的星系清晰地显现出来。"
+    "text_zh": "城市灯光会抬高整片夜空的亮度，像在开着灯的房间里找微弱光点。仙女座仍在那里，只是外围被明亮背景吞掉了。换到更暗的天空，星系的淡结构才会重新显出来。"
   },
   {
     "id": "cloud_waiting",
     "title_en": "Cloud Gaps: A Real Observing Skill",
-    "title_zh": "云隙观测：真正的观测技能",
+    "title_zh": "等一等云隙",
     "image": "res://assets/learning_diagrams/cloud_waiting.png",
     "text_en": "Thin clouds drift across the sky and dim your target as they pass. Waiting for a gap between clouds is not a failure - it's a real skill every observer uses. Half of observing is watching the sky, and the other half is watching the clouds.",
-    "text_zh": "薄云会飘过天空，经过时让你的目标变暗。等待云与云之间的空隙不是失败——这是每个观测者都要用到的真正技能。观测的一半时间在看天空，另一半时间在等云散开。"
+    "text_zh": "薄云经过目标时，亮度会暂时下降。这时候保持居中，别拿调焦去追云层造成的变暗。等云隙出现再观测，是很普通也很重要的耐心活。"
   },
   {
     "id": "dark_adaptation_averted_vision",
@@ -117,7 +117,7 @@
     "title_zh": "暗适应与侧视法",
     "image": "res://assets/learning_diagrams/dark_adaptation_curve.png",
     "text_en": "Your eyes slowly become more sensitive in the dark - full dark adaptation takes about 20-30 minutes, as color-sensing cone cells hand off to more light-sensitive rod cells. Once adapted, try averted vision: look slightly to the side of a faint object instead of straight at it. This lets its light land on the rod-rich periphery of your retina, where faint glows are easier to detect.",
-    "text_zh": "眼睛在黑暗中会慢慢变得更敏感——完全暗适应大约需要 20-30 分钟，负责看颜色的锥细胞会把工作交给对弱光更敏感的杆细胞。适应之后，可以试试侧视法：看暗弱天体时视线略微偏向一侧，而不是直视它。这样光线会落在视网膜周边杆细胞更密集的区域，更容易察觉微弱的光。"
+    "text_zh": "眼睛会在黑暗中逐渐变得敏感，充分暗适应通常需要 20-30 分钟。看暗弱天体时，可以让视线偏到目标旁边一点，让光落在杆细胞更密集的视网膜周边，淡光反而更容易被察觉。"
   },
   {
     "id": "earth_rotation_tracking",
@@ -133,7 +133,7 @@
     "title_zh": "更高倍率的真实代价",
     "image": "res://assets/learning_diagrams/magnification_tradeoff.png",
     "text_en": "The same telescope, the same Jupiter: at 35x the image is small but bright and steady; at 80x it's larger but noticeably dimmer and shakier. Higher magnification spreads the same collected light over a bigger area and amplifies every bit of air turbulence and hand shake. More power is only better up to the point where the air and your gear can still support it.",
-    "text_zh": "同一台望远镜，同一个木星：35 倍下图像小但明亮稳定；80 倍下图像更大，却明显更暗、更抖。更高的倍率把同样收集到的光摊开在更大的面积上，也放大了每一丝大气抖动和手部晃动。倍率并非越高越好，只有在大气和设备都能撑得住的范围内，更高倍率才真正有用。"
+    "text_zh": "同一台望远镜看同一个木星：35 倍时图像较小，却明亮稳定；80 倍时更大，也更暗、更抖。高倍率会把同样的光摊到更大面积，还会放大大气和支架的晃动。细节不再增加时，就该退回较低倍率。"
   },
   {
     "id": "life_of_celestial_objects",
@@ -157,7 +157,7 @@
     "title_zh": "卡塞格林：折叠的光路",
     "image": "res://assets/assembly/cassegrain_main_blueprint_cropped.png",
     "text_en": "A two-mirror design published under Laurent Cassegrain's name in 1672 sends light from a concave primary to a convex secondary and back through the primary. Folding packs a long focal length into a short tube: high magnification, but a narrow field that rewards disciplined finder use.",
-    "text_zh": "1672 年以洛朗·卡塞格林之名发表的双镜设计，让光从凹面主镜到凸面副镜，再折返回主镜中央。折叠把长焦距装进短镜筒：倍率更高，但狭窄视场要求有纪律地使用寻星镜。"
+    "text_zh": "1672 年以洛朗·卡塞格林之名发表的双镜设计，让光从凹面主镜到凸面副镜，再折返回主镜中央。这样能把长焦距装进短镜筒，不过主视野很窄，找目标时不能跳过寻星镜。"
   },
   {
     "id": "gregorian_concave_secondary",
@@ -173,15 +173,15 @@
     "title_zh": "红外观测：从太空看见热",
     "image": "res://assets/assembly/space_main_blueprint.png",
     "text_en": "An infrared space telescope detects heat radiation instead of visible light. Infrared passes through dust that blocks visible light, revealing newborn stars - but the telescope must stay extremely cold behind its sunshield, or its own heat drowns the signal.",
-    "text_zh": "红外空间望远镜探测的是热辐射而不是可见光。红外线能穿透挡住可见光的尘埃，揭示新生的恒星——但望远镜必须躲在遮阳板后保持极低温度，否则自身的热量就会淹没信号。"
+    "text_zh": "空间红外望远镜记录的是红外辐射，不是人眼看到的颜色。红外能穿过部分尘埃，显出其中的新生恒星；但望远镜必须躲在遮阳罩后保持低温，否则自身热量会盖住微弱信号。"
   },
   {
     "id": "radio_signal_observing",
     "title_en": "Radio Astronomy: Data Instead of Images",
     "title_zh": "射电天文：数据就是观测",
-    "image": "res://assets/assembly/fast_main_blueprint.png",
+    "image": "res://assets/assembly/fast_blueprint_center_cropped.png",
     "text_en": "FAST is a 500-meter radio telescope in Guizhou with an active reflector and a suspended feed cabin. It has no eyepiece: position the cabin, tune frequency, reject RFI, fold pulses, match dispersion measure, and integrate until SNR makes the hidden pattern credible. The trace IS the observation.",
-    "text_zh": "FAST 是位于贵州的 500 米射电望远镜，拥有主动反射面和悬吊馈源舱。它没有目镜：定位馈源舱、调谐频率、抑制射频干扰、折叠脉冲、匹配色散量，并持续积分，直到信噪比让隐藏规律可信。数据轨迹本身就是观测结果。"
+    "text_zh": "FAST 是位于贵州的 500 米射电望远镜，使用主动反射面和悬吊馈源舱接收信号。它没有目镜：先稳住馈源舱，再调频、清除射频干扰、校正周期和色散量，最后持续积分。屏幕上的频谱和脉冲，就是这次观测留下的记录。"
   },
   {
     "id": "multi_wavelength_evidence",
@@ -189,7 +189,7 @@
     "title_zh": "同一目标，多种光",
     "image": "res://assets/learning_diagrams/jwst_false_colour_diagram.png",
     "text_en": "Visible light shows stars, infrared reveals warm dust, radio traces cold gas. No single instrument sees everything. Modern astronomy compares evidence from several wavelength windows and builds one conclusion supported by all of them.",
-    "text_zh": "可见光展示恒星，红外揭示温暖的尘埃，无线电描出寒冷的气体。没有一台仪器能看到全部。现代天文学比较多个波段窗口的证据，得出被所有证据共同支持的结论。"
+    "text_zh": "可见光更容易显示恒星，红外能突出温暖尘埃，射电则能追踪冷气体。没有一台仪器能包办全部信息，把几个波段放在一起，天体的结构才会更清楚。"
   },
   {
     "id": "jwst_infrared_light",
@@ -221,7 +221,7 @@
     "title_zh": "四台科学仪器",
     "image": "res://assets/learning_diagrams/jwst_instruments_diagram.png",
     "text_en": "NIRCam images in the near infrared. NIRSpec takes spectra to read composition, motion and redshift. MIRI sees cold dust and molecules in the mid infrared but needs extra cooling. FGS/NIRISS guides precisely and adds niche near-infrared work. The right instrument depends on the science question.",
-    "text_zh": "NIRCam 进行近红外成像。NIRSpec 拍摄光谱，读出成分、运动和红移。MIRI 观测中红外的冷尘埃和分子，但需要额外制冷。FGS/NIRISS 负责精确导星并承担特定近红外任务。选哪台取决于你的科学问题。"
+    "text_zh": "NIRCam 负责近红外成像；NIRSpec 用光谱测成分、运动和红移；MIRI 观察中红外的冷尘埃和分子，但需要额外制冷；FGS/NIRISS 负责精确导星和特定近红外观测。先看目标信息，再选对应仪器。"
   },
   {
     "id": "jwst_false_colour",
@@ -229,6 +229,6 @@
     "title_zh": "数据，而非普通照片",
     "image": "res://assets/learning_diagrams/jwst_false_colour_diagram.png",
     "text_en": "The detector records infrared photons, not eye colours. Each filter's data is mapped to red, green or blue to make a science image. Different colour mappings highlight dust, gas, temperature or star-forming regions. The final answer is a scientific interpretation, not just a pretty picture.",
-    "text_zh": "探测器记录的是红外光子，不是人眼的颜色。每个滤镜的数据被映射到红、绿或蓝，合成科学图像。不同的颜色映射能突出尘埃、气体、温度或恒星形成区。最终得到的是科学解释，而不仅仅是一张好看的图。"
+    "text_zh": "探测器记录的是不同红外波段的强度，不是人眼颜色。把各波段分别映射到红、绿、蓝后，尘埃、气体和恒星形成区会呈现不同结构。颜色要对应测量，不能只追求好看。"
   }
 ]

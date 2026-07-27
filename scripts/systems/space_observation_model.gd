@@ -78,6 +78,7 @@ var wavefront_error_nm := 900.0      # target < 150 nm
 var calibration_progress := 0.0
 var segment_phase_errors: Array[float] = []
 var wavefront_coarse_complete := false
+var wavefront_bank_states: Array[String] = []
 
 # ------------------------------------------------------------------ 6. EXPOSE
 var frames: Array = []               # each {signal, cosmic_ray, saturated, kept}
@@ -455,6 +456,7 @@ func guide_quality() -> float:
 func _configure_wavefront_errors() -> void:
 	segment_phase_errors.clear()
 	wavefront_coarse_complete = false
+	wavefront_bank_states = ["unresolved", "unresolved", "unresolved"]
 	var dominant_group := observation_seed % 3
 	var group_levels := [0.53, 0.74, 0.98]
 	for index in range(18):
@@ -480,6 +482,8 @@ func max_wavefront_group() -> int:
 	var best_group := 0
 	var best_error := -1.0
 	for group_index in range(3):
+		if wavefront_bank_state(group_index) == "resolved":
+			continue
 		var error := wavefront_group_error(group_index)
 		if error > best_error:
 			best_error = error
@@ -487,31 +491,75 @@ func max_wavefront_group() -> int:
 	return best_group
 
 
-func coarse_adjust_group(group_index: int) -> bool:
+func wavefront_bank_state(group_index: int) -> String:
+	if group_index < 0 or group_index >= wavefront_bank_states.size():
+		return "unresolved"
+	return wavefront_bank_states[group_index]
+
+
+func select_wavefront_group(group_index: int) -> bool:
 	if wavefront_coarse_complete or group_index < 0 or group_index > 2:
 		return false
-	var correct := group_index == max_wavefront_group()
-	if not correct:
-		for index in range(group_index * 6, group_index * 6 + 6):
-			segment_phase_errors[index] *= 0.95
-		_recompute_wavefront_from_segments()
+	if wavefront_bank_state(group_index) == "resolved":
 		return false
+	for index in range(wavefront_bank_states.size()):
+		if wavefront_bank_states[index] == "selected":
+			wavefront_bank_states[index] = "unresolved"
+	wavefront_bank_states[group_index] = "selected"
+	return true
 
-	# Coarse phasing removes the dominant bank offset. Four deterministic
-	# residual segments remain for the fine-control exercise.
-	for index in range(18):
+
+func begin_wavefront_group_actuation(group_index: int) -> bool:
+	if wavefront_bank_state(group_index) != "selected":
+		return false
+	wavefront_bank_states[group_index] = "actuating"
+	return true
+
+
+func settle_wavefront_group(group_index: int) -> bool:
+	if wavefront_bank_state(group_index) != "actuating":
+		return false
+	wavefront_bank_states[group_index] = "settling"
+	return true
+
+
+func resolve_wavefront_group(group_index: int) -> bool:
+	if wavefront_bank_state(group_index) != "settling":
+		return false
+	for index in range(group_index * 6, group_index * 6 + 6):
 		var sign_value := -1.0 if segment_phase_errors[index] < 0.0 else 1.0
 		segment_phase_errors[index] = sign_value * (0.052 + float(index % 4) * 0.006)
-	# Keep four residual channels above the science threshold. The WFE cannot
-	# pass until the player finds and trims the final anomalous segment.
+	wavefront_bank_states[group_index] = "resolved"
+	wavefront_coarse_complete = not wavefront_bank_states.has("unresolved") \
+		and not wavefront_bank_states.has("selected") \
+		and not wavefront_bank_states.has("actuating") \
+		and not wavefront_bank_states.has("settling")
+	if wavefront_coarse_complete:
+		_seed_wavefront_fine_residuals()
+	_recompute_wavefront_from_segments()
+	return true
+
+
+func _seed_wavefront_fine_residuals() -> void:
+	# Coarse phasing leaves four deterministic residual channels for the
+	# per-segment fine-control exercise.
 	var anomaly_values := [0.50, 0.47, 0.44, 0.41]
 	for anomaly_index in range(anomaly_values.size()):
 		var segment_index := wrapi(observation_seed + anomaly_index * 5, 0, 18)
 		var sign_value := -1.0 if (observation_seed + anomaly_index) % 2 == 0 else 1.0
 		segment_phase_errors[segment_index] = sign_value * float(anomaly_values[anomaly_index])
-	wavefront_coarse_complete = true
-	_recompute_wavefront_from_segments()
-	return true
+
+
+# Compatibility helper for older tests and developer preparation. Gameplay
+# uses the explicit select -> actuate -> settle -> resolve sequence above.
+func coarse_adjust_group(group_index: int) -> bool:
+	if not select_wavefront_group(group_index):
+		return false
+	if not begin_wavefront_group_actuation(group_index):
+		return false
+	if not settle_wavefront_group(group_index):
+		return false
+	return resolve_wavefront_group(group_index)
 
 
 func wavefront_anomaly_segments(threshold := 0.12) -> Array[int]:
@@ -571,6 +619,10 @@ func set_segment_alignment(value: float) -> void:
 		var sign_value := -1.0 if index % 2 == 0 else 1.0
 		segment_phase_errors[index] = sign_value * residual
 	wavefront_coarse_complete = segment_alignment >= 0.80
+	var compatibility_state := "resolved" if wavefront_coarse_complete else "unresolved"
+	wavefront_bank_states.clear()
+	for _bank_index in range(3):
+		wavefront_bank_states.append(compatibility_state)
 
 
 func psf_sharpness() -> float:

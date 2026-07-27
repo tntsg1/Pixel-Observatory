@@ -26,6 +26,9 @@ const AMBER := Color(0.95, 0.66, 0.25)
 const MID := Color(0.58, 0.58, 0.58)
 const DIM := Color(0.25, 0.25, 0.25)
 const BG := Color(0.015, 0.022, 0.03)
+const RESIDUAL_THRESHOLD := 0.12
+const RESIDUAL_VISUAL_MIN_OFFSET := 7.0
+const RESIDUAL_VISUAL_MAX_OFFSET := 12.0
 
 
 func _ready() -> void:
@@ -184,7 +187,7 @@ func _draw_segments(center: Vector2) -> void:
 		var ideal := Vector2(sqrt(3.0) * (axial.x + axial.y * 0.5), 1.5 * axial.y) * 17.0
 		var phase_error := float(errors[index])
 		var error_direction := Vector2(cos(float(index) * 2.19), sin(float(index) * 2.19))
-		var phase_offset := error_direction * phase_error * 8.0 * (1.0 - convergence_progress)
+		var phase_offset := _segment_visual_offset(index, phase_error, error_direction)
 		var mechanical_offset := Vector2.ZERO
 		if _segment_is_actuating(index):
 			var impulse := sin(actuation_progress * PI) * 2.8
@@ -192,7 +195,7 @@ func _draw_segments(center: Vector2) -> void:
 			mechanical_offset = error_direction * (impulse + rebound)
 		var position := center + ideal + phase_offset + mechanical_offset
 		segment_centers.append(position)
-		var resolved := absf(phase_error) <= 0.12 or convergence_progress > 0.72
+		var resolved := absf(phase_error) <= RESIDUAL_THRESHOLD or convergence_progress > 0.72
 		var color := MID
 		if convergence_progress > 0.0:
 			color = MID.lerp(CYAN, convergence_progress)
@@ -204,6 +207,15 @@ func _draw_segments(center: Vector2) -> void:
 			color = HOT
 		elif resolved:
 			color = HOT
+		if coarse_complete and not resolved and convergence_progress < 0.98:
+			# Phase is piston motion rather than literal sideways travel. The dim
+			# ideal outline and short actuator vector make that schematic
+			# displacement explicit without pretending the mirror slides freely.
+			var ideal_position := center + ideal
+			_draw_hex(ideal_position, 16.0, Color(DIM, 0.72), false, true)
+			draw_line(ideal_position, position, Color(AMBER, 0.70), 1.5)
+			draw_circle(ideal_position, 2.0, Color(DIM, 0.82), true)
+			draw_circle(position, 2.3, Color(color, 0.95), true)
 		_draw_hex(position, 16.0, color, resolved or convergence_progress >= 0.98, not resolved and convergence_progress < 0.98)
 
 	var anomalies := _anomaly_indices()
@@ -306,9 +318,31 @@ func _segment_is_actuating(index: int) -> bool:
 func _anomaly_indices() -> Array[int]:
 	var output: Array[int] = []
 	for index in range(visual_phase_errors.size()):
-		if absf(float(visual_phase_errors[index])) > 0.12:
+		if absf(float(visual_phase_errors[index])) > RESIDUAL_THRESHOLD:
 			output.append(index)
 	return output
+
+
+func _segment_visual_offset(index: int, phase_error: float, error_direction := Vector2.INF) -> Vector2:
+	var direction := error_direction
+	if not direction.is_finite():
+		direction = Vector2(cos(float(index) * 2.19), sin(float(index) * 2.19))
+	if direction.length_squared() < 0.0001:
+		direction = Vector2.RIGHT
+	else:
+		direction = direction.normalized()
+
+	var magnitude := absf(phase_error) * 8.0
+	if coarse_complete and absf(phase_error) > RESIDUAL_THRESHOLD:
+		# Four fine residuals must remain legible after coarse phasing. A small
+		# nonlinear display gain preserves their rank while avoiding the old
+		# "all mirrors suddenly aligned" visual lie.
+		var residual_strength := inverse_lerp(RESIDUAL_THRESHOLD, 0.55, absf(phase_error))
+		magnitude = lerpf(
+			RESIDUAL_VISUAL_MIN_OFFSET,
+			RESIDUAL_VISUAL_MAX_OFFSET,
+			clampf(residual_strength, 0.0, 1.0))
+	return direction * signf(phase_error) * magnitude * (1.0 - convergence_progress)
 
 
 func _ranked_error_indices() -> Array[int]:

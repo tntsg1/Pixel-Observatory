@@ -73,7 +73,7 @@ func _capture_detailed_scope() -> void:
 
 
 func _capture_averted_scope() -> void:
-	gm.debug_jump_to_level(31, false)
+	gm.debug_jump_to_level(31, true)
 	gm.selected_object_id = "sombrero_galaxy"
 	var feedback := root.get_node_or_null("/root/InteractionFeedback")
 	if feedback != null:
@@ -89,11 +89,21 @@ func _capture_averted_scope() -> void:
 		view.call("_dismiss_pre_quiz_guide")
 	await _settle(0.12)
 	view.set("dark_adaptation", 1.0)
-	view.set("averted_vision_active", true)
-	view.call("_update_averted_vision_guide", 0.8)
-	view.call("_refresh_technique_status")
-	await _settle(0.16)
-	_save("05_averted_vision_fisheye.png")
+	view.set("drift_offset", Vector2.ZERO)
+	view.set("drift_direction", Vector2.ZERO)
+	var optimal: float = view.get("target_focus_value")
+	if bool(view.get("requires_focus")):
+		view.call("_set_focus_value", optimal)
+	Input.action_press("dodge")
+	await _settle(0.62)
+	_save("05_averted_vision_hold_progress.png")
+	await _settle(0.72)
+	_save("06_averted_vision_confirmed_feather.png")
+	Input.action_release("dodge")
+
+	view.call("_set_focus_value", clampf(optimal + 0.42, 0.0, 1.0))
+	await _settle(0.12)
+	_save("07_sombrero_continuous_defocus.png")
 	view.queue_free()
 	await process_frame
 

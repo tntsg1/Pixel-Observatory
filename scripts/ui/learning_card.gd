@@ -11,8 +11,8 @@ const GREEN := Color(0.72, 0.94, 0.68)
 const BG := Color(0.050, 0.060, 0.090)
 const PANEL_BG := Color(0.035, 0.050, 0.085, 0.96)
 const BORDER := Color(0.78, 0.56, 0.28)
-const PAPER_INK := Color(0.19, 0.13, 0.07)
-const PAPER_MUTED := Color(0.39, 0.30, 0.18)
+const PAPER_INK := Color(0.11, 0.075, 0.04)
+const PAPER_MUTED := Color(0.28, 0.20, 0.11)
 const PAPER_LINE := Color(0.55, 0.39, 0.20, 0.55)
 const PAPER_BOX := Color(0.93, 0.82, 0.58, 0.54)
 const DEEP_BLUE := Color(0.02, 0.04, 0.075, 0.92)
@@ -22,6 +22,9 @@ const MISSION_PARCHMENT := "res://assets/mission_complete/parchment_card.png"
 const MISSION_JOURNAL := "res://assets/mission_complete/journal_book_64_clean.png"
 const MISSION_BADGE := "res://assets/mission_complete/badge_shield_64_clean.png"
 const MISSION_CREDIT := "res://assets/mission_complete/credit_coin_64_clean.png"
+const FAST_OBSERVATION_MEDIA_PATH := "res://data/fast_observation_media.json"
+
+var _fast_observation_media_cache: Dictionary = {}
 
 
 func _ready() -> void:
@@ -254,7 +257,7 @@ func _build_mission_complete(data: Dictionary) -> void:
 	_paper_label(object_name, Vector2(250, 94), Vector2(524, 42), 28, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
 	var subtitle := _target_subtitle(obj)
 	if subtitle != "":
-		var subtitle_label := _paper_label(subtitle, Vector2(250, 134), Vector2(524, 26), 14, PAPER_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+		var subtitle_label := _paper_label(subtitle, Vector2(250, 134), Vector2(524, 26), 15, PAPER_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 		subtitle_label.max_lines_visible = 2
 
 	_mission_section_line(Vector2(228, 162), 568)
@@ -311,7 +314,7 @@ func _build_next_mission_route() -> void:
 		GameManager.text("Go to: ", "前往：") + str(next_route.get("action", "")),
 		Vector2(180, 619), Vector2(664, 20), 14, Color(0.72, 0.94, 0.68), HORIZONTAL_ALIGNMENT_CENTER)
 	where.clip_text = true
-	var what := _label(str(next_route.get("hint", "")), Vector2(180, 638), Vector2(664, 18), 12, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	var what := _label(str(next_route.get("hint", "")), Vector2(180, 637), Vector2(664, 20), 14, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	what.clip_text = true
 
 
@@ -326,7 +329,7 @@ func _build_program_complete_route() -> void:
 	where.clip_text = true
 	var what := _label(
 		GameManager.text("Return to the observatory or open the Club Logbook.", "返回天文台，或打开俱乐部观测日志。"),
-		Vector2(180, 638), Vector2(664, 18), 12, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+		Vector2(180, 637), Vector2(664, 20), 14, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	what.clip_text = true
 
 
@@ -347,7 +350,7 @@ func _observation_image(obj: Dictionary, level: Dictionary, observation: Diction
 	if bool(level.get("requires_focus", false)):
 		_focus_comparison_image(obj, observation)
 		return
-	var path := _mission_object_image(obj)
+	var path := _mission_object_image(obj, level)
 	if path != "":
 		_mission_texture(path, Vector2(232, 186), Vector2(306, 138), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
 	var check := _dark_panel(Vector2(204, 158), Vector2(40, 40), Color(0.12, 0.08, 0.03, 0.95), GOLD)
@@ -357,8 +360,7 @@ func _observation_image(obj: Dictionary, level: Dictionary, observation: Diction
 
 func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 	var clear_path := _mission_object_state_image(obj, "clear")
-	var blurry_path := _mission_object_state_image(obj, "blurry")
-	if clear_path == "" or blurry_path == "":
+	if clear_path == "":
 		var fallback_path := _mission_object_image(obj)
 		if fallback_path != "":
 			_mission_texture(fallback_path, Vector2(232, 186), Vector2(306, 138), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
@@ -368,20 +370,20 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		{
 			"label": _inline_text("Out of Focus", "失焦"),
 			"border": Color(0.72, 0.24, 0.12),
-			"clear_alpha": 0.0,
-			"blur_alpha": 1.0
+			"blur_radius": 5.6,
+			"brightness": 0.72
 		},
 		{
 			"label": _inline_text("Near Focus", "接近焦点"),
 			"border": Color(0.82, 0.56, 0.12),
-			"clear_alpha": 0.52,
-			"blur_alpha": 0.58
+			"blur_radius": 2.2,
+			"brightness": 0.90
 		},
 		{
 			"label": _inline_text("In Focus", "准焦"),
 			"border": Color(0.20, 0.56, 0.24),
-			"clear_alpha": 1.0,
-			"blur_alpha": 0.0
+			"blur_radius": 0.0,
+			"brightness": 1.0
 		}
 	]
 	var start_x := 228.0
@@ -392,14 +394,12 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		_dark_panel(cell_pos, cell_size, Color(0.018, 0.022, 0.030, 0.96), state["border"])
 		var image_pos := cell_pos + Vector2(5, 5)
 		var image_size := Vector2(90, 103)
-		var blur_alpha := float(state["blur_alpha"])
-		if blur_alpha > 0.0:
-			var blurry := _mission_texture(blurry_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
-			blurry.modulate.a = blur_alpha
-		var clear_alpha := float(state["clear_alpha"])
-		if clear_alpha > 0.0:
-			var clear := _mission_texture(clear_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
-			clear.modulate.a = clear_alpha
+		var image := _mission_texture(clear_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+		var material := ShaderMaterial.new()
+		material.shader = preload("res://shaders/optical_target_state.gdshader")
+		material.set_shader_parameter("blur_radius_px", float(state["blur_radius"]))
+		material.set_shader_parameter("brightness", float(state["brightness"]))
+		image.material = material
 		var label := _label(str(state["label"]), cell_pos + Vector2(3, 111), Vector2(94, 24), 10, state["border"], HORIZONTAL_ALIGNMENT_CENTER)
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.max_lines_visible = 2
@@ -415,7 +415,7 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 
 
 func _quality_panel(observation: Dictionary, stats: Dictionary) -> void:
-	_paper_label(_inline_text("Observation Quality", "观测质量"), Vector2(584, 182), Vector2(220, 24), 16, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
+	_paper_label(_inline_text("Observation Quality", "观测质量"), Vector2(584, 182), Vector2(220, 24), 17, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
 	_mission_section_line(Vector2(596, 210), 194)
 	var scores := _quality_scores(observation, stats)
 	var rows := [
@@ -425,11 +425,11 @@ func _quality_panel(observation: Dictionary, stats: Dictionary) -> void:
 	]
 	var y := 222.0
 	for row in rows:
-		_paper_label(str(row["name"]), Vector2(594, y), Vector2(92, 20), 13, PAPER_INK)
+		_paper_label(str(row["name"]), Vector2(594, y), Vector2(92, 20), 15, PAPER_INK)
 		_paper_label(_star_string(int(row["score"])), Vector2(688, y - 4.0), Vector2(112, 24), 20, Color(0.80, 0.48, 0.08))
 		y += 32.0
 	var quality := str(observation.get("quality", "Good"))
-	_paper_label(quality, Vector2(592, 306), Vector2(198, 22), 14, _paper_quality_color(quality), HORIZONTAL_ALIGNMENT_CENTER)
+	_paper_label(quality, Vector2(592, 306), Vector2(198, 22), 15, _paper_quality_color(quality), HORIZONTAL_ALIGNMENT_CENTER)
 
 
 func _learned_panel(obj: Dictionary, level: Dictionary, observation: Dictionary, data: Dictionary, concept: Dictionary) -> void:
@@ -443,8 +443,8 @@ func _learned_panel(obj: Dictionary, level: Dictionary, observation: Dictionary,
 	]
 	for index in range(3):
 		var x := 240.0 + float(index) * 184.0
-		_paper_label(str(headings[index]), Vector2(x, 370), Vector2(168, 18), 10, Color(0.63, 0.39, 0.08), HORIZONTAL_ALIGNMENT_CENTER)
-		var body := _paper_label(str(summary[index]), Vector2(x, 389), Vector2(168, 66), 11, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
+		_paper_label(str(headings[index]), Vector2(x, 368), Vector2(168, 22), 13, Color(0.50, 0.29, 0.05), HORIZONTAL_ALIGNMENT_CENTER)
+		var body := _paper_label(str(summary[index]), Vector2(x, 390), Vector2(168, 65), 13, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
 		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		body.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		body.max_lines_visible = 4
@@ -529,9 +529,9 @@ func _reward_slot(reward: Dictionary, pos: Vector2) -> void:
 		_mission_texture(icon_path, pos + Vector2(43, 0), Vector2(44, 44), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
 	var title := str(reward.get("title", ""))
 	var detail := str(reward.get("detail", ""))
-	var title_label := _paper_label(title, pos + Vector2(2, 42), Vector2(126, 20), 11, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
+	var title_label := _paper_label(title, pos + Vector2(2, 42), Vector2(126, 20), 13, PAPER_INK, HORIZONTAL_ALIGNMENT_CENTER)
 	title_label.max_lines_visible = 1
-	var detail_label := _paper_label(detail, pos + Vector2(2, 60), Vector2(126, 20), 10, PAPER_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	var detail_label := _paper_label(detail, pos + Vector2(2, 60), Vector2(126, 20), 12, PAPER_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	detail_label.max_lines_visible = 1
 
 
@@ -733,14 +733,20 @@ func _learned_lines(obj: Dictionary, level: Dictionary, observation: Dictionary,
 
 	var maya_recap := str(data.get("maya_recap_zh", "")) if GameManager.language_mode == "zh" else str(data.get("maya_recap_en", ""))
 	if maya_recap != "":
-		lines.append("Maya: " + maya_recap)
+		lines.append(GameManager.text("Maya: ", "玛雅：") + maya_recap)
 	while lines.size() > 3:
 		lines.pop_back()
 	return lines
 
 
-func _mission_object_image(obj: Dictionary) -> String:
+func _mission_object_image(obj: Dictionary, level: Dictionary = {}) -> String:
+	var observation_media_path := _level_observation_media_path(level)
+	if observation_media_path != "":
+		return observation_media_path
 	var id := str(obj.get("id", ""))
+	var optical_master := OpticalMediaRegistry.master_path(id)
+	if optical_master != "":
+		return optical_master
 	var path := ""
 	match id:
 		"moon":
@@ -786,6 +792,42 @@ func _mission_object_image(obj: Dictionary) -> String:
 	return ""
 
 
+func _level_observation_media_path(level: Dictionary) -> String:
+	var media_value: Variant = level.get("observation_media", {})
+	var media_id := ""
+	if media_value is Dictionary:
+		media_id = str((media_value as Dictionary).get("id", ""))
+	else:
+		media_id = str(media_value)
+	if media_id == "":
+		return ""
+	var registry := _fast_observation_media()
+	var entry_value: Variant = registry.get(media_id, {})
+	if not entry_value is Dictionary:
+		return ""
+	var entry := entry_value as Dictionary
+	if str(entry.get("status", "")) != "packaged":
+		return ""
+	var path := str(entry.get("image_path", ""))
+	if path != "" and ResourceLoader.exists(path):
+		return path
+	return ""
+
+
+func _fast_observation_media() -> Dictionary:
+	if not _fast_observation_media_cache.is_empty():
+		return _fast_observation_media_cache
+	if not FileAccess.file_exists(FAST_OBSERVATION_MEDIA_PATH):
+		return {}
+	var file := FileAccess.open(FAST_OBSERVATION_MEDIA_PATH, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if parsed is Dictionary:
+		_fast_observation_media_cache = parsed as Dictionary
+	return _fast_observation_media_cache
+
+
 func _mission_object_state_image(obj: Dictionary, state: String) -> String:
 	var clear_path := _mission_object_image(obj)
 	if clear_path == "" or state == "clear":
@@ -811,6 +853,9 @@ func _paper_box(pos: Vector2, size: Vector2) -> void:
 
 func _paper_label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Color, align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var label := _label(text, pos, size, font_size, color, align)
+	label.remove_theme_color_override("font_shadow_color")
+	label.remove_theme_constant_override("shadow_offset_x")
+	label.remove_theme_constant_override("shadow_offset_y")
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	return label
 
@@ -859,7 +904,7 @@ func _load_texture(path: String) -> Texture2D:
 
 func _mission_button(text: String, pos: Vector2, size: Vector2, color: Color) -> Button:
 	var button := _button(text, pos, size)
-	button.add_theme_font_size_override("font_size", 15)
+	button.add_theme_font_size_override("font_size", 16)
 	var normal := StyleBoxFlat.new()
 	normal.bg_color = color
 	normal.border_color = GOLD
@@ -957,8 +1002,13 @@ func _label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Co
 	label.position = pos
 	label.size = size
 	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
+	if color != PAPER_INK and color != PAPER_MUTED:
+		label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.70))
+		label.add_theme_constant_override("shadow_offset_x", 1)
+		label.add_theme_constant_override("shadow_offset_y", 1)
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
 	return label

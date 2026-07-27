@@ -12,6 +12,7 @@ const DeveloperConsoleScript := preload("res://scripts/ui/developer_console.gd")
 const ADVANCED_LEVELS_PATH := "res://data/advanced_levels.json"
 const ADVANCED_PARTS_PATH := "res://data/advanced_telescope_parts.json"
 const EXPANSION_DIR := "res://data/expansion/"
+const REMOTE_FREE_CATALOG_PATH := "res://data/remote_free_observation_catalog.json"
 const CAMPAIGN_VERSION := 94
 const FINAL_CAMPAIGN_LEVEL := 85
 const RETIRED_POST_FAST_LEVEL := 86
@@ -129,6 +130,10 @@ var room_guidance_title := ""
 var room_guidance_hint := ""
 var language_mode := "en"
 var observatory_spawn_id := "default"
+# Exact in-room navigation pose. This is intentionally transient: it preserves
+# where the player stood while visiting menus, observation screens, journals,
+# or teaching cards without changing the save format or cross-session spawn.
+var observatory_return_pose: Dictionary = {}
 # The map can be opened from either the observatory or an already-active sky
 # view. Keep that return route transient: it is navigation state, not progress.
 var world_map_return_scene := "sky"
@@ -147,6 +152,14 @@ var last_sky_aim: Dictionary = {"valid": false}
 var assembly_family_id := ""
 var developer_console: Control
 var foundation_training_time_cache: Dictionary = {}
+# Remote campaign and free-observation sessions share the same instrument
+# scenes, but never the same progression path. This context is transient; only
+# completed free observations are written to the save archive.
+var remote_observation_context: Dictionary = {}
+# The central observation pad owns local optical observing. This transient
+# context keeps an active FAST/space campaign from taking over the player's
+# assembled ground telescope without adding another save field.
+var local_optical_observation_context: Dictionary = {}
 
 
 func _ready() -> void:
@@ -238,6 +251,7 @@ func debug_launch(scene_key: String, prepare_equipment: bool = false) -> void:
 	selected_object_level = int(progress.get("current_level", 1))
 	if scene_key == "observatory":
 		update_room_guidance_for_level()
+		clear_observatory_return_pose()
 		set_observatory_spawn("default")
 	go(scene_key)
 
@@ -315,7 +329,10 @@ func prepared_readiness_report() -> Dictionary:
 		"tube_interior": true,
 		"collimation": -1.0,
 		"observation_open": false,
-		"family": str(level.get("telescope_family", ""))
+		"family": str(level.get("telescope_family", "")),
+		"mount_id": "",
+		"tracking_capable": false,
+		"tracking_rate": 0.0
 	}
 	if not current_requires_telescope():
 		# Naked-eye-only nights: no rig to build.
@@ -324,6 +341,11 @@ func prepared_readiness_report() -> Dictionary:
 		report["needs_telescope"] = false
 		return report
 	report["needs_telescope"] = true
+	var mount_id := equipped_part_id("mount")
+	var mount := get_part(mount_id)
+	report["mount_id"] = mount_id
+	report["tracking_capable"] = bool(mount.get("tracking_capable", false))
+	report["tracking_rate"] = tracking_rate() if report["tracking_capable"] else 0.0
 	var state: Dictionary = progress.get("assembly_state", {})
 	for required_type_value in _effective_required_parts():
 		var required_type := str(required_type_value)
@@ -382,9 +404,13 @@ func default_progress() -> Dictionary:
 		},
 		"assembly_state": _fresh_assembly_state(),
 		"telescope_ready": false,
+		"family_assembly_states": {},
+		"family_selected_parts": {},
 		"observed_objects": [],
 		"badges": [],
 		"journal_entries": [],
+		"remote_observation_archive": [],
+		"remote_free_intro_seen": [],
 		"completed_concept_cards": [],
 		"seen_teaching_steps": [],
 		"seen_concept_briefs": [],
@@ -405,6 +431,9 @@ func default_progress() -> Dictionary:
 
 
 func new_game() -> void:
+	var audio_manager := get_node_or_null("/root/AudioManager")
+	if audio_manager != null and audio_manager.has_method("clear_music_progress"):
+		audio_manager.clear_music_progress()
 	progress = SaveManager.reset_progress(default_progress())
 	language_mode = _normalized_language_mode(str(progress.get("language_mode", "en")))
 	selected_object_id = ""
@@ -417,11 +446,14 @@ func new_game() -> void:
 	current_sky_positions.clear()
 	current_sky_location_id = ""
 	foundation_training_time_cache.clear()
+	remote_observation_context.clear()
+	local_optical_observation_context.clear()
 	last_observation = {}
 	last_learning_card = {}
 	last_guidance = ""
 	clear_room_guidance()
 	observatory_spawn_id = "default"
+	clear_observatory_return_pose()
 	last_sky_aim = {"valid": false}
 	assembly_family_id = str(progress.get("selected_telescope_family", "refractor"))
 	TeachingFlowManager.reset_flow()
@@ -513,6 +545,27 @@ func set_observatory_spawn(spawn_id: String) -> void:
 	observatory_spawn_id = spawn_id
 
 
+func remember_observatory_pose(position: Vector2, facing: String) -> void:
+	if not is_finite(position.x) or not is_finite(position.y):
+		return
+	var safe_facing := facing if facing in ["up", "down", "left", "right"] else "down"
+	observatory_return_pose = {
+		"valid": true,
+		"position": position,
+		"facing": safe_facing,
+	}
+
+
+func take_observatory_return_pose() -> Dictionary:
+	var pose := observatory_return_pose.duplicate(true)
+	observatory_return_pose.clear()
+	return pose
+
+
+func clear_observatory_return_pose() -> void:
+	observatory_return_pose.clear()
+
+
 func take_observatory_spawn() -> String:
 	var spawn_id := observatory_spawn_id
 	observatory_spawn_id = "default"
@@ -553,8 +606,13 @@ func select_assembly_family(family: String) -> void:
 	if not family in ASSEMBLY_FAMILIES:
 		push_warning("Unknown telescope family: " + family)
 		return
+	var previous_family := assembly_family()
+	if postgraduate_free_build() and previous_family != family:
+		_store_postgraduate_family_state(previous_family)
 	assembly_family_id = family
 	progress["selected_telescope_family"] = family
+	if postgraduate_free_build() and previous_family != family:
+		_restore_postgraduate_family_state(family)
 	save()
 
 
@@ -567,6 +625,55 @@ func assembly_family() -> String:
 
 func assembly_scene_key() -> String:
 	return "assembly" if assembly_family() == "refractor" else "advanced_assembly"
+
+
+func postgraduate_free_build() -> bool:
+	return campaign_completed() and bool(progress.get("graduation_seen", false))
+
+
+func assembly_context_family() -> String:
+	if postgraduate_free_build():
+		return assembly_family()
+	return str(current_level().get("telescope_family", "refractor"))
+
+
+func _store_postgraduate_family_state(family: String) -> void:
+	if family == "" or not family in ASSEMBLY_FAMILIES:
+		return
+	if not progress.get("family_assembly_states") is Dictionary:
+		progress["family_assembly_states"] = {}
+	if not progress.get("family_selected_parts") is Dictionary:
+		progress["family_selected_parts"] = {}
+	progress["family_assembly_states"][family] = {
+		"assembly_state": (progress.get("assembly_state", {}) as Dictionary).duplicate(true),
+		"telescope_ready": bool(progress.get("telescope_ready", false))
+	}
+	progress["family_selected_parts"][family] = (progress.get("selected_parts", {}) as Dictionary).duplicate(true)
+
+
+func _restore_postgraduate_family_state(family: String) -> void:
+	var saved_states: Dictionary = progress.get("family_assembly_states", {})
+	var saved_parts: Dictionary = progress.get("family_selected_parts", {})
+	var state_value: Variant = saved_states.get(family, {})
+	if state_value is Dictionary and not (state_value as Dictionary).is_empty():
+		var state_record: Dictionary = state_value
+		progress["assembly_state"] = (state_record.get("assembly_state", _fresh_assembly_state()) as Dictionary).duplicate(true)
+		progress["telescope_ready"] = bool(state_record.get("telescope_ready", false))
+	else:
+		progress["assembly_state"] = _fresh_assembly_state()
+		progress["telescope_ready"] = false
+	var parts_value: Variant = saved_parts.get(family, {})
+	if parts_value is Dictionary and not (parts_value as Dictionary).is_empty():
+		progress["selected_parts"] = (parts_value as Dictionary).duplicate(true)
+	else:
+		var compatible_parts: Dictionary = (progress.get("selected_parts", {}) as Dictionary).duplicate(true)
+		for part_type_value in compatible_parts.keys():
+			var part_id := str(compatible_parts.get(part_type_value, ""))
+			var part := get_part(part_id)
+			var part_family := str(part.get("telescope_family", ""))
+			if part_id != "" and part_family != "" and part_family != family:
+				compatible_parts[part_type_value] = ""
+		progress["selected_parts"] = compatible_parts
 
 
 func assembly_level_context() -> Dictionary:
@@ -647,11 +754,12 @@ func required_part_types_for_current_level() -> Array[String]:
 		var part_type := str(type_value)
 		if part_type != "" and not types.has(part_type):
 			types.append(part_type)
-	for required_id_value in current_level().get("required_part_ids", []):
-		var part := get_part(str(required_id_value))
-		var part_type := str(part.get("type", ""))
-		if part_type != "" and not types.has(part_type):
-			types.append(part_type)
+	if not postgraduate_free_build():
+		for required_id_value in current_level().get("required_part_ids", []):
+			var part := get_part(str(required_id_value))
+			var part_type := str(part.get("type", ""))
+			if part_type != "" and not types.has(part_type):
+				types.append(part_type)
 	return types
 
 
@@ -659,11 +767,13 @@ func is_part_compatible_with_current_level(part: Dictionary) -> bool:
 	if part.is_empty():
 		return false
 	var part_family := str(part.get("telescope_family", ""))
-	var level_family := str(current_level().get("telescope_family", "refractor"))
+	var level_family := assembly_context_family()
 	return part_family == "" or part_family == level_family
 
 
 func locked_required_equipment() -> Dictionary:
+	if postgraduate_free_build():
+		return {"ids": [], "types": []}
 	# This is deliberately about ownership, not installation. It prevents a
 	# mission from sending the player to an assembly slot for an item they can
 	# neither select nor obtain yet.
@@ -1029,8 +1139,53 @@ func position_source_label(source: String) -> String:
 func is_free_observation() -> bool:
 	# True when the player has selected a sky object that is NOT tonight's
 	# mission target. Free observations never complete or fail the mission.
+	if bool(local_optical_observation_context.get("active", false)):
+		return true
 	var sel := selected_object_id
 	return sel != "" and sel != current_target_object_id()
+
+
+func _local_optical_seed_object_id() -> String:
+	var current_selection := selected_object_id
+	if current_selection != "" and current_selection != current_target_object_id() and not get_object(current_selection).is_empty():
+		return current_selection
+	for candidate in ["moon", "jupiter", "saturn", "sirius", "pleiades"]:
+		if candidate != current_target_object_id() and not get_object(candidate).is_empty():
+			return candidate
+	return ""
+
+
+func begin_local_optical_free_observation() -> bool:
+	var family := assembly_family()
+	if not family in ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian"]:
+		return false
+	if not telescope_is_ready():
+		return false
+	var seed_object_id := _local_optical_seed_object_id()
+	if seed_object_id == "":
+		return false
+	remote_observation_context.clear()
+	local_optical_observation_context = {
+		"active": true,
+		"family": family,
+	}
+	selected_object_id = seed_object_id
+	selected_object_level = int(progress.get("current_level", 1))
+	current_sky_positions.clear()
+	current_sky_location_id = ""
+	return true
+
+
+func is_local_optical_free_observation() -> bool:
+	return bool(local_optical_observation_context.get("active", false))
+
+
+func go_to_local_optical_observation(spawn: String) -> bool:
+	if not begin_local_optical_free_observation():
+		return false
+	set_observatory_spawn(spawn)
+	go("sky")
+	return true
 
 
 func publish_sky_positions(positions: Dictionary) -> void:
@@ -1223,6 +1378,117 @@ func record_free_observation(object_id: String, observation: Dictionary) -> Dict
 	}
 
 
+func remote_free_catalog(kind: String) -> Array:
+	var root := _load_json_dict(REMOTE_FREE_CATALOG_PATH)
+	var entries: Variant = root.get(kind, [])
+	return (entries as Array).duplicate(true) if entries is Array else []
+
+
+func remote_free_entry(kind: String, entry_id: String) -> Dictionary:
+	for value in remote_free_catalog(kind):
+		var entry := value as Dictionary
+		if str(entry.get("id", "")) == entry_id:
+			return entry.duplicate(true)
+	return {}
+
+
+func remote_free_unlocked(kind: String) -> bool:
+	var first_level := 76 if kind == "radio" else 66
+	var completed: Array = progress.get("completed_levels", [])
+	if completed.has(first_level) or completed.has(str(first_level)):
+		return true
+	# Old saves from earlier campaign orders may have a later chapter lesson
+	# completed without retaining the first lesson id. Preserve that legal
+	# progress instead of relocking the instrument.
+	for level_value in completed:
+		var number := int(level_value)
+		if kind == "space" and number >= 66 and number <= 75:
+			return true
+		if kind == "radio" and number >= 76 and number <= 85:
+			return true
+	return int(progress.get("current_level", 1)) > first_level
+
+
+func begin_remote_campaign(kind: String) -> void:
+	local_optical_observation_context.clear()
+	remote_observation_context = {
+		"mode": "campaign",
+		"kind": kind,
+		"entry_id": "",
+	}
+
+
+func begin_remote_free_observation(kind: String, entry_id: String) -> bool:
+	if not remote_free_unlocked(kind):
+		return false
+	var entry := remote_free_entry(kind, entry_id)
+	if entry.is_empty():
+		return false
+	local_optical_observation_context.clear()
+	remote_observation_context = {
+		"mode": "free",
+		"kind": kind,
+		"entry_id": entry_id,
+		"target_id": str(entry.get("target_id", entry_id)),
+	}
+	return true
+
+
+func consume_remote_free_intro(kind: String) -> bool:
+	_ensure_progress_array("remote_free_intro_seen")
+	if progress["remote_free_intro_seen"].has(kind):
+		return false
+	progress["remote_free_intro_seen"].append(kind)
+	save()
+	return true
+
+
+func is_remote_free_observation(kind: String = "") -> bool:
+	if str(remote_observation_context.get("mode", "")) != "free":
+		return false
+	return kind == "" or str(remote_observation_context.get("kind", "")) == kind
+
+
+func active_remote_free_entry(kind: String = "") -> Dictionary:
+	if not is_remote_free_observation(kind):
+		return {}
+	return remote_free_entry(
+		str(remote_observation_context.get("kind", "")),
+		str(remote_observation_context.get("entry_id", "")))
+
+
+func record_remote_free_observation(kind: String, observation: Dictionary) -> Dictionary:
+	var entry := active_remote_free_entry(kind)
+	if entry.is_empty():
+		return {"recorded": false}
+	_ensure_progress_array("remote_observation_archive")
+	var now := Time.get_datetime_dict_from_system(true)
+	var record := {
+		"entry_kind": "remote_free_observation",
+		"instrument_kind": kind,
+		"catalog_entry_id": str(entry.get("id", "")),
+		"target_id": str(entry.get("target_id", "")),
+		"target_name_en": str(entry.get("name_en", "")),
+		"target_name_zh": str(entry.get("name_zh", "")),
+		"category_en": str(entry.get("category_en", "")),
+		"category_zh": str(entry.get("category_zh", "")),
+		"quality": str(observation.get("quality", "Good")),
+		"instrument": str(observation.get("instrument", kind)),
+		"filter": str(observation.get("filter", "")),
+		"exposure": float(observation.get("exposure", observation.get("integration_s", 0.0))),
+		"snr": float(observation.get("snr", 0.0)),
+		"result_kind": str(entry.get("result_kind", "infrared_composite")),
+		"science_en": str(entry.get("science_en", "")),
+		"science_zh": str(entry.get("science_zh", "")),
+		"observation_utc": "%04d-%02d-%02dT%02d:%02d:%02dZ" % [
+			int(now.get("year", 0)), int(now.get("month", 0)), int(now.get("day", 0)),
+			int(now.get("hour", 0)), int(now.get("minute", 0)), int(now.get("second", 0))],
+	}
+	progress["remote_observation_archive"].append(record)
+	save()
+	return {"recorded": true, "record": record}
+
+
 func badge_display_name(badge: String) -> String:
 	if language_mode == "zh":
 		return str(BADGE_NAMES_ZH.get(badge, badge))
@@ -1259,6 +1525,7 @@ func go_to_observation(spawn: String) -> void:
 	# Observation doors always enter Sky Observation. Sky owns the decision to
 	# offer relocation; the base/lobby never opens or controls the world map.
 	set_observatory_spawn(spawn)
+	local_optical_observation_context.clear()
 	_select_current_mission_target()
 	go("sky")
 
@@ -1371,6 +1638,8 @@ func _part_score(part: Dictionary, profile: String) -> float:
 
 # The exact part id this level PINS for a slot type ("" = free slot).
 func pinned_part_id(part_type: String) -> String:
+	if postgraduate_free_build():
+		return ""
 	for required_id_value in current_level().get("required_part_ids", []):
 		var part := get_part(str(required_id_value))
 		if str(part.get("type", "")) == part_type:
@@ -1383,7 +1652,7 @@ func best_part_for_type(part_type: String) -> Dictionary:
 	var profile := _task_profile()
 	var best: Dictionary = {}
 	var best_score := -1.0
-	var current_family := str(current_level().get("telescope_family", "refractor"))
+	var current_family := assembly_context_family()
 	for option_value in unlocked_parts_by_type(part_type):
 		var option: Dictionary = option_value
 		var part_family := str(option.get("telescope_family", ""))
@@ -1542,7 +1811,9 @@ func postgraduate_room_route() -> Dictionary:
 			"completed": true
 		}
 	return {
-		"target": "journal",
+		# The observatory stays open, but graduation ends the mandatory route.
+		# No furniture is recreated as a permanent next step after the ceremony.
+		"target": "",
 		"title": text("Maya: Program Complete", "玛雅：课程已完成"),
 		"hint": text(
 			"You have graduated from the club program. The observatory and your logbook remain open for independent observing.",
@@ -1586,12 +1857,12 @@ func _required_equipment_route(required_missing: Array) -> Dictionary:
 	var progress_en := "Required loadout matched: %d/%d." % [matched_required, total_required]
 	var progress_zh := "本关指定配置已匹配：%d/%d。" % [matched_required, total_required]
 	var title_en := "Maya: Equip " + required_name
-	var title_zh := "Maya：装备" + required_name
+	var title_zh := "玛雅：装备" + required_name
 	var hint_en := "Required: " + required_name + ". " + progress_en
 	var hint_zh := "本关指定：" + required_name + "。" + progress_zh
 	if equipped_name != "" and equipped_id != required_id:
 		title_en = "Maya: Replace " + equipped_name
-		title_zh = "Maya：更换" + equipped_name
+		title_zh = "玛雅：更换" + equipped_name
 		hint_en = "Equipped: %s. This mission specifically requires %s; higher stats do not replace the prescribed part. %s" % [equipped_name, required_name, progress_en]
 		hint_zh = "当前装备：%s。本关指定：%s；数值更高也不能替代指定零件。%s" % [equipped_name, required_name, progress_zh]
 	return {
@@ -1618,7 +1889,7 @@ func current_room_route() -> Dictionary:
 	if current_observation_mode() == "naked_eye":
 		return _with_site_route_status({
 			"target": "telescope",
-			"title": text("Maya: Observation Pad", "Maya：观测台"),
+			"title": text("Maya: Observation Pad", "玛雅：观测台"),
 			"hint": text("Use naked-eye observation to find " + target_name + ".", "用肉眼观测寻找" + target_name + "。"),
 			"action": text("Go to the Observation Pad", "前往观测台"),
 			"outcome": route_outcome_text(),
@@ -1629,7 +1900,7 @@ func current_room_route() -> Dictionary:
 		var lock_reason := required_equipment_lock_reason()
 		return {
 			"target": "cabinet",
-			"title": text("Maya: Required equipment locked", "Maya：任务设备尚未解锁"),
+			"title": text("Maya: Required equipment locked", "玛雅：任务设备尚未解锁"),
 			"hint": text(str(lock_reason.get("reason_en", "")), str(lock_reason.get("reason_zh", ""))),
 			"action": text("Review the Parts Cabinet", "查看零件柜"),
 			"outcome": text("The mission opens after the required equipment is unlocked, equipped, and installed.", "解锁、装备并安装所需设备后，本关才会开放。"),
@@ -1663,7 +1934,7 @@ func current_room_route() -> Dictionary:
 			)
 		return {
 			"target": "assembly",
-			"title": text("Maya: Assembly Table", "Maya：组装台"),
+			"title": text("Maya: Assembly Table", "玛雅：组装台"),
 			"hint": hint,
 			"action": text("Prepare %s: install %s" % [target_name, install_text], "准备观测%s：安装%s" % [target_name, install_text]),
 			"outcome": text("A finished telescope unlocks the Observation Pad.", "望远镜组装完成后，观测台即可使用。"),
@@ -1676,7 +1947,7 @@ func current_room_route() -> Dictionary:
 		var collimation_target := int(current_level().get("collimation_threshold", 80))
 		return {
 			"target": "assembly",
-			"title": text("Maya: Collimation Bench", "Maya：准直工作台"),
+			"title": text("Maya: Collimation Bench", "玛雅：准直工作台"),
 			"hint": text(
 				"Collimation is %d%%; this mission requires at least %d%%. Open the Assembly Table and choose Collimate Mirrors." % [collimation_now, collimation_target],
 				"当前准直 %d%%；本关至少需要 %d%%。进入组装台后点击“准直镜面”。" % [collimation_now, collimation_target]
@@ -1689,7 +1960,7 @@ func current_room_route() -> Dictionary:
 	if current_level().get("required_part_ids", []).is_empty() and _deep_sky_target() and str(current_level().get("minimum_success_quality", "Good")) == "Good" and _has_better_unequipped_part():
 		return {
 			"target": "cabinet",
-			"title": text("Maya: Upgrade the optics", "Maya：升级光学部件"),
+			"title": text("Maya: Upgrade the optics", "玛雅：升级光学部件"),
 			"hint": text("Equip the stronger unlocked optics for this faint target.", "为这个暗弱目标装备刚解锁的更强光学部件。"),
 			"action": text("Choose a better optical part", "选择更好的光学部件"),
 			"outcome": text("More aperture means a brighter deep-sky image.", "更大口径意味着更亮的深空图像。"),
@@ -1699,7 +1970,7 @@ func current_room_route() -> Dictionary:
 	if str(current_level().get("telescope_family", "")) == "space_segmented":
 		return _with_site_route_status({
 			"target": "computer",
-			"title": text("Maya: Space Telescope Console", "Maya：空间望远镜控制台"),
+			"title": text("Maya: Space Telescope Console", "玛雅：空间望远镜控制台"),
 			"hint": text("The L2 observatory is ready for %s. Use the bottom-right console to open the command link." % target_name,
 				"L2 望远镜已经准备观测%s。使用右下角控制台打开指挥链路。" % target_name),
 			"action": text("Command the infrared observation of " + target_name, "指挥红外观测" + target_name),
@@ -1710,7 +1981,7 @@ func current_room_route() -> Dictionary:
 			or str(current_level().get("observation_mode", "")) == "radio":
 		return _with_site_route_status({
 			"target": "computer",
-			"title": text("Maya: FAST Radio Telescope Console", "Maya：FAST 射电望远镜控制台"),
+			"title": text("Maya: FAST Radio Telescope Console", "玛雅：FAST 射电望远镜控制台"),
 			"hint": text(
 				"FAST is ready for %s. Use the bottom-right console to open the radio command link." % target_name,
 				"FAST 已准备观测%s。使用右下角控制台打开射电指挥链路。" % target_name),
@@ -1720,7 +1991,7 @@ func current_room_route() -> Dictionary:
 		})
 	return _with_site_route_status({
 		"target": "telescope",
-		"title": text("Maya: Observation Pad", "Maya：观测台"),
+		"title": text("Maya: Observation Pad", "玛雅：观测台"),
 		"hint": text("The telescope is ready. Find and observe " + target_name + ".", "望远镜已准备好。寻找并观测" + target_name + "。"),
 		"action": text("Observe " + target_name, "观测" + target_name),
 		"outcome": route_outcome_text(),
@@ -1791,26 +2062,29 @@ func set_room_guidance_for_scene(scene_key: String, trigger: String = "") -> voi
 	match scene_key:
 		"assembly":
 			target = "assembly"
-			title = "Maya: Assembly Table"
-			hint = "Walk to the Assembly Table and press E."
+			title = text("Maya: Assembly Table", "玛雅：组装台")
+			hint = text("Walk to the Assembly Table and press E.", "前往组装台，按 E 键互动。")
 		"sky", "telescope":
 			target = "telescope"
-			title = "Maya: Observation Pad"
-			hint = "Walk to the Observation Pad and press E."
+			title = text("Maya: Observation Pad", "玛雅：观测台")
+			hint = text("Walk to the Observation Pad and press E.", "前往观测台，按 E 键互动。")
 		"interior":
 			target = "door"
-			title = "Maya: Observatory Door"
-			hint = "Walk to the Observatory Door and press E."
+			title = text("Maya: Observatory Door", "玛雅：天文台入口")
+			hint = text("Walk to the Observatory Door and press E.", "前往天文台入口，按 E 键互动。")
 		"parts":
 			target = "cabinet"
-			title = "Maya: Parts Cabinet"
-			hint = "Walk to the Parts Cabinet and press E."
+			title = text("Maya: Parts Cabinet", "玛雅：零件柜")
+			hint = text("Walk to the Parts Cabinet and press E.", "前往零件柜，按 E 键互动。")
 	var assembly_state: Dictionary = progress.get("assembly_state", {})
 	var focus_entry: Dictionary = assembly_state.get("focus_knob", {})
 	if trigger == "before_focus" and not bool(focus_entry.get("installed", false)):
 		target = "assembly"
-		title = "Maya: Install the Focus Knob"
-		hint = "Install the Focus Knob at the Assembly Table before focusing."
+		title = text("Maya: Install the Focus Knob", "玛雅：安装调焦旋钮")
+		hint = text(
+			"Install the Focus Knob at the Assembly Table before focusing.",
+			"请先在组装台安装调焦旋钮，再进行调焦。"
+		)
 	if target != "":
 		set_room_guidance(target, title, hint)
 
@@ -2169,7 +2443,7 @@ func install_part_block_reason(part_type: String, part_id: String = "") -> Strin
 	# 2. Incompatible telescope family.
 	if not is_part_compatible_with_current_level(part):
 		var fam := _family_display_name(str(part.get("telescope_family", "")))
-		var cur := _family_display_name(str(current_level().get("telescope_family", "refractor")))
+		var cur := _family_display_name(assembly_context_family())
 		return text("This part belongs to the %s telescope; tonight's mission uses a %s telescope." % [fam, cur],
 			"该零件属于%s望远镜，当前任务使用%s望远镜。" % [fam, cur])
 	# 3. Pinned: mission demands a specific part for this slot.
@@ -2216,7 +2490,7 @@ func equip_part(part_id: String) -> bool:
 	if not progress.get("unlocked_parts", []).has(part_id):
 		return false
 	var part_family := str(part.get("telescope_family", ""))
-	var current_family := str(current_level().get("telescope_family", "refractor"))
+	var current_family := assembly_context_family()
 	if part_family != "" and part_family != current_family:
 		return false
 	if str(progress["selected_parts"].get(part_type, "")) == part_id:
@@ -2239,23 +2513,26 @@ func missing_parts() -> Array:
 
 
 func _uses_tube_subassembly() -> bool:
-	return str(current_level().get("assembly_mode", "")) == "advanced" and str(current_level().get("telescope_family", "")) in ["newtonian", "dobsonian", "cassegrain", "gregorian"]
+	var level := assembly_level_context() if postgraduate_free_build() else current_level()
+	return str(level.get("assembly_mode", "")) == "advanced" and assembly_context_family() in ["newtonian", "dobsonian", "cassegrain", "gregorian"]
 
 
 func _effective_required_parts() -> Array:
+	var level := assembly_level_context() if postgraduate_free_build() else current_level()
+	var family := assembly_context_family()
 	# Constellation lessons now share the optical observation workflow. They use
 	# the established refractor and finder, not an unrelated advanced tube
 	# subassembly, so the late-night pattern lessons remain playable.
-	if current_observation_mode() == "constellation":
+	if not postgraduate_free_build() and current_observation_mode() == "constellation":
 		return ["tripod", "mount", "tube", "objective", "eyepiece", "finder_scope"]
-	if str(current_level().get("telescope_family", "")) == "space_segmented":
+	if family == "space_segmented":
 		return space_segmented_install_types()
 	if not _uses_tube_subassembly():
-		return current_level().get("required_parts", [])
-	if str(current_level().get("telescope_family", "")) == "dobsonian":
+		return level.get("required_parts", [])
+	if family == "dobsonian":
 		# The rocker box replaces tripod+mount; the finder rides on the tube.
 		return ["mount", "optical_tube_assembly", "finder_scope"]
-	if str(current_level().get("telescope_family", "")) == "newtonian":
+	if family == "newtonian":
 		# Newtonian main bench mirrors the refractor flow: base, mount, the
 		# completed optical tube, then the aiming aid.
 		return ["tripod", "mount", "optical_tube_assembly", "finder_scope"]
@@ -2263,7 +2540,7 @@ func _effective_required_parts() -> Array:
 
 
 func tube_assembly() -> Dictionary:
-	var family := str(current_level().get("telescope_family", ""))
+	var family := assembly_context_family()
 	var all_states: Dictionary = progress.get("tube_assemblies", {})
 	var state: Variant = all_states.get(family, {})
 	return state if state is Dictionary else {}
@@ -2294,8 +2571,19 @@ func update_tube_subassembly_progress(installed_subparts: Dictionary) -> void:
 	save()
 
 
+func _required_part_id_for_type(part_type: String, fallback_id: String) -> String:
+	if postgraduate_free_build():
+		return fallback_id
+	for required_value in current_level().get("required_part_ids", []):
+		var required_id := str(required_value)
+		var required_part := get_part(required_id)
+		if str(required_part.get("type", "")) == part_type:
+			return required_id
+	return fallback_id
+
+
 func tube_subassembly_config() -> Dictionary:
-	var family := str(current_level().get("telescope_family", ""))
+	var family := assembly_context_family()
 	match family:
 		"newtonian":
 			return {"family": family, "order": ["reflector_tube", "mirror_cell", "primary_mirror", "secondary_spider", "secondary_mirror", "focuser", "eyepiece", "collimation_tool"], "ids": ["newtonian_reflector_tube", "newtonian_mirror_cell", "newtonian_primary_mirror", "newtonian_secondary_spider", "newtonian_secondary_mirror", "newtonian_focuser", "newtonian_25mm_eyepiece", "newtonian_collimation_cap"]}
@@ -2305,7 +2593,8 @@ func tube_subassembly_config() -> Dictionary:
 			# Eight-slot folded path: tube -> primary cell -> concave primary ->
 			# convex secondary -> central baffle -> rear focuser -> eyepiece ->
 			# collimation tool (matches the user's tube blueprint art).
-			return {"family": family, "order": ["reflector_tube", "mirror_cell", "primary_mirror", "secondary_mirror", "central_baffle", "focuser", "eyepiece", "collimation_tool"], "ids": ["cassegrain_compact_tube", "cassegrain_mirror_cell", "cassegrain_primary_mirror", "cassegrain_convex_secondary", "cassegrain_central_baffle", "cassegrain_rear_focuser", "cassegrain_12mm_eyepiece", "cassegrain_collimation_tool"]}
+			var eyepiece_id := _required_part_id_for_type("eyepiece", "cassegrain_12mm_eyepiece")
+			return {"family": family, "order": ["reflector_tube", "mirror_cell", "primary_mirror", "secondary_mirror", "central_baffle", "focuser", "eyepiece", "collimation_tool"], "ids": ["cassegrain_compact_tube", "cassegrain_mirror_cell", "cassegrain_primary_mirror", "cassegrain_convex_secondary", "cassegrain_central_baffle", "cassegrain_rear_focuser", eyepiece_id, "cassegrain_collimation_tool"]}
 		"gregorian":
 			return {"family": family, "order": ["reflector_tube", "primary_mirror", "optical_support", "secondary_mirror", "focuser", "eyepiece"], "ids": ["gregorian_optical_tube", "gregorian_primary_mirror", "gregorian_optical_support", "gregorian_concave_secondary", "gregorian_focuser", "gregorian_18mm_eyepiece"]}
 	return {}
@@ -2341,6 +2630,8 @@ func save_tube_assembly(installed_subparts: Dictionary, score: float, optical_al
 # requires, e.g. ["eyepiece_10mm"]. Empty when the level has no such field
 # (older levels are unaffected).
 func missing_required_parts() -> Array[String]:
+	if postgraduate_free_build():
+		return []
 	var required: Array = current_level().get("required_part_ids", [])
 	var missing: Array[String] = []
 	var selected: Dictionary = progress.get("selected_parts", {})
@@ -2538,7 +2829,7 @@ func calculate_stats() -> Dictionary:
 	# A save can retain selections from a different telescope family. Keep
 	# those parts in inventory, but only feed generic parts and parts belonging
 	# to this lesson's family into the optical calculation.
-	var family := str(current_level().get("telescope_family", "refractor"))
+	var family := assembly_context_family()
 	for part_type in selected_parts.keys():
 		var part: Dictionary = selected_parts[part_type]
 		var part_family := str(part.get("telescope_family", ""))
@@ -2557,7 +2848,8 @@ func calculate_stats() -> Dictionary:
 		stats["subassembly_score"] = subassembly_score
 		stats["assembly_score"] = minf(float(stats.get("assembly_score", 0.0)), subassembly_score)
 		stats["clarity_score"] = snapped(float(stats.get("clarity_score", 0.0)) * subassembly_score / 100.0, 0.1)
-	if bool(current_level().get("requires_collimation", false)):
+	var assembly_level := assembly_level_context() if postgraduate_free_build() else current_level()
+	if bool(assembly_level.get("requires_collimation", false)):
 		var score: float = collimation_score()
 		stats["collimation_score"] = score
 		stats["clarity_score"] = snapped(float(stats.get("clarity_score", 0.0)) * (0.45 + score / 200.0), 0.1)
@@ -2567,18 +2859,19 @@ func calculate_stats() -> Dictionary:
 
 
 func collimation_score() -> float:
-	var family := str(current_level().get("telescope_family", "newtonian"))
+	var family := assembly_context_family()
 	var scores: Dictionary = progress.get("collimation_scores", {})
 	return float(scores.get(family, 0.0))
 
 
 func collimation_is_acceptable() -> bool:
-	var threshold := float(current_level().get("collimation_threshold", 0.0))
+	var level := assembly_level_context() if postgraduate_free_build() else current_level()
+	var threshold := float(level.get("collimation_threshold", 0.0))
 	return threshold <= 0.0 or collimation_score() >= threshold
 
 
 func set_collimation_score(value: float) -> void:
-	var family := str(current_level().get("telescope_family", "newtonian"))
+	var family := assembly_context_family()
 	if not progress.get("collimation_scores") is Dictionary:
 		progress["collimation_scores"] = {}
 	progress["collimation_scores"][family] = clampf(value, 0.0, 100.0)
@@ -2591,11 +2884,12 @@ func set_collimation_score(value: float) -> void:
 
 func evaluate_selected_object(extra_context: Dictionary = {}) -> Dictionary:
 	var obj := get_object(selected_object_id)
+	var free_observation := is_free_observation()
 	if not extra_context.has("observation_mode"):
 		extra_context["observation_mode"] = current_observation_mode()
 	if not extra_context.has("minimum_success_quality"):
-		extra_context["minimum_success_quality"] = str(current_level().get("minimum_success_quality", "Good"))
-	if not extra_context.has("success_feedback_zh") and current_level().has("observation_success_feedback_zh"):
+		extra_context["minimum_success_quality"] = "Poor" if free_observation else str(current_level().get("minimum_success_quality", "Good"))
+	if not free_observation and not extra_context.has("success_feedback_zh") and current_level().has("observation_success_feedback_zh"):
 		extra_context["success_feedback_zh"] = str(current_level().get("observation_success_feedback_zh", ""))
 	var stats := calculate_stats()
 	if str(extra_context["observation_mode"]) == "telescope":
@@ -2647,7 +2941,7 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		_advance_past_completed_current_level()
 		set_room_guidance(
 			str(current_room_route().get("target", "telescope")),
-			text("Maya: Continue the Program", "Maya：继续课程"),
+			text("Maya: Continue the Program", "玛雅：继续课程"),
 			text(
 				"This observation was already logged. The next unfinished lesson is ready.",
 				"这次观测已经记入日志。下一项未完成课程已准备好。"
@@ -2709,6 +3003,7 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 			_unlock_parts_for_current_level()
 			_select_current_mission_target()
 	save()
+	AudioManager.play_event("mission_completed")
 	# Point the player at the next step for the (possibly new) level.
 	update_room_guidance_for_level()
 	show_mission_complete_card(payload)
@@ -2955,6 +3250,8 @@ func _normalize_progress() -> void:
 	_ensure_progress_array("seen_concept_briefs")
 	_ensure_progress_array("seen_story_events")
 	_ensure_progress_array("pending_unlock_notice")
+	_ensure_progress_array("remote_observation_archive")
+	_ensure_progress_array("remote_free_intro_seen")
 	var tutorial_mode := str(progress.get("tutorial_assistance", TUTORIAL_ASSIST_FULL))
 	if not tutorial_mode in TUTORIAL_ASSIST_MODES:
 		progress["tutorial_assistance"] = TUTORIAL_ASSIST_FULL
@@ -3018,6 +3315,10 @@ func _migrate_progress_schema() -> void:
 		progress["collimation_scores"]["newtonian"] = 0.0
 	if not progress.get("tube_assemblies") is Dictionary:
 		progress["tube_assemblies"] = {}
+	if not progress.get("family_assembly_states") is Dictionary:
+		progress["family_assembly_states"] = {}
+	if not progress.get("family_selected_parts") is Dictionary:
+		progress["family_selected_parts"] = {}
 	# Gregorian removal (2026-07-22): a save currently ON a Gregorian level jumps
 	# to the first Infrared/Space lesson; credits, logbook and completed levels
 	# are all preserved, and no Gregorian part is unlocked.

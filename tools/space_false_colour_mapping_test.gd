@@ -86,6 +86,53 @@ func _initialize() -> void:
 	screen.queue_free()
 	await process_frame
 
+	gm.debug_jump_to_level(66, true)
+	var andromeda_screen: Control = load("res://scenes/space_observation.tscn").instantiate()
+	root.add_child(andromeda_screen)
+	await process_frame
+	var andromeda_profile: Dictionary = andromeda_screen.call("_profile")
+	var observation_path := str(andromeda_profile.get("science_image_path", ""))
+	_check(ResourceLoader.exists(observation_path), "Andromeda exposure uses a dedicated infrared science image")
+	_check(load(observation_path) is Texture2D, "Andromeda exposure image loads as Texture2D")
+	var band_paths: Dictionary = andromeda_profile.get("science_band_paths", {})
+	_check(band_paths.size() == 3, "Andromeda declares three dedicated wavelength frames")
+	var loaded_band_paths: Array[String] = []
+	for band_id in ["nir_short", "nir_long", "miri_dust"]:
+		var band_path := str(band_paths.get(band_id, ""))
+		_check(ResourceLoader.exists(band_path), "Andromeda %s image exists" % band_id)
+		_check(load(band_path) is Texture2D, "Andromeda %s image loads as Texture2D" % band_id)
+		loaded_band_paths.append(band_path)
+	_check(loaded_band_paths[0] != loaded_band_paths[1]
+		and loaded_band_paths[1] != loaded_band_paths[2]
+		and loaded_band_paths[0] != loaded_band_paths[2],
+		"Andromeda bands do not reuse one globally tinted image")
+
+	var andromeda_display := SpaceFalseColourDisplay.new()
+	andromeda_display.size = Vector2(480, 300)
+	andromeda_display.configure(
+		load(observation_path) as Texture2D,
+		{"R": "miri_dust", "G": "nir_long", "B": "nir_short"},
+		(andromeda_screen.get("model") as SpaceObservationModel).band_signatures,
+		"galaxy",
+		66,
+		1.0,
+		"",
+		andromeda_screen.call("_science_band_textures"))
+	root.add_child(andromeda_display)
+	await process_frame
+	var layer_texture_paths: Array[String] = []
+	for child in andromeda_display.get_children():
+		if child is TextureRect and (child as TextureRect).texture != null:
+			layer_texture_paths.append((child as TextureRect).texture.resource_path)
+	_check(layer_texture_paths.size() == 3, "Andromeda composite renders three structural layers")
+	_check(layer_texture_paths.duplicate().size() == layer_texture_paths.size()
+		and layer_texture_paths[0] != layer_texture_paths[1]
+		and layer_texture_paths[1] != layer_texture_paths[2],
+		"Andromeda composite layers use distinct source textures")
+	andromeda_display.queue_free()
+	andromeda_screen.queue_free()
+	await process_frame
+
 	print("SPACE FALSE COLOUR MAPPING TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)
 
