@@ -71,6 +71,34 @@ const SPACE_INSTRUMENT_TYPES := [
 	"miri",
 	"fgs_niriss",
 ]
+const FAST_BLUEPRINT_REFERENCE := "res://assets/assembly/fast_blueprint_reference.png"
+const FAST_BLUEPRINT_CROPPED := "res://assets/assembly/fast_blueprint_center_cropped.png"
+const FAST_BLUEPRINT_CONFIG := {
+	"dish": {
+		"path": FAST_BLUEPRINT_CROPPED,
+		"source_size": Vector2(765.0, 956.0),
+		"part_type": "radio_dish",
+		"slot": Rect2(176.0, 374.0, 400.0, 194.0),
+		"title_en": "500m Active Radio Dish",
+		"title_zh": "500 米主动反射面",
+	},
+	"feed": {
+		"path": FAST_BLUEPRINT_CROPPED,
+		"source_size": Vector2(765.0, 956.0),
+		"part_type": "receiver",
+		"slot": Rect2(322.0, 99.0, 106.0, 108.0),
+		"title_en": "Suspended Feed Cabin",
+		"title_zh": "悬吊馈源舱",
+	},
+	"signal": {
+		"path": FAST_BLUEPRINT_CROPPED,
+		"source_size": Vector2(765.0, 956.0),
+		"part_type": "signal_processor",
+		"slot": Rect2(321.0, 722.0, 106.0, 104.0),
+		"title_en": "Radio Signal Processor",
+		"title_zh": "射电信号处理器",
+	},
+}
 
 var selected_type := ""
 var order: Array[String] = []
@@ -89,6 +117,7 @@ var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
 var space_blueprint_page := "core"
+var fast_blueprint_page := "dish"
 
 
 func _ready() -> void:
@@ -1107,6 +1136,8 @@ func _select_flat_part(part_type: String) -> void:
 	selected_type = part_type
 	if _family() == "space_segmented":
 		space_blueprint_page = _space_page_for_part(part_type)
+	elif _family() == "fast_radio":
+		fast_blueprint_page = _fast_page_for_part(part_type)
 	_build()  # rebuild recreates the cards/labels and re-applies the gold border
 	var part := _part_for_type(part_type)
 	status_label.text = GameManager.text(
@@ -1124,6 +1155,9 @@ func _draw_specialized_blueprint() -> void:
 	var family := _family()
 	if family == "space_segmented":
 		_draw_space_blueprint_page()
+		return
+	if family == "fast_radio":
+		_draw_fast_blueprint_page()
 		return
 	var art := TextureRect.new()
 	art.texture = _family_art_texture(family)
@@ -1160,6 +1194,120 @@ func _draw_specialized_blueprint() -> void:
 	blueprint.add_child(caption_bg)
 	var caption := _label_to(blueprint, _family_caption(family), Vector2(22, 458), Vector2(384, 28), 13, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+
+func _draw_fast_blueprint_page() -> void:
+	var page_id := fast_blueprint_page
+	if not FAST_BLUEPRINT_CONFIG.has(page_id):
+		page_id = "dish"
+		fast_blueprint_page = page_id
+	var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+	var source_size: Vector2 = config["source_size"]
+	var layout := _calculate_blueprint_layout(
+		source_size,
+		Rect2(Vector2.ZERO, source_size),
+		Rect2(4, 6, 420, 438)
+	)
+	var art := TextureRect.new()
+	art.name = "FastBlueprintArt"
+	art.custom_minimum_size = Vector2.ZERO
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	art.texture = load(str(config["path"])) as Texture2D
+	art.position = layout["display_rect"].position
+	art.size = layout["display_rect"].size
+	art.set_meta("fast_blueprint_page", page_id)
+	blueprint.add_child(art)
+
+	# The supplied blueprint already contains all three cyan installation
+	# windows. Keep that original composition visible, then add only restrained
+	# interaction/status overlays at the exact printed windows.
+	for slot_page_id in FAST_BLUEPRINT_CONFIG:
+		var slot_config: Dictionary = FAST_BLUEPRINT_CONFIG[slot_page_id]
+		var part_type := str(slot_config["part_type"])
+		if order.has(part_type):
+			var slot_rect := _source_rect_to_blueprint(slot_config["slot"], layout)
+			_draw_fast_blueprint_slot(part_type, slot_rect)
+	_draw_fast_blueprint_tabs()
+
+
+func _draw_fast_blueprint_slot(part_type: String, rect: Rect2) -> void:
+	var installed := _installed(part_type)
+	var active := selected_type == part_type and not installed
+	var color := GREEN if installed else (GOLD if active else CYAN)
+	var slot := Control.new()
+	slot.name = "FastBlueprintSlot_%s" % part_type
+	slot.position = rect.position
+	slot.size = rect.size
+	slot.clip_contents = true
+	blueprint.add_child(slot)
+	slot_controls[part_type] = slot
+
+	var frame := Panel.new()
+	frame.name = "FastBlueprintFrame_%s" % part_type
+	frame.position = Vector2.ZERO
+	frame.size = rect.size
+	frame.visible = active or installed
+	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	frame.add_theme_stylebox_override(
+		"panel",
+		_style(Color(0.02, 0.10, 0.15, 0.06 if not active else 0.16), color, 3 if active else 2)
+	)
+	slot.add_child(frame)
+	if installed:
+		var ok := _label("OK", Vector2(rect.size.x - 28, 2), Vector2(24, 15), 9, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(ok)
+
+	var hit := Button.new()
+	hit.name = "FastBlueprintHit_%s" % part_type
+	hit.flat = true
+	hit.position = Vector2.ZERO
+	hit.size = rect.size
+	hit.pressed.connect(func() -> void: _install_at_slot(part_type))
+	slot.add_child(hit)
+
+
+func _draw_fast_blueprint_tabs() -> void:
+	var tabs := [
+		["dish", GameManager.text("Active Dish", "主动反射面")],
+		["feed", GameManager.text("Feed Cabin", "馈源舱")],
+		["signal", GameManager.text("Signal Chain", "信号链")],
+	]
+	var x := 4.0
+	for tab_value in tabs:
+		var page_id := str(tab_value[0])
+		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+		var part_type := str(config["part_type"])
+		var suffix := "  OK" if _installed(part_type) else ""
+		var tab := _button(str(tab_value[1]) + suffix, Vector2(x, 458), Vector2(136, 34), Color(0.055, 0.10, 0.17))
+		tab.name = "FastBlueprintTab_%s" % page_id
+		tab.tooltip_text = GameManager.text(str(config["title_en"]), str(config["title_zh"]))
+		if page_id == fast_blueprint_page:
+			tab.add_theme_stylebox_override("normal", _style(Color(0.08, 0.18, 0.23), GOLD, 2))
+			tab.add_theme_color_override("font_color", GOLD)
+		elif _installed(part_type):
+			tab.add_theme_color_override("font_color", GREEN)
+		tab.pressed.connect(_set_fast_blueprint_page.bind(page_id))
+		blueprint.add_child(tab)
+		x += 142.0
+
+
+func _set_fast_blueprint_page(page_id: String) -> void:
+	if not FAST_BLUEPRINT_CONFIG.has(page_id):
+		return
+	fast_blueprint_page = page_id
+	_build()
+
+
+func _fast_page_for_part(part_type: String) -> String:
+	for page_id in FAST_BLUEPRINT_CONFIG:
+		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+		if str(config["part_type"]) == part_type:
+			return str(page_id)
+	return "dish"
 
 
 func _draw_space_blueprint_page() -> void:
@@ -1433,6 +1581,8 @@ func _specialized_slot_positions(family: String) -> Dictionary:
 func _family_art_texture(family: String) -> Texture2D:
 	if family == "space_segmented":
 		return load(SPACE_SEGMENTED_BLUEPRINT) as Texture2D
+	if family == "fast_radio":
+		return load(FAST_BLUEPRINT_CROPPED) as Texture2D
 	var source_texture := load(ADVANCED_FAMILY_ATLAS) as Texture2D
 	if source_texture == null:
 		return null
@@ -1443,7 +1593,6 @@ func _family_art_texture(family: String) -> Texture2D:
 		"cassegrain": atlas.region = Rect2(628, 0, 626, 630)
 		"gregorian": atlas.region = Rect2(0, 632, 370, 622)
 		"space_segmented": atlas.region = Rect2(372, 632, 380, 622)
-		"fast_radio": atlas.region = Rect2(754, 632, 500, 622)
 		_: atlas.region = Rect2(0, 0, 626, 630)
 	return atlas
 
@@ -1500,6 +1649,9 @@ func _install_at_slot(slot_type: String) -> void:
 		status_label.text = GameManager.install_part_block_reason(slot_type)
 		return
 	selected_type = ""
+	if _family() == "fast_radio":
+		var next_fast_part := _next_advanced_install_part(order)
+		fast_blueprint_page = _fast_page_for_part(next_fast_part if next_fast_part != "" else slot_type)
 	install_animation_active = false
 	status_label.text = GameManager.text("Installed. The reflected light path is taking shape.", "已安装，反射光路正在成形。")
 	_build()
@@ -1778,7 +1930,7 @@ func _flat_tray_title() -> String:
 func _flat_board_title() -> String:
 	match _family():
 		"space_segmented": return GameManager.text("INFRARED LIGHT PATH", "红外光路")
-		"fast_radio": return GameManager.text("RADIO SIGNAL PATH", "无线电信号路径")
+		"fast_radio": return GameManager.text("FAST ENGINEERING BLUEPRINTS", "FAST 工程蓝图")
 	return GameManager.text("REFLECTOR LIGHT PATH", "反射光路")
 
 

@@ -3,6 +3,7 @@ extends SceneTree
 const OUTPUT_DIR := "res://artifacts/fast_radio_upgrade"
 
 var gm: Node
+var capture_failures := 0
 
 
 func _initialize() -> void:
@@ -22,11 +23,13 @@ func _initialize() -> void:
 	await _capture_tuned_receiver()
 	await _capture_rfi_cleanup()
 	await _capture_fold_discovery()
+	await _capture_prediction_gate()
 	await _capture_first_pulse()
 	await _capture_report()
 	await _capture_report_chinese()
-	print("FAST RADIO VISUAL CAPTURE PASS")
-	quit(0)
+	await _capture_prediction_widescreen()
+	print("FAST RADIO VISUAL CAPTURE %s" % ("PASS" if capture_failures == 0 else "FAIL (%d)" % capture_failures))
+	quit(0 if capture_failures == 0 else 1)
 
 
 func _open_level(level_number: int) -> Control:
@@ -124,6 +127,7 @@ func _capture_first_pulse() -> void:
 	_prepare_science_chain(model)
 	model.trial_period_ms = model.true_period_ms
 	model.trial_dm = model.true_dm
+	model.trial_phase = model.true_phase
 	model.set_integration(model.required_integration_s)
 	scene.set("stage", 3)
 	scene.set("fold_step", 2)
@@ -136,14 +140,41 @@ func _capture_first_pulse() -> void:
 	await _remove_scene(scene)
 
 
+func _capture_prediction_gate() -> void:
+	var scene := await _open_level(85)
+	var model: RadioSignalModel = scene.get("model")
+	_prepare_science_chain(model)
+	model.trial_period_ms = model.true_period_ms
+	model.trial_dm = model.true_dm
+	model.trial_phase = model.true_phase
+	model.set_integration(model.required_integration_s)
+	scene.set("stage", 3)
+	scene.set("fold_step", 2)
+	scene.call("_rebuild")
+	await _settle()
+	scene.call("_confirm_fold")
+	await process_frame
+	scene.call("_arm_prediction_receiver")
+	scene.set("prediction_time_left", 1.84)
+	scene.call("_refresh_prediction_capture")
+	await create_timer(0.24).timeout
+	_save("03a_predicted_arrival_armed.png")
+	scene.call("_resolve_prediction_window")
+	await create_timer(0.18).timeout
+	_save("03b_clock_confirmed.png")
+	await _remove_scene(scene)
+
+
 func _capture_report() -> void:
 	var scene := await _open_level(85)
 	var model: RadioSignalModel = scene.get("model")
 	_prepare_science_chain(model)
 	model.trial_period_ms = model.true_period_ms
 	model.trial_dm = model.true_dm
+	model.trial_phase = model.true_phase
 	model.set_integration(model.required_integration_s)
 	scene.set("stage", 4)
+	scene.set("prediction_confirmed", true)
 	scene.set("report_choice", "stable_pulsar")
 	scene.call("_rebuild")
 	await _settle()
@@ -159,13 +190,41 @@ func _capture_report_chinese() -> void:
 	_prepare_science_chain(model)
 	model.trial_period_ms = model.true_period_ms
 	model.trial_dm = model.true_dm
+	model.trial_phase = model.true_phase
 	model.set_integration(model.required_integration_s)
 	scene.set("stage", 4)
+	scene.set("prediction_confirmed", true)
 	scene.set("report_choice", "stable_pulsar")
 	scene.call("_rebuild")
 	await _settle()
 	_save("05_evidence_report_zh.png")
 	await _remove_scene(scene)
+
+
+func _capture_prediction_widescreen() -> void:
+	root.size = Vector2i(1280, 720)
+	await process_frame
+	var scene := await _open_level(85)
+	var model: RadioSignalModel = scene.get("model")
+	_prepare_science_chain(model)
+	model.trial_period_ms = model.true_period_ms
+	model.trial_dm = model.true_dm
+	model.trial_phase = model.true_phase
+	model.set_integration(model.required_integration_s)
+	scene.set("stage", 3)
+	scene.set("fold_step", 2)
+	scene.call("_rebuild")
+	await _settle()
+	scene.call("_confirm_fold")
+	await process_frame
+	scene.call("_arm_prediction_receiver")
+	scene.set("prediction_time_left", 2.4)
+	scene.call("_refresh_prediction_capture")
+	await create_timer(0.24).timeout
+	_save("06_clock_prediction_wide_host_safe_area.png")
+	await _remove_scene(scene)
+	root.size = Vector2i(1024, 768)
+	await process_frame
 
 
 func _prepare_science_chain(model: RadioSignalModel) -> void:
@@ -194,8 +253,19 @@ func _remove_scene(scene: Node) -> void:
 
 func _save(file_name: String) -> void:
 	var path := ProjectSettings.globalize_path(OUTPUT_DIR + "/" + file_name)
-	var error := root.get_texture().get_image().save_png(path)
+	var texture := root.get_texture()
+	if texture == null:
+		capture_failures += 1
+		push_error("Viewport texture is unavailable; run this capture with the graphical renderer: " + path)
+		return
+	var image := texture.get_image()
+	if image == null:
+		capture_failures += 1
+		push_error("Viewport image is unavailable: " + path)
+		return
+	var error := image.save_png(path)
 	if error != OK:
+		capture_failures += 1
 		push_error("Could not save " + path)
 	else:
 		print("CAPTURE ", path)

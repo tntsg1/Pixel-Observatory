@@ -40,6 +40,9 @@ const SPECS := {
 		"rect": Rect2(785, 535, 165, 117),
 		"interior_source": Rect2(785, 535, 165, 117),
 		"mode": "screen",
+		# The clean furniture cutout already contains the cabinet and monitor.
+		# Online feedback belongs on the CRT glass only, never over the desk.
+		"screen_rect": Rect2(21, 13, 91, 46),
 	},
 }
 
@@ -90,15 +93,15 @@ func open_immediately(id: String) -> void:
 			door.modulate = Color(1.08, 1.045, 0.94, 1.0)
 		elif mode == "screen":
 			door.position = base_position
-			door.scale = Vector2(1.012, 1.012)
-			door.modulate = Color(0.66, 1.05, 0.76, 1.0)
+			door.scale = Vector2.ONE
+			door.modulate = Color.WHITE
 		else:
 			door.position = base_position
 			door.scale = Vector2(0.08, 1.0)
 			door.modulate = Color(0.82, 0.84, 0.88, 0.94)
 	var glow := rig.get("glow") as ColorRect
 	if glow != null:
-		glow.color.a = 0.30 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
+		glow.color.a = 0.10 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
 	for mote_value in rig.get("motes", []):
 		var mote := mote_value as ColorRect
 		if mote != null:
@@ -110,6 +113,10 @@ func open_immediately(id: String) -> void:
 		if mode == "workbench":
 			scanline.position.x = maxf(8.0, scanline.get_parent().size.x - scanline.size.x - 8.0)
 			scanline.color.a = 0.58
+		elif mode == "screen":
+			var screen_rect: Rect2 = rig.get("screen_rect", Rect2(8, 8, 90, 42))
+			scanline.position.y = screen_rect.end.y - 3.0
+			scanline.color.a = 0.24
 		else:
 			scanline.position.y = maxf(8.0, scanline.get_parent().size.y - 9.0)
 			scanline.color.a = 0.72
@@ -155,14 +162,17 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 			tween.tween_property(door, "scale", Vector2(1.008, 1.008), duration).set_trans(Tween.TRANS_QUINT).set_ease(Tween.EASE_OUT)
 			tween.tween_property(door, "modulate", Color(1.08, 1.045, 0.94, 1.0), duration * 0.66).set_trans(Tween.TRANS_SINE)
 		elif mode == "screen":
-			tween.tween_property(door, "scale", Vector2(1.012, 1.012), duration).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			tween.tween_property(door, "modulate", Color(0.66, 1.05, 0.76, 1.0), duration * 0.72).set_trans(Tween.TRANS_SINE)
+			# Keep the supplied cutout pixel-perfect. The CRT itself provides
+			# the proximity/open response, so the furniture never grows or
+			# receives a full-surface green tint.
+			tween.tween_property(door, "scale", Vector2.ONE, duration).set_trans(Tween.TRANS_SINE)
+			tween.tween_property(door, "modulate", Color.WHITE, duration * 0.72).set_trans(Tween.TRANS_SINE)
 		else:
 			tween.tween_property(door, "scale", Vector2(0.08, 1.0), duration).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
 			tween.tween_property(door, "modulate", Color(0.82, 0.84, 0.88, 0.94), duration * 0.72).set_trans(Tween.TRANS_SINE)
 	var glow := rig.get("glow") as ColorRect
 	if glow != null:
-		var glow_alpha := 0.30 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
+		var glow_alpha := 0.10 if mode == "screen" else (0.14 if mode == "workbench" else 0.17)
 		tween.tween_property(glow, "color:a", glow_alpha, duration * 0.72).set_trans(Tween.TRANS_SINE)
 	var scanline := rig.get("scanline") as ColorRect
 	if scanline != null:
@@ -170,6 +180,11 @@ func play_open(id: String, finished: Callable = Callable()) -> void:
 			scanline.position.x = 10.0
 			tween.tween_property(scanline, "position:x", maxf(10.0, scanline.get_parent().size.x - scanline.size.x - 10.0), duration).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_IN_OUT)
 			tween.tween_property(scanline, "color:a", 0.58, duration * 0.20)
+		elif mode == "screen":
+			var screen_rect: Rect2 = rig.get("screen_rect", Rect2(8, 8, 90, 42))
+			scanline.position.y = screen_rect.position.y + 2.0
+			tween.tween_property(scanline, "position:y", screen_rect.end.y - 3.0, duration).set_trans(Tween.TRANS_LINEAR)
+			tween.tween_property(scanline, "color:a", 0.24, duration * 0.20)
 		else:
 			scanline.position.y = 7.0
 			tween.tween_property(scanline, "position:y", maxf(8.0, scanline.get_parent().size.y - 9.0), duration).set_trans(Tween.TRANS_LINEAR)
@@ -320,6 +335,10 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	elif mode == "workbench":
 		glow.position = Vector2(7, 5)
 		glow.size = Vector2(rect.size.x - 14, 88)
+	elif mode == "screen":
+		var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
+		glow.position = screen_rect.position
+		glow.size = screen_rect.size
 	else:
 		glow.position = Vector2(5, 5)
 		glow.size = rect.size - Vector2(10, 10)
@@ -383,10 +402,11 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		focus_frame.add_theme_stylebox_override("panel", _workbench_focus_style())
 		rig_root.add_child(focus_frame)
 	elif mode == "screen":
+		var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
 		scanline = ColorRect.new()
 		scanline.name = "CRTScanline"
-		scanline.position = Vector2(6, 7)
-		scanline.size = Vector2(rect.size.x - 12, 2)
+		scanline.position = screen_rect.position + Vector2(2, 2)
+		scanline.size = Vector2(screen_rect.size.x - 4, 1)
 		scanline.color = Color(0.55, 1.0, 0.68, 0.0)
 		scanline.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		rig_root.add_child(scanline)
@@ -402,6 +422,7 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		"motes": motes,
 		"mode": mode,
 		"travel": float(spec.get("travel", 0.0)),
+		"screen_rect": spec.get("screen_rect", Rect2()),
 		"scanline": scanline,
 		"focus_frame": focus_frame,
 	}
@@ -417,14 +438,18 @@ func set_proximity(id: String, active: bool) -> void:
 	for door_value in rig.get("doors", []):
 		var door := door_value as Control
 		if door != null:
-			door.modulate = Color(0.88, 1.06, 0.94, 1.0) if active else Color.WHITE
+			door.scale = Vector2.ONE
+			door.modulate = Color.WHITE
 	var scanline := rig.get("scanline") as ColorRect
 	if scanline == null:
 		return
 	if active:
-		var travel := maxf(1.0, scanline.get_parent().size.y - 18.0)
-		scanline.position.y = 7.0 + fmod(float(Time.get_ticks_msec()) * 0.035, travel)
-		scanline.color.a = 0.34
+		var glow := rig.get("glow") as ColorRect
+		var screen_top := glow.position.y if glow != null else 7.0
+		var screen_height := glow.size.y if glow != null else 42.0
+		var travel := maxf(1.0, screen_height - 5.0)
+		scanline.position.y = screen_top + 2.0 + fmod(float(Time.get_ticks_msec()) * 0.022, travel)
+		scanline.color.a = 0.24
 	else:
 		scanline.color.a = 0.0
 

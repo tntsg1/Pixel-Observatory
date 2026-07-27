@@ -20,7 +20,7 @@ const MUTED := Color("858b89")
 const STAGE_KEYS := ["aim", "tune", "rfi", "fold", "report"]
 const SIMULATED_INTEGRATION_RATE := 42.0
 const WATERFALL_ROWS := 24
-const TERMINAL_HISTORY_LINES := 7
+const TERMINAL_HISTORY_LINES := 6
 const IDLE_HINT_DELAY := 20.0
 const FAST_TUTORIAL_PREFIX := "fast_guided_stage_"
 const RADIO_CONSOLE_BOOT_DURATION := 0.92
@@ -94,10 +94,22 @@ var rfi_tutorial_step := 0
 
 var fold_step := 0
 var fold_slider: HSlider
+var fold_phase_slider: HSlider
 var fold_action_button: Button
 var integration_held := false
 var fold_step_label: Label
 var fold_controls_panel: Panel
+var prediction_running := false
+var prediction_armed := false
+var prediction_confirmed := false
+var prediction_time_left := 0.0
+var prediction_duration := 7.0
+var prediction_misses := 0
+var prediction_overlay: Panel
+var prediction_plot: RadioPlot
+var prediction_countdown_label: Label
+var prediction_state_label: Label
+var prediction_arm_button: Button
 
 var report_choice := ""
 var report_choice_buttons: Dictionary = {}
@@ -139,6 +151,10 @@ func _ready() -> void:
 	_rebuild()
 	InteractionFeedback.page_enter(self)
 	_radio_console_boot()
+
+
+func _exit_tree() -> void:
+	_stop_tune_ratchet(0.0)
 
 
 func _radio_console_boot() -> void:
@@ -197,6 +213,7 @@ func _radio_console_boot() -> void:
 func _radio_console_power_down() -> void:
 	if console_shutdown_active:
 		return
+	_stop_tune_ratchet()
 	console_shutdown_active = true
 	running = true
 	var reduced := InteractionFeedback.is_reduced_motion()
@@ -261,6 +278,14 @@ func _radio_console_power_down() -> void:
 
 
 func _profile() -> Dictionary:
+	if GameManager.is_remote_free_observation("radio"):
+		var free_entry := GameManager.active_remote_free_entry("radio")
+		var free_profile: Variant = free_entry.get("profile", {})
+		if free_profile is Dictionary and not (free_profile as Dictionary).is_empty():
+			var result := (free_profile as Dictionary).duplicate(true)
+			result["free_observation"] = true
+			result["catalog_entry_id"] = str(free_entry.get("id", ""))
+			return result
 	var level := GameManager.current_level()
 	var value: Variant = level.get("radio_profile", {})
 	if value is Dictionary and not (value as Dictionary).is_empty():
@@ -275,6 +300,9 @@ func _profile() -> Dictionary:
 func _process(delta: float) -> void:
 	if model == null:
 		return
+	if tune_drag_mode != "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		tune_drag_mode = ""
+		_stop_tune_ratchet()
 	terminal_clock += delta
 	if terminal_emphasis_until > 0.0 and terminal_clock >= terminal_emphasis_until:
 		terminal_emphasis_until = 0.0
@@ -321,8 +349,15 @@ func _process(delta: float) -> void:
 		last_aim_disturbance_active = disturbance_active
 		_record_aim_trail()
 		_refresh_aim()
+	if prediction_running:
+		prediction_time_left = maxf(0.0, prediction_time_left - delta)
+		_refresh_prediction_capture()
+		if prediction_time_left <= 0.0:
+			_resolve_prediction_window()
+		return
 	elif stage == 3 and fold_step == 2 and integration_held and not discovery_running:
-		model.set_integration(model.integration_s + delta * SIMULATED_INTEGRATION_RATE)
+		var integration_rate := maxf(SIMULATED_INTEGRATION_RATE, model.required_integration_s / 1.6)
+		model.set_integration(model.integration_s + delta * integration_rate)
 		_terminal_event(
 			"PHOTON INTEGRATION",
 			"ACCUMULATE",
@@ -349,6 +384,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event is InputEventKey:
 		var key := event as InputEventKey
+		if prediction_running and key.pressed and not key.echo and key.keycode in [KEY_SPACE, KEY_ENTER]:
+			_arm_prediction_receiver()
+			get_viewport().set_input_as_handled()
+			return
 		if key.keycode == KEY_SPACE and stage == 3 and fold_step == 2:
 			integration_held = key.pressed
 			_terminal_event(
@@ -492,6 +531,8 @@ func _add_fast_crt_overlay() -> void:
 
 # ---------------------------------------------------------------- layout
 func _rebuild() -> void:
+	_stop_tune_ratchet(0.0)
+	tune_drag_mode = ""
 	for child in get_children():
 		child.queue_free()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -499,8 +540,13 @@ func _rebuild() -> void:
 	_panel(Vector2(14, 10), Vector2(996, 724), Color("030405"), BRASS)
 	_label(GameManager.text("FAST RADIO OBSERVATION", "FAST 射电观测"), Vector2(24, 18), Vector2(976, 30), 23, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var target := GameManager.current_target()
+	var free_entry := GameManager.active_remote_free_entry("radio")
+	var target_name := (
+		GameManager.text(str(free_entry.get("name_en", "")), str(free_entry.get("name_zh", "")))
+		if not free_entry.is_empty()
+		else GameManager.dict_text(target, "name"))
 	_label(
-		GameManager.text("Target: ", "目标：") + GameManager.dict_text(target, "name")
+		GameManager.text("Target: ", "目标：") + target_name
 			+ "   ·   " + _challenge_title(),
 		Vector2(24, 48), Vector2(976, 22), 13, CRT, HORIZONTAL_ALIGNMENT_CENTER
 	)
@@ -519,37 +565,41 @@ func _rebuild() -> void:
 	var terminal_bg := Panel.new()
 	terminal_panel = terminal_bg
 	terminal_bg.name = "FastEventTerminal"
-	terminal_bg.position = Vector2(40, 610)
-	terminal_bg.size = Vector2(750, 68)
+	terminal_bg.position = Vector2(40, 614)
+	terminal_bg.size = Vector2(750, 66)
+	terminal_bg.clip_contents = true
 	terminal_bg.add_theme_stylebox_override("panel", _flat(Color("020303"), Color("404645"), 1))
 	terminal_bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(terminal_bg)
-	terminal_label = _label_to(terminal_bg, "", Vector2(12, 3), Vector2(726, 62), 9, CRT)
+	terminal_label = _label_to(terminal_bg, "", Vector2(12, 3), Vector2(726, 60), 9, CRT)
 	terminal_label.name = "FastEventStream"
 	terminal_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	terminal_label.clip_text = true
 	if terminal_log.is_empty():
 		_terminal_event("FAST ARRAY CONTROL", "ONLINE")
 		_terminal_event("REAL-TIME RECEIVER", "READY")
 	_refresh_terminal()
 
-	status_label = _label("", Vector2(40, 680), Vector2(520, 42), 13, MUTED)
+	status_label = _label("", Vector2(40, 684), Vector2(520, 42), 12, MUTED)
 	status_label.name = "FastStatusLine"
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	tutorial_next_button = _button(GameManager.text("NEXT", "下一步"), Vector2(570, 684), Vector2(104, 34), Color("183844"))
+	status_label.clip_text = true
+	tutorial_next_button = _button(GameManager.text("NEXT", "下一步"), Vector2(570, 688), Vector2(104, 34), Color("183844"))
 	tutorial_next_button.name = "FastTutorialNext"
 	tutorial_next_button.visible = false
 	tutorial_next_button.pressed.connect(_advance_fast_tutorial)
 	add_child(tutorial_next_button)
-	tutorial_mode_button = _button(GameManager.text("LESS GUIDE", "减少引导"), Vector2(680, 684), Vector2(112, 34), Color("242b31"))
+	tutorial_mode_button = _button(GameManager.text("LESS GUIDE", "减少引导"), Vector2(680, 688), Vector2(112, 34), Color("242b31"))
 	tutorial_mode_button.name = "FastTutorialLessGuide"
 	tutorial_mode_button.visible = false
 	tutorial_mode_button.pressed.connect(_disable_full_fast_tutorial)
 	add_child(tutorial_mode_button)
-	tutorial_help_button = _button(GameManager.text("HELP", "操作说明"), Vector2(680, 684), Vector2(112, 34), Color("172235"))
+	tutorial_help_button = _button(GameManager.text("HELP", "操作说明"), Vector2(680, 688), Vector2(112, 34), Color("172235"))
 	tutorial_help_button.name = "FastTutorialReplay"
 	tutorial_help_button.pressed.connect(_replay_stage_tutorial)
 	add_child(tutorial_help_button)
-	var back := _button(GameManager.text("Back", "返回"), Vector2(812, 684), Vector2(178, 38), Color("172235"))
+	var back := _button(GameManager.text("Back", "返回"), Vector2(812, 686), Vector2(178, 38), Color("172235"))
+	back.name = "FastBackButton"
 	back.pressed.connect(_back)
 	add_child(back)
 	_build_stage()
@@ -805,6 +855,10 @@ func _configure_stage_guidance() -> void:
 		tutorial_mode_button.visible = false
 	if tutorial_help_button != null:
 		tutorial_help_button.visible = true
+	# Free observation is intentionally self-directed. Keep the compact Help
+	# affordance available, but never replay campaign tutorials or lock controls.
+	if GameManager.is_remote_free_observation("radio"):
+		return
 	var seen_key := _tutorial_seen_key()
 	match GameManager.tutorial_assistance_mode():
 		GameManager.TUTORIAL_ASSIST_FULL:
@@ -957,8 +1011,15 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 						"频率相关延迟被校正后，各行开始垂直对齐。"
 					),
 					_tutorial_step_data(
-						"Apply the DM correction once the rows align.",
-						"各行对齐后，应用 DM 校正。",
+						"Now move the pulse arrival marker into the gate at the top of the phase wheel.",
+						"现在把脉冲到达标记移入相位盘顶部的接收门。",
+						"fold_phase_adjust", fold_phase_slider,
+						"The arrival phase now falls inside the receiver gate.",
+						"脉冲到达相位现在落在接收门内。"
+					),
+					_tutorial_step_data(
+						"Lock dispersion and phase once the rows and arrival gate both agree.",
+						"各行与接收门都对齐后，锁定色散与相位。",
 						"fold_dm_lock", fold_action_button,
 						"Period and DM now agree. Only statistical confidence is missing.",
 						"周期与 DM 现在已经一致，只差足够的统计置信度。"
@@ -980,11 +1041,11 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 					"同一个脉冲正在更安静的背景上稳定重复。"
 				),
 				_tutorial_step_data(
-					"Confirm only when period, DM and SNR all support the same source.",
-					"只有周期、DM 与信噪比共同支持同一信号时，才能确认。",
+					"Use the recovered timing model to predict and capture the next pulse.",
+					"用恢复出的计时模型预测并捕获下一次脉冲。",
 					"fold_confirm", fold_action_button,
-					"You independently confirmed a known pulsar signal from the noise.",
-					"你从噪声中独立确认了一个已知脉冲星信号。"
+					"A real periodic source should arrive again when your model predicts.",
+					"真实的周期信号应当在模型预报的时刻再次抵达。"
 				),
 			]
 		_:
@@ -1620,15 +1681,21 @@ func _build_tune() -> void:
 	scope.gui_input.connect(_on_tune_scope_input)
 	spectrum_panel.add_child(scope)
 
-	var controls := _panel_to(content, Vector2(32, 374), Vector2(960, 110), PANEL, GOLD, GameManager.text("PASSBAND CONTROLS", "通带控制"))
+	var controls := _panel_to(content, Vector2(32, 366), Vector2(960, 116), PANEL, GOLD, GameManager.text("PASSBAND CONTROLS", "通带控制"))
+	controls.name = "TuneControlsPanel"
+	if controls.get_child_count() > 0:
+		controls.get_child(0).name = "TuneControlsTitle"
 	tune_controls_panel = controls
-	readout = _label_to(controls, "", Vector2(18, 38), Vector2(330, 58), 12, TEXT)
+	readout = _label_to(controls, "", Vector2(18, 42), Vector2(330, 64), 11, TEXT)
+	readout.name = "TuneReadout"
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_stepper(controls, GameManager.text("CENTER MHz", "中心 MHz"), Vector2(372, 40), 150.0, _adjust_tune_center.bind(-5.0), _adjust_tune_center.bind(5.0))
-	_stepper(controls, GameManager.text("WIDTH MHz", "带宽 MHz"), Vector2(552, 40), 150.0, _adjust_tune_width.bind(-5.0), _adjust_tune_width.bind(5.0))
-	tune_log_label = _label_to(controls, "", Vector2(718, 38), Vector2(224, 32), 10, CRT, HORIZONTAL_ALIGNMENT_CENTER)
+	_stepper(controls, GameManager.text("CENTER MHz", "中心 MHz"), Vector2(372, 68), 150.0, _adjust_tune_center.bind(-5.0), _adjust_tune_center.bind(5.0), "TuneCenter")
+	_stepper(controls, GameManager.text("WIDTH MHz", "带宽 MHz"), Vector2(552, 68), 150.0, _adjust_tune_width.bind(-5.0), _adjust_tune_width.bind(5.0), "TuneWidth")
+	tune_log_label = _label_to(controls, "", Vector2(718, 40), Vector2(224, 30), 10, CRT, HORIZONTAL_ALIGNMENT_CENTER)
+	tune_log_label.name = "TuneSignalStatus"
 	tune_log_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var confirm := _button(GameManager.text("STABILIZE WINDOW", "稳定频窗"), Vector2(728, 72), Vector2(204, 30), Color("18452f"))
+	var confirm := _button(GameManager.text("STABILIZE WINDOW", "稳定频窗"), Vector2(728, 76), Vector2(204, 30), Color("18452f"))
+	confirm.name = "TuneConfirmButton"
 	tune_confirm_button = confirm
 	confirm.pressed.connect(_confirm_tune)
 	controls.add_child(confirm)
@@ -1681,18 +1748,20 @@ func _on_tune_scope_input(event: InputEvent) -> void:
 			else:
 				tune_drag_mode = "center"
 				_set_tune_center_from_x(mouse.position.x)
+			_start_tune_ratchet()
 		else:
 			var completed_drag_mode := tune_drag_mode
 			tune_drag_mode = ""
+			_stop_tune_ratchet()
 			_terminal_event(
 				"RECEIVER WINDOW",
 				"HOLD",
 				"%.0f / %.0f MHz" % [model.window_center_mhz, model.window_bandwidth_mhz]
 			)
 			_tutorial_action("tune_center" if completed_drag_mode == "center" else "tune_width")
-			InteractionFeedback.feedback_sfx_requested.emit("fast_tune_window")
 		_refresh_tune()
 	elif event is InputEventMouseMotion and tune_drag_mode != "":
+		_start_tune_ratchet()
 		var motion := event as InputEventMouseMotion
 		var mhz := _x_to_mhz(motion.position.x, scope.size.x)
 		if tune_drag_mode == "center":
@@ -1705,6 +1774,16 @@ func _on_tune_scope_input(event: InputEvent) -> void:
 			_tutorial_action("tune_width")
 		_note_player_activity()
 		_refresh_tune()
+
+
+func _start_tune_ratchet() -> void:
+	if AudioManager != null:
+		AudioManager.start_event_loop("fast_tune_window", -1.5)
+
+
+func _stop_tune_ratchet(fade_seconds := 0.045) -> void:
+	if AudioManager != null:
+		AudioManager.stop_event_loop("fast_tune_window", fade_seconds)
 
 
 func _set_tune_center_from_x(x: float) -> void:
@@ -2304,9 +2383,10 @@ func _build_fold_controls_panel() -> void:
 
 
 func _build_fold_control(parent: Control) -> void:
+	fold_phase_slider = null
 	if fold_step <= 1:
 		fold_slider = HSlider.new()
-		fold_slider.position = Vector2(18, 218)
+		fold_slider.position = Vector2(18, 204 if fold_step == 1 else 218)
 		fold_slider.size = Vector2(262, 28)
 		if fold_step == 0:
 			fold_slider.min_value = model.true_period_ms - 80.0
@@ -2333,24 +2413,46 @@ func _build_fold_control(parent: Control) -> void:
 				_refresh_fold()
 			)
 		parent.add_child(fold_slider)
+		if fold_step == 1:
+			_label_to(parent, GameManager.text("DISPERSION (DM)", "色散（DM）"), Vector2(18, 188), Vector2(126, 18), 9, MUTED)
+			fold_phase_slider = HSlider.new()
+			fold_phase_slider.position = Vector2(18, 252)
+			fold_phase_slider.size = Vector2(262, 28)
+			fold_phase_slider.min_value = 0.0
+			fold_phase_slider.max_value = 1.0
+			fold_phase_slider.step = 0.005
+			fold_phase_slider.value = model.trial_phase
+			fold_phase_slider.tooltip_text = GameManager.text(
+				"Move the pulse arrival into the gate at the top of the phase wheel.",
+				"把脉冲到达位置移入相位盘顶部的接收门。"
+			)
+			fold_phase_slider.value_changed.connect(func(value: float) -> void:
+				model.trial_phase = value
+				_note_player_activity()
+				_tutorial_action("fold_phase_adjust")
+				_terminal_event("PHASE GATE", "TRIM", "%+.3f · %d%%" % [value - model.true_phase, int(model.phase_match() * 100.0)], "phase_align", 0.30)
+				_refresh_fold()
+			)
+			parent.add_child(fold_phase_slider)
+			_label_to(parent, GameManager.text("PULSE ARRIVAL PHASE", "脉冲到达相位"), Vector2(18, 236), Vector2(150, 18), 9, MUTED)
 		fold_action_button = _button(
-			GameManager.text("LOCK TRIAL PERIOD", "锁定试验周期") if fold_step == 0 else GameManager.text("APPLY DM CORRECTION", "应用 DM 校正"),
-			Vector2(18, 278), Vector2(262, 44), Color("18452f")
+			GameManager.text("LOCK TRIAL PERIOD", "锁定试验周期") if fold_step == 0 else GameManager.text("LOCK DISPERSION + PHASE", "锁定色散与相位"),
+			Vector2(18, 300 if fold_step == 1 else 278), Vector2(262, 44), Color("18452f")
 		)
 		fold_action_button.pressed.connect(_confirm_fold_step)
 		parent.add_child(fold_action_button)
 	else:
-		fold_action_button = _button(GameManager.text("HOLD TO INTEGRATE [SPACE]", "按住积分 [空格]"), Vector2(18, 218), Vector2(262, 54), Color("153249"))
+		fold_action_button = _button(GameManager.text("HOLD FOLD & INTEGRATE [SPACE]", "按住折叠并积分 [空格]"), Vector2(18, 218), Vector2(262, 54), Color("153249"))
 		fold_action_button.button_down.connect(func() -> void:
 			integration_held = true
 			_note_player_activity()
 		)
 		fold_action_button.button_up.connect(func() -> void: integration_held = false)
 		parent.add_child(fold_action_button)
-		var confirm := _button(GameManager.text("CONFIRM DISCOVERY", "确认发现"), Vector2(18, 292), Vector2(262, 48), Color("18452f"))
+		var confirm := _button(GameManager.text("PREDICT NEXT PULSE", "预测下一次脉冲"), Vector2(18, 292), Vector2(262, 48), Color("18452f"))
 		confirm.pressed.connect(_confirm_fold)
 		parent.add_child(confirm)
-	_label_to(parent, GameManager.text("←/→ fine adjust · Enter: apply", "←/→ 微调 · 回车：应用"), Vector2(12, 356), Vector2(274, 20), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	_label_to(parent, GameManager.text("←/→ adjust · Q/E phase · Enter apply", "←/→ 调整 · Q/E 相位 · 回车应用"), Vector2(12, 356), Vector2(274, 20), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	_label_to(parent, _challenge_hint(), Vector2(18, 382), Vector2(262, 58), 11, CRT, HORIZONTAL_ALIGNMENT_CENTER).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
@@ -2368,6 +2470,15 @@ func _challenge_hint() -> String:
 
 func _fold_keyboard(keycode: Key) -> void:
 	var direction := -1.0 if keycode in [KEY_LEFT, KEY_A] else (1.0 if keycode in [KEY_RIGHT, KEY_D] else 0.0)
+	var phase_direction := -1.0 if keycode == KEY_Q else (1.0 if keycode == KEY_E else 0.0)
+	if phase_direction != 0.0 and fold_step == 1:
+		model.trial_phase = clampf(model.trial_phase + phase_direction * 0.015, 0.0, 1.0)
+		if fold_phase_slider != null:
+			fold_phase_slider.value = model.trial_phase
+		_note_player_activity()
+		_tutorial_action("fold_phase_adjust")
+		_refresh_fold()
+		return
 	if direction != 0.0 and fold_step <= 1:
 		if fold_step == 0:
 			model.trial_period_ms = clampf(model.trial_period_ms + direction * 0.5, model.true_period_ms - 80.0, model.true_period_ms + 80.0)
@@ -2411,10 +2522,20 @@ func _confirm_fold_step() -> void:
 			status_label.add_theme_color_override("font_color", RED)
 			InteractionFeedback.error(fold_slider)
 			return
+		if model.phase_match() < 0.72:
+			_terminal_event("PHASE GATE", "OUTSIDE", "%d%%" % int(model.phase_match() * 100.0))
+			status_label.text = GameManager.text(
+				"Dispersion is corrected, but the pulse still misses the arrival gate. Move the phase marker to the top gate.",
+				"色散已经校正，但脉冲仍未进入接收门。请把相位标记移到相位盘顶部。"
+			)
+			status_label.add_theme_color_override("font_color", AMBER)
+			InteractionFeedback.error(fold_phase_slider)
+			return
 		_tutorial_action("fold_dm_lock")
 		if tutorial_active:
 			_finish_stage_tutorial()
 		_terminal_event("SUB-BAND ARRIVAL", "VERTICAL", "DM %.1f" % model.trial_dm, "", 0.0, true)
+		_terminal_event("PHASE GATE", "CAPTURED", "RESIDUAL %d%%" % int((1.0 - model.phase_match()) * 100.0), "", 0.0, true)
 		fold_step = 2
 		_terminal_event("DISPERSION SOLUTION", "ALIGNED", "DM %.1f" % model.trial_dm)
 		status_label.text = GameManager.text("Dispersion aligned. Hold integration until the pulse rises above the noise.", "色散已经对齐。按住积分，直到脉冲高出噪声。")
@@ -2431,8 +2552,8 @@ func _refresh_fold() -> void:
 	if fold_step_label != null and is_instance_valid(fold_step_label):
 		fold_step_label.text = [
 			GameManager.text("A · SEARCH PERIOD", "A · 搜索周期"),
-			GameManager.text("B · CORRECT DISPERSION", "B · 校正色散"),
-			GameManager.text("C · INTEGRATE SIGNAL", "C · 积分信号"),
+			GameManager.text("B · ALIGN DISPERSION + PHASE", "B · 对齐色散与相位"),
+			GameManager.text("C · FOLD + INTEGRATE", "C · 折叠并积分"),
 		][fold_step]
 	var snr := model.fold_snr()
 	if fold_step == 0:
@@ -2442,8 +2563,8 @@ func _refresh_fold() -> void:
 		)
 	elif fold_step == 1:
 		readout.text = GameManager.text(
-			"Trial DM %.1f pc/cm³\nSub-band alignment %d%%\nTilted rows reveal dispersion error." % [model.trial_dm, int(model.dm_match() * 100.0)],
-			"试验 DM %.1f pc/cm³\n子频段对齐 %d%%\n倾斜行列显示色散误差。" % [model.trial_dm, int(model.dm_match() * 100.0)]
+			"Trial DM %.1f pc/cm³ · %d%%\nArrival phase %.3f · gate %d%%\nStraighten rows, then place the pulse in the top gate." % [model.trial_dm, int(model.dm_match() * 100.0), model.trial_phase, int(model.phase_match() * 100.0)],
+			"试验 DM %.1f pc/cm³ · %d%%\n到达相位 %.3f · 接收门 %d%%\n先拉直各行，再把脉冲移入顶部接收门。" % [model.trial_dm, int(model.dm_match() * 100.0), model.trial_phase, int(model.phase_match() * 100.0)]
 		)
 	else:
 		readout.text = GameManager.text(
@@ -2457,19 +2578,21 @@ func _refresh_fold() -> void:
 
 func _draw_fold_plot(plot: RadioPlot) -> void:
 	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
-	var waterfall_rect := Rect2(Vector2(28, 22), Vector2(plot.size.x - 56, 210))
-	var profile_rect := Rect2(Vector2(28, 270), Vector2(plot.size.x - 56, 112))
+	var waterfall_rect := Rect2(Vector2(28, 22), Vector2(plot.size.x - 56, 190))
+	var profile_rect := Rect2(Vector2(28, 246), Vector2(430, 136))
 	_draw_crt_grid(plot, waterfall_rect, 38.0, Color(0.18, 0.34, 0.38, 0.18))
 	_draw_crt_grid(plot, profile_rect, 38.0, Color(0.18, 0.34, 0.38, 0.18))
 	_draw_plot_text(plot, GameManager.text("SUB-BAND ARRIVAL / DISPERSION", "子频段到达时间 / 色散"), Vector2(28, 16), 10, MUTED)
-	_draw_plot_text(plot, GameManager.text("FOLDED PULSE PROFILE", "折叠脉冲轮廓"), Vector2(28, 264), 10, MUTED)
+	_draw_plot_text(plot, GameManager.text("FOLDED PULSE PROFILE", "折叠脉冲轮廓"), Vector2(28, 240), 10, MUTED)
 
 	var offsets := model.subband_offsets(7)
 	var period_split := (1.0 - model.period_match()) * 0.18
 	for row in range(offsets.size()):
-		var y := waterfall_rect.position.y + 20.0 + row * 26.0
+		var y := waterfall_rect.position.y + 18.0 + row * 24.0
 		plot.draw_line(Vector2(waterfall_rect.position.x, y), Vector2(waterfall_rect.end.x, y), Color(CRT, 0.12), 1.0)
-		var center_x := waterfall_rect.position.x + waterfall_rect.size.x * (0.5 + float(offsets[row]))
+		var row_normalized := 0.0 if offsets.size() <= 1 else float(row) / float(offsets.size() - 1) - 0.5
+		var period_drift := (1.0 - model.period_match()) * row_normalized * 0.42
+		var center_x := waterfall_rect.position.x + waterfall_rect.size.x * (0.5 + float(offsets[row]) + period_drift)
 		var row_color := Color(CYAN, lerpf(0.32, 0.92, model.dm_match()))
 		_draw_gaussian_trace(plot, Vector2(center_x - period_split * waterfall_rect.size.x, y), 14.0 + (1.0 - model.dm_match()) * 24.0, row_color)
 		if period_split > 0.02:
@@ -2489,6 +2612,22 @@ func _draw_fold_plot(plot: RadioPlot) -> void:
 	plot.draw_polyline(points, line_color, 1.8, true)
 	_meter_draw(plot, Rect2(Vector2(profile_rect.position.x, plot.size.y - 14), Vector2(profile_rect.size.x, 8)), clampf(model.fold_snr() / maxf(model.report_snr_threshold, 0.1), 0.0, 1.0), GREEN)
 	_draw_plot_text(plot, "SNR %.1f" % model.fold_snr(), Vector2(profile_rect.end.x - 70, plot.size.y - 20), 10, GREEN if model.fold_snr() >= model.report_snr_threshold else AMBER)
+	_draw_phase_wheel(plot, Vector2(532, 314), 50.0)
+
+
+func _draw_phase_wheel(plot: RadioPlot, center: Vector2, radius: float) -> void:
+	var wheel_color := GREEN if model.phase_match() >= 0.72 else AMBER
+	plot.draw_arc(center, radius, 0.0, TAU, 64, Color(BRASS, 0.82), 1.4, true)
+	plot.draw_arc(center, radius - 8.0, 0.0, TAU, 64, Color(CRT, 0.18), 1.0, true)
+	var gate_width := 0.22
+	plot.draw_arc(center, radius + 2.0, -PI * 0.5 - gate_width, -PI * 0.5 + gate_width, 18, GOLD, 5.0, true)
+	var phase_angle := -PI * 0.5 + (model.trial_phase - model.true_phase) * TAU
+	var marker := center + Vector2(cos(phase_angle), sin(phase_angle)) * (radius - 8.0)
+	plot.draw_line(center, marker, Color(wheel_color, 0.45), 1.0)
+	plot.draw_circle(marker, 6.0, wheel_color)
+	plot.draw_circle(center, 3.0, Color(CRT, 0.8))
+	_draw_plot_text(plot, GameManager.text("ARRIVAL GATE", "到达门"), center + Vector2(-42, -62), 9, GOLD)
+	_draw_plot_text(plot, "%d%%" % int(model.phase_match() * 100.0), center + Vector2(-15, 5), 10, wheel_color)
 
 
 func _draw_gaussian_trace(plot: RadioPlot, center: Vector2, width: float, color: Color) -> void:
@@ -2502,7 +2641,7 @@ func _draw_gaussian_trace(plot: RadioPlot, center: Vector2, width: float, color:
 
 
 func _confirm_fold() -> void:
-	if discovery_running:
+	if discovery_running or prediction_running:
 		return
 	var rep := model.report()
 	if not bool(rep.get("success", false)):
@@ -2523,13 +2662,224 @@ func _confirm_fold() -> void:
 	_tutorial_action("fold_confirm")
 	if tutorial_active:
 		_finish_stage_tutorial()
+	_start_pulse_prediction()
+
+
+func _start_pulse_prediction() -> void:
+	prediction_running = true
+	prediction_armed = false
+	prediction_confirmed = false
+	prediction_misses = 0
+	# The display interval is a playable verification window derived from the
+	# recovered period. It does not replace or alter the measured period.
+	prediction_duration = clampf(model.trial_period_ms / 1000.0 * 10.0, 6.0, 10.0)
+	prediction_time_left = prediction_duration
+	_terminal_event("TIMING MODEL", "PREDICTING", "NEXT ARRIVAL %.1f s" % prediction_duration, "", 0.0, true)
+
+	prediction_overlay = Panel.new()
+	prediction_overlay.name = "PulsePredictionCapture"
+	prediction_overlay.position = Vector2(32, 106)
+	prediction_overlay.size = Vector2(960, 506)
+	prediction_overlay.z_index = 950
+	prediction_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	prediction_overlay.add_theme_stylebox_override("panel", _flat(Color("061119"), GOLD, 3))
+	add_child(prediction_overlay)
+
+	_label_to(
+		prediction_overlay,
+		GameManager.text("CLOCK VERIFICATION", "宇宙时钟验证"),
+		Vector2(24, 16),
+		Vector2(912, 30),
+		20,
+		GOLD,
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
+	_label_to(
+		prediction_overlay,
+		GameManager.text(
+			"The fold predicts the next arrival. Arm the receiver before the pulse reaches the gate.",
+			"折叠结果已经预测出下一次到达时刻。请在脉冲抵达接收门前准备接收。"
+		),
+		Vector2(36, 46),
+		Vector2(888, 36),
+		12,
+		CRT,
+		HORIZONTAL_ALIGNMENT_CENTER
+	).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	prediction_plot = RadioPlot.new()
+	prediction_plot.position = Vector2(64, 88)
+	prediction_plot.size = Vector2(832, 278)
+	prediction_plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prediction_plot.renderer = _draw_prediction_plot
+	prediction_overlay.add_child(prediction_plot)
+
+	prediction_countdown_label = _label_to(
+		prediction_overlay,
+		"",
+		Vector2(32, 374),
+		Vector2(300, 30),
+		18,
+		GOLD,
+		HORIZONTAL_ALIGNMENT_LEFT
+	)
+	prediction_state_label = _label_to(
+		prediction_overlay,
+		"",
+		Vector2(32, 408),
+		Vector2(514, 54),
+		12,
+		CRT,
+		HORIZONTAL_ALIGNMENT_LEFT
+	)
+	prediction_state_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	prediction_arm_button = _button(
+		GameManager.text("ARM RECEIVER  [SPACE]", "准备接收  [空格]"),
+		Vector2(574, 386),
+		Vector2(276, 58),
+		Color("18452f")
+	)
+	prediction_arm_button.pressed.connect(_arm_prediction_receiver)
+	prediction_overlay.add_child(prediction_arm_button)
+	_refresh_prediction_capture()
+
+	if not InteractionFeedback.is_reduced_motion():
+		prediction_overlay.modulate.a = 0.0
+		var enter := create_tween().bind_node(prediction_overlay)
+		enter.tween_property(prediction_overlay, "modulate:a", 1.0, 0.18)
+
+
+func _arm_prediction_receiver() -> void:
+	if not prediction_running or prediction_armed:
+		return
+	prediction_armed = true
+	_note_player_activity()
+	_terminal_event("RECEIVER GATE", "ARMED", "WINDOW %.2f s" % prediction_time_left, "", 0.0, true)
+	if prediction_arm_button != null and is_instance_valid(prediction_arm_button):
+		prediction_arm_button.disabled = true
+		prediction_arm_button.text = GameManager.text("RECEIVER ARMED", "接收机已准备")
+		InteractionFeedback.success(prediction_arm_button, "fast_receiver_armed")
+	_refresh_prediction_capture()
+
+
+func _refresh_prediction_capture() -> void:
+	if not prediction_running:
+		return
+	if prediction_countdown_label != null and is_instance_valid(prediction_countdown_label):
+		prediction_countdown_label.text = GameManager.text(
+			"NEXT ARRIVAL  T−%.2f s" % prediction_time_left,
+			"下一次到达  T−%.2f 秒" % prediction_time_left
+		)
+		prediction_countdown_label.add_theme_color_override("font_color", GREEN if prediction_armed else GOLD)
+	if prediction_state_label != null and is_instance_valid(prediction_state_label):
+		prediction_state_label.text = GameManager.text(
+			"Gate open. Hold the timing model steady; the next pulse will test your prediction." if prediction_armed else "Receiver is not armed. Press Space or use the button before T−0.",
+			"接收门已打开。保持计时模型稳定，下一拍将检验你的预测。" if prediction_armed else "接收机尚未准备。请在倒计时归零前按空格或点击按钮。"
+		)
+		prediction_state_label.add_theme_color_override("font_color", GREEN if prediction_armed else AMBER)
+	if prediction_plot != null and is_instance_valid(prediction_plot):
+		prediction_plot.queue_redraw()
+
+
+func _resolve_prediction_window(force_hit: bool = false) -> void:
+	if not prediction_running:
+		return
+	if force_hit:
+		prediction_armed = true
+	if not prediction_armed:
+		prediction_misses += 1
+		prediction_time_left = clampf(prediction_duration * 0.72, 4.0, 7.0)
+		_terminal_event("PREDICTED ARRIVAL", "MISSED", "NEXT BEAT %.1f s" % prediction_time_left, "", 0.0, true)
+		if prediction_state_label != null and is_instance_valid(prediction_state_label):
+			prediction_state_label.text = GameManager.text(
+				"The pulse passed while the receiver gate was closed. The timing solution is intact; arm for the next beat.",
+				"脉冲抵达时接收门尚未打开。计时解没有丢失，请准备接收下一拍。"
+			)
+			prediction_state_label.add_theme_color_override("font_color", AMBER)
+		if prediction_arm_button != null and is_instance_valid(prediction_arm_button):
+			prediction_arm_button.disabled = false
+			prediction_arm_button.text = GameManager.text("ARM FOR NEXT BEAT  [SPACE]", "准备接收下一拍  [空格]")
+			InteractionFeedback.error(prediction_arm_button)
+		return
+
+	prediction_running = false
+	prediction_confirmed = true
+	_terminal_event("PREDICTED ARRIVAL", "CAPTURED", "RESIDUAL < 1 WINDOW", "", 0.0, true)
+	_terminal_event("CLOCK MODEL", "CONFIRMED", str(model.target_id).to_upper(), "", 0.0, true)
+	if prediction_countdown_label != null and is_instance_valid(prediction_countdown_label):
+		prediction_countdown_label.text = GameManager.text("PULSE ARRIVED IN GATE", "脉冲已抵达接收门")
+		prediction_countdown_label.add_theme_color_override("font_color", GREEN)
+	if prediction_state_label != null and is_instance_valid(prediction_state_label):
+		prediction_state_label.text = GameManager.text(
+			"RAW → FOLDED → PREDICTED: the next radio pulse arrived when your timing model said it would.",
+			"原始信号 → 折叠轮廓 → 到达预测：下一次射电脉冲在计时模型预报的时刻抵达。"
+		)
+		prediction_state_label.add_theme_color_override("font_color", GREEN)
+	if prediction_arm_button != null and is_instance_valid(prediction_arm_button):
+		prediction_arm_button.disabled = true
+		prediction_arm_button.text = GameManager.text("CLOCK CONFIRMED", "宇宙时钟已确认")
+	if prediction_plot != null and is_instance_valid(prediction_plot):
+		prediction_plot.queue_redraw()
+	InteractionFeedback.feedback_sfx_requested.emit("fast_discovery")
+	call_deferred("_finish_prediction_capture")
+
+
+func _finish_prediction_capture() -> void:
+	await get_tree().create_timer(0.85 if not InteractionFeedback.is_reduced_motion() else 0.20).timeout
+	if prediction_overlay != null and is_instance_valid(prediction_overlay):
+		prediction_overlay.queue_free()
+	prediction_overlay = null
+	prediction_plot = null
 	await _play_discovery_moment()
 	_advance(4)
 	_radio_operation_chain(
-		GameManager.text("Matched period, DM, and integration", "匹配周期、DM 与积分"),
-		GameManager.text("Sub-band arrivals aligned and random noise averaged down", "子频段到达时间对齐，随机噪声被平均压低"),
-		GameManager.text("A repeating cosmic radio pulse emerged from the noise", "重复宇宙射电脉冲从噪声中显现")
+		GameManager.text("Predicted and captured the next pulse", "预测并捕获下一次脉冲"),
+		GameManager.text("The recovered period opened the receiver gate at the correct arrival time", "恢复出的周期让接收门在正确的到达时刻打开"),
+		GameManager.text("The source is a stable cosmic clock, not a random burst", "信号源是一座稳定的宇宙时钟，而不是随机爆发")
 	)
+
+
+func _draw_prediction_plot(plot: RadioPlot) -> void:
+	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("041018"), true)
+	var raw_rect := Rect2(Vector2(12, 28), Vector2(252, 218))
+	var folded_rect := Rect2(Vector2(290, 28), Vector2(252, 218))
+	var predicted_rect := Rect2(Vector2(568, 28), Vector2(252, 218))
+	for rect in [raw_rect, folded_rect, predicted_rect]:
+		_draw_crt_grid(plot, rect, 28.0, Color(0.20, 0.40, 0.42, 0.14))
+		plot.draw_rect(rect, Color(BRASS, 0.58), false, 1.0)
+	_draw_plot_text(plot, GameManager.text("RAW · UNCERTAIN", "原始 · 候选"), Vector2(18, 20), 10, MUTED)
+	_draw_plot_text(plot, GameManager.text("FOLDED · PERIODIC", "折叠 · 周期"), Vector2(296, 20), 10, CYAN)
+	_draw_plot_text(plot, GameManager.text("PREDICTED · ARRIVAL", "预测 · 到达"), Vector2(574, 20), 10, GREEN if prediction_confirmed else GOLD)
+
+	var raw_points := PackedVector2Array()
+	for i in range(100):
+		var x := raw_rect.position.x + 8.0 + (raw_rect.size.x - 16.0) * float(i) / 99.0
+		var noise := sin(float(i) * 2.81) * 0.24 + sin(float(i) * 0.71) * 0.12
+		var pulse := exp(-pow((float(i) - 54.0) / 10.0, 2.0)) * 0.24
+		var y := raw_rect.get_center().y - (noise + pulse) * 82.0
+		raw_points.append(Vector2(x, y))
+	plot.draw_polyline(raw_points, Color(CRT, 0.66), 1.2, true)
+
+	var profile := model.folded_profile(120)
+	var folded_points := PackedVector2Array()
+	for i in range(profile.size()):
+		var x := folded_rect.position.x + 8.0 + (folded_rect.size.x - 16.0) * float(i) / float(profile.size() - 1)
+		var y := folded_rect.end.y - 18.0 - clampf(float(profile[i]), 0.0, 1.2) * 154.0
+		folded_points.append(Vector2(x, y))
+	plot.draw_polyline(folded_points, Color(CYAN, 0.22), 6.0, true)
+	plot.draw_polyline(folded_points, CYAN, 1.8, true)
+
+	var gate_x := predicted_rect.get_center().x
+	var travel := 1.0 - clampf(prediction_time_left / maxf(prediction_duration, 0.01), 0.0, 1.0)
+	var pulse_x := lerpf(predicted_rect.position.x + 12.0, gate_x, travel)
+	plot.draw_rect(Rect2(Vector2(gate_x - 12.0, predicted_rect.position.y + 10.0), Vector2(24.0, predicted_rect.size.y - 20.0)), Color(GREEN if prediction_armed else AMBER, 0.10), true)
+	plot.draw_line(Vector2(gate_x, predicted_rect.position.y + 8.0), Vector2(gate_x, predicted_rect.end.y - 8.0), GREEN if prediction_armed else AMBER, 2.0)
+	plot.draw_line(Vector2(pulse_x, predicted_rect.end.y - 22.0), Vector2(pulse_x, predicted_rect.position.y + 42.0), Color(CRT, 0.82), 2.0)
+	if prediction_confirmed:
+		plot.draw_line(Vector2(gate_x, predicted_rect.end.y - 18.0), Vector2(gate_x, predicted_rect.position.y + 24.0), GREEN, 5.0)
+		_draw_plot_text(plot, GameManager.text("CLOCK CONFIRMED", "宇宙时钟已确认"), predicted_rect.position + Vector2(52, 196), 11, GREEN)
+	else:
+		_draw_plot_text(plot, "T−%.2f s" % prediction_time_left, predicted_rect.position + Vector2(88, 196), 12, GOLD)
 
 
 func _play_discovery_moment() -> void:
@@ -2675,7 +3025,7 @@ func _build_report() -> void:
 		["SNR", "%.1f" % float(rep["snr"])],
 		[GameManager.text("Integration", "积分"), "%.0f s" % float(rep["integration_s"])],
 		[GameManager.text("RFI removed", "剔除干扰"), "%d" % int(rep["rfi_cleared"])],
-		[GameManager.text("Residual", "残余"), "%d" % int(rep["rfi_residual"])],
+		[GameManager.text("Prediction", "到达预测"), GameManager.text("Captured", "已捕获") if prediction_confirmed else GameManager.text("Restored save", "旧存档恢复")],
 	]
 	for i in range(rows.size()):
 		var col := i % 3
@@ -2698,8 +3048,19 @@ func _build_report() -> void:
 	divider.color = Color(BRASS, 0.65)
 	report_panel.add_child(divider)
 	_label_to(report_panel, GameManager.text("CONCLUSION FROM THE EVIDENCE", "根据证据得出结论"), Vector2(480, 44), Vector2(446, 28), 14, GOLD)
+	var positive_key := "stable_pulsar"
+	var positive_title := GameManager.text("Stable pulsar candidate", "稳定脉冲星候选")
+	var positive_evidence := GameManager.text("Period repeats, DM aligns, SNR is significant.", "周期重复、DM 对齐且信噪比显著。")
+	if str(model.target_kind) in ["hi_line", "hydrogen"]:
+		positive_key = "confirmed_hi"
+		positive_title = GameManager.text("Neutral-hydrogen line confirmed", "中性氢谱线已确认")
+		positive_evidence = GameManager.text("The protected band contains a coherent 21 cm velocity profile.", "保留频带中出现了相干的 21 厘米速度轮廓。")
+	elif str(model.target_kind) in ["repeating_frb", "frb"]:
+		positive_key = "confirmed_frb"
+		positive_title = GameManager.text("Repeating dispersed burst confirmed", "重复色散爆发已确认")
+		positive_evidence = GameManager.text("The dispersion sweep repeats after terrestrial bursts are removed.", "剔除地面突发干扰后，色散扫频再次出现。")
 	var choices := [
-		["stable_pulsar", GameManager.text("Stable pulsar candidate", "稳定脉冲星候选"), GameManager.text("Period repeats, DM aligns, SNR is significant.", "周期重复、DM 对齐且信噪比显著。")],
+		[positive_key, positive_title, positive_evidence],
 		["residual_rfi", GameManager.text("Residual interference dominates", "残余干扰占主导"), GameManager.text("Patterned contamination remains in the spectrum.", "频谱中仍存在规律性污染。")],
 		["insufficient_signal", GameManager.text("Signal remains insufficient", "信号仍然不足"), GameManager.text("The profile has not risen reliably above noise.", "轮廓尚未可靠高出噪声。")],
 	]
@@ -2720,18 +3081,27 @@ func _build_report() -> void:
 
 
 func _draw_report_product(plot: RadioPlot) -> void:
+	if str(model.target_kind) in ["hi_line", "hydrogen"]:
+		_draw_hi_report_product(plot)
+		return
+	if str(model.target_kind) in ["repeating_frb", "frb"]:
+		_draw_frb_report_product(plot)
+		return
 	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
-	var before_rect := Rect2(Vector2(10, 22), Vector2(188, 82))
-	var after_rect := Rect2(Vector2(212, 22), Vector2(188, 82))
-	var pulse_rect := Rect2(Vector2(10, 132), Vector2(390, 92))
-	for rect in [before_rect, after_rect, pulse_rect]:
+	var raw_rect := Rect2(Vector2(8, 24), Vector2(126, 82))
+	var folded_rect := Rect2(Vector2(142, 24), Vector2(126, 82))
+	var predicted_rect := Rect2(Vector2(276, 24), Vector2(126, 82))
+	var pulse_rect := Rect2(Vector2(8, 136), Vector2(394, 88))
+	for rect in [raw_rect, folded_rect, predicted_rect, pulse_rect]:
 		_draw_crt_grid(plot, rect, 24.0, Color(0.18, 0.34, 0.38, 0.14))
 		plot.draw_rect(rect, Color(BRASS, 0.48), false, 1.0)
-	_draw_plot_text(plot, GameManager.text("RAW BAND", "原始频段"), before_rect.position + Vector2(4, -5), 9, MUTED)
-	_draw_plot_text(plot, GameManager.text("CLEAN BAND", "净化频段"), after_rect.position + Vector2(4, -5), 9, MUTED)
-	_draw_plot_text(plot, GameManager.text("CONFIRMED FOLDED PULSE", "已确认折叠脉冲"), pulse_rect.position + Vector2(4, -5), 9, MUTED)
-	_draw_spectrum_trace_in_rect(plot, before_rect, model.spectrum_samples(96, false), AMBER)
-	_draw_spectrum_trace_in_rect(plot, after_rect, model.spectrum_samples(96, true), CRT)
+	_draw_plot_text(plot, GameManager.text("RAW", "原始"), raw_rect.position + Vector2(4, -5), 9, MUTED)
+	_draw_plot_text(plot, GameManager.text("FOLDED", "折叠"), folded_rect.position + Vector2(4, -5), 9, CYAN)
+	_draw_plot_text(plot, GameManager.text("PREDICTED", "预测"), predicted_rect.position + Vector2(4, -5), 9, GREEN)
+	_draw_plot_text(plot, GameManager.text("CLOCK-CONFIRMED PULSE", "宇宙时钟确认轮廓"), pulse_rect.position + Vector2(4, -5), 9, MUTED)
+	_draw_timing_evidence_thumbnail(plot, raw_rect, 0)
+	_draw_timing_evidence_thumbnail(plot, folded_rect, 1)
+	_draw_timing_evidence_thumbnail(plot, predicted_rect, 2)
 	var profile := model.folded_profile(128)
 	var points := PackedVector2Array()
 	for i in range(profile.size()):
@@ -2741,6 +3111,93 @@ func _draw_report_product(plot: RadioPlot) -> void:
 	plot.draw_polyline(points, Color(GREEN, 0.18), 6.0, true)
 	plot.draw_polyline(points, GREEN, 1.8, true)
 	_draw_plot_text(plot, "OBS %s · %s" % [str(GameManager.current_level().get("level_number", "--")), str(model.target_id).to_upper()], Vector2(12, 12), 10, GOLD)
+
+
+func _draw_hi_report_product(plot: RadioPlot) -> void:
+	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
+	var raw_rect := Rect2(Vector2(10, 26), Vector2(190, 86))
+	var clean_rect := Rect2(Vector2(210, 26), Vector2(190, 86))
+	var velocity_rect := Rect2(Vector2(10, 140), Vector2(390, 86))
+	for rect in [raw_rect, clean_rect, velocity_rect]:
+		_draw_crt_grid(plot, rect, 24.0, Color(0.18, 0.34, 0.38, 0.14))
+		plot.draw_rect(rect, Color(BRASS, 0.48), false, 1.0)
+	_draw_plot_text(plot, GameManager.text("RAW BAND", "原始频带"), raw_rect.position + Vector2(4, -5), 9, MUTED)
+	_draw_plot_text(plot, GameManager.text("CLEAN 21 CM LINE", "净化后的 21 厘米谱线"), clean_rect.position + Vector2(4, -5), 9, CYAN)
+	_draw_plot_text(plot, GameManager.text("GALACTIC GAS VELOCITY PROFILE", "银河气体速度轮廓"), velocity_rect.position + Vector2(4, -5), 9, GREEN)
+	var raw_samples := model.spectrum_samples(96, false)
+	var clean_samples := model.spectrum_samples(96, true)
+	_draw_spectrum_trace_in_rect(plot, raw_rect, raw_samples, Color(CRT, 0.62))
+	_draw_spectrum_trace_in_rect(plot, clean_rect, clean_samples, CYAN)
+	var velocity_points := PackedVector2Array()
+	for i in range(120):
+		var normalized := float(i) / 119.0
+		var left_component := exp(-pow((normalized - 0.40) / 0.10, 2.0))
+		var right_component := 0.72 * exp(-pow((normalized - 0.63) / 0.13, 2.0))
+		var value := clampf((left_component + right_component) * model.window_covers_source(), 0.0, 1.0)
+		velocity_points.append(Vector2(
+			velocity_rect.position.x + 7.0 + normalized * (velocity_rect.size.x - 14.0),
+			velocity_rect.end.y - 8.0 - value * (velocity_rect.size.y - 18.0)))
+	plot.draw_polyline(velocity_points, Color(GREEN, 0.18), 5.0, true)
+	plot.draw_polyline(velocity_points, GREEN, 1.7, true)
+	_draw_plot_text(plot, GameManager.text("DATA PRODUCT · SPECTRAL-LINE VELOCITY", "数据产品 · 谱线速度分布"), Vector2(12, 13), 10, GOLD)
+
+
+func _draw_frb_report_product(plot: RadioPlot) -> void:
+	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
+	var raw_rect := Rect2(Vector2(10, 26), Vector2(190, 86))
+	var dedispersed_rect := Rect2(Vector2(210, 26), Vector2(190, 86))
+	var waterfall_rect := Rect2(Vector2(10, 140), Vector2(390, 86))
+	for rect in [raw_rect, dedispersed_rect, waterfall_rect]:
+		_draw_crt_grid(plot, rect, 24.0, Color(0.18, 0.34, 0.38, 0.14))
+		plot.draw_rect(rect, Color(BRASS, 0.48), false, 1.0)
+	_draw_plot_text(plot, GameManager.text("RAW TRANSIENT", "原始暂现信号"), raw_rect.position + Vector2(4, -5), 9, MUTED)
+	_draw_plot_text(plot, GameManager.text("DM-CORRECTED BURST", "色散校正后的爆发"), dedispersed_rect.position + Vector2(4, -5), 9, CYAN)
+	_draw_plot_text(plot, GameManager.text("DISPERSION SWEEP · REPEAT CONFIRMED", "色散扫频 · 重复已确认"), waterfall_rect.position + Vector2(4, -5), 9, GREEN)
+	var raw := PackedVector2Array()
+	var corrected := PackedVector2Array()
+	for i in range(72):
+		var normalized := float(i) / 71.0
+		var noise := (sin(float(i) * 2.17) + sin(float(i) * 0.61)) * 0.08
+		var broad := exp(-pow((normalized - 0.56) / 0.16, 2.0)) * 0.42
+		var narrow := exp(-pow((normalized - 0.54) / 0.045, 2.0)) * model.dm_match()
+		raw.append(Vector2(raw_rect.position.x + 5.0 + normalized * (raw_rect.size.x - 10.0),
+			raw_rect.end.y - 8.0 - clampf(0.18 + noise + broad, 0.0, 1.0) * (raw_rect.size.y - 16.0)))
+		corrected.append(Vector2(dedispersed_rect.position.x + 5.0 + normalized * (dedispersed_rect.size.x - 10.0),
+			dedispersed_rect.end.y - 8.0 - clampf(0.12 + noise * 0.28 + narrow, 0.0, 1.0) * (dedispersed_rect.size.y - 16.0)))
+	plot.draw_polyline(raw, Color(CRT, 0.62), 1.1, true)
+	plot.draw_polyline(corrected, CYAN, 1.6, true)
+	for row in range(16):
+		var y := waterfall_rect.position.y + 6.0 + float(row) * (waterfall_rect.size.y - 12.0) / 15.0
+		var sweep_x := waterfall_rect.position.x + 32.0 + float(row) * 17.0 * (1.0 - model.dm_match())
+		var confirmed_x := waterfall_rect.position.x + waterfall_rect.size.x * 0.62
+		var x := lerpf(sweep_x, confirmed_x, model.dm_match())
+		plot.draw_line(Vector2(x - 6.0, y), Vector2(x + 6.0, y), Color(GREEN, 0.28 + 0.04 * row), 2.0)
+	_draw_plot_text(plot, GameManager.text("DATA PRODUCT · TIME-FREQUENCY WATERFALL", "数据产品 · 时频瀑布图"), Vector2(12, 13), 10, GOLD)
+
+
+func _draw_timing_evidence_thumbnail(plot: RadioPlot, rect: Rect2, evidence_stage: int) -> void:
+	if evidence_stage == 0:
+		var raw := PackedVector2Array()
+		for i in range(48):
+			var x := rect.position.x + 5.0 + (rect.size.x - 10.0) * float(i) / 47.0
+			var noise := sin(float(i) * 2.61) * 0.25 + sin(float(i) * 0.73) * 0.12
+			var y := rect.get_center().y - noise * 48.0
+			raw.append(Vector2(x, y))
+		plot.draw_polyline(raw, Color(CRT, 0.58), 1.0, true)
+		return
+	if evidence_stage == 1:
+		var small_profile := model.folded_profile(64)
+		var folded := PackedVector2Array()
+		for i in range(small_profile.size()):
+			var x := rect.position.x + 5.0 + (rect.size.x - 10.0) * float(i) / float(small_profile.size() - 1)
+			var y := rect.end.y - 7.0 - clampf(float(small_profile[i]), 0.0, 1.2) * (rect.size.y - 16.0)
+			folded.append(Vector2(x, y))
+		plot.draw_polyline(folded, CYAN, 1.3, true)
+		return
+	var gate_x := rect.get_center().x
+	plot.draw_rect(Rect2(Vector2(gate_x - 8.0, rect.position.y + 6.0), Vector2(16.0, rect.size.y - 12.0)), Color(GREEN, 0.12), true)
+	plot.draw_line(Vector2(gate_x, rect.end.y - 6.0), Vector2(gate_x, rect.position.y + 8.0), GREEN, 3.0)
+	plot.draw_circle(Vector2(gate_x, rect.position.y + 14.0), 3.5, Color("d7fff3"))
 
 
 func _draw_spectrum_trace_in_rect(plot: RadioPlot, rect: Rect2, samples: Array, color: Color) -> void:
@@ -2791,8 +3248,8 @@ func _submit() -> void:
 	_terminal_event("EVIDENCE MATRIX", "CONSISTENT", "PERIOD · DM · SNR")
 	_terminal_event("FAST OBSERVATION CARD", "ARCHIVED", str(model.target_id).to_upper(), "", 0.0, true)
 	_maya_reaction(
-		"This is not humanity's first detection of this pulsar. It is your first independent confirmation, and every number on the card came from your choices.",
-		"这不是人类第一次发现这颗脉冲星，却是你第一次独立确认它。观测卡上的每个数字，都来自你刚才的选择。"
+		"Not pretty, but hard to fake. It is rotating, and we now know when its next pulse reaches us.",
+		"它不漂亮，却很难伪造。它正在旋转，而我们已经知道下一次脉冲何时抵达。"
 	)
 	InteractionFeedback.success(submit_button, "fast_report_confirmed")
 	var observation := {
@@ -2806,10 +3263,20 @@ func _submit() -> void:
 		"pulse_period_ms": float(rep["trial_period_ms"]),
 		"dispersion_measure": float(rep["trial_dm"]),
 		"rfi_cleared": int(rep["rfi_cleared"]),
+		"prediction_confirmed": prediction_confirmed,
 		"report_conclusion": report_choice,
-		"feedback_en": "Between the mountains, a known pulsar rhythm was independently confirmed. " + str(rep.get("result_en", "A repeating radio pulse confirmed the source.")),
-		"feedback_zh": "群山之间，一颗已知脉冲星的节奏被你独立确认。" + str(rep.get("result_zh", "重复射电脉冲确认了目标。")),
+		"feedback_en": "Clock confirmed: the recovered period predicted and captured the next radio pulse. " + str(rep.get("result_en", "A repeating radio pulse confirmed the source.")),
+		"feedback_zh": "宇宙时钟已确认：恢复出的周期准确预报并捕获了下一次射电脉冲。" + str(rep.get("result_zh", "重复射电脉冲确认了目标。")),
 	}
+	if GameManager.is_remote_free_observation("radio"):
+		observation["integration_s"] = float(rep.get("integration_s", 0.0))
+		var archived := GameManager.record_remote_free_observation("radio", observation)
+		_terminal_event("FREE OBSERVATION", "ARCHIVED" if bool(archived.get("recorded", false)) else "HOLD", str(model.target_id).to_upper(), "", 0.0, true)
+		await get_tree().create_timer(0.34 if not InteractionFeedback.is_reduced_motion() else 0.08).timeout
+		GameManager.remote_observation_context.clear()
+		GameManager.set_observatory_spawn("computer")
+		GameManager.go("observatory")
+		return
 	await get_tree().create_timer(0.34 if not InteractionFeedback.is_reduced_motion() else 0.08).timeout
 	GameManager.complete_current_mission(GameManager.current_target_object_id(), observation)
 
@@ -2876,9 +3343,68 @@ func _wrap_characters(value: String, line_length: int) -> String:
 
 # ---------------------------------------------------------------- shared drawing / controls
 func _radio_operation_chain(action_text: String, effect_text: String, reveal_text: String) -> void:
-	var chain := InteractionFeedback.operation_chain(self, action_text, effect_text, reveal_text, null, CYAN, 3.0)
-	if chain != null:
-		chain.position.y = 552.0
+	var existing := get_node_or_null("OperationChainFeedback")
+	if existing != null:
+		remove_child(existing)
+		existing.queue_free()
+	var chain := Panel.new()
+	chain.name = "OperationChainFeedback"
+	# The operation chain temporarily occupies the terminal bay instead of
+	# competing with the status line and footer buttons for the last 44 px.
+	chain.position = terminal_panel.position if terminal_panel != null else Vector2(40, 614)
+	chain.size = terminal_panel.size if terminal_panel != null else Vector2(750, 66)
+	chain.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chain.z_index = 840
+	chain.clip_contents = true
+	chain.add_theme_stylebox_override("panel", _flat(Color("061018"), CYAN, 2))
+	add_child(chain)
+	var headings := [
+		GameManager.text("ACTION RESULT", "操作结果"),
+		GameManager.text("SYSTEM STATUS", "系统状态"),
+		GameManager.text("UNLOCKED", "已解锁"),
+	]
+	var values := [action_text, effect_text, reveal_text]
+	var column_width := 232.0
+	for i in range(3):
+		var column_x := 10.0 + float(i) * 246.0
+		var heading := _label_to(
+			chain, str(headings[i]), Vector2(column_x, 3), Vector2(column_width, 16),
+			9, CYAN
+		)
+		heading.clip_text = true
+		var value := _label_to(
+			chain, str(values[i]), Vector2(column_x, 19), Vector2(column_width, 42),
+			9, TEXT
+		)
+		value.name = "OperationChainValue%d" % i
+		value.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		value.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		value.clip_text = true
+		if i < 2:
+			var separator := _label_to(
+				chain, ">", Vector2(column_x + column_width + 3.0, 23),
+				Vector2(8, 18), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER
+			)
+			separator.clip_text = true
+	if not InteractionFeedback.is_reduced_motion():
+		chain.modulate.a = 0.0
+		var enter := create_tween().bind_node(chain)
+		enter.tween_property(chain, "modulate:a", 1.0, 0.14)
+	var timer := Timer.new()
+	timer.one_shot = true
+	timer.wait_time = 3.0
+	timer.timeout.connect(func() -> void:
+		if not is_instance_valid(chain):
+			return
+		if InteractionFeedback.is_reduced_motion():
+			chain.queue_free()
+			return
+		var exit := create_tween().bind_node(chain)
+		exit.tween_property(chain, "modulate:a", 0.0, 0.16)
+		exit.tween_callback(chain.queue_free)
+	)
+	chain.add_child(timer)
+	timer.start()
 
 
 func _maya_reaction(text_en: String, text_zh: String) -> void:
@@ -2973,12 +3499,18 @@ func _meter_draw(plot: Control, rect: Rect2, value: float, color: Color) -> void
 	plot.draw_rect(rect, Color("34495e"), false, 1.0)
 
 
-func _stepper(parent: Control, label_text: String, pos: Vector2, width: float, minus_action: Callable, plus_action: Callable) -> void:
-	_label_to(parent, label_text, pos - Vector2(0, 20), Vector2(150, 18), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+func _stepper(parent: Control, label_text: String, pos: Vector2, width: float, minus_action: Callable, plus_action: Callable, node_prefix := "") -> void:
+	var caption := _label_to(parent, label_text, pos - Vector2(0, 20), Vector2(width, 18), 10, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	if node_prefix != "":
+		caption.name = node_prefix + "Label"
 	var minus := _button("−", pos, Vector2(width * 0.5 - 2.0, 30), Color("153249"))
+	if node_prefix != "":
+		minus.name = node_prefix + "Minus"
 	minus.pressed.connect(minus_action)
 	parent.add_child(minus)
 	var plus := _button("+", pos + Vector2(width * 0.5 + 2.0, 0), Vector2(width * 0.5 - 2.0, 30), Color("153249"))
+	if node_prefix != "":
+		plus.name = node_prefix + "Plus"
 	plus.pressed.connect(plus_action)
 	parent.add_child(plus)
 
@@ -2991,6 +3523,7 @@ func _panel_to(parent: Control, pos: Vector2, size_value: Vector2, fill: Color, 
 	var panel := Panel.new()
 	panel.position = pos
 	panel.size = size_value
+	panel.clip_contents = true
 	panel.add_theme_stylebox_override("panel", _flat(fill, border, 2))
 	parent.add_child(panel)
 	if title != "":

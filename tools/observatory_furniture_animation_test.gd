@@ -43,8 +43,19 @@ func _initialize() -> void:
 	var assembly_rig: Dictionary = animator.rigs.get("assembly", {})
 	_check(str(assembly_rig.get("mode", "")) == "workbench", "assembly uses a dedicated workbench activation instead of a drawer")
 	_check(assembly_rig.get("focus_frame") is Control, "assembly activation includes a blueprint focus frame")
+	var computer_rig: Dictionary = animator.rigs.get("computer", {})
+	var computer_screen: Rect2 = computer_rig.get("screen_rect", Rect2())
+	var computer_glow := computer_rig.get("glow") as ColorRect
+	var computer_door := (computer_rig.get("doors", []) as Array)[0] as Control
+	_check(computer_screen.size.x > 0.0 and computer_screen.size.y > 0.0, "computer defines a monitor-only feedback rectangle")
+	_check(computer_glow != null and computer_glow.position.is_equal_approx(computer_screen.position)
+		and computer_glow.size.is_equal_approx(computer_screen.size), "computer glow is clipped to the monitor glass")
+	_check(computer_screen.size.x < computer_door.size.x * 0.75
+		and computer_screen.size.y < computer_door.size.y * 0.55, "computer feedback cannot tint the full desk cutout")
 
 	await _check_open_close_cycle()
+	_check(computer_door.scale.is_equal_approx(Vector2.ONE), "computer cutout stays at one-to-one scale after opening")
+	_check(computer_door.modulate.is_equal_approx(Color.WHITE), "computer cutout keeps its supplied colors")
 	await _check_repeated_input_guard()
 	await _check_reduced_motion()
 	await _check_return_close_cycle()

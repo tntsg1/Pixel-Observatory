@@ -20,15 +20,15 @@ func _initialize() -> void:
 		_finish()
 		return
 
-	await _test_remote_console(gm, 66, "space", "space_observation", "Space Telescope")
-	await _test_remote_console(gm, 76, "radio", "radio_observation", "FAST Radio Telescope")
+	await _test_remote_console(gm, 66, "space", "space_observation")
+	await _test_remote_console(gm, 76, "radio", "radio_observation")
 	await _test_console_power_timings(gm)
 	await _test_stats_terminal_layer(gm)
 	await _test_unlock_popup_layer(gm)
 	_finish()
 
 
-func _test_remote_console(gm: Node, level_number: int, kind: String, destination: String, name_fragment: String) -> void:
+func _test_remote_console(gm: Node, level_number: int, kind: String, destination: String) -> void:
 	_prepare_remote_level(gm, level_number)
 	var route: Dictionary = gm.current_room_route()
 	_check(str(route.get("target", "")) == "computer", "L%d route points to the lower-right computer" % level_number)
@@ -41,11 +41,27 @@ func _test_remote_console(gm: Node, level_number: int, kind: String, destination
 	_check(str(room.call("_remote_console_kind")) == kind, "L%d resolves the %s console" % [level_number, kind])
 	_check(str(room.call("_remote_console_destination")) == destination, "L%d routes to %s" % [level_number, destination])
 	var computer: Dictionary = room.call("_get_interactable", "computer")
-	_check(str(computer.get("name", "")).contains(name_fragment), "L%d computer has the correct instrument name" % level_number)
+	_check(str(computer.get("name", "")).contains("Remote Instrument"), "L%d computer exposes the shared remote instrument console" % level_number)
 	if kind == "radio":
 		_check(_tree_has_label(room, "FAST LINK"), "FAST chapter paints the FAST link on the physical computer")
 	else:
 		_check(_tree_has_label(room, "L2 LINK"), "space chapter paints the L2 link on the physical computer")
+
+	room.call("_toggle_remote_instrument_console")
+	await process_frame
+	var selector := room.get("stats_terminal_popup") as Control
+	_check(selector != null and selector.name == "RemoteInstrumentConsole", "L%d opens the two-instrument selector" % level_number)
+	_check(_tree_has_label(selector, "SPACE INFRARED OBSERVATORY"), "selector lists the space infrared observatory")
+	_check(_tree_has_label(selector, "FAST RADIO ARRAY"), "selector lists the FAST radio array")
+	_check(_tree_has_label(selector, "ACTIVE"), "current remote mission is marked active")
+	if selector != null:
+		selector.queue_free()
+		room.set("stats_terminal_popup", null)
+		room.set("stats_terminal_animating", false)
+
+	room.call("_handle_interaction", "telescope")
+	await process_frame
+	_check(room.find_child("SpaceConsoleTransition", true, false) == null, "L%d central optical pad cannot open a remote instrument" % level_number)
 
 	var fake_maya := Control.new()
 	fake_maya.name = "FakeMayaTutorialLayer"
@@ -218,9 +234,10 @@ func _prepare_remote_level(gm: Node, level_number: int) -> void:
 			if skill_event_id != "" and not seen_story_events.has(skill_event_id):
 				seen_story_events.append(skill_event_id)
 		gm.progress["seen_story_events"] = seen_story_events
-	gm.reset_assembly()
-	for part_type_value in gm.current_level().get("assembly_order", []):
-		gm.install_part(str(part_type_value), 0)
+	# debug_jump_to_level(..., true) already prepares the exact required IDs
+	# through GameManager's family-aware assembly path. Resetting here used to
+	# erase a valid space telescope and then rebuild it through the ground-rig
+	# path, making L66 appear incorrectly locked at the remote console.
 	if level_number == 66:
 		gm.progress["space_intro_seen"] = true
 		gm.progress["space_deployed"] = true

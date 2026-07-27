@@ -8,6 +8,7 @@ var music_enabled: bool = true
 var sfx_volume_db := -7.0
 var music_volume_db := -22.0
 var _players: Array[AudioStreamPlayer] = []
+var _loop_event_players: Dictionary = {}
 var _last_event_at: Dictionary = {}
 var _music_players: Array[AudioStreamPlayer] = []
 var _active_music_player: AudioStreamPlayer
@@ -32,7 +33,7 @@ const MUSIC_PATHS := {
 	"lobby": "res://assets/audio/music/lobby.mp3",
 	"assembly": "res://assets/audio/music/telescope_assembly.mp3",
 	"outdoor": "res://assets/audio/music/outdoor_stargazing.mp3",
-	"giant": "res://assets/audio/music/giant_telescope.mp3"
+	"giant": "res://assets/audio/music/space_fast_theme.mp3"
 }
 const EVENT_PATHS := {
 	"ui_confirm": ["res://assets/audio/sfx/ui_click_mechanical.ogg"],
@@ -125,11 +126,17 @@ func _save_settings() -> void:
 
 func set_sfx_enabled(enabled: bool) -> void:
 	sfx_enabled = enabled and SFX_OUTPUT_ENABLED
+	if not sfx_enabled:
+		stop_all_event_loops(0.0)
 	_save_settings()
 
 
 func set_sfx_volume_db(value: float) -> void:
 	sfx_volume_db = clampf(value, -40.0, 3.0)
+	for value_player in _loop_event_players.values():
+		var player := value_player as AudioStreamPlayer
+		if player != null and is_instance_valid(player):
+			player.volume_db = sfx_volume_db
 	_save_settings()
 
 
@@ -164,6 +171,67 @@ func play_event(event_name: String) -> void:
 		return
 	_last_event_at[event_name] = now
 	play_sfx(str(paths[randi() % paths.size()]), 0.025, sfx_volume_db)
+
+
+func start_event_loop(event_name: String, volume_offset_db := 0.0) -> void:
+	if not SFX_OUTPUT_ENABLED or not sfx_enabled:
+		return
+	var current := _loop_event_players.get(event_name) as AudioStreamPlayer
+	if current != null and is_instance_valid(current):
+		current.volume_db = sfx_volume_db + volume_offset_db
+		if not current.playing:
+			current.play()
+		return
+	var paths: Array = EVENT_PATHS.get(event_name, [])
+	if paths.is_empty():
+		return
+	var source := load(str(paths[0])) as AudioStream
+	if source == null:
+		push_warning("Missing looping SFX for event: %s" % event_name)
+		return
+	var stream := source.duplicate(true) as AudioStream
+	if stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
+	elif stream is AudioStreamMP3:
+		(stream as AudioStreamMP3).loop = true
+	elif stream is AudioStreamWAV:
+		(stream as AudioStreamWAV).loop_mode = AudioStreamWAV.LOOP_FORWARD
+	var player := AudioStreamPlayer.new()
+	player.name = "LoopEvent_" + event_name.to_pascal_case()
+	player.stream = stream
+	player.volume_db = sfx_volume_db + volume_offset_db
+	player.pitch_scale = randf_range(0.985, 1.015)
+	add_child(player)
+	_loop_event_players[event_name] = player
+	player.play()
+
+
+func stop_event_loop(event_name: String, fade_seconds := 0.045) -> void:
+	var player := _loop_event_players.get(event_name) as AudioStreamPlayer
+	_loop_event_players.erase(event_name)
+	if player == null or not is_instance_valid(player):
+		return
+	if fade_seconds <= 0.0 or not player.playing:
+		player.stop()
+		player.queue_free()
+		return
+	var tween := create_tween().bind_node(player)
+	tween.tween_property(player, "volume_db", -60.0, fade_seconds)
+	tween.tween_callback(func() -> void:
+		if is_instance_valid(player):
+			player.stop()
+			player.queue_free()
+	)
+
+
+func stop_all_event_loops(fade_seconds := 0.045) -> void:
+	for event_name in _loop_event_players.keys().duplicate():
+		stop_event_loop(str(event_name), fade_seconds)
+
+
+func is_event_loop_playing(event_name: String) -> bool:
+	var player := _loop_event_players.get(event_name) as AudioStreamPlayer
+	return player != null and is_instance_valid(player) and player.playing
 
 
 func play_sfx(path: String, pitch_variation := 0.08, volume_db := -8.0) -> void:
