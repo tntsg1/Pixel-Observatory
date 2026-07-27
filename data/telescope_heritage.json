@@ -9,7 +9,9 @@
     "breakthrough_zh": "认真记录肉眼所见，为后来每一种仪器提供了可以比较和超越的基线。",
     "learned_en": "Use your own eyes first: name what is visible on the Moon and what remains unresolved.",
     "learned_zh": "先用自己的眼睛观测：说出月球上看得见的部分，也记下仍然分辨不清的部分。",
-    "diagram": "res://assets/learning_media/heritage/naked_eye_star_clock.jpg"
+    "diagram": "res://assets/learning_media/heritage/naked_eye_observation_scene.png",
+    "diagram_caption_en": "Naked-eye observers compare and record the sky.",
+    "diagram_caption_zh": "肉眼观测者比较并记录天空。"
   },
   "level_3_before_assembly": {
     "id": "refractor",

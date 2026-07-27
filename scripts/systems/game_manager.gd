@@ -156,6 +156,10 @@ var foundation_training_time_cache: Dictionary = {}
 # scenes, but never the same progression path. This context is transient; only
 # completed free observations are written to the save archive.
 var remote_observation_context: Dictionary = {}
+# The central observation pad owns local optical observing. This transient
+# context keeps an active FAST/space campaign from taking over the player's
+# assembled ground telescope without adding another save field.
+var local_optical_observation_context: Dictionary = {}
 
 
 func _ready() -> void:
@@ -400,6 +404,8 @@ func default_progress() -> Dictionary:
 		},
 		"assembly_state": _fresh_assembly_state(),
 		"telescope_ready": false,
+		"family_assembly_states": {},
+		"family_selected_parts": {},
 		"observed_objects": [],
 		"badges": [],
 		"journal_entries": [],
@@ -441,6 +447,7 @@ func new_game() -> void:
 	current_sky_location_id = ""
 	foundation_training_time_cache.clear()
 	remote_observation_context.clear()
+	local_optical_observation_context.clear()
 	last_observation = {}
 	last_learning_card = {}
 	last_guidance = ""
@@ -599,8 +606,13 @@ func select_assembly_family(family: String) -> void:
 	if not family in ASSEMBLY_FAMILIES:
 		push_warning("Unknown telescope family: " + family)
 		return
+	var previous_family := assembly_family()
+	if postgraduate_free_build() and previous_family != family:
+		_store_postgraduate_family_state(previous_family)
 	assembly_family_id = family
 	progress["selected_telescope_family"] = family
+	if postgraduate_free_build() and previous_family != family:
+		_restore_postgraduate_family_state(family)
 	save()
 
 
@@ -613,6 +625,55 @@ func assembly_family() -> String:
 
 func assembly_scene_key() -> String:
 	return "assembly" if assembly_family() == "refractor" else "advanced_assembly"
+
+
+func postgraduate_free_build() -> bool:
+	return campaign_completed() and bool(progress.get("graduation_seen", false))
+
+
+func assembly_context_family() -> String:
+	if postgraduate_free_build():
+		return assembly_family()
+	return str(current_level().get("telescope_family", "refractor"))
+
+
+func _store_postgraduate_family_state(family: String) -> void:
+	if family == "" or not family in ASSEMBLY_FAMILIES:
+		return
+	if not progress.get("family_assembly_states") is Dictionary:
+		progress["family_assembly_states"] = {}
+	if not progress.get("family_selected_parts") is Dictionary:
+		progress["family_selected_parts"] = {}
+	progress["family_assembly_states"][family] = {
+		"assembly_state": (progress.get("assembly_state", {}) as Dictionary).duplicate(true),
+		"telescope_ready": bool(progress.get("telescope_ready", false))
+	}
+	progress["family_selected_parts"][family] = (progress.get("selected_parts", {}) as Dictionary).duplicate(true)
+
+
+func _restore_postgraduate_family_state(family: String) -> void:
+	var saved_states: Dictionary = progress.get("family_assembly_states", {})
+	var saved_parts: Dictionary = progress.get("family_selected_parts", {})
+	var state_value: Variant = saved_states.get(family, {})
+	if state_value is Dictionary and not (state_value as Dictionary).is_empty():
+		var state_record: Dictionary = state_value
+		progress["assembly_state"] = (state_record.get("assembly_state", _fresh_assembly_state()) as Dictionary).duplicate(true)
+		progress["telescope_ready"] = bool(state_record.get("telescope_ready", false))
+	else:
+		progress["assembly_state"] = _fresh_assembly_state()
+		progress["telescope_ready"] = false
+	var parts_value: Variant = saved_parts.get(family, {})
+	if parts_value is Dictionary and not (parts_value as Dictionary).is_empty():
+		progress["selected_parts"] = (parts_value as Dictionary).duplicate(true)
+	else:
+		var compatible_parts: Dictionary = (progress.get("selected_parts", {}) as Dictionary).duplicate(true)
+		for part_type_value in compatible_parts.keys():
+			var part_id := str(compatible_parts.get(part_type_value, ""))
+			var part := get_part(part_id)
+			var part_family := str(part.get("telescope_family", ""))
+			if part_id != "" and part_family != "" and part_family != family:
+				compatible_parts[part_type_value] = ""
+		progress["selected_parts"] = compatible_parts
 
 
 func assembly_level_context() -> Dictionary:
@@ -693,11 +754,12 @@ func required_part_types_for_current_level() -> Array[String]:
 		var part_type := str(type_value)
 		if part_type != "" and not types.has(part_type):
 			types.append(part_type)
-	for required_id_value in current_level().get("required_part_ids", []):
-		var part := get_part(str(required_id_value))
-		var part_type := str(part.get("type", ""))
-		if part_type != "" and not types.has(part_type):
-			types.append(part_type)
+	if not postgraduate_free_build():
+		for required_id_value in current_level().get("required_part_ids", []):
+			var part := get_part(str(required_id_value))
+			var part_type := str(part.get("type", ""))
+			if part_type != "" and not types.has(part_type):
+				types.append(part_type)
 	return types
 
 
@@ -705,11 +767,13 @@ func is_part_compatible_with_current_level(part: Dictionary) -> bool:
 	if part.is_empty():
 		return false
 	var part_family := str(part.get("telescope_family", ""))
-	var level_family := str(current_level().get("telescope_family", "refractor"))
+	var level_family := assembly_context_family()
 	return part_family == "" or part_family == level_family
 
 
 func locked_required_equipment() -> Dictionary:
+	if postgraduate_free_build():
+		return {"ids": [], "types": []}
 	# This is deliberately about ownership, not installation. It prevents a
 	# mission from sending the player to an assembly slot for an item they can
 	# neither select nor obtain yet.
@@ -1075,8 +1139,53 @@ func position_source_label(source: String) -> String:
 func is_free_observation() -> bool:
 	# True when the player has selected a sky object that is NOT tonight's
 	# mission target. Free observations never complete or fail the mission.
+	if bool(local_optical_observation_context.get("active", false)):
+		return true
 	var sel := selected_object_id
 	return sel != "" and sel != current_target_object_id()
+
+
+func _local_optical_seed_object_id() -> String:
+	var current_selection := selected_object_id
+	if current_selection != "" and current_selection != current_target_object_id() and not get_object(current_selection).is_empty():
+		return current_selection
+	for candidate in ["moon", "jupiter", "saturn", "sirius", "pleiades"]:
+		if candidate != current_target_object_id() and not get_object(candidate).is_empty():
+			return candidate
+	return ""
+
+
+func begin_local_optical_free_observation() -> bool:
+	var family := assembly_family()
+	if not family in ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian"]:
+		return false
+	if not telescope_is_ready():
+		return false
+	var seed_object_id := _local_optical_seed_object_id()
+	if seed_object_id == "":
+		return false
+	remote_observation_context.clear()
+	local_optical_observation_context = {
+		"active": true,
+		"family": family,
+	}
+	selected_object_id = seed_object_id
+	selected_object_level = int(progress.get("current_level", 1))
+	current_sky_positions.clear()
+	current_sky_location_id = ""
+	return true
+
+
+func is_local_optical_free_observation() -> bool:
+	return bool(local_optical_observation_context.get("active", false))
+
+
+func go_to_local_optical_observation(spawn: String) -> bool:
+	if not begin_local_optical_free_observation():
+		return false
+	set_observatory_spawn(spawn)
+	go("sky")
+	return true
 
 
 func publish_sky_positions(positions: Dictionary) -> void:
@@ -1301,6 +1410,7 @@ func remote_free_unlocked(kind: String) -> bool:
 
 
 func begin_remote_campaign(kind: String) -> void:
+	local_optical_observation_context.clear()
 	remote_observation_context = {
 		"mode": "campaign",
 		"kind": kind,
@@ -1314,6 +1424,7 @@ func begin_remote_free_observation(kind: String, entry_id: String) -> bool:
 	var entry := remote_free_entry(kind, entry_id)
 	if entry.is_empty():
 		return false
+	local_optical_observation_context.clear()
 	remote_observation_context = {
 		"mode": "free",
 		"kind": kind,
@@ -1414,6 +1525,7 @@ func go_to_observation(spawn: String) -> void:
 	# Observation doors always enter Sky Observation. Sky owns the decision to
 	# offer relocation; the base/lobby never opens or controls the world map.
 	set_observatory_spawn(spawn)
+	local_optical_observation_context.clear()
 	_select_current_mission_target()
 	go("sky")
 
@@ -1526,6 +1638,8 @@ func _part_score(part: Dictionary, profile: String) -> float:
 
 # The exact part id this level PINS for a slot type ("" = free slot).
 func pinned_part_id(part_type: String) -> String:
+	if postgraduate_free_build():
+		return ""
 	for required_id_value in current_level().get("required_part_ids", []):
 		var part := get_part(str(required_id_value))
 		if str(part.get("type", "")) == part_type:
@@ -1538,7 +1652,7 @@ func best_part_for_type(part_type: String) -> Dictionary:
 	var profile := _task_profile()
 	var best: Dictionary = {}
 	var best_score := -1.0
-	var current_family := str(current_level().get("telescope_family", "refractor"))
+	var current_family := assembly_context_family()
 	for option_value in unlocked_parts_by_type(part_type):
 		var option: Dictionary = option_value
 		var part_family := str(option.get("telescope_family", ""))
@@ -1697,7 +1811,9 @@ func postgraduate_room_route() -> Dictionary:
 			"completed": true
 		}
 	return {
-		"target": "journal",
+		# The observatory stays open, but graduation ends the mandatory route.
+		# No furniture is recreated as a permanent next step after the ceremony.
+		"target": "",
 		"title": text("Maya: Program Complete", "玛雅：课程已完成"),
 		"hint": text(
 			"You have graduated from the club program. The observatory and your logbook remain open for independent observing.",
@@ -2327,7 +2443,7 @@ func install_part_block_reason(part_type: String, part_id: String = "") -> Strin
 	# 2. Incompatible telescope family.
 	if not is_part_compatible_with_current_level(part):
 		var fam := _family_display_name(str(part.get("telescope_family", "")))
-		var cur := _family_display_name(str(current_level().get("telescope_family", "refractor")))
+		var cur := _family_display_name(assembly_context_family())
 		return text("This part belongs to the %s telescope; tonight's mission uses a %s telescope." % [fam, cur],
 			"该零件属于%s望远镜，当前任务使用%s望远镜。" % [fam, cur])
 	# 3. Pinned: mission demands a specific part for this slot.
@@ -2374,7 +2490,7 @@ func equip_part(part_id: String) -> bool:
 	if not progress.get("unlocked_parts", []).has(part_id):
 		return false
 	var part_family := str(part.get("telescope_family", ""))
-	var current_family := str(current_level().get("telescope_family", "refractor"))
+	var current_family := assembly_context_family()
 	if part_family != "" and part_family != current_family:
 		return false
 	if str(progress["selected_parts"].get(part_type, "")) == part_id:
@@ -2397,23 +2513,26 @@ func missing_parts() -> Array:
 
 
 func _uses_tube_subassembly() -> bool:
-	return str(current_level().get("assembly_mode", "")) == "advanced" and str(current_level().get("telescope_family", "")) in ["newtonian", "dobsonian", "cassegrain", "gregorian"]
+	var level := assembly_level_context() if postgraduate_free_build() else current_level()
+	return str(level.get("assembly_mode", "")) == "advanced" and assembly_context_family() in ["newtonian", "dobsonian", "cassegrain", "gregorian"]
 
 
 func _effective_required_parts() -> Array:
+	var level := assembly_level_context() if postgraduate_free_build() else current_level()
+	var family := assembly_context_family()
 	# Constellation lessons now share the optical observation workflow. They use
 	# the established refractor and finder, not an unrelated advanced tube
 	# subassembly, so the late-night pattern lessons remain playable.
-	if current_observation_mode() == "constellation":
+	if not postgraduate_free_build() and current_observation_mode() == "constellation":
 		return ["tripod", "mount", "tube", "objective", "eyepiece", "finder_scope"]
-	if str(current_level().get("telescope_family", "")) == "space_segmented":
+	if family == "space_segmented":
 		return space_segmented_install_types()
 	if not _uses_tube_subassembly():
-		return current_level().get("required_parts", [])
-	if str(current_level().get("telescope_family", "")) == "dobsonian":
+		return level.get("required_parts", [])
+	if family == "dobsonian":
 		# The rocker box replaces tripod+mount; the finder rides on the tube.
 		return ["mount", "optical_tube_assembly", "finder_scope"]
-	if str(current_level().get("telescope_family", "")) == "newtonian":
+	if family == "newtonian":
 		# Newtonian main bench mirrors the refractor flow: base, mount, the
 		# completed optical tube, then the aiming aid.
 		return ["tripod", "mount", "optical_tube_assembly", "finder_scope"]
@@ -2421,7 +2540,7 @@ func _effective_required_parts() -> Array:
 
 
 func tube_assembly() -> Dictionary:
-	var family := str(current_level().get("telescope_family", ""))
+	var family := assembly_context_family()
 	var all_states: Dictionary = progress.get("tube_assemblies", {})
 	var state: Variant = all_states.get(family, {})
 	return state if state is Dictionary else {}
@@ -2453,6 +2572,8 @@ func update_tube_subassembly_progress(installed_subparts: Dictionary) -> void:
 
 
 func _required_part_id_for_type(part_type: String, fallback_id: String) -> String:
+	if postgraduate_free_build():
+		return fallback_id
 	for required_value in current_level().get("required_part_ids", []):
 		var required_id := str(required_value)
 		var required_part := get_part(required_id)
@@ -2462,7 +2583,7 @@ func _required_part_id_for_type(part_type: String, fallback_id: String) -> Strin
 
 
 func tube_subassembly_config() -> Dictionary:
-	var family := str(current_level().get("telescope_family", ""))
+	var family := assembly_context_family()
 	match family:
 		"newtonian":
 			return {"family": family, "order": ["reflector_tube", "mirror_cell", "primary_mirror", "secondary_spider", "secondary_mirror", "focuser", "eyepiece", "collimation_tool"], "ids": ["newtonian_reflector_tube", "newtonian_mirror_cell", "newtonian_primary_mirror", "newtonian_secondary_spider", "newtonian_secondary_mirror", "newtonian_focuser", "newtonian_25mm_eyepiece", "newtonian_collimation_cap"]}
@@ -2509,6 +2630,8 @@ func save_tube_assembly(installed_subparts: Dictionary, score: float, optical_al
 # requires, e.g. ["eyepiece_10mm"]. Empty when the level has no such field
 # (older levels are unaffected).
 func missing_required_parts() -> Array[String]:
+	if postgraduate_free_build():
+		return []
 	var required: Array = current_level().get("required_part_ids", [])
 	var missing: Array[String] = []
 	var selected: Dictionary = progress.get("selected_parts", {})
@@ -2706,7 +2829,7 @@ func calculate_stats() -> Dictionary:
 	# A save can retain selections from a different telescope family. Keep
 	# those parts in inventory, but only feed generic parts and parts belonging
 	# to this lesson's family into the optical calculation.
-	var family := str(current_level().get("telescope_family", "refractor"))
+	var family := assembly_context_family()
 	for part_type in selected_parts.keys():
 		var part: Dictionary = selected_parts[part_type]
 		var part_family := str(part.get("telescope_family", ""))
@@ -2725,7 +2848,8 @@ func calculate_stats() -> Dictionary:
 		stats["subassembly_score"] = subassembly_score
 		stats["assembly_score"] = minf(float(stats.get("assembly_score", 0.0)), subassembly_score)
 		stats["clarity_score"] = snapped(float(stats.get("clarity_score", 0.0)) * subassembly_score / 100.0, 0.1)
-	if bool(current_level().get("requires_collimation", false)):
+	var assembly_level := assembly_level_context() if postgraduate_free_build() else current_level()
+	if bool(assembly_level.get("requires_collimation", false)):
 		var score: float = collimation_score()
 		stats["collimation_score"] = score
 		stats["clarity_score"] = snapped(float(stats.get("clarity_score", 0.0)) * (0.45 + score / 200.0), 0.1)
@@ -2735,18 +2859,19 @@ func calculate_stats() -> Dictionary:
 
 
 func collimation_score() -> float:
-	var family := str(current_level().get("telescope_family", "newtonian"))
+	var family := assembly_context_family()
 	var scores: Dictionary = progress.get("collimation_scores", {})
 	return float(scores.get(family, 0.0))
 
 
 func collimation_is_acceptable() -> bool:
-	var threshold := float(current_level().get("collimation_threshold", 0.0))
+	var level := assembly_level_context() if postgraduate_free_build() else current_level()
+	var threshold := float(level.get("collimation_threshold", 0.0))
 	return threshold <= 0.0 or collimation_score() >= threshold
 
 
 func set_collimation_score(value: float) -> void:
-	var family := str(current_level().get("telescope_family", "newtonian"))
+	var family := assembly_context_family()
 	if not progress.get("collimation_scores") is Dictionary:
 		progress["collimation_scores"] = {}
 	progress["collimation_scores"][family] = clampf(value, 0.0, 100.0)
@@ -2759,11 +2884,12 @@ func set_collimation_score(value: float) -> void:
 
 func evaluate_selected_object(extra_context: Dictionary = {}) -> Dictionary:
 	var obj := get_object(selected_object_id)
+	var free_observation := is_free_observation()
 	if not extra_context.has("observation_mode"):
 		extra_context["observation_mode"] = current_observation_mode()
 	if not extra_context.has("minimum_success_quality"):
-		extra_context["minimum_success_quality"] = str(current_level().get("minimum_success_quality", "Good"))
-	if not extra_context.has("success_feedback_zh") and current_level().has("observation_success_feedback_zh"):
+		extra_context["minimum_success_quality"] = "Poor" if free_observation else str(current_level().get("minimum_success_quality", "Good"))
+	if not free_observation and not extra_context.has("success_feedback_zh") and current_level().has("observation_success_feedback_zh"):
 		extra_context["success_feedback_zh"] = str(current_level().get("observation_success_feedback_zh", ""))
 	var stats := calculate_stats()
 	if str(extra_context["observation_mode"]) == "telescope":
@@ -3189,6 +3315,10 @@ func _migrate_progress_schema() -> void:
 		progress["collimation_scores"]["newtonian"] = 0.0
 	if not progress.get("tube_assemblies") is Dictionary:
 		progress["tube_assemblies"] = {}
+	if not progress.get("family_assembly_states") is Dictionary:
+		progress["family_assembly_states"] = {}
+	if not progress.get("family_selected_parts") is Dictionary:
+		progress["family_selected_parts"] = {}
 	# Gregorian removal (2026-07-22): a save currently ON a Gregorian level jumps
 	# to the first Infrared/Space lesson; credits, logbook and completed levels
 	# are all preserved, and no Gregorian part is unlocked.

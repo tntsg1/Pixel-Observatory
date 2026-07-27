@@ -1,16 +1,17 @@
 extends SceneTree
 
+const APPROVED_BLUEPRINT := "res://assets/assembly/fast_blueprint_center_cropped.png"
 const EXPECTED := {
 	"dish": {
-		"path": "res://assets/assembly/fast_blueprint_center_cropped.png",
+		"path": APPROVED_BLUEPRINT,
 		"part_type": "radio_dish",
 	},
 	"feed": {
-		"path": "res://assets/assembly/fast_blueprint_center_cropped.png",
+		"path": APPROVED_BLUEPRINT,
 		"part_type": "receiver",
 	},
 	"signal": {
-		"path": "res://assets/assembly/fast_blueprint_center_cropped.png",
+		"path": APPROVED_BLUEPRINT,
 		"part_type": "signal_processor",
 	},
 }
@@ -35,6 +36,9 @@ func _initialize() -> void:
 		"the complete user reference is preserved in project assets")
 	_check(ResourceLoader.exists("res://assets/assembly/fast_blueprint_center_cropped.png"),
 		"the runtime center crop is imported")
+	var concept: Dictionary = gm.get_learning_card("radio_signal_observing")
+	_check(str(concept.get("image", "")) == APPROVED_BLUEPRINT,
+		"FAST concept brief uses the approved user blueprint crop")
 
 	var bench := load("res://scenes/advanced_assembly.tscn").instantiate() as Control
 	root.add_child(bench)
@@ -82,6 +86,14 @@ func _initialize() -> void:
 	_check(bench.find_child("FastBlueprintTab_dish", true, false) != null, "dish blueprint tab exists")
 	_check(bench.find_child("FastBlueprintTab_feed", true, false) != null, "feed blueprint tab exists")
 	_check(bench.find_child("FastBlueprintTab_signal", true, false) != null, "signal blueprint tab exists")
+	for part_type in ["radio_dish", "receiver", "signal_processor"]:
+		var icon := bench.find_child("PartCardIcon_%s" % part_type, true, false) as TextureRect
+		_check(icon != null, "%s part card displays its thumbnail" % part_type)
+		if icon != null:
+			_check(icon.texture != null, "%s part card thumbnail is loaded" % part_type)
+			if icon.texture != null:
+				_check(icon.texture.resource_path.contains("telescope_parts/fast_radio"),
+					"%s thumbnail uses the FAST part artwork" % part_type)
 	bench.queue_free()
 	await process_frame
 	_finish()

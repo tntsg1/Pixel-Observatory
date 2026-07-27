@@ -19,14 +19,21 @@ func _initialize() -> void:
 		"res://assets/audio/sfx/ui_click_mechanical.ogg",
 		"res://assets/audio/sfx/assembly_drawer_open.ogg",
 		"res://assets/audio/sfx/mechanical_adjust.ogg",
+		"res://assets/audio/sfx/collimation_adjust_loop.ogg",
 		"res://assets/audio/sfx/mechanical_lock.ogg",
 		"res://assets/audio/ambient/fast_terminal_hum.ogg"
 	]:
 		_check(ResourceLoader.exists(path), "resource exists: " + path)
 	_check(str(audio.EVENT_PATHS.get("target_locked", [""])[0]) == "res://assets/audio/sfx/target_lock.wav", "target acquisition keeps its original sound")
+	_check(str(audio.EVENT_PATHS.get("mode_switch", [""])[0]) == "res://assets/audio/sfx/mechanical_lock.ogg", "view mode changes have one explicit semantic sound")
+	_check(str(audio.EVENT_PATHS.get("collimation_adjust_loop", [""])[0]) == "res://assets/audio/sfx/collimation_adjust_loop.ogg", "collimation uses the trimmed continuous ratchet loop")
 	_check(str(audio.EVENT_PATHS.get("assembly_completed", [""])[0]) == "res://assets/audio/sfx/mechanical_lock.ogg", "assembly completion uses the completion sound")
 	_check(str(audio.EVENT_PATHS.get("mission_completed", [""])[0]) == "res://assets/audio/sfx/mechanical_lock.ogg", "mission completion uses the completion sound")
 	audio.sfx_enabled = true
+	var player_count_before_unknown: int = audio._players.size()
+	audio.play_event("unmapped_visual_feedback")
+	await process_frame
+	_check(audio._players.size() == player_count_before_unknown, "unknown visual events remain silent instead of falling back to ui_confirm")
 	feedback.feedback_sfx_requested.emit("focus_locked")
 	await process_frame
 	_check(audio._players.size() > 0, "focus event creates an audio player")

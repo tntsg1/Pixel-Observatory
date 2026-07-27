@@ -5,6 +5,8 @@ const GOLD := Color(0.94, 0.72, 0.30)
 const CYAN := Color(0.44, 0.84, 1.0)
 const GREEN := Color(0.48, 0.92, 0.58)
 const TEXT := Color(0.92, 0.91, 0.84)
+const COLLIMATION_SOUND_IDLE_SECONDS := 0.09
+const COLLIMATION_SOUND_FADE_SECONDS := 0.025
 
 
 class CollimationStarPreview extends Control:
@@ -58,15 +60,28 @@ var collimation_success_played := false
 var confirm_button: Button
 var star_preview: CollimationStarPreview
 var star_preview_label: Label
+var collimation_sound_deadline := -1.0
+var collimation_sound_active := false
 
 
 func _ready() -> void:
 	GameManager.language_changed.connect(_on_language_changed)
+	set_process(false)
 	_build()
 	InteractionFeedback.page_enter(self)
 
 
+func _process(_delta: float) -> void:
+	if collimation_sound_active and Time.get_ticks_msec() / 1000.0 >= collimation_sound_deadline:
+		_stop_collimation_adjust_loop()
+
+
+func _exit_tree() -> void:
+	_stop_collimation_adjust_loop(0.0)
+
+
 func _build() -> void:
+	_stop_collimation_adjust_loop()
 	for child in get_children():
 		child.queue_free()
 	reticle_rings.clear()
@@ -127,8 +142,29 @@ func _add_slider(parent: Control, title: String, y: float, value: float, changed
 	slider.value = value
 	slider.position = Vector2(20, y + 24)
 	slider.size = Vector2(252, 18)
+	# This mechanism owns a continuous ratchet loop. Suppress the generic
+	# release click so stopping a drag never adds a second, late sound.
+	slider.set_meta("feedback_sfx_suppressed", true)
 	slider.value_changed.connect(changed)
+	slider.value_changed.connect(_on_collimation_slider_value_changed)
+	slider.drag_ended.connect(func(_value_changed: bool) -> void: _stop_collimation_adjust_loop())
 	parent.add_child(slider)
+
+
+func _on_collimation_slider_value_changed(_value: float) -> void:
+	collimation_sound_deadline = Time.get_ticks_msec() / 1000.0 + COLLIMATION_SOUND_IDLE_SECONDS
+	if not collimation_sound_active:
+		collimation_sound_active = true
+		AudioManager.start_event_loop("collimation_adjust_loop", -2.0)
+	set_process(true)
+
+
+func _stop_collimation_adjust_loop(fade_seconds := COLLIMATION_SOUND_FADE_SECONDS) -> void:
+	if collimation_sound_active:
+		AudioManager.stop_event_loop("collimation_adjust_loop", fade_seconds)
+	collimation_sound_active = false
+	collimation_sound_deadline = -1.0
+	set_process(false)
 
 
 func _score() -> float:

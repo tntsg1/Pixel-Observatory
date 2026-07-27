@@ -16,12 +16,18 @@ func _initialize() -> void:
 		quit(1)
 		return
 	gm.new_game()
+	var intro_heritage: Dictionary = sm.heritage_entries.get("intro", {})
+	var intro_diagram := str(intro_heritage.get("diagram", ""))
+	_check(intro_diagram.ends_with("naked_eye_observation_scene.png"), "intro uses a readable naked-eye observation scene")
+	_check(ResourceLoader.exists(intro_diagram), "intro observation illustration exists")
+	_check(str(intro_heritage.get("diagram_caption_en", "")) != "", "intro illustration has an English caption")
+	_check(str(intro_heritage.get("diagram_caption_zh", "")) != "", "intro illustration has a Chinese caption")
 
 	var introductions := [
-		{"event": "intro", "level": 1, "anchor": "long chain", "anchor_zh": "观测传承"},
+		{"event": "intro", "level": 1, "anchor": "long chain", "anchor_zh": "人们看这片天空已经很久"},
 		{"event": "level_3_before_assembly", "level": 3, "anchor": "Galileo", "anchor_zh": "伽利略"},
-		{"event": "level_6_before", "level": 6, "anchor": "experienced observers", "anchor_zh": "有经验的观测者"},
-		{"event": "level_18_before", "level": 18, "anchor": "older notebooks", "anchor_zh": "旧观测本"},
+		{"event": "level_6_before", "level": 6, "anchor": "experienced observers", "anchor_zh": "老手也会丢"},
+		{"event": "level_18_before", "level": 18, "anchor": "older notebooks", "anchor_zh": "旧日志"},
 		{"event": "level_26_before_assembly", "level": 26, "anchor": "Isaac Newton", "anchor_zh": "艾萨克·牛顿"},
 		{"event": "level_36_before_assembly", "level": 36, "anchor": "John Dobson", "anchor_zh": "约翰·多布森"},
 		{"event": "level_46_before_assembly", "level": 46, "anchor": "Laurent Cassegrain", "anchor_zh": "洛朗·卡塞格林"},

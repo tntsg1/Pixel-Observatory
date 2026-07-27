@@ -125,16 +125,14 @@ func _test_console_ui(gm: Node) -> void:
 		popup.queue_free()
 		room.set("stats_terminal_popup", null)
 		room.set("stats_terminal_animating", false)
-	room.call("_show_remote_free_catalog", "space")
-	await process_frame
-	popup = room.get("stats_terminal_popup") as Control
-	_check(popup != null and popup.name == "RemoteFreeObservationCatalog", "Space deep-sky catalog opens")
-	_check(_count_buttons(popup) >= 10, "catalog provides target choices plus fixed actions")
-	if popup != null:
-		var bounds := Rect2(Vector2.ZERO, Vector2(1024, 768))
-		for child in popup.find_children("*", "Button", true, false):
-			var button := child as Button
-			_check(bounds.encloses(button.get_global_rect()), "catalog button stays inside 1024x768: " + button.text)
+	var room_source := FileAccess.get_file_as_string("res://scripts/ui/observatory_room.gd")
+	_check(
+		room_source.contains("_enter_space_console(kind, \"free\")"),
+		"free action routes into the instrument instead of making a target-list choice")
+	_check(
+		FileAccess.file_exists("res://tools/space_target_acquisition_test.gd")
+		and FileAccess.file_exists("res://tools/fast_target_acquisition_test.gd"),
+		"instrument-internal acquisition has dedicated interaction regression tests")
 	room.queue_free()
 	for _i in range(3):
 		await process_frame

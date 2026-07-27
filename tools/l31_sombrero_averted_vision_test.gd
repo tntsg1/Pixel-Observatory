@@ -53,13 +53,20 @@ func _test_registry_and_rendering(view: Control) -> void:
 	var master := OpticalMediaRegistry.master_path("sombrero_galaxy")
 	_check(master != "", "Sombrero has a registry clean master")
 	_check(str(view.call("_guide_thumbnail_path", "sombrero_galaxy")) == master, "Field Guide uses the registry master before legacy state art")
-	_check(str(view.call("_target_render_mode", "sombrero_galaxy")) == "extended_field", "Sombrero is treated as an extended field")
+	_check(str(view.call("_target_render_mode", "sombrero_galaxy")) == "extended_subject", "Sombrero is treated as a true-alpha extended subject")
 	_check(str(view.call("_target_render_mode", "jupiter")) == "transparent_sprite", "Jupiter remains a transparent sprite")
 	var main_sprite := view.get("main_sprite") as TextureRect
 	var main_material := main_sprite.material as ShaderMaterial if main_sprite != null else null
 	_check(
-		main_material != null and main_material.shader.code.contains("feather_inner"),
-		"extended-field master receives circular feathering instead of a rectangular edge"
+		main_material != null
+		and main_material.shader.code.contains("environment_response")
+		and not main_material.shader.code.contains("feather_inner"),
+		"extended subject keeps its scientific structure and has no baked rectangular or circular feather"
+	)
+	var telescope_source := FileAccess.get_file_as_string("res://scripts/ui/telescope_view.gd")
+	_check(
+		telescope_source.contains("material.set_shader_parameter(\"circular_lens\", 1.0)"),
+		"the circular field stop is applied once in fixed lens space"
 	)
 
 
@@ -101,8 +108,13 @@ func _test_touch_and_drift_isolation(view: Control) -> void:
 	Input.action_press("move_right")
 	view.call("_advance_dark_adaptation", 0.01)
 	view.call("_advance_drift", 0.50)
-	_check((view.get("drift_offset") as Vector2).is_zero_approx(), "WASD and natural drift do not move a centered target during the side-gaze hold")
+	var corrected_offset := view.get("drift_offset") as Vector2
+	_check(corrected_offset.x < -1.0, "Shift + move_right continuously corrects telescope drift")
 	Input.action_release("move_right")
+	var before_natural_drift := view.get("drift_offset") as Vector2
+	view.call("_advance_drift", 0.25)
+	var after_natural_drift := view.get("drift_offset") as Vector2
+	_check(after_natural_drift.x > before_natural_drift.x, "natural Earth drift continues while Shift remains held")
 	Input.action_release("dodge")
 	view.call("_advance_dark_adaptation", 0.01)
 

@@ -177,6 +177,28 @@ func _build_heritage_card(index: int, entry: Dictionary) -> Control:
 		diagram.size = Vector2(150, 142)
 		diagram.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(diagram)
+		var diagram_caption := GameManager.text(
+			str(entry.get("diagram_caption_en", "")),
+			str(entry.get("diagram_caption_zh", ""))
+		)
+		if diagram_caption != "":
+			var caption_back := ColorRect.new()
+			caption_back.position = Vector2(22, 170)
+			caption_back.size = Vector2(150, 24)
+			caption_back.color = Color(0.015, 0.025, 0.050, 0.88)
+			caption_back.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			card.add_child(caption_back)
+			var caption := _label(
+				diagram_caption,
+				Vector2(28, 171),
+				Vector2(138, 22),
+				10,
+				Color(0.84, 0.91, 0.96),
+				HORIZONTAL_ALIGNMENT_CENTER
+			)
+			caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			caption.max_lines_visible = 2
+			card.add_child(caption)
 		text_x = 188.0
 		text_width = 724.0
 

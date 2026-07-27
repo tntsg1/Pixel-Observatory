@@ -308,7 +308,8 @@ func _button_complete(button: BaseButton, border: Panel) -> void:
 	_spawn_click_echo(button)
 	_spawn_click_sweep(button)
 	flash_border(button, GOLD, 0.48, border)
-	feedback_sfx_requested.emit("ui_confirm")
+	if not bool(button.get_meta("feedback_sfx_suppressed", false)):
+		feedback_sfx_requested.emit("ui_confirm")
 
 
 func _button_toggled(pressed: bool, button: BaseButton) -> void:
@@ -345,7 +346,8 @@ func _slider_drag_ended(value_changed: bool, slider: Slider, border: Panel) -> v
 	_tween_property(slider, "scale", Vector2.ONE, 0.14 if not reduced_motion else 0.04, "feedback_slider_drag", Tween.TRANS_BACK, Tween.EASE_OUT)
 	if value_changed:
 		flash_border(slider, CYAN, 0.28, border)
-		feedback_sfx_requested.emit("ui_adjust")
+		if not bool(slider.get_meta("feedback_sfx_suppressed", false)):
+			feedback_sfx_requested.emit("ui_adjust")
 	else:
 		_tween_property(border, "modulate:a", 0.0, 0.12, "feedback_slider_border")
 
@@ -377,7 +379,7 @@ func selection(control: Control, selected: bool, color: Color = GOLD, show_borde
 			tween.tween_property(control, "scale", Vector2.ONE, 0.16).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
 		if show_border and border != null:
 			flash_border(control, color, 0.34, border)
-		if initialized:
+		if initialized and event_name != "":
 			feedback_sfx_requested.emit(event_name)
 	elif initialized and not selected:
 		_tween_property(control, "scale", Vector2.ONE, 0.12 if not reduced_motion else 0.04, "feedback_selection", Tween.TRANS_QUAD, Tween.EASE_OUT)
@@ -469,7 +471,8 @@ func success(control: Control, event_name := "success") -> void:
 		var tween := _replace_tween(control, "feedback_success")
 		tween.tween_property(control, "scale", Vector2.ONE * 1.035, 0.16).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		tween.tween_property(control, "scale", Vector2.ONE, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	feedback_sfx_requested.emit(event_name)
+	if event_name != "":
+		feedback_sfx_requested.emit(event_name)
 
 
 func error(control: Control) -> void:

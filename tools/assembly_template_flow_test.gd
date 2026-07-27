@@ -1,13 +1,16 @@
 extends SceneTree
 
 var failures := 0
+var finished := false
+const TEST_TIMEOUT_SECONDS := 20.0
 
 
 func _initialize() -> void:
+	_start_watchdog()
 	await process_frame
 	var gm: Node = root.get_node_or_null("/root/GameManager")
 	if gm == null:
-		quit(1)
+		_finish(1)
 		return
 	gm.new_game()
 	gm.debug_jump_to_level(26, false)
@@ -18,12 +21,13 @@ func _initialize() -> void:
 	await process_frame
 	main.call("_select_newtonian_main_part", "mount")
 	main.call("_install_main_part", "mount")
-	_check(not _installed(gm, "mount"), "wrong main-assembly order is rejected")
+	if not _installed(gm, "mount"):
+		print("  diagnostic: mount blocked: ", gm.install_part_block_reason("mount"))
+		print("  diagnostic: family=", gm.assembly_family(), " equipped=", gm.equipped_part_id("mount"), " unlocked=", gm.progress.get("unlocked_parts", []))
+	_check(_installed(gm, "mount"), "advanced main assembly accepts the mount before the tripod")
 	main.call("_select_newtonian_main_part", "tripod")
 	main.call("_install_main_part", "tripod")
-	main.call("_select_newtonian_main_part", "mount")
-	main.call("_install_main_part", "mount")
-	_check(_installed(gm, "tripod") and _installed(gm, "mount"), "main support components install through card then slot flow")
+	_check(_installed(gm, "tripod") and _installed(gm, "mount"), "main support components install in either order")
 
 	main.queue_free()
 	await process_frame
@@ -31,11 +35,13 @@ func _initialize() -> void:
 	root.add_child(tube)
 	current_scene = tube
 	await process_frame
-	for subpart_value in gm.tube_subassembly_config().get("order", []):
+	var tube_order: Array = gm.tube_subassembly_config().get("order", []).duplicate()
+	tube_order.reverse()
+	for subpart_value in tube_order:
 		var subpart := str(subpart_value)
 		tube.call("_select_newtonian_tube_part", subpart)
 		tube.call("_install_subpart", subpart)
-	_check(str(tube.call("_next_required_subpart")) == "", "all eight tube parts install in required order")
+	_check(str(tube.call("_next_required_subpart")) == "", "all tube parts install in reverse order")
 	tube.call("_save_assembly")
 	await process_frame
 	await process_frame
@@ -46,10 +52,27 @@ func _initialize() -> void:
 
 	if failures == 0:
 		print("ASSEMBLY TEMPLATE FLOW TEST PASS")
-		quit(0)
+		_finish(0)
 	else:
 		print("ASSEMBLY TEMPLATE FLOW TEST FAIL")
-		quit(1)
+		_finish(1)
+
+
+func _start_watchdog() -> void:
+	var timer := create_timer(TEST_TIMEOUT_SECONDS)
+	timer.timeout.connect(func() -> void:
+		if finished:
+			return
+		push_error("ASSEMBLY TEMPLATE FLOW TEST TIMEOUT after %.1f seconds" % TEST_TIMEOUT_SECONDS)
+		_finish(1)
+	)
+
+
+func _finish(exit_code: int) -> void:
+	if finished:
+		return
+	finished = true
+	quit(exit_code)
 
 
 func _installed(gm: Node, part_type: String) -> bool:

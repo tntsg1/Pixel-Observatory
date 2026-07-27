@@ -4,6 +4,7 @@ const OUTPUT_DIR := "res://artifacts/faint_mission_target_waypoint"
 const TARGET_LEVELS := {
 	"crab_nebula": 30,
 	"sombrero_galaxy": 31,
+	"uranus": 32,
 	"dumbbell_nebula": 33,
 	"ring_nebula": 35
 }
@@ -24,6 +25,11 @@ func _initialize() -> void:
 		var view := await _spawn_view(target_id)
 		await _save("%02d_%s_in_fov_waypoint.png" % [capture_index, target_id])
 		capture_index += 1
+		if target_id == "sombrero_galaxy" or target_id == "uranus":
+			_set_target_fixture(view, target_id, AIM)
+			await _settle()
+			await _save("%02d_%s_locked_waypoint.png" % [capture_index, target_id])
+			capture_index += 1
 		if target_id == "ring_nebula":
 			_set_target_fixture(view, target_id, OUT_OF_VIEW_POSITION)
 			await _settle()

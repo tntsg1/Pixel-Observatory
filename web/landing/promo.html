@@ -404,7 +404,7 @@
     font-weight:600;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
   .spec span{display:block;font-size:12.5px;color:var(--txt-low);margin-top:5px;line-height:1.5}
 
-  /* ---------- 9 progress and difference ---------- */
+  /* ---------- 9 why it is different ---------- */
   .s-diff{
     background:
       linear-gradient(180deg,var(--ink-0),rgba(10,15,30,.96) 35%,var(--ink-0));
@@ -483,6 +483,17 @@
   }
   .build-state b{display:block;color:var(--txt-hi);font-size:14px;margin-bottom:4px}
   .build-state span{display:block;color:var(--txt-low);font-size:13px;line-height:1.55}
+  .mechanism-list{display:flex;flex-direction:column;gap:16px;margin-top:58px}
+  .mechanism-card{border-radius:22px;padding:clamp(26px,3.4vw,38px);display:grid;grid-template-columns:minmax(0,1fr) minmax(0,320px);gap:clamp(24px,3.6vw,44px);align-items:center}
+  .mechanism-card.solo{grid-template-columns:minmax(0,1fr)}
+  .mechanism-kicker{display:block;margin-bottom:14px;color:var(--gold);font-family:var(--mono);font-size:10.5px;letter-spacing:.2em;text-transform:uppercase}
+  .mechanism-card h3{color:var(--txt-hi);font-size:clamp(21px,2.5vw,27px);font-weight:650;letter-spacing:-.02em;line-height:1.22}
+  .mechanism-card p{max-width:58ch;margin-top:14px;color:var(--txt-mid);font-size:15.5px}
+  .mechanism-card p b{color:var(--txt-hi);font-weight:640}
+  .mechanism-code{margin-top:18px;padding:13px 16px;border:1px solid var(--line);border-left:2px solid var(--gold);border-radius:12px;background:rgba(4,7,16,.6);color:var(--gold-soft);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;overflow-x:auto;white-space:nowrap}
+  .mechanism-code span{color:var(--txt-low)}
+  .mechanism-figure{overflow:hidden;padding:14px;border:1px solid var(--line);border-radius:14px;background:radial-gradient(110% 130% at 50% 0%,#0c1430,#05070d 84%)}
+  .mechanism-figure svg{width:100%;height:auto}
 
   /* ---------- 10 club ---------- */
   .s-maya{background:linear-gradient(var(--ink-0),var(--ink-1) 45%,var(--ink-0))}
@@ -540,6 +551,10 @@
     .maya-band{grid-template-columns:1fr;gap:30px}
     .maya-band .art{max-width:280px}
     .pr,.pr.flip{grid-template-columns:1fr}
+    .mechanism-card{grid-template-columns:minmax(0,1fr);min-width:0}
+    .mechanism-card>div,.mechanism-figure{min-width:0}
+    .mechanism-figure svg{display:block;width:100%;height:auto}
+    .mechanism-card .mechanism-figure{order:-1}
     .pr.flip .pr-fig{order:0}
     .tl::before{left:12px}
     .tl-item{grid-template-columns:1fr;gap:22px;padding:40px 0 40px 44px}
@@ -1730,120 +1745,130 @@
   </div>
 </section>
 
-<!-- ================= 9 · PROGRESS / DIFFERENCE ================= -->
+<!-- ================= 9 - WHY IT IS DIFFERENT ================= -->
 <section class="s-diff" id="difference">
   <div class="wrap">
-    <p class="eyebrow rv">Chapter 09 · <span class="en">A Playable Observatory</span><span class="zh">一座可以亲手操作的天文台</span></p>
-    <h2 class="rv">
-      <span class="en">You built the distance<br>between looking and observing.</span>
-      <span class="zh">你做出来的，<br>是“看见”与“观测”之间的距离。</span>
-    </h2>
-    <div class="lede rv">
-      <p class="en">Most astronomy experiences begin with the answer: a labelled planet, a finished photograph, a searchable sky. Pixel Observatory begins one step earlier, while the image is still uncertain and the player still has to earn it.</p>
-      <p class="zh">许多天文作品从答案开始：标好名字的行星、已经处理完成的照片、随时可以检索的星空。Pixel Observatory 则把起点往前挪了一步——画面还没有稳定，答案也还没有出现，玩家必须亲手把一次观测做出来。</p>
-    </div>
+    <p class="eyebrow rv"><span class="en">Why it's different</span><span class="zh">差异点</span></p>
+    <h2 class="rv"><span class="en">Most astronomy software shows you the sky.<br>This one hands you the instrument.</span>
+      <span class="zh">大多数天文软件把夜空展示给你。<br>这一个把仪器交到你手上。</span></h2>
 
-    <div class="diff-thesis rv">
-      <span class="label"><span class="en">The central idea</span><span class="zh">最重要的想法</span></span>
-      <p>
-        <span class="en">The telescope is not a prop between two story scenes. It is a working instrument, and its mistakes remain visible in the sky.</span>
-        <span class="zh">望远镜不是两段剧情之间的一件道具。它是一台真正参与运算的仪器，而你犯下的错误，会留在最后看到的星空里。</span>
-      </p>
-    </div>
+    <div class="mechanism-list">
 
-    <div class="project-numbers rv" aria-label="Current project scale">
-      <div class="project-number"><b>75</b><span class="en">missions in the current campaign data</span><span class="zh">当前战役数据中的任务</span></div>
-      <div class="project-number"><b>43,124</b><span class="en">catalogued stars behind the sky</span><span class="zh">构成动态星空的恒星数据</span></div>
-      <div class="project-number"><b>14</b><span class="en">observing sites with different horizons</span><span class="zh">拥有不同地平线的观测地点</span></div>
-      <div class="project-number"><b>29</b><span class="en">concept briefs that wait until they matter</span><span class="zh">在需要时才出现的概念讲解</span></div>
-      <div class="project-number"><b>31</b><span class="en">skill tutorials, from first light to radio</span><span class="zh">从初见星光到射电观测的技能教程</span></div>
-    </div>
-
-    <div class="progress-head rv">
-      <h3><span class="en">How the observatory grew</span><span class="zh">这座天文台是怎样长出来的</span></h3>
-      <p>
-        <span class="en">Its progress is not simply a longer equipment list. Each stage closed another gap between knowing a fact and being able to act on it.</span>
-        <span class="zh">它的进步并不只是设备越来越多。每一次扩展，都在缩短“知道一个知识”与“真正会用它”之间的距离。</span>
-      </p>
-    </div>
-
-    <div class="progress-rail">
-      <article class="progress-step rv">
-        <span class="num">01</span>
-        <h4><span class="en">The menu became a place.</span><span class="zh">菜单变成了一间真正的活动室。</span></h4>
-        <p><span class="en">The astronomy club now has a walkable base: mission board, parts cabinet, assembly table, observing pad, journal and a senior student who remembers what you have already learned.</span><span class="zh">天文社不再只是一排按钮：任务板、零件柜、组装台、观测区和日志都在同一座可探索的基地里；学姐也会记得你已经学过什么，不再机械地重复。</span></p>
-      </article>
-      <article class="progress-step rv">
-        <span class="num">02</span>
-        <h4><span class="en">Parts became an instrument.</span><span class="zh">零件真正组成了一台仪器。</span></h4>
-        <p><span class="en">Compatibility, installation order, nested optical assemblies and alignment all matter. A rushed build does not merely lose points: it changes clarity, stability, colour and tracking when the player reaches the sky.</span><span class="zh">兼容性、安装顺序、镜筒内部结构与校准都会产生后果。草率组装不只是少拿一点分，而是会在真正观测时改变清晰度、稳定性、色差和追踪表现。</span></p>
-      </article>
-      <article class="progress-step rv">
-        <span class="num">03</span>
-        <h4><span class="en">The sky became a situation.</span><span class="zh">星空不再是一张静止背景。</span></h4>
-        <p><span class="en">Naked eye, finder and telescope views form one continuous task. Earth rotation, seeing, cloud, light pollution, dark adaptation, field of view and tracking all shape what can be observed on a particular night.</span><span class="zh">肉眼、寻星镜和主镜视野组成一段连续操作；地球自转、大气扰动、云层、光污染、暗适应、视场与追踪共同决定某一晚究竟能看到什么。</span></p>
-      </article>
-      <article class="progress-step rv">
-        <span class="num">04</span>
-        <h4><span class="en">Failure became evidence.</span><span class="zh">失败开始留下可以读懂的证据。</span></h4>
-        <p><span class="en">Blur, drift, chromatic fringe, an unstable image or a weak signal are not arbitrary punishments. They are clues. The player can read the symptom, return to the instrument and correct the cause.</span><span class="zh">模糊、漂移、色边、画面抖动或微弱信号不再是随意的惩罚，而是可以反推原因的线索。玩家能从症状出发，回到设备上把问题真正修好。</span></p>
-      </article>
-      <article class="progress-step rv">
-        <span class="num">05</span>
-        <h4><span class="en">Each telescope found its own verb.</span><span class="zh">每一种望远镜都有了自己的动词。</span></h4>
-        <p><span class="en">Reflectors ask for collimation. The space infrared platform slews, cools, aligns segmented mirrors and maps invisible wavelengths. FAST drives a suspended feed cabin, tunes receivers, rejects interference and folds a pulsar signal into evidence.</span><span class="zh">反射镜需要准直；太空红外平台要转向、降温、对齐分块镜并映射不可见波段；FAST 则要驱动馈源舱、调谐接收机、排除干扰，再把脉冲信号折叠成可以成立的证据。</span></p>
-      </article>
-      <article class="progress-step rv">
-        <span class="num">06</span>
-        <h4><span class="en">The project left the editor.</span><span class="zh">作品走出了编辑器。</span></h4>
-        <p><span class="en">Browser export, a public domain, bilingual presentation, CJK font work, mobile controls, free-exploration tutorial modes and a persistent logbook turned a local prototype into something another person can actually enter and learn from.</span><span class="zh">浏览器导出、独立域名、中英双语、中文字体、移动端操控、可关闭的引导模式与持续记录的观测日志，让它不再只是本地原型，而是别人能够真正进入并学会东西的作品。</span></p>
-      </article>
-    </div>
-
-    <div class="compare-intro rv">
-      <h3><span class="en">It does not replace the other ways of learning astronomy. It connects them.</span><span class="zh">它不需要取代其他天文体验，而是把它们之间缺少的那一段连了起来。</span></h3>
-      <p><span class="en">Every neighbouring medium has a strength worth keeping. Pixel Observatory becomes distinctive by preserving that strength, then adding consequence, continuity and a human reason to continue.</span><span class="zh">相邻的每一种形式都有值得保留的长处。Pixel Observatory 的独特之处，不是把它们说得不够好，而是在这些长处之上，再加入后果、连续性，以及一个让人愿意继续走下去的理由。</span></p>
-    </div>
-
-    <div class="comparison">
-      <article class="compare-row rv">
-        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">Tabletop kits and models</span><span class="zh">桌游棋子与实体模型</span></h4></div>
-        <p><b><span class="en">Their strength</span><span class="zh">它们的长处</span></b><span class="en">Tactile, social and immediately understandable. A real object gives scale and presence.</span><span class="zh">有触感、有社交性，也很容易一眼看懂；实体物件天然拥有尺度感与存在感。</span></p>
-        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">Every fitted part continues into the simulation. Assembly choices alter the image, and the same instrument can be rebuilt without cost or fear of damage.</span><span class="zh">每个装上的零件都会继续参与后面的模拟；组装选择会改变最终图像，同一台仪器也能低成本、无损坏风险地反复拆装。</span></p>
-      </article>
-      <article class="compare-row rv">
-        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">Planetarium apps and sky maps</span><span class="zh">星图软件与在线星空</span></h4></div>
-        <p><b><span class="en">Their strength</span><span class="zh">它们的长处</span></b><span class="en">Breadth, precision and instant access to an enormous catalogue of objects.</span><span class="zh">覆盖面广、定位准确，也能立刻访问庞大的天体目录。</span></p>
-        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">An instrument stands between the player and the catalogue. The sky has limits, and understanding those limits becomes the lesson.</span><span class="zh">玩家与目录之间多了一台真实受限的仪器；“为什么今晚看不清”本身，也成为需要理解的一部分。</span></p>
-      </article>
-      <article class="compare-row rv">
-        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">Quizzes and collection games</span><span class="zh">问答与收集类天文游戏</span></h4></div>
-        <p><b><span class="en">Their strength</span><span class="zh">它们的长处</span></b><span class="en">A friendly entrance to names, facts and a clear sense of completion.</span><span class="zh">能轻松认识名称和知识点，也能提供清楚直接的完成感。</span></p>
-        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">Knowledge becomes a decision: choose an eyepiece, read a symptom, hold a target, map a wavelength or reject interference. The answer is performed before it is named.</span><span class="zh">知识会变成一次操作：选择目镜、判断症状、稳住目标、映射波段或排除干扰。玩家先把答案做出来，然后才说出它的名字。</span></p>
-      </article>
-      <article class="compare-row rv">
-        <div><small><span class="en">Beside</span><span class="zh">相比之下</span></small><h4><span class="en">A real night at a telescope</span><span class="zh">真正站在望远镜旁的夜晚</span></h4></div>
-        <p><b><span class="en">Its strength</span><span class="zh">它的长处</span></b><span class="en">Real photons, real weather and the irreplaceable feeling of finding something in the sky yourself.</span><span class="zh">真实的光子、真实的天气，以及亲手在天空中找到目标的不可替代感。</span></p>
-        <p><b><span class="en">What this project adds</span><span class="zh">这个项目多走的一步</span></b><span class="en">A rehearsal space: rare instruments, repeatable conditions, visible causes and the freedom to fail. It prepares curiosity for the real sky instead of pretending to replace it.</span><span class="zh">一个可以预演的空间：昂贵或罕见的仪器、可重复的条件、看得见的因果，以及放心失败的自由。它为真正的夜空准备好奇心，而不是假装取代夜空。</span></p>
-      </article>
-    </div>
-
-    <div class="creator-note rv">
-      <div>
-        <span class="label"><span class="en">Built by tntsg</span><span class="zh">由 tntsg 创作</span></span>
-      </div>
-      <div>
-        <blockquote>
-          <span class="en">The remarkable part is not the feature count. It is that one creator kept the science, the story, the interaction, the pixel world and the browser experience speaking the same language.</span>
-          <span class="zh">真正难得的并不是功能数量，而是一个创作者让科学、剧情、交互、像素世界与浏览器体验始终说着同一种语言。</span>
-        </blockquote>
-        <p><span class="en">That consistency gives the project a point of view. It is patient with beginners without flattening the subject, ambitious about instruments without forgetting the person at the eyepiece, and honest enough to let an imperfect observation remain imperfect.</span><span class="zh">这种一致性让作品拥有了自己的立场：它愿意耐心对待第一次接触天文的人，却没有把学科削平；它对仪器抱有野心，也没有忘记目镜后面的人；它甚至愿意让一次不完美的观测保持不完美，因为那正是理解发生的地方。</span></p>
-
-        <div class="build-state">
-          <div><b><span class="en">Already playable</span><span class="zh">已经可以完整体验</span></b><span class="en">Club story, assembly, three-stage observing, dynamic conditions, mission and free-observation loops, infrared and FAST foundations.</span><span class="zh">俱乐部剧情、组装、三段式观测、动态环境、任务与自由观测循环，以及红外与 FAST 的核心框架。</span></div>
-          <div><b><span class="en">Still being tuned</span><span class="zh">仍在继续打磨</span></b><span class="en">Final art for advanced instruments, later-mission pacing, atmosphere and cloud polish, mobile balance and the last layer of audio character.</span><span class="zh">高级仪器的最终美术、后期关卡节奏、大气与云层表现、移动端平衡，以及最后一层真正有性格的声音。</span></div>
+      <article class="mechanism-card glass rv">
+        <div>
+          <span class="mechanism-kicker">01 · <span class="en">The atmosphere</span><span class="zh">大气</span></span>
+          <h3><span class="en">On a bad night, no aperture can buy its way past the air.</span>
+            <span class="zh">糟糕的夜晚，再大的口径也买不通大气这一关。</span></h3>
+          <p class="en">Poor seeing imposes an <b>absolute magnification ceiling near 55×</b>; average seeing near 110×. A larger objective does not raise it. The source comment says why outright: without an absolute cap, a bigger lens would let a player dodge the lesson. So the answer to a turbulent night is <b>less magnification</b> — the single hardest habit for a beginner to accept.</p>
+          <p class="zh">视宁度差时会施加一道<b>约 55 倍的绝对放大率上限</b>，一般视宁度约 110 倍，更大的物镜抬不高它。源码注释直说原因：没有绝对上限，换块大镜片就能绕过整堂课。所以湍动夜晚的答案是<b>降低倍率</b>——新手最难接受的一个习惯。</p>
+          <div class="mechanism-code">useful_limit_eff = min( useful_limit × seeing_eff , seeing_cap ) <span>· observation_system.gd</span></div>
         </div>
-      </div>
+        <figure class="mechanism-figure">
+          <svg viewBox="0 0 320 240" aria-label="Seeing caps magnification regardless of aperture">
+            <g font-family="ui-monospace,monospace" font-size="9.5" letter-spacing="1.4" fill="#5d6880">
+              <text x="8" y="16">MAGNIFICATION</text><text x="238" y="232">APERTURE →</text>
+            </g>
+            <line x1="34" y1="26" x2="34" y2="206" stroke="#1c2742" stroke-width="1"/>
+            <line x1="34" y1="206" x2="300" y2="206" stroke="#1c2742" stroke-width="1"/>
+            <!-- what aperture would allow -->
+            <path d="M34,196 L300,44" fill="none" stroke="#3a4d80" stroke-width="1.6" stroke-dasharray="4 5"/>
+            <text x="196" y="70" font-family="ui-monospace,monospace" font-size="9" fill="#5a688a">2 × APERTURE</text>
+            <!-- the cap -->
+            <line x1="34" y1="132" x2="300" y2="132" stroke="#d9a648" stroke-width="2"/>
+            <text x="210" y="126" font-family="ui-monospace,monospace" font-size="9.5" fill="#d9a648">CAP 110×</text>
+            <line x1="34" y1="170" x2="300" y2="170" stroke="#cf5b45" stroke-width="2"/>
+            <text x="214" y="164" font-family="ui-monospace,monospace" font-size="9.5" fill="#cf5b45">CAP 55×</text>
+            <!-- shaded unreachable zone -->
+            <path d="M34,132 L300,132 L300,44 L34,196 Z" fill="#cf5b45" opacity=".07"/>
+            <text x="60" y="98" font-family="ui-monospace,monospace" font-size="9" fill="#7c5348">UNREACHABLE</text>
+            <text x="60" y="112" font-family="ui-monospace,monospace" font-size="9" fill="#7c5348">ON A BAD NIGHT</text>
+          </svg>
+        </figure>
+      </article>
+
+      <article class="mechanism-card glass rv">
+        <div>
+          <span class="mechanism-kicker">02 · <span class="en">Assembly</span><span class="zh">组装</span></span>
+          <h3><span class="en">Your build quality is your image quality.</span><span class="zh">你的组装质量，就是你的成像质量。</span></h3>
+          <p class="en">Every part is scored on how cleanly you seated it, and those scores multiply straight into clarity and stability. A rushed build shows no warning dialog — it shows a blurred, shaking, dimmer target. Being out of focus costs clarity before anything else does, and the focuser is a real part: a cheap one caps how finely you can ever reach best focus.</p>
+          <p class="zh">每个零件按安装的精准程度评分，这些分数直接乘进清晰度与稳定度。草率的组装不会弹警告框——它给你一个模糊、抖动、更暗的目标。失焦比任何因素都更早吃掉清晰度；调焦座也是个带精度的真实零件，便宜的让你永远差一点才到最佳焦点。</p>
+          <div class="mechanism-code">clarity = base_quality × assembly_score / 100 <span>· telescope_math.gd</span></div>
+        </div>
+        <figure class="mechanism-figure">
+          <svg viewBox="0 0 320 240" aria-label="Sharp versus poorly assembled view">
+            <defs>
+              <filter id="soft"><feGaussianBlur stdDeviation="3.1"/></filter>
+              <radialGradient id="moonG" cx=".38" cy=".33" r=".78">
+                <stop offset="0" stop-color="#f2f0e8"/><stop offset="1" stop-color="#b9bdc6"/>
+              </radialGradient>
+            </defs>
+            <circle cx="88" cy="118" r="66" fill="#03050b" stroke="#1c2742" stroke-width="2"/>
+            <g clip-path="circle(64px at 88px 118px)">
+              <circle cx="88" cy="118" r="44" fill="url(#moonG)"/>
+              <g fill="#9aa3b4" opacity=".85">
+                <circle cx="74" cy="102" r="8"/><circle cx="102" cy="132" r="10"/><circle cx="84" cy="146" r="5"/>
+              </g>
+            </g>
+            <text x="88" y="208" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" letter-spacing="1.3" fill="#8fb4e8">ALIGNED · 96</text>
+
+            <circle cx="232" cy="118" r="66" fill="#03050b" stroke="#1c2742" stroke-width="2"/>
+            <g clip-path="circle(64px at 232px 118px)" filter="url(#soft)" opacity=".72">
+              <circle cx="234" cy="119" r="44" fill="url(#moonG)"/>
+              <g fill="#9aa3b4" opacity=".8">
+                <circle cx="220" cy="103" r="8"/><circle cx="248" cy="133" r="10"/><circle cx="230" cy="147" r="5"/>
+              </g>
+            </g>
+            <text x="232" y="208" text-anchor="middle" font-family="ui-monospace,monospace" font-size="9.5" letter-spacing="1.3" fill="#cf5b45">RUSHED · 41</text>
+          </svg>
+        </figure>
+      </article>
+
+      <article class="mechanism-card glass rv">
+        <div>
+          <span class="mechanism-kicker">03 · <span class="en">The sky</span><span class="zh">星空</span></span>
+          <h3><span class="en">The sky overhead is the actual sky.</span><span class="zh">你头顶的这片星空，是真的。</span></h3>
+          <p class="en">43,124 catalogued stars placed by true right ascension and declination, converted the way an observatory does it — Julian date, to Greenwich sidereal time, to local sidereal time, to hour angle, to altitude and azimuth for your latitude. You travel between fourteen real observatories, from Paranal to Svalbard at 78° north.</p>
+          <p class="en">The consequence is unusual for a game: a target genuinely below your horizon is simply <b>not available</b>. You wait for the season, or you travel to a site that can see it.</p>
+          <p class="zh">43,124 颗恒星按真实赤经赤纬定位，并用天文台的方式换算——儒略日 → 格林尼治恒星时 → 地方恒星时 → 时角 → 你所在纬度的高度角与方位角。你会在十四座真实天文台之间旅行，从帕瑞纳到北纬 78° 的斯瓦尔巴。</p>
+          <p class="zh">由此产生一个游戏里罕见的后果：真正落在地平线以下的目标，就是<b>不可用</b>。要么等季节，要么换一个能看见它的地方。</p>
+          <div class="mechanism-code">JD → GMST → LST → hour angle → alt / az <span>· sky_position_service.gd</span></div>
+        </div>
+        <figure class="mechanism-figure">
+          <svg viewBox="0 0 320 240" aria-label="Objects below the horizon are unavailable">
+            <path d="M18,168 A142,142 0 0 1 302,168" fill="none" stroke="#1c2742" stroke-width="1.4"/>
+            <line x1="10" y1="168" x2="310" y2="168" stroke="#31406b" stroke-width="1.4"/>
+            <text x="12" y="184" font-family="ui-monospace,monospace" font-size="9" letter-spacing="1.2" fill="#5d6880">HORIZON</text>
+            <g fill="#e8ecf4"><circle cx="72" cy="68" r="1"/><circle cx="116" cy="104" r="1.4"/><circle cx="152" cy="55" r="1"/><circle cx="252" cy="112" r="1.2"/><circle cx="278" cy="72" r=".9"/></g>
+            <!-- visible target -->
+            <circle cx="206" cy="86" r="4.5" fill="#e9c987"/>
+            <circle cx="206" cy="86" r="11" fill="none" stroke="#d9a648" stroke-width="1" opacity=".5"/>
+            <text x="220" y="82" font-family="ui-monospace,monospace" font-size="9" fill="#d9a648">ALT +38°</text>
+            <!-- below horizon -->
+            <circle cx="96" cy="200" r="4.5" fill="#3a4d80"/>
+            <text x="110" y="204" font-family="ui-monospace,monospace" font-size="9" fill="#4e5a76">ALT −12° · UNAVAILABLE</text>
+          </svg>
+        </figure>
+      </article>
+
+      <article class="mechanism-card glass rv solo">
+        <div>
+          <span class="mechanism-kicker">04 · <span class="en">Beyond visible light</span><span class="zh">超越可见光</span></span>
+          <h3><span class="en">Infrared and radio are modelled, not reskinned.</span><span class="zh">红外与射电是真的建模，不是换皮。</span></h3>
+          <p class="en">The space telescope carries the four real instruments — NIRCam, NIRSpec, MIRI, FGS/NIRISS — with filters, dither patterns and a deployment order that follows the actual sequence. The Sun must stay 85° to 135° off boresight or the thermal envelope breaks; the optics reach about 40 K, MIRI colder still. Because infrared is invisible, the image you make is a <b>false-colour composite</b>: you assign wavelength bands to red, green and blue yourself, and learn why every published space-telescope image is a choice someone made. The radio dish is a pointing-dynamics problem instead — momentum damped, and the whole instrument limited to 40° from zenith the way FAST genuinely is.</p>
+          <p class="zh">空间望远镜搭载四台真实仪器——NIRCam、NIRSpec、MIRI、FGS/NIRISS——配有滤光片、抖动策略与遵循真实次序的展开流程。太阳必须保持在视轴 85° 至 135° 之间，否则热控包线被破坏；光学系统降到约 40 K，MIRI 还要更冷。由于红外不可见，你产出的是<b>伪彩色合成图</b>：由你自己把波段分配给红绿蓝三通道，并由此明白——每一张公开的空间望远镜照片，都是某个人做出的选择。射电那边则是一道指向动力学题：动量会衰减，整台设备被限制在天顶 40° 以内，正如真实的 FAST。</p>
+          <div class="mechanism-code">false colour: nir_short → R · nir_long → G · miri_dust → B <span>· space_observation_model.gd</span></div>
+        </div>
+      </article>
+
+      <article class="mechanism-card glass rv solo">
+        <div>
+          <span class="mechanism-kicker">05 · <span class="en">Teaching</span><span class="zh">教学</span></span>
+          <h3><span class="en">One level exists only to prove you did nothing wrong.</span><span class="zh">有一关的存在，只为证明你没做错。</span></h3>
+          <p class="en">Level 25 is titled, in the data, <b>The Chromatic Aberration Experiment</b>. The instruction: repeat the Vega observation deliberately — focus, refocus, swap nothing — and confirm the coloured fringe never leaves. The description ends: <b>this is physics, not error</b>. Twenty-nine Concept Briefs and thirty-one skill tutorials are gated on first use, so a lesson never repeats itself into noise.</p>
+          <p class="zh">第 25 关在数据里的标题是<b>「色差确认实验」</b>。要求：有意重复织女星观测——调焦、再调焦、什么都不换——确认那道彩边永远不会消失。描述的最后一句是：<b>这是物理，不是失误</b>。29 张概念卡与 31 个技能教程都按首次使用触发，一堂课不会重复成噪音。</p>
+        </div>
+      </article>
+
     </div>
   </div>
 </section>

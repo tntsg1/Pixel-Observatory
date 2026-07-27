@@ -1,4 +1,4 @@
-﻿extends Control
+extends Control
 
 const SCREEN_SIZE := Vector2(1024, 768)
 const PANEL := Color(0.045, 0.065, 0.115, 0.96)
@@ -129,13 +129,13 @@ func _build() -> void:
 	custom_minimum_size = SCREEN_SIZE
 	next_step_part_type = _next_step_part_type()
 	if selected_family == "":
-		var current_family := str(GameManager.current_level().get("telescope_family", ""))
+		var current_family := GameManager.assembly_context_family()
 		selected_family = current_family if current_family != "" else "refractor"
 
 	_rect(Vector2.ZERO, SCREEN_SIZE, Color(0.010, 0.016, 0.032))
 	_draw_star_grid()
 	_draw_title_bar()
-	if GameManager.current_equipment_stage() == "eye":
+	if not GameManager.postgraduate_free_build() and GameManager.current_equipment_stage() == "eye":
 		_draw_empty_eye_stage()
 		return
 	_draw_summary_panel()
@@ -367,7 +367,7 @@ func _part_card(part: Dictionary) -> Control:
 	var required_for_mission := (
 		GameManager.required_part_types_for_current_level().has(part_type)
 		or (
-			str(GameManager.current_level().get("telescope_family", "")) == "space_segmented"
+			GameManager.assembly_context_family() == "space_segmented"
 			and GameManager.space_segmented_install_types().has(part_type)
 		)
 	)
@@ -648,6 +648,8 @@ func _unlocked_count() -> int:
 
 
 func _is_recommended(part: Dictionary) -> bool:
+	if GameManager.postgraduate_free_build():
+		return false
 	var part_id := str(part.get("id", ""))
 	var part_type := str(part.get("type", ""))
 	var level := GameManager.current_level()
@@ -675,6 +677,8 @@ func _is_recommended(part: Dictionary) -> bool:
 
 
 func _required_id_for_type(part_type: String) -> String:
+	if GameManager.postgraduate_free_build():
+		return String()
 	for required_id_value in GameManager.current_level().get("required_part_ids", []):
 		var required_id := str(required_id_value)
 		var required_part := GameManager.get_part(required_id)
@@ -693,7 +697,7 @@ func _array_has_string(values: Variant, needle: String) -> bool:
 
 
 func _next_step_part_type() -> String:
-	var required: Array = GameManager.current_level().get("required_parts", [])
+	var required: Array[String] = GameManager.required_part_types_for_current_level()
 	var state: Dictionary = GameManager.progress.get("assembly_state", {})
 	for value in required:
 		var part_type := str(value)

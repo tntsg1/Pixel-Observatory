@@ -14,6 +14,14 @@ Downloaded on 2026-07-25. Images are stored locally and are not hot-linked. Game
 | Space infrared / `jwst_official.jpg` | [James Webb Space Telescope illustration](https://science.nasa.gov/resource/james-webb-space-telescope/) | NASA | [NASA Media Usage Guidelines](https://www.nasa.gov/nasa-brand-center/images-and-media/) | Full 3763x2858 illustration preserved; fitted on a dark 768x768 field. |
 | FAST radio / `fast_aerial.jpg` | [FAST aerial view](https://commons.wikimedia.org/wiki/File:202508_FAST_(Five-hundred-meter_Aperture_Spherical_radio_Telescope).jpg) | SCJiang | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) | 2048x1407 original; square crop centers the complete illuminated aperture. |
 
+## Generated Game Illustration
+
+| Heritage node / local file | Generation source | Date | Processing note |
+| --- | --- | --- | --- |
+| Before telescopes / `naked_eye_observation_scene.png` | OpenAI built-in image generation; prompt: refined pixel-realistic pre-telescope observers comparing the Moon and constellations while recording the sky, without telescopes, labels, or UI | 2026-07-26 | Original square output copied unchanged into the project. Designed to remain legible in the journal's 150x142 thumbnail. Replaces the visually ambiguous coffin-lid star-clock fragment as the player-facing illustration. |
+
+The public-domain `naked_eye_star_clock.jpg` remains in the archive with its original attribution. It is no longer used as the journal's main illustration because the tall artifact was unreadable at thumbnail size and could be mistaken for a wooden stick.
+
 ## Archive Images Still Needed
 
 - **Finder scope:** an open-license archival photograph showing a small wide-field finder aligned with a main telescope. Preferred source 1024x768 or larger; game crop 1024x576; no baked UI text.

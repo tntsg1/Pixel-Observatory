@@ -13,6 +13,7 @@ assets/reference/observatory_room_hall_*.png -filter -diff -merge -text
 assets/telescope_view/official/*.png -filter -diff -merge -text
 assets/assembly/fast_blueprint_center_cropped.png -filter -diff -merge -text
 assets/assembly/fast_blueprint_reference.png -filter -diff -merge -text
+assets/learning_media/heritage/naked_eye_observation_scene.png -filter -diff -merge -text
 assets/fonts/*.ttf -filter -diff -merge -text
 assets/audio/music/*.mp3 -filter -diff -merge -text
 

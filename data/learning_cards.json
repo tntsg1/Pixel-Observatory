@@ -179,7 +179,7 @@
     "id": "radio_signal_observing",
     "title_en": "Radio Astronomy: Data Instead of Images",
     "title_zh": "射电天文：数据就是观测",
-    "image": "res://assets/assembly/fast_main_blueprint.png",
+    "image": "res://assets/assembly/fast_blueprint_center_cropped.png",
     "text_en": "FAST is a 500-meter radio telescope in Guizhou with an active reflector and a suspended feed cabin. It has no eyepiece: position the cabin, tune frequency, reject RFI, fold pulses, match dispersion measure, and integrate until SNR makes the hidden pattern credible. The trace IS the observation.",
     "text_zh": "FAST 是位于贵州的 500 米射电望远镜，使用主动反射面和悬吊馈源舱接收信号。它没有目镜：先稳住馈源舱，再调频、清除射频干扰、校正周期和色散量，最后持续积分。屏幕上的频谱和脉冲，就是这次观测留下的记录。"
   },
