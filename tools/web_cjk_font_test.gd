@@ -36,7 +36,6 @@ func _init() -> void:
 
 	var music_paths := [
 		"res://assets/audio/music/lobby.mp3",
-		"res://assets/audio/music/space_fast_theme.mp3",
 		"res://assets/audio/music/outdoor_stargazing.mp3",
 		"res://assets/audio/music/telescope_assembly.mp3"
 	]
@@ -53,7 +52,8 @@ func _init() -> void:
 		"res://scenes/telescope_assembly.tscn": "assembly",
 		"res://scenes/sky_observation.tscn": "outdoor",
 		"res://scenes/telescope_view.tscn": "silent",
-		"res://scenes/radio_observation.tscn": "giant"
+		"res://scenes/space_observation.tscn": "silent",
+		"res://scenes/radio_observation.tscn": "silent"
 	}
 	for scene_path in expected_music:
 		if audio_manager._music_category_for_scene(scene_path) != expected_music[scene_path]:

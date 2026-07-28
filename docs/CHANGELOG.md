@@ -31,8 +31,10 @@ that family, and visiting FAST or Space Infrared no longer overwrites it or
 redirects local optical observing into a remote facility.
 
 **Also included:** The FAST science-product and mission-complete presentation
-now use radio evidence rather than optical result language. The unapproved
-giant-telescope music resource and its runtime mappings were removed.
+now use radio evidence rather than optical result language. Both unapproved
+remote-observatory music resources and the undocumented FAST terminal ambience
+were removed. Space Infrared and all FAST levels now use an explicit silent
+music route until licensed replacements are supplied.
 
 **Verified:** Graduation, old-save migration, local optical routing after both
 remote facilities, FAST result binding and headless Godot 4.7 compilation have
