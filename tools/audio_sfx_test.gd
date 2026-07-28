@@ -20,8 +20,7 @@ func _initialize() -> void:
 		"res://assets/audio/sfx/assembly_drawer_open.ogg",
 		"res://assets/audio/sfx/mechanical_adjust.ogg",
 		"res://assets/audio/sfx/collimation_adjust_loop.ogg",
-		"res://assets/audio/sfx/mechanical_lock.ogg",
-		"res://assets/audio/ambient/fast_terminal_hum.ogg"
+		"res://assets/audio/sfx/mechanical_lock.ogg"
 	]:
 		_check(ResourceLoader.exists(path), "resource exists: " + path)
 	_check(str(audio.EVENT_PATHS.get("target_locked", [""])[0]) == "res://assets/audio/sfx/target_lock.wav", "target acquisition keeps its original sound")
@@ -37,12 +36,10 @@ func _initialize() -> void:
 	feedback.feedback_sfx_requested.emit("focus_locked")
 	await process_frame
 	_check(audio._players.size() > 0, "focus event creates an audio player")
-	audio._play_ambience(audio.FAST_TERMINAL_AMBIENCE_PATH, audio.music_volume_db + audio.FAST_TERMINAL_AMBIENCE_MUSIC_OFFSET_DB)
-	await process_frame
-	_check(audio._ambient_player != null and audio._ambient_player.playing, "FAST terminal ambience starts")
-	audio._stop_ambience()
-	await create_timer(audio.AMBIENCE_FADE_SECONDS + 0.1).timeout
-	_check(not audio._ambient_player.playing, "FAST terminal ambience fades out and stops")
+	_check(
+		not ResourceLoader.exists("res://assets/audio/ambient/fast_terminal_hum.ogg"),
+		"FAST does not package undocumented terminal ambience"
+	)
 	print("AUDIO SFX TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)
 

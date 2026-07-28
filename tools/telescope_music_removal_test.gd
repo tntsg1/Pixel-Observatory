@@ -4,6 +4,8 @@ extends SceneTree
 # godot --headless --path <project> --script res://tools/telescope_music_removal_test.gd
 
 const RETIRED_BGM := "res://assets/audio/music/giant_telescope.mp3"
+const RETIRED_REMOTE_BGM := "res://assets/audio/music/space_fast_theme.mp3"
+const RETIRED_FAST_AMBIENCE := "res://assets/audio/ambient/fast_terminal_hum.ogg"
 var failures := 0
 
 
@@ -16,25 +18,32 @@ func _initialize() -> void:
 		_finish()
 		return
 
-	_check(
-		audio._music_category_for_scene("res://scenes/telescope_view.tscn")
-			== audio.SILENT_MUSIC_CATEGORY,
-		"telescope view resolves to the explicit silent route"
-	)
+	for scene_path in [
+		"res://scenes/telescope_view.tscn",
+		"res://scenes/space_observation.tscn",
+		"res://scenes/radio_observation.tscn",
+		"res://scenes/multi_observation.tscn",
+	]:
+		_check(
+			audio._music_category_for_scene(scene_path) == audio.SILENT_MUSIC_CATEGORY,
+			"%s resolves to the explicit silent route" % scene_path.get_file()
+		)
 	_check(
 		audio._music_category_for_scene("res://scenes/sky_observation.tscn") == "outdoor",
 		"sky observation still resolves to outdoor music"
 	)
+	_check(not audio.MUSIC_PATHS.has("giant"), "remote scenes have no distributable music mapping")
+	for path in [RETIRED_BGM, RETIRED_REMOTE_BGM, RETIRED_FAST_AMBIENCE]:
+		_check(not ResourceLoader.exists(path), "retired audio is not importable: " + path)
+		_check(not FileAccess.file_exists(path), "retired audio file is absent: " + path)
 	_check(
-		audio._music_category_for_scene("res://scenes/space_observation.tscn") == "giant"
-			and audio._music_category_for_scene("res://scenes/radio_observation.tscn") == "giant",
-		"Space and FAST keep their shared approved theme"
+		audio.RETIRED_MUSIC_UIDS.has("uid://b4x44bsg33mdj")
+			and audio.RETIRED_MUSIC_UIDS.has("uid://b1qu5girwevff"),
+		"both retired music UIDs are permanently blocked"
 	)
-	_check(not ResourceLoader.exists(RETIRED_BGM), "retired BGM source is not importable")
-	_check(not FileAccess.file_exists(RETIRED_BGM), "retired BGM file is absent")
 	_check(
-		audio.RETIRED_MUSIC_UIDS.has("uid://b4x44bsg33mdj"),
-		"retired BGM UID is permanently blocked"
+		audio.RETIRED_AMBIENCE_UIDS.has("uid://c7hv8ifvlw2uf"),
+		"retired FAST ambience UID is permanently blocked"
 	)
 
 	audio.music_enabled = true
@@ -42,68 +51,68 @@ func _initialize() -> void:
 	audio.play_music(str(audio.MUSIC_PATHS["outdoor"]))
 	await create_timer(0.35).timeout
 	var outdoor_position: float = audio._active_music_player.get_playback_position()
-	_check(outdoor_position > 0.05, "outdoor music is playing before telescope entry")
+	_check(outdoor_position > 0.05, "outdoor music is playing before remote-observatory entry")
 
-	var telescope_scene := load("res://scenes/telescope_view.tscn") as PackedScene
-	_check(telescope_scene != null, "telescope view scene loads")
-	if telescope_scene != null:
-		var telescope_view := telescope_scene.instantiate()
-		root.add_child(telescope_view)
-		current_scene = telescope_view
+	var radio_scene := load("res://scenes/radio_observation.tscn") as PackedScene
+	_check(radio_scene != null, "FAST scene loads")
+	if radio_scene != null:
+		var radio_view := radio_scene.instantiate()
+		root.add_child(radio_view)
+		current_scene = radio_view
 		await process_frame
 		audio._refresh_music_for_scene()
+		audio._refresh_ambience_for_scene()
 		await process_frame
-		_check(
-			audio._current_music_path.is_empty(),
-			"real telescope scene entry starts a fade to silence"
-		)
+		_check(audio._current_music_path.is_empty(), "FAST entry starts the cleared-audio route")
 		_check(
 			float(audio._music_playback_positions.get(str(audio.MUSIC_PATHS["outdoor"]), 0.0))
 				>= outdoor_position - 0.12,
-			"telescope entry preserves the outdoor theme position for return"
+			"FAST entry preserves approved outdoor progress for return"
+		)
+		_check(
+			audio._ambient_player == null
+				or (not audio._ambient_player.playing and audio._ambient_player.stream == null),
+			"FAST entry has no undocumented ambience decoder"
 		)
 		await create_timer(audio.MUSIC_FADE_SECONDS + 0.15).timeout
+		var state: Dictionary = audio.music_runtime_state()
+		print("FAST MUSIC RUNTIME STATE: %s" % JSON.stringify(state))
 		_check(
-			audio._active_music_player == null or not audio._active_music_player.playing,
-			"telescope scene is silent after the crossfade"
+			str(state.get("current_path", "")).is_empty()
+				and str(state.get("active_stream_path", "")).is_empty(),
+			"FAST runtime has no active BGM stream"
 		)
+		for channel in state.get("channels", []):
+			_check(
+				not bool(channel.get("playing", false))
+					and str(channel.get("stream_path", "")).is_empty(),
+				"FAST music channel is stopped and detached"
+			)
 		current_scene = null
-		telescope_view.queue_free()
+		radio_view.queue_free()
+		await process_frame
 		await process_frame
 
-	# Reproduce an older persistent Autoload player carrying a stream under the
-	# retired path. Entering FAST must stop it immediately before the approved
-	# remote-observatory theme is requested.
+	# Reproduce an older Autoload carrying the newly retired remote theme.
 	audio._stop_music(true)
 	var stale_player := audio._music_players[0] as AudioStreamPlayer
 	stale_player.stream = AudioStreamGenerator.new()
 	stale_player.play()
 	audio._active_music_player = stale_player
-	audio._current_music_path = RETIRED_BGM
-	audio._music_player_paths[stale_player.get_instance_id()] = RETIRED_BGM
-	audio._music_playback_positions[RETIRED_BGM] = 42.0
-	audio._enforce_music_policy(str(audio.MUSIC_PATHS["giant"]))
+	audio._current_music_path = RETIRED_REMOTE_BGM
+	audio._music_player_paths[stale_player.get_instance_id()] = RETIRED_REMOTE_BGM
+	audio._music_playback_positions[RETIRED_REMOTE_BGM] = 42.0
+	audio._enforce_music_policy("")
 	_check(not stale_player.playing, "FAST entry immediately stops a retired persistent stream")
 	_check(stale_player.stream == null, "retired decoder is detached from the music channel")
 	_check(
-		not audio._music_playback_positions.has(RETIRED_BGM),
+		not audio._music_playback_positions.has(RETIRED_REMOTE_BGM),
 		"retired playback position cannot leak through session resume"
 	)
 
-	audio.play_music(str(audio.MUSIC_PATHS["giant"]))
-	await create_timer(0.2).timeout
-	var fast_state: Dictionary = audio.music_runtime_state()
-	print("FAST MUSIC RUNTIME STATE: %s" % JSON.stringify(fast_state))
-	_check(
-		str(fast_state.get("current_path", "")) == str(audio.MUSIC_PATHS["giant"]),
-		"FAST resolves to the approved remote-observatory path"
-	)
-	_check(
-		str(fast_state.get("active_stream_path", "")) == str(audio.MUSIC_PATHS["giant"]),
-		"FAST active decoder resource path matches the whitelist"
-	)
-
 	audio._stop_music(true)
+	audio.stop_all_event_loops(0.0)
+	await process_frame
 	_finish()
 
 

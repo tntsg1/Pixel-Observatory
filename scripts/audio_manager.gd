@@ -28,19 +28,24 @@ const EVENT_COOLDOWN := 0.08
 const MUSIC_FADE_SECONDS := 2.2
 const AMBIENCE_FADE_SECONDS := 1.2
 const SILENT_MUSIC_CATEGORY := "silent"
-const FAST_TERMINAL_AMBIENCE_PATH := "res://assets/audio/ambient/fast_terminal_hum.ogg"
-const FAST_TERMINAL_AMBIENCE_MUSIC_OFFSET_DB := -12.0
 const RETIRED_MUSIC_PATHS := {
 	"res://assets/audio/music/giant_telescope.mp3": true,
+	"res://assets/audio/music/space_fast_theme.mp3": true,
 }
 const RETIRED_MUSIC_UIDS := {
 	"uid://b4x44bsg33mdj": true,
+	"uid://b1qu5girwevff": true,
+}
+const RETIRED_AMBIENCE_PATHS := {
+	"res://assets/audio/ambient/fast_terminal_hum.ogg": true,
+}
+const RETIRED_AMBIENCE_UIDS := {
+	"uid://c7hv8ifvlw2uf": true,
 }
 const MUSIC_PATHS := {
 	"lobby": "res://assets/audio/music/lobby.mp3",
 	"assembly": "res://assets/audio/music/telescope_assembly.mp3",
-	"outdoor": "res://assets/audio/music/outdoor_stargazing.mp3",
-	"giant": "res://assets/audio/music/space_fast_theme.mp3"
+	"outdoor": "res://assets/audio/music/outdoor_stargazing.mp3"
 }
 const EVENT_PATHS := {
 	"ui_confirm": ["res://assets/audio/sfx/ui_click_mechanical.ogg"],
@@ -165,8 +170,6 @@ func set_music_volume_db(value: float) -> void:
 	music_volume_db = clampf(value, -40.0, -8.0)
 	if _active_music_player != null:
 		_active_music_player.volume_db = music_volume_db
-	if _ambient_player != null and _ambient_player.playing:
-		_ambient_player.volume_db = music_volume_db + FAST_TERMINAL_AMBIENCE_MUSIC_OFFSET_DB
 	_save_settings()
 
 
@@ -403,14 +406,10 @@ func _refresh_music_for_scene() -> void:
 
 
 func _refresh_ambience_for_scene() -> void:
-	if not MUSIC_OUTPUT_ENABLED or not music_enabled:
-		return
-	var scene := get_tree().current_scene
-	var file_name := scene.scene_file_path.get_file().get_basename() if scene != null else ""
-	if file_name == "radio_observation":
-		_play_ambience(FAST_TERMINAL_AMBIENCE_PATH, music_volume_db + FAST_TERMINAL_AMBIENCE_MUSIC_OFFSET_DB)
-	else:
-		_stop_ambience()
+	# FAST's former terminal loop had no author or reusable-license record.
+	# Keep the ambience channel available for future cleared assets, but never
+	# let an older Autoload instance carry the retired stream into a scene.
+	_enforce_ambience_policy()
 
 
 func _music_category_for_scene(scene_path: String) -> String:
@@ -424,7 +423,7 @@ func _music_category_for_scene(scene_path: String) -> String:
 	if file_name in ["sky_observation", "world_map", "constellation_observation"]:
 		return "outdoor"
 	if file_name in ["space_observation", "radio_observation", "multi_observation"]:
-		return "giant"
+		return SILENT_MUSIC_CATEGORY
 	# Story and learning overlays retain the music of the scene they came from.
 	return ""
 
@@ -442,6 +441,31 @@ func _player_stream_path(player: AudioStreamPlayer) -> String:
 	if stream_path.begins_with("uid://") and RETIRED_MUSIC_UIDS.has(stream_path):
 		return stream_path
 	return stream_path
+
+
+func _ambient_stream_path() -> String:
+	if _ambient_player == null or _ambient_player.stream == null:
+		return ""
+	return str(_ambient_player.stream.resource_path)
+
+
+func _enforce_ambience_policy() -> void:
+	if _ambient_player == null:
+		return
+	var stream_path := _ambient_stream_path()
+	var assigned_path := _current_ambient_path
+	var retired := (
+		RETIRED_AMBIENCE_PATHS.has(assigned_path)
+		or RETIRED_AMBIENCE_PATHS.has(stream_path)
+		or RETIRED_AMBIENCE_UIDS.has(stream_path)
+	)
+	if retired or _ambient_player.playing:
+		if _ambient_tween != null and _ambient_tween.is_valid():
+			_ambient_tween.kill()
+		_ambient_player.stop()
+		_ambient_player.stream = null
+		_ambient_player.volume_db = -60.0
+	_current_ambient_path = ""
 
 
 func _enforce_music_policy(expected_path: String) -> void:
@@ -561,6 +585,7 @@ func _finish_music_silence(
 		if player == null or not is_instance_valid(player):
 			continue
 		player.stop()
+		player.stream = null
 		player.volume_db = -60.0
 		_music_player_paths.erase(player.get_instance_id())
 	_active_music_player = null
@@ -568,6 +593,11 @@ func _finish_music_silence(
 
 func _play_ambience(path: String, target_volume_db: float) -> void:
 	if _ambient_player == null or path == "":
+		return
+	if RETIRED_AMBIENCE_PATHS.has(path) or RETIRED_AMBIENCE_UIDS.has(path):
+		_enforce_ambience_policy()
+		if OS.is_debug_build():
+			push_warning("Blocked non-approved ambience path: %s" % path)
 		return
 	if path == _current_ambient_path and _ambient_player.playing:
 		return

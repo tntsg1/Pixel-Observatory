@@ -1,13 +1,19 @@
 # Audio Attribution
 
-## `music/space_fast_theme.mp3`
+## Retired remote-observatory audio
 
-- Source filename: `7月26日.mp3`
-- Source: user-provided local audio
-- Imported: 2026-07-26
-- Usage: shared background theme for Space Infrared Observatory and FAST Radio Observation
-- Processing: copied byte-for-byte; no edit, trim, or normalization
-- SHA-256: `3AB3D08CDC7C66E8694C1F0B158C55A89492B0F4419BC552477B78D55E70DDED`
+The following resources are intentionally absent from distributable builds:
+
+- `music/giant_telescope.mp3` (`uid://b4x44bsg33mdj`)
+- `music/space_fast_theme.mp3` (`uid://b1qu5girwevff`, SHA-256
+  `3AB3D08CDC7C66E8694C1F0B158C55A89492B0F4419BC552477B78D55E70DDED`)
+- `ambient/fast_terminal_hum.ogg` (`uid://c7hv8ifvlw2uf`)
+
+The replacement music was supplied as a local file, but it did not include an
+author, title, copyright notice or reusable-license record. The FAST ambience
+also lacked a source and license record. Both remote-observatory scenes use an
+explicit silent music route until cleared replacements are supplied. The
+original user file outside this repository was not moved or deleted.
 
 ## `sfx/collimation_adjust_loop.ogg`
 

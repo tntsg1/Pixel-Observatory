@@ -51,7 +51,18 @@ jobs:
           node tools/prepare_web_export.mjs
           mkdir -p build/web
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . --import
+          ./Godot_v4.7-stable_linux.x86_64 --headless --path . \
+            --script res://tools/fast_music_rights_audit_test.gd
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . --export-release Web build/web/index.html
+
+      - name: Verify retired remote audio is absent
+        run: |
+          test ! -e assets/audio/music/giant_telescope.mp3
+          test ! -e assets/audio/music/space_fast_theme.mp3
+          test ! -e assets/audio/ambient/fast_terminal_hum.ogg
+          test ! -e build/web/giant_telescope.mp3
+          test ! -e build/web/space_fast_theme.mp3
+          test ! -e build/web/fast_terminal_hum.ogg
 
       - name: Add Pixel Observatory web shell
         run: node tools/build_web_shell.mjs build/web

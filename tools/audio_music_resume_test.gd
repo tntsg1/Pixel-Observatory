@@ -19,17 +19,12 @@ func _initialize() -> void:
 	audio._stop_music(true)
 	var lobby_path := str(audio.MUSIC_PATHS["lobby"])
 	var assembly_path := str(audio.MUSIC_PATHS["assembly"])
-	var giant_path := str(audio.MUSIC_PATHS["giant"])
 	_check(
-		giant_path == "res://assets/audio/music/space_fast_theme.mp3",
-		"giant category uses the shared Space and FAST theme"
-	)
-	_check(ResourceLoader.exists(giant_path), "shared Space and FAST theme exists")
-	_check(load(giant_path) is AudioStreamMP3, "shared Space and FAST theme loads as MP3")
-	_check(
-		audio._music_category_for_scene("res://scenes/space_observation.tscn") == "giant"
-			and audio._music_category_for_scene("res://scenes/radio_observation.tscn") == "giant",
-		"Space and FAST observations share the giant music category"
+		audio._music_category_for_scene("res://scenes/space_observation.tscn")
+			== audio.SILENT_MUSIC_CATEGORY
+			and audio._music_category_for_scene("res://scenes/radio_observation.tscn")
+			== audio.SILENT_MUSIC_CATEGORY,
+		"Space and every FAST observation use the explicit cleared-audio route"
 	)
 	_check(
 		audio._music_category_for_scene("res://scenes/telescope_view.tscn")
@@ -73,42 +68,6 @@ func _initialize() -> void:
 		"stale crossfade callbacks do not stop the resumed music"
 	)
 
-	audio.play_music(giant_path)
-	await create_timer(0.75).timeout
-	var space_leave_position: float = audio._active_music_player.get_playback_position()
-	_check(space_leave_position > 0.1, "Space theme advances before leaving the remote scene")
-
-	# Space and FAST resolve to the same resource path. Re-requesting it during
-	# a scene change must keep the active decoder running continuously.
-	audio.play_music(giant_path)
-	await create_timer(0.15).timeout
-	var direct_fast_position: float = audio._active_music_player.get_playback_position()
-	_check(
-		direct_fast_position >= space_leave_position,
-		"direct Space to FAST switch keeps the shared decoder position advancing"
-	)
-
-	audio.play_music(assembly_path)
-	await create_timer(0.15).timeout
-	var giant_cached_position := float(audio._music_playback_positions.get(giant_path, 0.0))
-	_check(
-		absf(giant_cached_position - direct_fast_position) < 0.25,
-		"leaving Space caches the shared remote-observatory position"
-	)
-
-	# FAST resolves to the same giant path. Returning through its scene route
-	# must resume the shared theme instead of treating it as a new track.
-	var fast_category: String = audio._music_category_for_scene("res://scenes/radio_observation.tscn")
-	audio.play_music(str(audio.MUSIC_PATHS[fast_category]))
-	await create_timer(0.15).timeout
-	var fast_resume_position: float = audio._active_music_player.get_playback_position()
-	_check(
-		fast_resume_position >= giant_cached_position - 0.12
-			and fast_resume_position <= giant_cached_position + 0.65,
-		"FAST resumes the Space theme near the shared cached position"
-	)
-	_check(fast_resume_position > 0.1, "Space to FAST shared theme does not restart at zero")
-
 	var lobby_stream := load(lobby_path) as AudioStream
 	var lobby_length := lobby_stream.get_length()
 	if lobby_length > 0.1:
@@ -141,6 +100,14 @@ func _initialize() -> void:
 	_check(
 		not ResourceLoader.exists("res://assets/audio/music/giant_telescope.mp3"),
 		"retired telescope BGM is absent from distributable resources"
+	)
+	_check(
+		not ResourceLoader.exists("res://assets/audio/music/space_fast_theme.mp3"),
+		"unlicensed remote-observatory BGM is absent from distributable resources"
+	)
+	_check(
+		not ResourceLoader.exists("res://assets/audio/ambient/fast_terminal_hum.ogg"),
+		"undocumented FAST ambience is absent from distributable resources"
 	)
 	audio._stop_music(true)
 	print("AUDIO MUSIC RESUME TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
