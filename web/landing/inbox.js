@@ -14,6 +14,26 @@
       ? {hour: "2-digit", minute: "2-digit"}
       : {month: "short", day: "numeric"}).format(date);
   };
+  function bindGlassPointer(element, xProperty, yProperty) {
+    if (!element || element.dataset.glassPointer === "true") return;
+    element.dataset.glassPointer = "true";
+    let frame = 0;
+    element.addEventListener("pointermove", event => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const bounds = element.getBoundingClientRect();
+        const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / Math.max(bounds.width, 1)) * 100));
+        const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / Math.max(bounds.height, 1)) * 100));
+        element.style.setProperty(xProperty, `${x}%`);
+        element.style.setProperty(yProperty, `${y}%`);
+      });
+    });
+    element.addEventListener("pointerleave", () => {
+      element.style.removeProperty(xProperty);
+      element.style.removeProperty(yProperty);
+    });
+  }
 
   document.body.insertAdjacentHTML("beforeend", `
     <section class="po-modal" id="po-inbox-modal" hidden aria-modal="true" role="dialog" aria-label="Inbox">
@@ -26,6 +46,9 @@
   const content = document.getElementById("po-inbox-content");
   const badge = document.getElementById("inbox-badge");
   const dialog = modal.querySelector(".po-inbox-dialog");
+  bindGlassPointer(document.getElementById("inbox-open"), "--nav-glass-x", "--nav-glass-y");
+  bindGlassPointer(document.getElementById("feedback-open"), "--nav-glass-x", "--nav-glass-y");
+  bindGlassPointer(modal.querySelector(".po-close"), "--close-glass-x", "--close-glass-y");
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -58,6 +81,7 @@
     clearTimeout(state.closeTimer);
     modal.classList.remove("po-inbox-closing");
     modal.hidden = false;
+    document.getElementById("inbox-open")?.setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
     render().catch(showError);
     clearInterval(state.poll);
@@ -68,6 +92,7 @@
   function close() {
     if (modal.hidden || modal.classList.contains("po-inbox-closing")) return;
     modal.classList.add("po-inbox-closing");
+    document.getElementById("inbox-open")?.setAttribute("aria-expanded", "false");
     clearInterval(state.poll);
     state.poll = null;
     clearTimeout(state.closeTimer);
@@ -181,6 +206,8 @@
     const messages = document.getElementById("po-messages");
     messages.scrollTop = messages.scrollHeight;
     const replyInput = thread.querySelector(".po-reply textarea");
+    const sendButton = thread.querySelector(".po-send");
+    bindGlassPointer(sendButton, "--send-glass-x", "--send-glass-y");
     const resizeReply = () => {
       replyInput.style.height = "auto";
       replyInput.style.height = `${Math.min(replyInput.scrollHeight, 124)}px`;
@@ -195,16 +222,24 @@
     thread.querySelector("form").onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
-      const submit = event.currentTarget.querySelector("button");
+      const submit = event.currentTarget.querySelector(".po-send");
+      submit.classList.remove("is-sent", "is-error");
+      submit.classList.add("is-sending");
       submit.disabled = true;
       try {
         await api(`/api/messages/conversations/${encodeURIComponent(id)}/messages`, {
           method: "POST", body: JSON.stringify({body: form.get("body")}),
         });
+        submit.classList.remove("is-sending");
+        submit.classList.add("is-sent");
+        await new Promise(resolve => setTimeout(resolve, 320));
         await openConversation(id);
         await loadConversations(false);
       } catch (error) {
+        submit.classList.remove("is-sending");
+        submit.classList.add("is-error");
         event.currentTarget.querySelector(".po-inbox-status").textContent = error.message;
+        setTimeout(() => submit.classList.remove("is-error"), 420);
       } finally {
         submit.disabled = false;
       }

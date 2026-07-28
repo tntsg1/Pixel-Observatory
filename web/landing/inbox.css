@@ -71,31 +71,68 @@
 }
 
 .po-inbox-dialog > .po-close {
+  --close-glass-x: 35%;
+  --close-glass-y: 18%;
   z-index: 8;
   top: 17px;
   right: 18px;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(166, 191, 218, .2);
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid rgba(199, 226, 243, .28);
+  border-top-color: rgba(255, 255, 255, .46);
   border-radius: 50%;
-  background: rgba(25, 35, 50, .78);
-  color: #bdc9d8;
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, .14), transparent 48%),
+    rgba(23, 39, 57, .4);
+  backdrop-filter: blur(18px) saturate(170%);
+  color: #d7e2ec;
   font: 400 20px/1 var(--sans);
+  box-shadow:
+    0 8px 24px rgba(0, 0, 0, .25),
+    inset 0 1px rgba(255, 255, 255, .16),
+    inset 0 -1px rgba(88, 130, 163, .12);
   transition:
     color 140ms ease-out,
     background 140ms ease-out,
-    transform 140ms ease-out;
+    border-color 140ms ease-out,
+    box-shadow 180ms ease-out,
+    transform 180ms cubic-bezier(.2, .8, .2, 1);
+}
+
+.po-inbox-dialog > .po-close::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(circle 24px at var(--close-glass-x) var(--close-glass-y), rgba(229, 247, 255, .3), transparent 72%),
+    linear-gradient(115deg, transparent 28%, rgba(216, 240, 252, .15) 48%, transparent 66%);
+  opacity: .78;
+  transition: opacity 160ms ease-out, transform 260ms cubic-bezier(.2, .8, .2, 1);
 }
 
 .po-inbox-dialog > .po-close:hover {
-  background: rgba(46, 61, 80, .9);
+  border-color: rgba(188, 228, 248, .58);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, .2), transparent 48%),
+    rgba(47, 75, 99, .52);
   color: #fff;
+  box-shadow:
+    0 11px 28px rgba(0, 0, 0, .3),
+    0 0 22px rgba(115, 201, 235, .13),
+    inset 0 1px rgba(255, 255, 255, .23);
+  transform: rotate(5deg) scale(1.06);
 }
 
 .po-inbox-dialog > .po-close:active {
-  transform: scale(.92);
+  transform: rotate(0) scale(.88);
+  transition-duration: 80ms;
 }
 
 #po-inbox-content,
@@ -557,35 +594,66 @@
 }
 
 .po-send {
+  --send-glass-x: 35%;
+  --send-glass-y: 18%;
+  position: relative;
   width: 42px;
   min-width: 42px;
   height: 42px;
   min-height: 42px;
   display: grid;
   place-items: center;
+  overflow: hidden;
+  isolation: isolate;
   padding: 0;
-  border: 1px solid rgba(255, 255, 255, .18);
+  border: 1px solid rgba(225, 245, 255, .34);
+  border-top-color: rgba(255, 255, 255, .68);
   border-radius: 50%;
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, .3), transparent 42%),
-    rgba(101, 194, 234, .9);
-  color: #07121a;
+    linear-gradient(155deg, rgba(255, 255, 255, .42), transparent 43%),
+    rgba(95, 190, 231, .72);
+  backdrop-filter: blur(18px) saturate(180%);
+  color: #041018;
   font-size: 0;
   cursor: pointer;
-  box-shadow: 0 7px 18px rgba(53, 145, 199, .22);
+  box-shadow:
+    0 8px 22px rgba(41, 133, 185, .28),
+    inset 0 1px rgba(255, 255, 255, .4),
+    inset 0 -1px rgba(13, 78, 112, .24);
   transition:
     background 140ms ease-out,
-    transform 120ms ease-out,
+    border-color 140ms ease-out,
+    box-shadow 180ms ease-out,
+    transform 190ms cubic-bezier(.2, .8, .2, 1),
     opacity 140ms ease-out;
 }
 
 .po-send::before {
-  content: "↑";
+  content: "\2191";
+  position: relative;
+  z-index: 2;
   font: 750 20px/1 var(--sans);
+  transform: translateY(0);
+}
+
+.po-send::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  z-index: 1;
+  border-radius: inherit;
+  background:
+    radial-gradient(circle 28px at var(--send-glass-x) var(--send-glass-y), rgba(240, 252, 255, .5), transparent 70%),
+    conic-gradient(from 210deg, transparent, rgba(208, 240, 253, .22), transparent 42%);
+  opacity: .84;
+  pointer-events: none;
 }
 
 .po-send:hover {
-  background: #8dccf0;
+  border-color: rgba(235, 250, 255, .72);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, .52), transparent 43%),
+    rgba(118, 208, 243, .82);
   transform: scale(1.055);
   box-shadow:
     0 10px 26px rgba(68, 166, 218, .36),
@@ -595,6 +663,49 @@
 .po-send:disabled {
   opacity: .42;
   cursor: wait;
+}
+
+.po-send.is-sending:disabled {
+  opacity: 1;
+}
+
+.po-send.is-sending {
+  transform: scale(.92);
+  box-shadow:
+    0 3px 10px rgba(31, 102, 145, .22),
+    0 0 0 5px rgba(105, 200, 239, .08),
+    inset 0 2px 6px rgba(7, 62, 91, .22);
+}
+
+.po-send.is-sending::before {
+  animation: po-send-flight 680ms cubic-bezier(.22, .75, .2, 1) infinite;
+}
+
+.po-send.is-sending::after {
+  animation: po-send-orbit 780ms linear infinite;
+}
+
+.po-send.is-sent {
+  border-color: rgba(160, 238, 196, .72);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, .44), transparent 43%),
+    rgba(92, 205, 151, .82);
+  transform: scale(1.08);
+  box-shadow:
+    0 10px 28px rgba(55, 173, 119, .3),
+    0 0 0 7px rgba(100, 221, 163, .1),
+    inset 0 1px rgba(255, 255, 255, .42);
+}
+
+.po-send.is-sent::before {
+  content: "\2713";
+  animation: po-send-settle 300ms cubic-bezier(.18, .9, .2, 1) both;
+}
+
+.po-send.is-error {
+  border-color: rgba(238, 151, 143, .7);
+  background: rgba(185, 78, 72, .78);
+  animation: po-send-error 260ms ease-out;
 }
 
 .po-reply .po-inbox-status {
@@ -656,6 +767,50 @@
 
 .po-inbox-mobile-back {
   display: none;
+}
+
+@keyframes po-send-flight {
+  0% {
+    opacity: 0;
+    transform: translateY(11px) scale(.72);
+  }
+  34% {
+    opacity: 1;
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-13px) scale(.72);
+  }
+}
+
+@keyframes po-send-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes po-send-settle {
+  from {
+    opacity: 0;
+    transform: scale(.45) rotate(-18deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes po-send-error {
+  33% {
+    transform: translateX(-3px);
+  }
+  66% {
+    transform: translateX(3px);
+  }
 }
 
 @keyframes po-inbox-arrive {
@@ -861,6 +1016,9 @@
   .po-message,
   .po-reply,
   .po-new-form,
+  .po-send,
+  .po-send::before,
+  .po-send::after,
   .po-conversation[aria-selected="true"]::after {
     animation: none;
   }
