@@ -1,6 +1,6 @@
 (() => {
   "use strict";
-  const state = { user: null, conversations: [], activeId: null, poll: null };
+  const state = { user: null, conversations: [], activeId: null, poll: null, closeTimer: null, glassFrame: null };
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -25,6 +25,7 @@
   const modal = document.getElementById("po-inbox-modal");
   const content = document.getElementById("po-inbox-content");
   const badge = document.getElementById("inbox-badge");
+  const dialog = modal.querySelector(".po-inbox-dialog");
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -54,6 +55,8 @@
     }
   }
   function open() {
+    clearTimeout(state.closeTimer);
+    modal.classList.remove("po-inbox-closing");
     modal.hidden = false;
     document.body.style.overflow = "hidden";
     render().catch(showError);
@@ -63,11 +66,17 @@
     }, 5000);
   }
   function close() {
-    modal.hidden = true;
-    document.body.style.overflow = "";
+    if (modal.hidden || modal.classList.contains("po-inbox-closing")) return;
+    modal.classList.add("po-inbox-closing");
     clearInterval(state.poll);
     state.poll = null;
-    refreshBadge();
+    clearTimeout(state.closeTimer);
+    state.closeTimer = setTimeout(() => {
+      modal.hidden = true;
+      modal.classList.remove("po-inbox-closing");
+      document.body.style.overflow = "";
+      refreshBadge();
+    }, 175);
   }
   function showError(error) {
     content.innerHTML = `<div class="po-thread-empty"><h2>${t("Inbox unavailable","信箱暂时不可用")}</h2><p>${esc(error.message)}</p></div>`;
@@ -101,8 +110,8 @@
     state.conversations = data.conversations || [];
     const list = document.getElementById("po-conversations");
     if (!list) return;
-    list.innerHTML = state.conversations.map(item => `
-      <button class="po-conversation" type="button" data-id="${esc(item.id)}" aria-selected="${item.id === state.activeId}">
+    list.innerHTML = state.conversations.map((item, index) => `
+      <button class="po-conversation" style="--conversation-index:${index}" type="button" data-id="${esc(item.id)}" aria-selected="${item.id === state.activeId}">
         <strong>${esc(item.kind === "feedback" ? t("Developer · Feedback","开发者 · 反馈") : item.title)}</strong>
         <small>${esc(when(item.last_message_at))}</small>
         <span class="preview">${esc(item.last_message)}</span>
@@ -160,9 +169,9 @@
     thread.classList.add("is-open");
     thread.innerHTML = `<header class="po-thread-head"><button class="po-secondary po-inbox-mobile-back" type="button">←</button>
       <h3>${esc(title)}</h3><p>${data.conversation.feedback_id ? `${t("Feedback receipt","反馈回执")} ${esc(data.conversation.feedback_id)}` : t("Private text conversation","纯文字私信")}</p></header>
-      <div class="po-messages" id="po-messages">${(data.messages || []).map(message => {
+      <div class="po-messages" id="po-messages">${(data.messages || []).map((message, index) => {
         const mine = message.sender_user_id === data.currentUserId;
-        return `<article class="po-message ${mine ? "mine" : ""} ${esc(message.message_kind)}">
+        return `<article class="po-message ${mine ? "mine" : ""} ${esc(message.message_kind)}" style="--message-index:${index}">
           <div class="po-message-meta"><strong>${esc(message.sender_label)}</strong><time>${esc(when(message.created_at))}</time></div>
           <div class="po-message-body">${esc(message.body)}</div></article>`;
       }).join("")}</div>
@@ -205,6 +214,20 @@
   }
 
   modal.querySelector(".po-close").onclick = close;
+  dialog.addEventListener("pointermove", event => {
+    if (state.glassFrame) cancelAnimationFrame(state.glassFrame);
+    state.glassFrame = requestAnimationFrame(() => {
+      const bounds = dialog.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((event.clientX - bounds.left) / bounds.width) * 100));
+      const y = Math.max(0, Math.min(100, ((event.clientY - bounds.top) / bounds.height) * 100));
+      dialog.style.setProperty("--glass-x", `${x}%`);
+      dialog.style.setProperty("--glass-y", `${y}%`);
+    });
+  });
+  dialog.addEventListener("pointerleave", () => {
+    dialog.style.setProperty("--glass-x", "72%");
+    dialog.style.setProperty("--glass-y", "14%");
+  });
   modal.onclick = event => { if (event.target === modal) close(); };
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.hidden) close(); });
   document.getElementById("inbox-open")?.addEventListener("click", open);
