@@ -44,6 +44,8 @@ const STATUS_MARKUP = `
 			<img id="status-splash" class="show-image--false" src="index.png" alt="">
 			<div id="status-notice"></div>
 		</div>`;
+const LOADER_CSS = "../game-loader.css?v=20260728-deepspace";
+const LOADER_JS = "../game-loader.js?v=20260728-deepspace";
 
 export async function patchWebLoader(indexPath) {
 	let html = await readFile(indexPath, "utf8");
@@ -52,15 +54,25 @@ export async function patchWebLoader(indexPath) {
 		throw new Error(`Unexpected Godot web shell in ${indexPath}`);
 	}
 	const before = html;
-	if (!html.includes("href=\"../game-loader.css\"")) {
-		html = html.replace("</head>", "\t\t<link rel=\"stylesheet\" href=\"../game-loader.css\">\n\t</head>");
+	if (/<link rel="stylesheet" href="\.\.\/game-loader\.css(?:\?[^"]*)?">/.test(html)) {
+		html = html.replace(
+			/<link rel="stylesheet" href="\.\.\/game-loader\.css(?:\?[^"]*)?">/,
+			`<link rel="stylesheet" href="${LOADER_CSS}">`,
+		);
+	} else {
+		html = html.replace("</head>", `\t\t<link rel="stylesheet" href="${LOADER_CSS}">\n\t</head>`);
 	}
 	html = html.replace(
 		/<div id="status">[\s\S]*?<div id="status-notice"><\/div>\s*<\/div>/,
 		STATUS_MARKUP.trim(),
 	);
-	if (!html.includes("src=\"../game-loader.js\"")) {
-		html = html.replace("</body>", "\t\t<script src=\"../game-loader.js\"></script>\n\t</body>");
+	if (/<script src="\.\.\/game-loader\.js(?:\?[^"]*)?"><\/script>/.test(html)) {
+		html = html.replace(
+			/<script src="\.\.\/game-loader\.js(?:\?[^"]*)?"><\/script>/,
+			`<script src="${LOADER_JS}"></script>`,
+		);
+	} else {
+		html = html.replace("</body>", `\t\t<script src="${LOADER_JS}"></script>\n\t</body>`);
 	}
 
 	if (!html.includes("class=\"observatory-loader\"")) {
