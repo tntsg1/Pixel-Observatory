@@ -1,0 +1,49 @@
+.gnav-inbox{position:relative}
+#inbox-badge{
+  position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;
+  display:grid;place-items:center;border-radius:10px;background:#e6b650;color:#07101d;
+  font:700 11px/1 var(--sans);box-shadow:0 0 0 3px #090e1c
+}
+#inbox-badge[hidden]{display:none!important}
+.po-inbox-dialog{width:min(980px,94vw);height:min(720px,88vh);padding:0!important;overflow:hidden}
+.po-inbox-dialog>.po-close{z-index:5;background:#111a2b;border:1px solid #334665}
+.po-inbox-shell{display:grid;grid-template-columns:330px minmax(0,1fr);height:100%;min-height:0}
+.po-inbox-sidebar{display:flex;flex-direction:column;min-height:0;border-right:1px solid #23304a;background:#080d19}
+.po-inbox-head,.po-thread-head{padding:22px 24px;border-bottom:1px solid #23304a}
+.po-inbox-head h2,.po-thread-head h3{margin:0;color:#f0f3f8;font-size:22px;letter-spacing:0}
+.po-inbox-head p,.po-thread-head p{margin:4px 0 0;color:#8290aa;font-size:13px}
+.po-compose{margin:14px 16px;min-height:42px}
+.po-conversations{overflow:auto;min-height:0;padding:0 10px 14px}
+.po-conversation{
+  width:100%;display:grid;grid-template-columns:1fr auto;gap:5px 12px;text-align:left;
+  padding:14px 12px;border:1px solid transparent;background:transparent;color:#dce3ef;cursor:pointer
+}
+.po-conversation:hover,.po-conversation[aria-selected="true"]{background:#10192c;border-color:#304464}
+.po-conversation strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.po-conversation small{color:#74839e}
+.po-conversation .preview{grid-column:1/2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#8d9bb4;font-size:12px}
+.po-unread{min-width:20px;height:20px;padding:0 5px;display:grid;place-items:center;justify-self:end;border-radius:10px;background:#d9a648;color:#07101d;font-size:11px;font-weight:700}
+.po-thread{display:flex;flex-direction:column;min-width:0;min-height:0;padding:0;position:relative;background:#070b14}
+.po-thread-empty{margin:auto;padding:32px;text-align:center;color:#8492aa}
+.po-messages{flex:1;overflow:auto;padding:24px;display:flex;flex-direction:column;gap:14px}
+.po-message{align-self:flex-start;width:min(78%,610px);padding:13px 15px;border:1px solid #293956;background:#10182a;color:#dce3ee}
+.po-message.mine{align-self:flex-end;border-color:#5f7eb5;background:#17243d}
+.po-message.system{width:min(90%,680px);align-self:center;border-color:#7f683a;background:#17150f}
+.po-message.ai{width:min(92%,700px);align-self:center;border-color:#3a806f;background:#0d1c1b}
+.po-message-meta{display:flex;justify-content:space-between;gap:14px;margin-bottom:7px;color:#9fb1cc;font-size:11px}
+.po-message-body{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.62}
+.po-reply{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px 20px;border-top:1px solid #23304a}
+.po-reply textarea{min-height:48px;max-height:140px;resize:vertical}
+.po-new-form{display:grid;gap:13px;padding:24px}
+.po-inbox-status{min-height:20px;color:#e2a697;font-size:13px}
+.po-inbox-mobile-back{display:none}
+@media(max-width:760px){
+  .po-inbox-dialog{height:92vh}
+  .po-inbox-shell{grid-template-columns:1fr}
+  .po-inbox-sidebar{border-right:0}
+  .po-thread{position:absolute;inset:0;z-index:2}
+  .po-thread:not(.is-open),.po-thread[hidden]{display:none!important}
+  .po-inbox-mobile-back{display:inline-flex;margin-right:10px}
+  .po-message{width:88%}
+  .po-reply{grid-template-columns:1fr}
+}
