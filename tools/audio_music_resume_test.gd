@@ -31,6 +31,15 @@ func _initialize() -> void:
 			and audio._music_category_for_scene("res://scenes/radio_observation.tscn") == "giant",
 		"Space and FAST observations share the giant music category"
 	)
+	_check(
+		audio._music_category_for_scene("res://scenes/telescope_view.tscn")
+			== audio.SILENT_MUSIC_CATEGORY,
+		"eyepiece telescope view has an explicit silent music route"
+	)
+	_check(
+		audio._music_category_for_scene("res://scenes/sky_observation.tscn") == "outdoor",
+		"outdoor sky observation keeps its approved music route"
+	)
 
 	audio.play_music(lobby_path)
 	await create_timer(0.75).timeout
@@ -112,6 +121,27 @@ func _initialize() -> void:
 
 	audio.clear_music_progress(false)
 	_check(audio._music_playback_positions.is_empty(), "session progress can be cleared without audio.cfg")
+
+	audio.play_music(lobby_path)
+	await create_timer(0.35).timeout
+	var pre_silence_position: float = audio._active_music_player.get_playback_position()
+	audio._fade_music_to_silence()
+	_check(
+		float(audio._music_playback_positions.get(lobby_path, 0.0))
+			>= pre_silence_position - 0.12,
+		"entering a silent scene remembers the music position before fading"
+	)
+	await create_timer(audio.MUSIC_FADE_SECONDS + 0.15).timeout
+	_check(
+		audio._current_music_path.is_empty()
+			and (audio._active_music_player == null or not audio._active_music_player.playing),
+		"silent scene completes its fade without an empty-path load"
+	)
+
+	_check(
+		not ResourceLoader.exists("res://assets/audio/music/giant_telescope.mp3"),
+		"retired telescope BGM is absent from distributable resources"
+	)
 	audio._stop_music(true)
 	print("AUDIO MUSIC RESUME TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)

@@ -17,6 +17,28 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-27 - Independent Observer Release
+
+**Delivered:** Graduation is now a four-part playable closing sequence: course
+recap, observing archive, optical-equipment handover and the first independent
+night. Completed and unlocked optical telescope families become the player's
+owned equipment, while Space Infrared and FAST remain remote research
+facilities.
+
+**Fixed:** The central observatory pad now reads a persistent
+`active_optical_telescope_id`. Completing or editing an optical build equips
+that family, and visiting FAST or Space Infrared no longer overwrites it or
+redirects local optical observing into a remote facility.
+
+**Also included:** The FAST science-product and mission-complete presentation
+now use radio evidence rather than optical result language. The unapproved
+giant-telescope music resource and its runtime mappings were removed.
+
+**Verified:** Graduation, old-save migration, local optical routing after both
+remote facilities, FAST result binding and headless Godot 4.7 compilation have
+focused automated coverage. The release includes 1024x768 English and Chinese
+captures for the new graduation and equipment-routing states.
+
 ## Historical Milestones
 
 ### v0.1 — Project Replacement and MVP Foundation

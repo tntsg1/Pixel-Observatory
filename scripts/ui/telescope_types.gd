@@ -163,8 +163,8 @@ func _build() -> void:
 		"浏览每一种设计。已解锁的类型现在就能装配；任务推荐的类型已标出。")
 	if postgraduate_free_build:
 		subtitle = GameManager.text(
-			"Campaign complete. Choose any unlocked telescope family and keep a separate build for each.",
-			"主线已完成。你可以自由选择已解锁的望远镜家族，并分别保存每套装配。")
+			"Your unlocked optical telescopes are personal equipment. Space and FAST remain remote research facilities.",
+			"已解锁的光学望远镜现为个人设备；空间红外与 FAST 仍是远程科研设施。")
 	if browse_only:
 		subtitle = GameManager.text("Reference catalog of every telescope family you can unlock.",
 			"你可以解锁的所有望远镜家族参考手册。")
@@ -251,15 +251,21 @@ func _select(id: String) -> void:
 			"未解锁——推进到第 %d 关即可解锁。" % int(entry.get("unlock", 0)))
 		status_color = LOCK
 	elif postgraduate_free_build:
-		status_text = GameManager.text(
-			"Unlocked - free build. Your equipment for this family is saved separately.",
-			"已解锁 - 自由组装。这个家族的装备配置会单独保存。")
-		status_color = CYAN
+		if GameManager.is_player_optical_family(id):
+			status_text = GameManager.optical_equipment_ownership_label(id) + "\n" + GameManager.text(
+				"Free rebuild enabled. This family's configuration is saved separately.",
+				"已开放自由改装，这一家族的配置会单独保存。")
+			status_color = GREEN
+		else:
+			status_text = GameManager.optical_equipment_ownership_label(id) + "\n" + GameManager.text(
+				"You may assemble its training model and request remote observing time; the facility is not personal equipment.",
+				"你可以组装教学模型并申请远程观测时间；该设施不属于个人设备。")
+			status_color = CYAN
 	elif not browse_only and id == _recommended_family():
 		status_text = GameManager.text("Recommended for tonight's mission.", "今晚任务推荐使用。")
 		status_color = GOLD
 	else:
-		status_text = GameManager.text("Unlocked - ready to build.", "已解锁——可以装配。")
+		status_text = GameManager.optical_equipment_ownership_label(id) if GameManager.is_player_optical_family(id) else GameManager.text("Unlocked - ready to build.", "已解锁——可以装配。")
 	detail_container.add_child(_free_label(status_text, 14, status_color))
 
 	if not postgraduate_free_build and not browse_only and id == _recommended_family():

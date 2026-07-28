@@ -550,7 +550,17 @@ func _register_hitboxes() -> void:
 	_register_interactable("door", GameManager.text("Observatory Dome", "圆顶观星站"), GameManager.text("The ridge dome: wind-shielded formal station with its own control room. Same sky as the pad - steadier housing.", "山脊圆顶：挡风的正式观测站，带控制室。和露天观测台看同一片天空，但圆顶更稳、更抗风。"), INTERACTION_RECTS["door"])
 	_register_interactable("mission", GameManager.text("Mission Board", "任务公告板"), GameManager.text("Read the current level goal here.", "在此查看当前关卡目标。"), INTERACTION_RECTS["mission"])
 	_register_interactable("assembly", GameManager.text("Assembly Table", "组装台"), GameManager.text("Build and align the telescope.", "组装和校准望远镜。"), INTERACTION_RECTS["assembly"])
-	if GameManager.current_observation_mode() == "naked_eye":
+	if GameManager.postgraduate_free_build():
+		var active_family := GameManager.active_optical_telescope_family()
+		var active_name := GameManager.optical_telescope_family_name(active_family) if active_family != "" else GameManager.text("No telescope equipped", "尚未装备望远镜")
+		_register_interactable(
+			"telescope",
+			GameManager.text("Central Optical Pad · %s" % active_name, "中央光学观测台 · %s" % active_name),
+			GameManager.text(
+				"Uses your currently equipped personal optical telescope. Remote facilities remain on the lower-right console.",
+				"使用你当前装备的个人光学望远镜。远程科研设施仍从右下角控制台进入。"),
+			INTERACTION_RECTS["telescope"])
+	elif GameManager.current_observation_mode() == "naked_eye":
 		_register_interactable("telescope", GameManager.text("Naked Eye Observation", "肉眼观测"), GameManager.text("Observe the night sky with your own eyes.", "用肉眼观察夜空。"), INTERACTION_RECTS["telescope"])
 	elif GameManager.current_observation_mode() == "constellation":
 		_register_interactable("telescope", GameManager.text("Constellation Search", "星座搜寻"), GameManager.text("Use the observation pad to locate the complete star pattern, then study it through the telescope.", "使用观测台定位完整星群，再通过望远镜观察它。"), INTERACTION_RECTS["telescope"])
@@ -1147,7 +1157,7 @@ func _handle_interaction(id: String) -> void:
 	elif id == "door":
 		_play_furniture_action("door", _enter_observatory_door)
 	elif id == "telescope":
-		if _space_console_active():
+		if GameManager.postgraduate_free_build() or _space_console_active():
 			if GameManager.go_to_local_optical_observation("telescope"):
 				GameManager.clear_room_guidance()
 				return
@@ -1722,16 +1732,16 @@ func _open_graduated_mission_board() -> void:
 	)
 	_board_label(panel, stats, Vector2(40, 166), Vector2(720, 28), 15, Color(0.70, 0.92, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
 
-	var note_panel := _board_section(panel, Vector2(54, 216), Vector2(692, 226), GameManager.text("MAYA'S GRADUATION NOTE", "玛雅的毕业寄语"))
+	var note_panel := _board_section(panel, Vector2(54, 216), Vector2(692, 226), GameManager.text("FIRST INDEPENDENT NIGHT", "独立观测第一夜"))
 	var note := _board_label(note_panel, GameManager.text(
-		"You learned to read the sky, build and align real instruments, judge observing conditions, and choose the right method instead of chasing a score. The last lesson is complete. From tonight onward, the questions are yours.",
-		"你已经学会读懂天空、组装并校准真实仪器、判断观测条件，也懂得为目标选择正确方法，而不是只追逐分数。最后一课已经完成。从今晚起，问题由你来提出。"
+		"Choose one question. Choose the instrument that can answer it. Make one record another observer could trust. Ground telescopes, Space Infrared, and FAST now remain open for independent work.",
+		"选一个问题，选一台能回答它的仪器，再留下让另一位观测者也能相信的记录。地面望远镜、空间红外与 FAST 现已持续开放，供你独立使用。"
 	), Vector2(28, 52), Vector2(636, 118), 17, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	note.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_board_label(note_panel, GameManager.text(
-		"Completed missions are archived. Opening this board will never restart the final lesson.",
-		"已完成的任务已归档；再次打开任务板不会重启最后一课。"
+		"No score is required. Your next result belongs in the Club Logbook.",
+		"这次没有分数要求。你的下一份成果，将由你亲自写进俱乐部观测档案。"
 	), Vector2(28, 176), Vector2(636, 28), 13, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 
 	var ceremony_text := GameManager.text("Attend Ceremony", "参加毕业典礼") if GameManager.graduation_pending() \
@@ -1741,7 +1751,7 @@ func _open_graduated_mission_board() -> void:
 	ceremony_button.pressed.connect(func() -> void: GameManager.go("graduation"))
 	var log_button := _board_button(panel, GameManager.text("Open Logbook", "打开观测日志"), Vector2(306, 500), Vector2(210, 46), Color(0.06, 0.18, 0.34), Color(0.42, 0.74, 1.0))
 	log_button.pressed.connect(_open_logbook_from_mission_board)
-	var close_button := _board_button(panel, GameManager.text("Close", "关闭"), Vector2(530, 500), Vector2(188, 46), Color(0.12, 0.15, 0.22), Color(0.54, 0.62, 0.74))
+	var close_button := _board_button(panel, GameManager.text("Start Exploring", "开始自由探索"), Vector2(530, 500), Vector2(188, 46), Color(0.08, 0.30, 0.20), Color(0.52, 0.90, 0.54))
 	close_button.pressed.connect(func() -> void: _close_mission_board(true))
 
 

@@ -1857,6 +1857,7 @@ func _finish() -> void:
 		GameManager.go("collimation")
 		return
 	InteractionFeedback.feedback_sfx_requested.emit("assembly_completed")
+	GameManager.equip_completed_optical_telescope(_family())
 	GameManager.update_room_guidance_for_level()
 	GameManager.set_observatory_spawn("assembly")
 	GameManager.go("observatory")
