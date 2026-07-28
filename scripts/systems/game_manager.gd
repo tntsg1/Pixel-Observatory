@@ -3065,6 +3065,8 @@ func evaluate_selected_object(extra_context: Dictionary = {}) -> Dictionary:
 		extra_context["observation_mode"] = current_observation_mode()
 	if not extra_context.has("minimum_success_quality"):
 		extra_context["minimum_success_quality"] = "Poor" if free_observation else str(current_level().get("minimum_success_quality", "Good"))
+	if not free_observation and not extra_context.has("success_feedback_en") and current_level().has("observation_success_feedback_en"):
+		extra_context["success_feedback_en"] = str(current_level().get("observation_success_feedback_en", ""))
 	if not free_observation and not extra_context.has("success_feedback_zh") and current_level().has("observation_success_feedback_zh"):
 		extra_context["success_feedback_zh"] = str(current_level().get("observation_success_feedback_zh", ""))
 	var stats := calculate_stats()
