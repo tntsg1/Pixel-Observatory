@@ -78,6 +78,7 @@ PlayerCharacter/
 # Local automation and isolated Godot test profiles
 /.playwright-cli/
 /.wrangler/
+/.dev.vars
 /.tmp_user_parts/
 /artifacts/*appdata*/
 /artifacts/observation_ui_isolated_tests/appdata_*/

@@ -32,10 +32,11 @@ and custom-domain configuration. Do not change the production path to a
 direct Wrangler deployment unless the GitHub Pages and Cloudflare routing
 decision has been made deliberately.
 
-The Cloudflare Worker also owns the `/api/visits` endpoint. It uses a Durable
-Object to store an anonymous browser identifier and a total. A browser is
-counted once, so normal refreshes do not inflate the public number. It is a
-privacy-preserving visitor estimate, not a claim of exact human identity.
+The Cloudflare Worker owns `/api/visits` plus the account, cloud-save and field
+report APIs. Visitor totals remain in a Durable Object; observer accounts,
+versioned saves, feedback and privacy-preserving rate limits live in D1.
+Turnstile secrets and rate-limit salts are configured as Worker secrets rather
+than repository files. See [`ACCOUNTS_AND_FEEDBACK.md`](ACCOUNTS_AND_FEEDBACK.md).
 
 ## Publishing a New Version
 

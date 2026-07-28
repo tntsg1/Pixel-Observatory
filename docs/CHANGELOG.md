@@ -17,6 +17,24 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-28 - Observatory Accounts and Field Reports
+
+**Delivered:** The canonical website now supports observer accounts with
+username/password registration, secure browser sessions and automatic cloud
+progress sync for the Godot Web build. Local saves remain authoritative while
+offline, and an older cloud save cannot silently erase more advanced local
+progress.
+
+**Feedback:** Players can transmit categorized field reports from any page.
+Every accepted report receives a visible observatory receipt, while the
+developer-only console can filter reports, add private notes and move them
+through new, reviewing, planned, resolved and closed states.
+
+**Security:** Registration and feedback use Cloudflare Turnstile plus a hidden
+honeypot and D1-backed rate limits. Passwords use salted PBKDF2-SHA256 hashes;
+sessions are stored as hashes and delivered only through Secure, HttpOnly,
+SameSite cookies. Raw visitor addresses are never stored in rate-limit records.
+
 ## 2026-07-27 - Independent Observer Release
 
 **Delivered:** Graduation is now a four-part playable closing sequence: course
