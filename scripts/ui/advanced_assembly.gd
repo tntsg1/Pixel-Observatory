@@ -1,6 +1,9 @@
 extends Control
 
 const AssemblyUITemplate = preload("res://scripts/ui/assembly_ui_template.gd")
+const AssemblyDependencyGraph = preload("res://scripts/systems/assembly_dependency_graph.gd")
+const AUTO_CHAIN_TO_TUBE_META := "postgraduate_auto_assemble_tube"
+const AUTO_CHAIN_TO_MAIN_META := "postgraduate_auto_assemble_main"
 
 const BG := Color(0.018, 0.028, 0.055)
 const PANEL := Color(0.040, 0.065, 0.110)
@@ -117,6 +120,9 @@ var template_finish: Button
 var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
+var auto_assemble_button: Button
+var auto_assemble_running := false
+var auto_assemble_skip_requested := false
 var space_blueprint_page := "core"
 var fast_blueprint_page := "dish"
 var remembered_parts_scroll_y := 0
@@ -127,6 +133,9 @@ func _ready() -> void:
 	_build()
 	InteractionFeedback.page_enter(self)
 	call_deferred("_show_assembly_tutorial")
+	if GameManager.postgraduate_free_build() and bool(GameManager.get_meta(AUTO_CHAIN_TO_MAIN_META, false)):
+		GameManager.remove_meta(AUTO_CHAIN_TO_MAIN_META)
+		call_deferred("_run_auto_assemble")
 
 
 func _show_assembly_tutorial() -> void:
@@ -231,20 +240,7 @@ func _build() -> void:
 	status_label.add_theme_color_override("font_color", TEXT)
 	status_label.text = _status_text()
 	inspector.add_child(status_label)
-	if _family() == "space_segmented":
-		var install_set := _button(
-			GameManager.text("Install Equipped Set", "安装已装备组件"),
-			Vector2(14, 448),
-			Vector2(194, 42),
-			Color(0.08, 0.20, 0.31)
-		)
-		install_set.name = "InstallEquippedSpaceSet"
-		install_set.tooltip_text = GameManager.text(
-			"Installs every unlocked, equipped space component in dependency order.",
-			"按照依赖顺序安装所有已解锁且已装备的空间望远镜组件。"
-		)
-		install_set.pressed.connect(_install_all_space_parts)
-		inspector.add_child(install_set)
+	_add_flat_auto_assemble_button(inspector)
 	var finish := _button(GameManager.text("Finish Assembly", "完成组装"), Vector2(14, 500), Vector2(194, 42), Color(0.10, 0.30, 0.20))
 	finish.pressed.connect(_finish)
 	inspector.add_child(finish)
@@ -323,6 +319,7 @@ func _build_nested_main() -> void:
 	var finish := _button(GameManager.text("Finish Main Assembly", "完成主组装"), Vector2(14, 500), Vector2(194, 42), Color(0.10, 0.30, 0.20))
 	finish.pressed.connect(_finish)
 	inspector.add_child(finish)
+	_add_flat_auto_assemble_button(inspector)
 	var back := _button(GameManager.text("Back", "返回"), Vector2(14, 550), Vector2(194, 34), Color(0.10, 0.14, 0.22))
 	back.pressed.connect(func() -> void: GameManager.set_observatory_spawn("assembly"); GameManager.go("observatory"))
 	inspector.add_child(back)
@@ -406,6 +403,7 @@ func _build_newtonian_template_main() -> void:
 	template_ready_dot = shell["ready_dot"]
 	template_finish = shell["finish"]
 	status_label = template_feedback
+	_add_template_auto_assemble_button()
 	AssemblyUITemplate.add_hints_toggle(self, GameManager, _build)
 	_refresh_newtonian_main_inspector()
 
@@ -1790,26 +1788,139 @@ func _space_part_prerequisite(part_type: String) -> String:
 
 
 func _install_all_space_parts() -> void:
-	if install_animation_active:
+	# Compatibility entry point for older tests and scene bindings. The real
+	# implementation is the graduation-only animated dependency queue.
+	_on_auto_assemble_pressed()
+
+
+func _add_flat_auto_assemble_button(inspector: Control) -> void:
+	if not GameManager.postgraduate_free_build():
+		auto_assemble_button = null
 		return
+	auto_assemble_button = _button(
+		GameManager.text("Skip Animation", "跳过演出") if auto_assemble_running else GameManager.text("Auto Assemble", "自动装配"),
+		Vector2(14, 448),
+		Vector2(194, 42),
+		Color(0.08, 0.20, 0.31)
+	)
+	auto_assemble_button.name = "AutoAssembleButton"
+	auto_assemble_button.tooltip_text = GameManager.text(
+		"Install only the missing components in a valid structural sequence.",
+		"只安装缺失组件，并遵循有效的结构依赖顺序。"
+	)
+	auto_assemble_button.pressed.connect(_on_auto_assemble_pressed)
+	inspector.add_child(auto_assemble_button)
+
+
+func _add_template_auto_assemble_button() -> void:
+	if not GameManager.postgraduate_free_build():
+		auto_assemble_button = null
+		return
+	auto_assemble_button = _button(
+		GameManager.text("Skip Animation", "跳过演出") if auto_assemble_running else GameManager.text("Auto Assemble", "自动装配"),
+		Vector2(792, 546),
+		Vector2(200, 32),
+		Color(0.08, 0.20, 0.31)
+	)
+	auto_assemble_button.name = "AutoAssembleButton"
+	auto_assemble_button.tooltip_text = GameManager.text(
+		"Install only the missing components in a valid structural sequence.",
+		"只安装缺失组件，并遵循有效的结构依赖顺序。"
+	)
+	auto_assemble_button.pressed.connect(_on_auto_assemble_pressed)
+	add_child(auto_assemble_button)
+
+
+func _on_auto_assemble_pressed() -> void:
+	if auto_assemble_running:
+		auto_assemble_skip_requested = true
+		if auto_assemble_button != null:
+			auto_assemble_button.text = GameManager.text("Finishing...", "正在完成…")
+		return
+	if not GameManager.postgraduate_free_build():
+		return
+	if _is_nested_ground_family() and not GameManager.advanced_tube_completed():
+		GameManager.set_meta(AUTO_CHAIN_TO_TUBE_META, true)
+		GameManager.go("optical_tube_assembly")
+		return
+	_run_auto_assemble()
+
+
+func _run_auto_assemble() -> void:
+	if not GameManager.postgraduate_free_build() or auto_assemble_running:
+		return
+	var available: Array[String] = _main_parts() if _is_nested_ground_family() else order.duplicate()
+	var installed_parts: Array[String] = []
+	for part_type in available:
+		if _installed(part_type):
+			installed_parts.append(part_type)
+	var result := AssemblyDependencyGraph.topological_order(_family(), "main", available, installed_parts)
+	if not bool(result.get("ok", false)):
+		status_label.text = GameManager.text(
+			"Auto assembly stopped: this telescope dependency graph is invalid.",
+			"自动装配已停止：该望远镜的依赖图无效。"
+		)
+		push_error("%s auto-assembly dependency error: %s" % [_family(), result])
+		return
+	var queue: Array = result.get("order", [])
+	if queue.is_empty():
+		status_label.text = GameManager.text("Every available component is already installed.", "当前可用组件已全部安装。")
+		return
+
+	auto_assemble_running = true
+	auto_assemble_skip_requested = false
 	install_animation_active = true
-	var installed_count := 0
-	for part_type in order:
+	var failed := false
+	if auto_assemble_button != null:
+		auto_assemble_button.text = GameManager.text("Skip Animation", "跳过演出")
+	for part_type_value in queue:
+		if not is_inside_tree():
+			return
+		var part_type := str(part_type_value)
 		if _installed(part_type):
 			continue
-		var part := _part_for_type(part_type)
-		if part.is_empty():
-			continue
-		if GameManager.install_part(part_type, 0, str(part.get("id", ""))) >= 0:
-			installed_count += 1
+		_prepare_auto_assemble_page(part_type)
+		_build()
+		await get_tree().process_frame
+		var animation := _capture_part_animation(part_type)
+		var part := _main_template_part(part_type) if _is_nested_ground_family() else _part_for_type(part_type)
+		var part_id := "" if part_type == "optical_tube_assembly" else str(part.get("id", ""))
+		if GameManager.install_part(part_type, 0, part_id) < 0:
+			status_label.text = GameManager.install_part_block_reason(part_type, part_id)
+			failed = true
+			break
+		_play_part_animation(animation)
+		if not auto_assemble_skip_requested:
+			await get_tree().create_timer(0.40 if not InteractionFeedback.is_reduced_motion() else 0.10).timeout
+		_build()
+		await get_tree().process_frame
+		_finish_advanced_install_feedback(part_type, _is_nested_ground_family())
+		if not auto_assemble_skip_requested:
+			await get_tree().create_timer(0.11).timeout
+
 	install_animation_active = false
+	auto_assemble_running = false
+	auto_assemble_skip_requested = false
 	selected_type = ""
-	status_label.text = GameManager.text(
-		"Installed %d components across all three blueprint systems." % installed_count,
-		"已在三套蓝图系统中安装 %d 件组件。" % installed_count
-	)
-	InteractionFeedback.success(self)
 	_build()
+	await get_tree().process_frame
+	if failed:
+		return
+	InteractionFeedback.operation_chain(
+		self,
+		GameManager.text("Auto assembly complete", "自动装配完成"),
+		GameManager.text("Every missing component followed this instrument's structural dependency graph.", "所有缺失组件均按该仪器的结构依赖完成安装。"),
+		GameManager.text("Assembly check is ready", "装配检查已就绪"),
+		template_finish,
+		Color(0.42, 0.96, 0.58)
+	)
+
+
+func _prepare_auto_assemble_page(part_type: String) -> void:
+	if _family() == "space_segmented":
+		space_blueprint_page = _space_page_for_part(part_type)
+	elif _family() == "fast_radio":
+		fast_blueprint_page = _fast_page_for_part(part_type)
 
 
 func _capture_part_animation(part_type: String) -> Dictionary:

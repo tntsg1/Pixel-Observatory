@@ -2,6 +2,7 @@ extends Control
 
 const AssemblyManagerScript = preload("res://scripts/systems/assembly_manager.gd")
 const AssemblyUITemplate = preload("res://scripts/ui/assembly_ui_template.gd")
+const AssemblyDependencyGraph = preload("res://scripts/systems/assembly_dependency_graph.gd")
 
 const SCREEN_SIZE := Vector2(1024, 768)
 const PART_ORDER: Array[String] = ["tripod", "mount", "tube", "objective", "eyepiece", "focus_knob", "finder_scope"]
@@ -106,6 +107,9 @@ var finish_button: Button
 var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
+var auto_assemble_button: Button
+var auto_assemble_running := false
+var auto_assemble_skip_requested := false
 
 
 func _ready() -> void:
@@ -279,6 +283,7 @@ func _build_inspector_panel() -> void:
 	stats_list = shell["stats"]
 	ready_dot = shell["ready_dot"]
 	finish_button = shell["finish"]
+	_add_auto_assemble_button()
 	return
 	_panel(Vector2(776, 74), Vector2(232, 636), Color(0.045, 0.065, 0.115, 0.98), Color(0.78, 0.56, 0.28))
 	_dark_panel_add(Vector2(812, 80), Vector2(160, 34), Color(0.10, 0.13, 0.075, 0.96), Color(0.82, 0.62, 0.30))
@@ -989,6 +994,91 @@ func _try_install(slot_type: String) -> void:
 	_refresh_all()
 	_play_part_animation(animation)
 	call_deferred("_finish_install_feedback", slot_type)
+
+
+func _add_auto_assemble_button() -> void:
+	if not GameManager.postgraduate_free_build():
+		auto_assemble_button = null
+		return
+	auto_assemble_button = _button(
+		GameManager.text("Auto Assemble", "自动装配"),
+		Vector2(792, 546),
+		Vector2(200, 32)
+	)
+	auto_assemble_button.name = "AutoAssembleButton"
+	auto_assemble_button.tooltip_text = GameManager.text(
+		"Install the remaining owned parts in a physically valid sequence.",
+		"按符合结构依赖的顺序，依次安装尚未安装的个人器材零件。"
+	)
+	auto_assemble_button.pressed.connect(_on_auto_assemble_pressed)
+	add_child(auto_assemble_button)
+
+
+func _on_auto_assemble_pressed() -> void:
+	if auto_assemble_running:
+		auto_assemble_skip_requested = true
+		if auto_assemble_button != null:
+			auto_assemble_button.text = GameManager.text("Finishing...", "正在完成…")
+		return
+	_run_auto_assemble()
+
+
+func _run_auto_assemble() -> void:
+	if not GameManager.postgraduate_free_build() or auto_assemble_running:
+		return
+	var installed_parts: Array[String] = []
+	for part_type in PART_ORDER:
+		if _is_installed(part_type):
+			installed_parts.append(part_type)
+	var result := AssemblyDependencyGraph.topological_order("refractor", "main", PART_ORDER, installed_parts)
+	if not bool(result.get("ok", false)):
+		feedback_label.text = GameManager.text(
+			"Auto assembly stopped: the refractor dependency graph is invalid.",
+			"自动装配已停止：折射镜依赖图无效。"
+		)
+		push_error("Refractor auto-assembly dependency error: %s" % result)
+		return
+	var queue: Array = result.get("order", [])
+	if queue.is_empty():
+		feedback_label.text = GameManager.text("Every refractor component is already installed.", "折射镜组件已全部安装。")
+		return
+	auto_assemble_running = true
+	auto_assemble_skip_requested = false
+	install_animation_active = true
+	if auto_assemble_button != null:
+		auto_assemble_button.text = GameManager.text("Skip Animation", "跳过演出")
+	for part_type_value in queue:
+		if not is_inside_tree():
+			return
+		var part_type := str(part_type_value)
+		if _is_installed(part_type):
+			continue
+		var animation := _capture_part_animation(part_type)
+		var part_id := str(_part_for_type(part_type).get("id", ""))
+		if GameManager.install_part(part_type, 0, part_id) < 0:
+			feedback_label.text = GameManager.install_part_block_reason(part_type, part_id)
+			break
+		_play_part_animation(animation)
+		if not auto_assemble_skip_requested:
+			await get_tree().create_timer(0.38 if not InteractionFeedback.is_reduced_motion() else 0.10).timeout
+		_refresh_all()
+		_finish_install_feedback(part_type)
+		if not auto_assemble_skip_requested:
+			await get_tree().create_timer(0.11).timeout
+	install_animation_active = false
+	auto_assemble_running = false
+	auto_assemble_skip_requested = false
+	_refresh_all()
+	if auto_assemble_button != null:
+		auto_assemble_button.text = GameManager.text("Auto Assemble", "自动装配")
+	InteractionFeedback.operation_chain(
+		self,
+		GameManager.text("Auto assembly complete", "自动装配完成"),
+		GameManager.text("Each component followed the refractor support and optical dependency graph.", "每个组件均按折射镜支撑与光路依赖完成安装。"),
+		GameManager.text("Assembly check is ready", "装配检查已就绪"),
+		finish_button,
+		Color(0.42, 0.96, 0.58)
+	)
 
 
 func _capture_part_animation(part_type: String) -> Dictionary:

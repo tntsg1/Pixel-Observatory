@@ -24,23 +24,16 @@ func _initialize() -> void:
 	await process_frame
 	scene.call("_finish_array_takeover")
 	scene.stage = 3
-	scene.fold_step = 1
+	scene.call("_reset_fold_capture_validation", true)
 	scene.call("_rebuild")
 	for _i in range(3):
 		await process_frame
 
-	var dm_slider := scene.fold_slider as HSlider
-	var phase_slider := scene.fold_phase_slider as HSlider
-	_check(dm_slider != null and phase_slider != null, "DM and phase sliders are available")
-	if dm_slider == null or phase_slider == null:
-		scene.queue_free()
-		_finish()
-		return
-
-	dm_slider.value += dm_slider.step
+	scene.model.trial_dm += 0.2
+	scene.call("_fold_parameters_changed", "dm")
 	await process_frame
 	_check(audio.is_event_loop_playing("fast_fold_adjust"),
-		"changing DM starts the continuous mechanical loop")
+		"directly dragging DM starts the continuous mechanical loop")
 	var active_loops := audio.get("_loop_event_players") as Dictionary
 	var active_player := active_loops.get("fast_fold_adjust") as AudioStreamPlayer
 	_check(active_player != null and active_player.stream is AudioStreamOggVorbis,
@@ -52,19 +45,21 @@ func _initialize() -> void:
 		"the loop stops within 130 ms after values stop changing")
 
 	feedback_events.clear()
-	phase_slider.value += phase_slider.step
+	scene.model.trial_phase = fposmod(scene.model.trial_phase + 0.01, 1.0)
+	scene.call("_fold_parameters_changed", "phase")
 	await process_frame
 	_check(audio.is_event_loop_playing("fast_fold_adjust"),
-		"changing phase reuses the same continuous loop")
-	phase_slider.drag_ended.emit(true)
+		"direct phase adjustment reuses the same continuous loop")
+	scene.call("_stop_fold_adjust_audio")
 	await process_frame
 	_check(not audio.is_event_loop_playing("fast_fold_adjust"),
-		"releasing the slider stops the loop immediately")
+		"releasing direct manipulation stops the loop immediately")
 	_check(not feedback_events.has("ui_adjust"),
-		"releasing a FAST fold slider does not add a one-shot adjustment sound")
+		"releasing FAST fold manipulation does not add a one-shot adjustment sound")
 
 	for _i in range(5):
-		dm_slider.value += dm_slider.step
+		scene.model.trial_period_ms += 0.25
+		scene.call("_fold_parameters_changed", "period")
 		await process_frame
 	var loops := audio.get("_loop_event_players") as Dictionary
 	_check(loops.keys().count("fast_fold_adjust") == 1,

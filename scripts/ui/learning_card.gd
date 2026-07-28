@@ -112,6 +112,33 @@ class FastCompletionPlot extends Control:
 		draw_string(ThemeDB.fallback_font, pos, value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
+class RadioSourceSkyMap extends Control:
+	var ra_hours := 0.0
+	var dec_degrees := 0.0
+
+	func configure(identity: Dictionary) -> void:
+		ra_hours = clampf(float(identity.get("ra_hours", 0.0)), 0.0, 24.0)
+		dec_degrees = clampf(float(identity.get("dec_degrees", 0.0)), -90.0, 90.0)
+		queue_redraw()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color("061119"), true)
+		for hour in [0, 6, 12, 18, 24]:
+			var x := size.x * float(hour) / 24.0
+			draw_line(Vector2(x, 0), Vector2(x, size.y), Color(0.38, 0.61, 0.64, 0.20), 1.0)
+		for dec in [-60, -30, 0, 30, 60]:
+			var y := size.y * (90.0 - float(dec)) / 180.0
+			draw_line(Vector2(0, y), Vector2(size.x, y), Color(0.38, 0.61, 0.64, 0.16), 1.0)
+		var point := Vector2(
+			size.x * ra_hours / 24.0,
+			size.y * (90.0 - dec_degrees) / 180.0
+		)
+		draw_line(point - Vector2(7, 0), point + Vector2(7, 0), Color("8fe0c8"), 1.0)
+		draw_line(point - Vector2(0, 7), point + Vector2(0, 7), Color("8fe0c8"), 1.0)
+		draw_circle(point, 4.0, Color("d9fff3"), false, 1.5)
+		draw_rect(Rect2(Vector2.ZERO, size), Color("6f8d91"), false, 1.0)
+
+
 func _ready() -> void:
 	GameManager.language_changed.connect(_on_language_changed)
 	_build()
@@ -381,6 +408,7 @@ func _build_fast_mission_complete(data: Dictionary) -> void:
 	var type_label := _fast_type_label(kind)
 	var conclusion := _fast_conclusion_label(kind, str(observation.get("report_conclusion", "")))
 	var confidence := clampf(float(observation.get("confidence", product.get("confidence", 0.0))), 0.0, 1.0)
+	var identity := _fast_source_identity(obj, kind)
 
 	_mission_bg()
 	_title_banner()
@@ -395,23 +423,65 @@ func _build_fast_mission_complete(data: Dictionary) -> void:
 		Vector2(654, 120), Vector2(172, 18), 10, Color("9ed7c6"), HORIZONTAL_ALIGNMENT_CENTER
 	)
 
-	var plot_panel := _dark_panel(Vector2(190, 160), Vector2(438, 196), Color("041018"), Color("759296"))
+	var identity_panel := _dark_panel(Vector2(190, 154), Vector2(246, 210), Color("041018"), Color("759296"))
+	identity_panel.name = "FastSourceIdentity"
+	_label(GameManager.text("SOURCE IDENTITY", "目标身份"), Vector2(202, 162), Vector2(222, 20), 12, GOLD)
+	_label(str(identity.get("catalog_alias", target_name)), Vector2(202, 184), Vector2(222, 22), 13, Color("d9f1ea"))
+	var identity_class := _label(
+		GameManager.text(str(identity.get("class_en", type_label)), str(identity.get("class_zh", type_label))),
+		Vector2(202, 207), Vector2(222, 34), 10, Color("9ed7c6")
+	)
+	identity_class.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	identity_class.max_lines_visible = 2
+	var sky_map := RadioSourceSkyMap.new()
+	sky_map.name = "FastSourceSkyMap"
+	sky_map.position = Vector2(202, 247)
+	sky_map.size = Vector2(104, 82)
+	sky_map.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sky_map.configure(identity)
+	add_child(sky_map)
+	_label("RA", Vector2(314, 247), Vector2(22, 18), 9, MUTED)
+	_label(str(identity.get("ra_j2000", "—")), Vector2(336, 247), Vector2(88, 18), 9, TEXT, HORIZONTAL_ALIGNMENT_RIGHT)
+	_label("Dec", Vector2(314, 266), Vector2(30, 18), 9, MUTED)
+	_label(str(identity.get("dec_j2000", "—")), Vector2(340, 266), Vector2(84, 18), 9, TEXT, HORIZONTAL_ALIGNMENT_RIGHT)
+	_label(
+		GameManager.text(
+			"%s · %s" % [str(identity.get("epoch", "J2000")), str(identity.get("constellation_en", "—"))],
+			"%s · %s" % [str(identity.get("epoch", "J2000")), str(identity.get("constellation_zh", "—"))]
+		),
+		Vector2(314, 285), Vector2(110, 18), 9, Color("8fc6c7"), HORIZONTAL_ALIGNMENT_RIGHT
+	)
+	_label(
+		GameManager.text(
+			"Distance ~%.2f kpc" % float(identity.get("distance_kpc", 0.0)),
+			"距离估计约 %.2f kpc" % float(identity.get("distance_kpc", 0.0))
+		),
+		Vector2(314, 304), Vector2(110, 18), 9, Color("8fc6c7"), HORIZONTAL_ALIGNMENT_RIGHT
+	)
+	var significance := _label(
+		GameManager.text(str(identity.get("significance_en", "")), str(identity.get("significance_zh", ""))),
+		Vector2(202, 335), Vector2(222, 24), 9, MUTED
+	)
+	significance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	significance.max_lines_visible = 2
+
+	var plot_panel := _dark_panel(Vector2(446, 154), Vector2(242, 210), Color("041018"), Color("759296"))
 	plot_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var plot := FastCompletionPlot.new()
 	plot.name = "FastRadioCompletionPlot"
 	plot.position = Vector2(6, 6)
-	plot.size = Vector2(426, 184)
+	plot.size = Vector2(230, 198)
 	plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	plot.configure(product, kind)
 	plot_panel.add_child(plot)
 
-	_label(GameManager.text("MEASURED RADIO DATA", "射电测量记录"), Vector2(650, 158), Vector2(180, 22), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(GameManager.text("THIS OBSERVATION", "本轮测量"), Vector2(698, 158), Vector2(136, 22), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var metrics := _fast_metric_rows(observation, product, kind)
 	for index in range(metrics.size()):
 		var row: Array = metrics[index]
-		var y := 186.0 + float(index) * 27.0
-		_label(str(row[0]), Vector2(650, y), Vector2(88, 20), 10, MUTED)
-		var value_label := _label(str(row[1]), Vector2(738, y), Vector2(94, 20), 11, Color("d9f1ea"), HORIZONTAL_ALIGNMENT_RIGHT)
+		var y := 184.0 + float(index) * 24.0
+		_label(str(row[0]), Vector2(698, y), Vector2(60, 20), 9, MUTED)
+		var value_label := _label(str(row[1]), Vector2(758, y), Vector2(76, 20), 10, Color("d9f1ea"), HORIZONTAL_ALIGNMENT_RIGHT)
 		value_label.name = "FastMetric_%d" % index
 		if not InteractionFeedback.is_reduced_motion():
 			value_label.modulate.a = 0.0
@@ -475,6 +545,27 @@ func _build_fast_mission_complete(data: Dictionary) -> void:
 	else:
 		_build_next_mission_route()
 	_build_completion_navigation(level)
+
+
+func _fast_source_identity(obj: Dictionary, kind: String) -> Dictionary:
+	var identity_value: Variant = obj.get("radio_identity", {})
+	if identity_value is Dictionary and not (identity_value as Dictionary).is_empty():
+		return (identity_value as Dictionary).duplicate(true)
+	return {
+		"catalog_alias": _dict_inline(obj, "name"),
+		"class_en": "Radio source" if kind != "pulsar" else "Radio pulsar",
+		"class_zh": "射电源" if kind != "pulsar" else "射电脉冲星",
+		"ra_j2000": "—",
+		"dec_j2000": "—",
+		"ra_hours": 0.0,
+		"dec_degrees": 0.0,
+		"epoch": "J2000",
+		"constellation_en": "Catalogue position unavailable",
+		"constellation_zh": "暂无目录位置",
+		"distance_kpc": 0.0,
+		"significance_en": "Identity information is kept separate from the measurements made in this observation.",
+		"significance_zh": "目标目录身份与本轮实际测量值分开记录。",
+	}
 
 
 func _fast_completion_product(observation: Dictionary) -> Dictionary:
