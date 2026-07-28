@@ -10,7 +10,8 @@ const SESSION_COOKIE = "po_session";
 const SESSION_SECONDS = 60 * 60 * 24 * 30;
 const MAX_SAVE_BYTES = 900_000;
 const MAX_FEEDBACK_BYTES = 8_000;
-const PASSWORD_ITERATIONS = 310_000;
+// Cloudflare Workers Web Crypto currently caps PBKDF2 at 100,000 rounds.
+const PASSWORD_ITERATIONS = 100_000;
 const VISITOR_ALLOWED_ORIGINS = new Set([
 	"https://pixelobservatorygame.com",
 	"https://tntsg1.github.io",
