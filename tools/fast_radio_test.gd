@@ -251,6 +251,10 @@ func _test_scene(gm: Node) -> void:
 	m.trial_dm = m.true_dm
 	m.trial_phase = m.true_phase
 	m.set_integration(300.0)
+	scene.call("_fold_parameters_changed", "period")
+	for _window in range(3):
+		scene.call("_record_fold_validation_window")
+	_check(bool(scene.get("fold_candidate_ready")), "5. three coherent fold windows unlock candidate confirmation")
 	scene.call("_confirm_fold")
 	await process_frame
 	_check(bool(scene.get("prediction_running")), "5. valid fold opens the next-pulse prediction instead of auto-completing")

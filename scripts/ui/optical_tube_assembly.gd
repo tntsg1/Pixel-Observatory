@@ -1,6 +1,9 @@
 extends Control
 
 const AssemblyUITemplate = preload("res://scripts/ui/assembly_ui_template.gd")
+const AssemblyDependencyGraph = preload("res://scripts/systems/assembly_dependency_graph.gd")
+const AUTO_CHAIN_TO_TUBE_META := "postgraduate_auto_assemble_tube"
+const AUTO_CHAIN_TO_MAIN_META := "postgraduate_auto_assemble_main"
 
 const BG := Color(0.018, 0.028, 0.055)
 const PANEL := Color(0.040, 0.065, 0.110)
@@ -70,6 +73,9 @@ var template_finish: Button
 var part_card_controls: Dictionary = {}
 var slot_controls: Dictionary = {}
 var install_animation_active := false
+var auto_assemble_button: Button
+var auto_assemble_running := false
+var auto_assemble_skip_requested := false
 
 
 func _ready() -> void:
@@ -80,6 +86,8 @@ func _ready() -> void:
 	_build()
 	InteractionFeedback.page_enter(self)
 	call_deferred("_show_tube_tutorial")
+	if GameManager.postgraduate_free_build() and bool(GameManager.get_meta(AUTO_CHAIN_TO_TUBE_META, false)):
+		call_deferred("_run_auto_assemble")
 
 
 func _show_tube_tutorial() -> void:
@@ -138,6 +146,7 @@ func _build() -> void:
 	var save_button := _button(GameManager.text("Save Tube Assembly", "保存镜筒组装"), Vector2(14, 500), Vector2(192, 42), Color(0.10, 0.30, 0.20))
 	save_button.pressed.connect(_save_assembly)
 	inspector.add_child(save_button)
+	_add_flat_auto_assemble_button(inspector)
 	var back := _button(GameManager.text("Back", "返回"), Vector2(14, 550), Vector2(192, 34), Color(0.10, 0.14, 0.22))
 	back.pressed.connect(_back)
 	inspector.add_child(back)
@@ -219,6 +228,7 @@ func _build_newtonian_template() -> void:
 	template_ready_dot = shell["ready_dot"]
 	template_finish = shell["finish"]
 	status_label = template_feedback
+	_add_template_auto_assemble_button()
 	AssemblyUITemplate.add_hints_toggle(self, GameManager, _build)
 	_refresh_newtonian_tube_inspector()
 
@@ -525,6 +535,116 @@ func _install_subpart(slot_subpart: String) -> void:
 	_build()
 	_play_part_animation(animation)
 	call_deferred("_finish_install_feedback", slot_subpart)
+
+
+func _add_flat_auto_assemble_button(inspector: Control) -> void:
+	if not GameManager.postgraduate_free_build():
+		auto_assemble_button = null
+		return
+	auto_assemble_button = _button(
+		GameManager.text("Skip Animation", "跳过演出") if auto_assemble_running else GameManager.text("Auto Assemble", "自动装配"),
+		Vector2(14, 448),
+		Vector2(192, 42),
+		Color(0.08, 0.20, 0.31)
+	)
+	auto_assemble_button.name = "AutoAssembleButton"
+	auto_assemble_button.pressed.connect(_on_auto_assemble_pressed)
+	inspector.add_child(auto_assemble_button)
+
+
+func _add_template_auto_assemble_button() -> void:
+	if not GameManager.postgraduate_free_build():
+		auto_assemble_button = null
+		return
+	auto_assemble_button = _button(
+		GameManager.text("Skip Animation", "跳过演出") if auto_assemble_running else GameManager.text("Auto Assemble", "自动装配"),
+		Vector2(792, 546),
+		Vector2(200, 32),
+		Color(0.08, 0.20, 0.31)
+	)
+	auto_assemble_button.name = "AutoAssembleButton"
+	auto_assemble_button.pressed.connect(_on_auto_assemble_pressed)
+	add_child(auto_assemble_button)
+
+
+func _on_auto_assemble_pressed() -> void:
+	if auto_assemble_running:
+		auto_assemble_skip_requested = true
+		if auto_assemble_button != null:
+			auto_assemble_button.text = GameManager.text("Finishing...", "正在完成…")
+		return
+	_run_auto_assemble()
+
+
+func _run_auto_assemble() -> void:
+	if not GameManager.postgraduate_free_build() or auto_assemble_running:
+		return
+	var family := str(config.get("family", GameManager.assembly_context_family()))
+	var available: Array[String] = []
+	for value in config.get("order", []):
+		available.append(str(value))
+	var installed_parts: Array[String] = []
+	for part_type in available:
+		if bool(installed.get(part_type, false)):
+			installed_parts.append(part_type)
+	var result := AssemblyDependencyGraph.topological_order(family, "tube", available, installed_parts)
+	if not bool(result.get("ok", false)):
+		status_label.text = GameManager.text(
+			"Auto assembly stopped: the tube dependency graph is invalid.",
+			"自动装配已停止：镜筒依赖图无效。"
+		)
+		push_error("%s tube auto-assembly dependency error: %s" % [family, result])
+		return
+	var queue: Array = result.get("order", [])
+	if queue.is_empty():
+		_finish_auto_assemble_chain_if_needed()
+		return
+
+	auto_assemble_running = true
+	auto_assemble_skip_requested = false
+	install_animation_active = true
+	if auto_assemble_button != null:
+		auto_assemble_button.text = GameManager.text("Skip Animation", "跳过演出")
+	for value in queue:
+		if not is_inside_tree():
+			return
+		var subpart := str(value)
+		if bool(installed.get(subpart, false)):
+			continue
+		var animation := _capture_part_animation(subpart)
+		installed[subpart] = true
+		GameManager.update_tube_subassembly_progress(installed)
+		_play_part_animation(animation)
+		if not auto_assemble_skip_requested:
+			await get_tree().create_timer(0.40 if not InteractionFeedback.is_reduced_motion() else 0.10).timeout
+		_build()
+		await get_tree().process_frame
+		_finish_install_feedback(subpart)
+		if not auto_assemble_skip_requested:
+			await get_tree().create_timer(0.11).timeout
+	install_animation_active = false
+	auto_assemble_running = false
+	auto_assemble_skip_requested = false
+	selected_subpart = ""
+	_build()
+	await get_tree().process_frame
+	InteractionFeedback.operation_chain(
+		self,
+		GameManager.text("Tube auto assembly complete", "镜筒自动装配完成"),
+		GameManager.text("Supports were seated before their optical components.", "承载结构先就位，光学组件随后完成安装。"),
+		GameManager.text("Tube check is ready", "镜筒检查已就绪"),
+		template_finish,
+		Color(0.42, 0.96, 0.58)
+	)
+	_finish_auto_assemble_chain_if_needed()
+
+
+func _finish_auto_assemble_chain_if_needed() -> void:
+	if not bool(GameManager.get_meta(AUTO_CHAIN_TO_TUBE_META, false)):
+		return
+	GameManager.remove_meta(AUTO_CHAIN_TO_TUBE_META)
+	GameManager.set_meta(AUTO_CHAIN_TO_MAIN_META, true)
+	_save_assembly()
 
 
 func _capture_part_animation(subpart: String) -> Dictionary:

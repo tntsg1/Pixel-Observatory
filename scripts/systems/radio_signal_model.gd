@@ -447,6 +447,26 @@ func phase_match() -> float:
 	return clampf(1.0 - wrapped_error / 0.28, 0.0, 1.0)
 
 
+func period_solution_state() -> String:
+	if target_kind != "pulsar":
+		return "fundamental"
+	var ratio := trial_period_ms / maxf(true_period_ms, 0.001)
+	if absf(ratio - 1.0) <= 0.018:
+		return "fundamental"
+	if absf(ratio - 0.5) <= 0.035:
+		return "half_period"
+	if absf(ratio - 2.0) <= 0.06:
+		return "double_period"
+	return "drifting"
+
+
+func fold_phase_drift_per_window() -> float:
+	if target_kind != "pulsar":
+		return 0.0
+	var relative_error := (trial_period_ms - true_period_ms) / maxf(true_period_ms, 0.001)
+	return clampf(relative_error * 5.4, -0.46, 0.46)
+
+
 func subband_offsets(count: int) -> Array:
 	var out: Array = []
 	var mismatch := 1.0 - dm_match()
@@ -470,24 +490,73 @@ func fold_snr() -> float:
 
 
 func folded_profile(bins: int) -> Array:
-	# A clean pulse appears only when both period and DM align. A wrong period
-	# visibly splits the profile; a wrong DM broadens it across sub-bands.
+	return folded_profile_for_window(bins, 0)
+
+
+func folded_profile_for_window(bins: int, window_index: int) -> Array:
+	# A clean pulse appears only when period, DM and phase align. Consecutive
+	# windows expose a wrong period as horizontal drift instead of a hidden
+	# percentage. Half- and double-period aliases remain plausible but visibly
+	# split, so one lucky peak cannot pass as a stable candidate.
 	var out: Array = []
 	var sharp := period_match() * dm_match()
 	var width := lerpf(0.5, 0.045, sharp)         # phase width of the pulse
 	var amp := clampf(fold_snr() / 20.0, 0.05, 1.0)
+	var solution := period_solution_state()
 	var split := (1.0 - period_match()) * 0.23
+	if solution == "half_period":
+		# A half-period alias can look deceptively convincing: two narrow peaks
+		# appear per trial cycle instead of one stable fundamental pulse.
+		width = 0.07
+		amp = maxf(amp, 0.5)
+		split = 0.25
+	elif solution == "double_period":
+		# A double-period alias retains a narrow pulse but alternates in energy
+		# between validation windows, exposing the skipped rotation.
+		width = 0.085
+		amp = maxf(amp, 0.42)
+		split = 0.18
 	var phase_shift := (trial_phase - true_phase) * 0.42
+	phase_shift += fold_phase_drift_per_window() * float(window_index)
 	for i in range(bins):
 		var phase := float(i) / float(bins)
-		var dphi_a := (phase - (0.5 + phase_shift - split)) / width
-		var dphi_b := (phase - (0.5 + phase_shift + split)) / width
+		var center_a := fposmod(0.5 + phase_shift - split, 1.0)
+		var center_b := fposmod(0.5 + phase_shift + split, 1.0)
+		var delta_a := fposmod(phase - center_a + 0.5, 1.0) - 0.5
+		var delta_b := fposmod(phase - center_b + 0.5, 1.0) - 0.5
+		var dphi_a := delta_a / width
+		var dphi_b := delta_b / width
 		var v := amp * exp(-dphi_a * dphi_a)
-		if split > 0.015:
-			v += amp * 0.72 * exp(-dphi_b * dphi_b)
+		if split > 0.015 or solution in ["half_period", "double_period"]:
+			var alias_gain := 0.84 if solution == "half_period" else (0.62 if solution == "double_period" else 0.72)
+			v += amp * alias_gain * exp(-dphi_b * dphi_b)
+		if solution == "double_period" and window_index % 2 == 1:
+			v *= 0.62
 		v += 0.06 * sin(phase * TAU * 3.0) * (1.0 - sharp)   # residual smear
 		out.append(clampf(v, 0.0, 1.2))
 	return out
+
+
+func folded_peak_phase(window_index: int) -> float:
+	var profile := folded_profile_for_window(128, window_index)
+	var peak_index := 0
+	var peak_value := -INF
+	for index in range(profile.size()):
+		var value := float(profile[index])
+		if value > peak_value:
+			peak_value = value
+			peak_index = index
+	return float(peak_index) / float(maxi(profile.size() - 1, 1))
+
+
+func candidate_window_is_stable(previous_peak_phase: float, window_index: int) -> bool:
+	if period_solution_state() != "fundamental":
+		return false
+	if dm_match() < 0.78 or phase_match() < 0.72:
+		return false
+	var current_peak := folded_peak_phase(window_index)
+	var wrapped_delta := absf(fposmod(current_peak - previous_peak_phase + 0.5, 1.0) - 0.5)
+	return wrapped_delta <= 0.035
 
 
 func pulse_width_ms() -> float:
@@ -650,7 +719,9 @@ func report() -> Dictionary:
 		and integration_s >= required_integration_s \
 		and snr >= report_snr_threshold \
 		and period_match() > period_threshold \
-		and dm_match() > dm_threshold
+		and dm_match() > dm_threshold \
+		and phase_match() >= 0.72 \
+		and period_solution_state() == "fundamental"
 	return {
 		"target_id": target_id,
 		"kind": target_kind,

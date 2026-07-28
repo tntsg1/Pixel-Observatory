@@ -1,0 +1,112 @@
+{
+  "refractor": {
+    "main": {
+      "tripod": [],
+      "mount": ["tripod"],
+      "tube": ["mount"],
+      "objective": ["tube"],
+      "eyepiece": ["tube"],
+      "focus_knob": ["tube"],
+      "finder_scope": ["tube"]
+    }
+  },
+  "newtonian": {
+    "main": {
+      "tripod": [],
+      "mount": ["tripod"],
+      "optical_tube_assembly": ["mount"],
+      "finder_scope": ["optical_tube_assembly"]
+    },
+    "tube": {
+      "reflector_tube": [],
+      "mirror_cell": ["reflector_tube"],
+      "primary_mirror": ["mirror_cell"],
+      "secondary_spider": ["reflector_tube"],
+      "secondary_mirror": ["secondary_spider"],
+      "focuser": ["reflector_tube"],
+      "eyepiece": ["focuser"],
+      "collimation_tool": []
+    }
+  },
+  "dobsonian": {
+    "main": {
+      "mount": [],
+      "optical_tube_assembly": ["mount"],
+      "finder_scope": ["optical_tube_assembly"]
+    },
+    "tube": {
+      "reflector_tube": [],
+      "mirror_cell": ["reflector_tube"],
+      "primary_mirror": ["mirror_cell"],
+      "secondary_spider": ["reflector_tube"],
+      "secondary_mirror": ["secondary_spider"],
+      "focuser": ["reflector_tube"],
+      "eyepiece": ["focuser"],
+      "collimation_tool": []
+    }
+  },
+  "cassegrain": {
+    "main": {
+      "tripod": [],
+      "mount": ["tripod"],
+      "optical_tube_assembly": ["mount"],
+      "finder_scope": ["optical_tube_assembly"]
+    },
+    "tube": {
+      "reflector_tube": [],
+      "mirror_cell": ["reflector_tube"],
+      "primary_mirror": ["mirror_cell"],
+      "secondary_mirror": ["reflector_tube"],
+      "central_baffle": ["reflector_tube"],
+      "focuser": ["reflector_tube"],
+      "eyepiece": ["focuser"],
+      "collimation_tool": []
+    }
+  },
+  "gregorian": {
+    "main": {
+      "tripod": [],
+      "mount": ["tripod"],
+      "optical_tube_assembly": ["mount"]
+    },
+    "tube": {
+      "reflector_tube": [],
+      "mirror_cell": ["reflector_tube"],
+      "primary_mirror": ["mirror_cell"],
+      "secondary_mirror": ["reflector_tube"],
+      "central_baffle": ["reflector_tube"],
+      "focuser": ["reflector_tube"],
+      "eyepiece": ["focuser"],
+      "collimation_tool": []
+    }
+  },
+  "space_segmented": {
+    "main": {
+      "spacecraft_bus": [],
+      "deployable_tower": ["spacecraft_bus"],
+      "deployment_hinges": ["deployable_tower"],
+      "primary_mirror": ["deployable_tower"],
+      "secondary_mirror": ["primary_mirror"],
+      "detector": ["secondary_mirror"],
+      "sunshield": ["deployment_hinges"],
+      "solar_array": ["spacecraft_bus"],
+      "antenna": ["spacecraft_bus"],
+      "radiator": ["sunshield"],
+      "steering_mirror": ["primary_mirror"],
+      "tertiary_mirror": ["secondary_mirror"],
+      "instrument_bay": ["detector"],
+      "detector_module": ["instrument_bay"],
+      "nircam": ["instrument_bay"],
+      "nirspec": ["instrument_bay"],
+      "miri": ["instrument_bay", "radiator"],
+      "fgs_niriss": ["instrument_bay", "steering_mirror"]
+    }
+  },
+  "fast_radio": {
+    "main": {
+      "radio_dish": [],
+      "receiver": ["radio_dish"],
+      "signal_processor": ["receiver"]
+    }
+  }
+}
