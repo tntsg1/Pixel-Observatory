@@ -4,7 +4,6 @@ signal sync_status_changed(status: String, detail: String)
 
 const SESSION_PATH := "/api/auth/session"
 const SAVE_PATH := "/api/cloud-save"
-const REQUEST_HEADERS := PackedStringArray(["Content-Type: application/json", "Accept: application/json"])
 const UPLOAD_DEBOUNCE_SECONDS := 1.25
 
 var _api_origin := ""
@@ -94,7 +93,8 @@ func _start_request(operation: String, path: String, method: HTTPClient.Method, 
 		return
 	_busy = true
 	_operation = operation
-	var error := _request.request(_api_origin + path, REQUEST_HEADERS, method, body)
+	var headers := PackedStringArray(["Content-Type: application/json", "Accept: application/json"])
+	var error := _request.request(_api_origin + path, headers, method, body)
 	if error != OK:
 		_busy = false
 		_operation = ""
