@@ -5,6 +5,7 @@
 <title>Starlight Observatory</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Starlight Observatory is a pixel astronomy simulation. Build your telescope, read the sky, and discover more.">
+<link rel="stylesheet" href="account.css">
 <style>
   :root{
     --ink-0:#05070d;
@@ -614,6 +615,10 @@
     <a href="#difference"><span class="en">Difference</span><span class="zh">独特之处</span></a>
     <a href="#story"><span class="en">Story</span><span class="zh">剧情</span></a>
   </div>
+  <button class="gnav-tool" id="account-open" type="button" aria-label="Account">
+    <span aria-hidden="true">&#9673;</span><span id="account-label">Account</span>
+  </button>
+  <button class="gnav-tool gnav-feedback" id="feedback-open" type="button">Feedback</button>
   <div class="lang-sw" role="group" aria-label="Language / 语言">
     <button type="button" id="langZh" aria-pressed="false">中文</button>
     <button type="button" id="langEn" aria-pressed="true">EN</button>
@@ -2202,5 +2207,6 @@
   }
 })();
 </script>
+<script src="account.js" defer></script>
 </body>
 </html>

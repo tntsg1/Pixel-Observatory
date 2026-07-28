@@ -16,6 +16,17 @@
       "bucket_name": "pixel-observatory-game-assets"
     }
   ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "pixel-observatory",
+      "database_id": "9a40a4cb-7416-4349-83b7-eafb4b9cac88",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAD_rkcP9V8E93XKT"
+  },
   "durable_objects": {
     "bindings": [
       {

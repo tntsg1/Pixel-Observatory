@@ -19,12 +19,16 @@ func load_progress(default_progress: Dictionary) -> Dictionary:
 	return _merge_defaults(default_progress, parsed)
 
 
-func save_progress(progress: Dictionary) -> void:
+func save_progress(progress: Dictionary, queue_cloud: bool = true) -> void:
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		push_warning("Could not write savegame.")
 		return
 	file.store_string(JSON.stringify(progress, "\t"))
+	if queue_cloud:
+		var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+		if cloud_sync != null and cloud_sync.has_method("queue_upload"):
+			cloud_sync.call_deferred("queue_upload", progress.duplicate(true))
 
 
 func reset_progress(default_progress: Dictionary) -> Dictionary:
