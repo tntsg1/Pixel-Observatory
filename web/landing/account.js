@@ -63,7 +63,7 @@
         <button class="po-secondary" id="po-change-password" type="button">${t("Change password","修改密码")}</button>
         <button class="po-secondary" id="po-logout" type="button">${t("Sign out","退出登录")}</button></div>`;
       document.getElementById("po-change-password").onclick=renderPasswordChange;
-      document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; updateNav(); renderAccount(); };
+      document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; updateNav(); document.dispatchEvent(new CustomEvent("po:session-changed")); renderAccount(); };
       return;
     }
     accountContent.innerHTML=`<h2>${t("Observer account","观测员账号")}</h2>
@@ -85,7 +85,7 @@
       status.textContent=""; submit.disabled=true;
       try{
         const data=await api(`/api/auth/${mode}`,{method:"POST",body:JSON.stringify({username:form.get("username"),password:form.get("password"),website:form.get("website"),turnstileToken:mode==="register"?challengeToken():undefined})});
-        state.user=data.user; updateNav(); renderAccount();
+        state.user=data.user; updateNav(); document.dispatchEvent(new CustomEvent("po:session-changed")); renderAccount();
       }catch(error){ status.textContent=error.message; if(mode==="register"&&state.widgetId!==null) window.turnstile?.reset(state.widgetId); }
       finally{ submit.disabled=false; }
     };
@@ -120,7 +120,9 @@
       submit.disabled=true; status.textContent="";
       try{
         const data=await api("/api/feedback",{method:"POST",body:JSON.stringify({category:form.get("category"),message:form.get("message"),website:form.get("website"),turnstileToken:challengeToken(),page:location.href,context:{language:document.documentElement.dataset.lang,viewport:`${innerWidth}x${innerHeight}`}})});
-        feedbackContent.innerHTML=`<div class="po-receipt"><strong>${t("Signal received.","信号已收到。")}</strong><p>${t("Thank you for showing us where the observatory can see more clearly. Your report is now waiting in the developer console.","谢谢你指出天文台还能看得更清楚的地方。这条反馈已经进入开发者工作台。")}</p><p>${t("Receipt","回执编号")}: <code>${esc(data.receipt)}</code></p></div>`;
+        feedbackContent.innerHTML=`<div class="po-receipt"><strong>${t("Signal received.","反馈已送达。")}</strong><p>${t("Thank you for showing us where the observatory can see more clearly. Your report is now waiting in the developer console.","谢谢你认真告诉我们哪里还不够好。这条反馈已经进入开发者工作台。")}</p><p>${t("Receipt","回执编号")}: <code>${esc(data.receipt)}</code></p>${data.conversationId?`<p>${t("A personal thank-you letter is waiting in your inbox. The developer can continue replying there.","一封专门写给你的感谢信已经送到信箱，开发者之后也可以在那里继续回复你。")}</p><button class="po-primary" id="po-open-feedback-letter" type="button">${t("Read the letter","查看感谢信")}</button>`:""}</div>`;
+        const letterButton=document.getElementById("po-open-feedback-letter");
+        if(letterButton) letterButton.onclick=()=>{close(feedbackModal);document.dispatchEvent(new CustomEvent("po:open-inbox"));};
       }catch(error){ status.textContent=error.message; if(state.widgetId!==null) window.turnstile?.reset(state.widgetId); submit.disabled=false; }
     };
   }

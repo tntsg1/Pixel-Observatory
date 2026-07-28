@@ -27,6 +27,10 @@
   "vars": {
     "TURNSTILE_SITE_KEY": "0x4AAAAAAD_rkcP9V8E93XKT"
   },
+  "ai": {
+    "binding": "AI",
+    "remote": true
+  },
   "durable_objects": {
     "bindings": [
       {

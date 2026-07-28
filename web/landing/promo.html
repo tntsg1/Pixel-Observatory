@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Starlight Observatory is a pixel astronomy simulation. Build your telescope, read the sky, and discover more.">
 <link rel="stylesheet" href="account.css">
+<link rel="stylesheet" href="inbox.css">
 <style>
   :root{
     --ink-0:#05070d;
@@ -142,9 +143,10 @@
   /* ---------- hero ---------- */
   .hero{
     min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:80px 24px 110px;position:relative;overflow:hidden;
+    text-align:center;padding:80px 24px 110px;position:relative;overflow:hidden;pointer-events:none;
   }
-  #sky{position:absolute;inset:0;width:100%;height:100%}
+  .hero a,.hero button{pointer-events:auto}
+  #sky{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   .hero-veil{
     position:absolute;inset:0;pointer-events:none;
     background:
@@ -617,6 +619,10 @@
   </div>
   <button class="gnav-tool" id="account-open" type="button" aria-label="Account">
     <span aria-hidden="true">&#9673;</span><span id="account-label">Account</span>
+  </button>
+  <button class="gnav-tool gnav-inbox" id="inbox-open" type="button" aria-label="Inbox">
+    <span aria-hidden="true">&#9993;</span><span class="en">Inbox</span><span class="zh">信箱</span>
+    <b id="inbox-badge" hidden>0</b>
   </button>
   <button class="gnav-tool gnav-feedback" id="feedback-open" type="button">Feedback</button>
   <div class="lang-sw" role="group" aria-label="Language / 语言">
@@ -2208,5 +2214,6 @@
 })();
 </script>
 <script src="account.js" defer></script>
+<script src="inbox.js" defer></script>
 </body>
 </html>
