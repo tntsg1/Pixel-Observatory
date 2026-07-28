@@ -34,6 +34,8 @@ const ACQUISITION_FINE_TOLERANCE_DEG := 1.4
 const ACQUISITION_FINE_SPEED_DEG_S := 0.42
 const ACQUISITION_MAX_SPEED_DEG_S := 8.0
 const FOLD_ADJUST_IDLE_SECONDS := 0.10
+const REPORT_ANALYSIS_DURATION := 4.2
+const REPORT_ANALYSIS_SKIP_DELAY := 1.0
 const FAST_TAKEOVER_ARRAY_RECT := Rect2(30, 138, 900, 344)
 const FAST_TAKEOVER_STATUS_RECT := Rect2(94, 504, 772, 118)
 
@@ -130,6 +132,18 @@ var prediction_arm_button: Button
 var report_choice := ""
 var report_choice_buttons: Dictionary = {}
 var submit_button: Button
+var report_product: Dictionary = {}
+var report_product_plot: RadioPlot
+var report_analysis_progress := 0.0
+var report_analysis_elapsed := 0.0
+var report_analysis_phase := -1
+var report_analysis_running := false
+var report_analysis_status: Label
+var report_analysis_skip_button: Button
+var report_evidence_label: Label
+var report_reanalyse_button: Button
+var report_next_target_button: Button
+var report_choose_next_requested := false
 var aim_capture_progress := 0.0
 var aim_capture_state := ""
 var discovery_phase := 0.0
@@ -194,6 +208,7 @@ func _exit_tree() -> void:
 	stage_transition.abort()
 	_stop_tune_ratchet(0.0)
 	_stop_fold_adjust_audio(0.0)
+	report_analysis_running = false
 
 
 static func fast_zenith_angle(altitude_deg: float) -> float:
@@ -422,6 +437,8 @@ func _profile() -> Dictionary:
 func _process(delta: float) -> void:
 	if model == null:
 		return
+	if report_analysis_running:
+		_advance_report_analysis(delta)
 	if tune_drag_mode != "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		tune_drag_mode = ""
 		_stop_tune_ratchet()
@@ -805,6 +822,10 @@ func _rebuild() -> void:
 	_label(GameManager.text("FAST RADIO OBSERVATION", "FAST 射电观测"), Vector2(24, 18), Vector2(976, 30), 23, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var target := GameManager.current_target()
 	var free_entry := GameManager.active_remote_free_entry("radio")
+	if acquisition_active:
+		var acquisition_entry := _selected_acquisition_entry()
+		if not acquisition_entry.is_empty():
+			free_entry = acquisition_entry
 	var target_name := (
 		GameManager.text(str(free_entry.get("name_en", "")), str(free_entry.get("name_zh", "")))
 		if not free_entry.is_empty()
@@ -1075,12 +1096,22 @@ func _draw_array_takeover(plot: RadioPlot) -> void:
 	_draw_plot_text(
 		plot,
 		GameManager.text(
-			"Tonight the task changes: do not photograph the sky; recover a known pulsar's rhythm from noise.",
-			"今晚的任务变了：不再拍下天空，而是从噪声中找回一颗已知脉冲星的节奏。"
+			"FAST receives radio timing, not a colour portrait. It excels at pulsars, hydrogen lines and fast bursts.",
+			"FAST 接收的是射电时序，不是彩色照片；它擅长脉冲星、中性氢谱线和快速射电爆发。"
 		),
 		Vector2(36, 92),
-		11,
+		10,
 		CYAN
+	)
+	_draw_plot_text(
+		plot,
+		GameManager.text(
+			"Tonight, recover a known pulsar's rhythm from noise instead of imaging a planet surface.",
+			"今晚要从噪声中找回一颗已知脉冲星的节奏，而不是观察行星表面。"
+		),
+		Vector2(36, 112),
+		10,
+		MUTED
 	)
 	var status_lines := [
 		GameManager.text("ARRAY SURFACE ........ ONLINE", "主动反射面 ........ 在线"),
@@ -1187,7 +1218,6 @@ func _build_stage() -> void:
 func _configure_stage_guidance() -> void:
 	if not is_inside_tree() or content == null:
 		return
-	tutorial_steps = _tutorial_steps_for_stage()
 	tutorial_step = -1
 	tutorial_waiting_action = ""
 	tutorial_action_complete = false
@@ -1202,9 +1232,14 @@ func _configure_stage_guidance() -> void:
 	if tutorial_help_button != null:
 		tutorial_help_button.visible = true
 	if acquisition_active:
+		# Acquisition owns a compact instrument-local guide. Do not construct
+		# stage tutorial steps here: their controls belonged to the report page
+		# that was just handed off and may already be queued for deletion.
+		tutorial_steps.clear()
 		if tutorial_help_button != null:
 			tutorial_help_button.visible = false
 		return
+	tutorial_steps = _tutorial_steps_for_stage()
 	# Free observation is intentionally self-directed. Keep the compact Help
 	# affordance available, but never replay campaign tutorials or lock controls.
 	if GameManager.is_remote_free_observation("radio"):
@@ -3951,76 +3986,232 @@ func _draw_discovery_plot(plot: RadioPlot) -> void:
 # ---------------------------------------------------------------- 5. REPORT
 func _build_report() -> void:
 	var rep := model.report()
+	report_choice = ""
+	report_product = model.science_product(72, 24)
+	report_analysis_progress = 1.0 if InteractionFeedback.is_reduced_motion() else 0.0
+	report_analysis_elapsed = 0.0
+	report_analysis_phase = -1
+	report_analysis_running = not InteractionFeedback.is_reduced_motion()
 	var report_panel := _panel_to(content, Vector2(32, 6), Vector2(960, 478), PANEL, GOLD, GameManager.text("RADIO OBSERVATION REPORT", "射电观测报告"))
 	report_panel_ref = report_panel
 	report_choices_holder = report_panel
-	_label_to(report_panel, GameManager.text("FAST DATA PRODUCT", "FAST 观测成果"), Vector2(26, 42), Vector2(410, 26), 14, GOLD)
-	var product_plot := RadioPlot.new()
-	product_plot.position = Vector2(26, 72)
-	product_plot.size = Vector2(410, 238)
-	product_plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	product_plot.renderer = _draw_report_product
-	report_panel.add_child(product_plot)
+	_label_to(report_panel, GameManager.text("FAST SCIENCE DATA PRODUCT", "FAST 科学数据成果"), Vector2(20, 38), Vector2(566, 24), 14, GOLD)
+	report_product_plot = RadioPlot.new()
+	report_product_plot.name = "FastScienceProductPlot"
+	report_product_plot.position = Vector2(20, 62)
+	report_product_plot.size = Vector2(574, 304)
+	report_product_plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	report_product_plot.renderer = _draw_report_product
+	report_panel.add_child(report_product_plot)
 	var rows := [
 		[GameManager.text("Period", "周期"), "%.3f ms" % float(rep["trial_period_ms"])],
 		["DM", "%.2f pc/cm³" % float(rep["trial_dm"])],
 		["SNR", "%.1f" % float(rep["snr"])],
 		[GameManager.text("Integration", "积分"), "%.0f s" % float(rep["integration_s"])],
 		[GameManager.text("RFI removed", "剔除干扰"), "%d" % int(rep["rfi_cleared"])],
-		[GameManager.text("Prediction", "到达预测"), GameManager.text("Captured", "已捕获") if prediction_confirmed else GameManager.text("Restored save", "旧存档恢复")],
+		[GameManager.text("Pulse width", "脉冲宽度"), "%.2f ms" % float(rep.get("pulse_width_ms", 0.0))],
 	]
 	for i in range(rows.size()):
 		var col := i % 3
 		var row_index := i / 3
-		var x := 28.0 + float(col) * 136.0
-		var y := 318.0 + float(row_index) * 38.0
-		_label_to(report_panel, str(rows[i][0]), Vector2(x, y), Vector2(128, 16), 9, MUTED)
-		_label_to(report_panel, str(rows[i][1]), Vector2(x, y + 14), Vector2(128, 20), 12, TEXT)
+		var x := 22.0 + float(col) * 190.0
+		var y := 370.0 + float(row_index) * 38.0
+		_label_to(report_panel, str(rows[i][0]), Vector2(x, y), Vector2(178, 16), 9, MUTED)
+		_label_to(report_panel, str(rows[i][1]), Vector2(x, y + 14), Vector2(178, 20), 12, TEXT)
 	var science_text := GameManager.text(
-		_wrap_words(str(rep.get("result_en", "")), 60),
-		_wrap_characters(str(rep.get("result_zh", "")), 30)
+		"Radio timing result: the pulse is recovered from repeated arrival times, not from an optical image.",
+		"射电计时结果：脉冲来自重复到达时刻的叠加，并不是一张光学照片。"
 	)
-	var science := _label_to(report_panel, science_text, Vector2(28, 398), Vector2(408, 56), 11, CRT)
+	var science := _label_to(report_panel, science_text, Vector2(22, 444), Vector2(566, 26), 10, CRT)
 	science.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	science.clip_text = true
 
 	var divider := ColorRect.new()
-	divider.position = Vector2(454, 50)
-	divider.size = Vector2(1, 376)
+	divider.position = Vector2(606, 48)
+	divider.size = Vector2(1, 390)
 	divider.color = Color(BRASS, 0.65)
 	report_panel.add_child(divider)
-	_label_to(report_panel, GameManager.text("CONCLUSION FROM THE EVIDENCE", "根据证据得出结论"), Vector2(480, 44), Vector2(446, 28), 14, GOLD)
+	_label_to(report_panel, GameManager.text("EVIDENCE CHAIN", "证据链"), Vector2(622, 38), Vector2(314, 24), 14, GOLD)
+	report_evidence_label = _label_to(
+		report_panel,
+		_report_evidence_chain_text(),
+		Vector2(622, 64),
+		Vector2(316, 116),
+		10,
+		CRT
+	)
+	report_evidence_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	report_evidence_label.clip_text = true
+	_label_to(report_panel, GameManager.text("CONCLUSION", "科学结论"), Vector2(622, 184), Vector2(314, 22), 13, GOLD)
 	var positive_key := "stable_pulsar"
 	var positive_title := GameManager.text("Stable pulsar candidate", "稳定脉冲星候选")
-	var positive_evidence := GameManager.text("Period repeats, DM aligns, SNR is significant.", "周期重复、DM 对齐且信噪比显著。")
+	var positive_evidence := GameManager.text("Period, DM and SNR agree.", "周期、DM 与信噪比相互吻合。")
 	if str(model.target_kind) in ["hi_line", "hydrogen"]:
 		positive_key = "confirmed_hi"
 		positive_title = GameManager.text("Neutral-hydrogen line confirmed", "中性氢谱线已确认")
-		positive_evidence = GameManager.text("The protected band contains a coherent 21 cm velocity profile.", "保留频带中出现了相干的 21 厘米速度轮廓。")
+		positive_evidence = GameManager.text("A coherent 21 cm velocity profile remains.", "净化后保留了相干的 21 厘米速度轮廓。")
 	elif str(model.target_kind) in ["repeating_frb", "frb"]:
 		positive_key = "confirmed_frb"
 		positive_title = GameManager.text("Repeating dispersed burst confirmed", "重复色散爆发已确认")
-		positive_evidence = GameManager.text("The dispersion sweep repeats after terrestrial bursts are removed.", "剔除地面突发干扰后，色散扫频再次出现。")
+		positive_evidence = GameManager.text("The cleaned dispersion sweep repeats.", "净化后的色散扫频再次出现。")
 	var choices := [
 		[positive_key, positive_title, positive_evidence],
-		["residual_rfi", GameManager.text("Residual interference dominates", "残余干扰占主导"), GameManager.text("Patterned contamination remains in the spectrum.", "频谱中仍存在规律性污染。")],
-		["insufficient_signal", GameManager.text("Signal remains insufficient", "信号仍然不足"), GameManager.text("The profile has not risen reliably above noise.", "轮廓尚未可靠高出噪声。")],
+		["residual_rfi", GameManager.text("Residual interference dominates", "残余干扰占主导"), GameManager.text("Patterned contamination remains.", "频谱中仍有规律性污染。")],
+		["insufficient_signal", GameManager.text("Signal remains insufficient", "信号仍然不足"), GameManager.text("The folded peak is not yet credible.", "折叠峰尚未可靠高出噪声。")],
 	]
 	choices = _ordered_report_choices(choices)
 	report_choice_buttons.clear()
 	for i in range(choices.size()):
 		var key := str(choices[i][0])
-		var button := _button(str(choices[i][1]) + "\n" + str(choices[i][2]), Vector2(482, 88 + i * 88), Vector2(438, 70), Color("14253a"))
+		var button := _button("", Vector2(622, 210 + i * 61), Vector2(314, 54), Color("0b1117"))
+		button.name = "ReportChoice_%s" % key
+		button.set_meta("choice_key", key)
+		button.set_meta("choice_title", str(choices[i][1]))
+		button.set_meta("choice_evidence", str(choices[i][2]))
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		button.add_theme_font_size_override("font_size", 12)
+		button.focus_mode = Control.FOCUS_ALL
+		button.add_theme_font_size_override("font_size", 10)
 		button.pressed.connect(_select_report_choice.bind(key))
+		button.disabled = report_analysis_running
+		button.modulate.a = 0.42 if report_analysis_running else 1.0
 		report_panel.add_child(button)
 		report_choice_buttons[key] = button
-	submit_button = _button(GameManager.text("SUBMIT SCIENCE REPORT", "提交科学报告"), Vector2(590, 374), Vector2(330, 44), Color("18452f"))
-	submit_button.disabled = report_choice == ""
+	var free_report := GameManager.is_remote_free_observation("radio")
+	report_reanalyse_button = _button(GameManager.text("REANALYSE", "重新分析"), Vector2(622, 402), Vector2(94, 42), Color("222b31"))
+	report_reanalyse_button.disabled = report_analysis_running
+	report_reanalyse_button.pressed.connect(_reanalyse_report)
+	report_panel.add_child(report_reanalyse_button)
+	report_next_target_button = null
+	if free_report:
+		report_next_target_button = _button(GameManager.text("NEXT TARGET", "下个目标"), Vector2(722, 402), Vector2(104, 42), Color("172d38"))
+		report_next_target_button.disabled = true
+		report_next_target_button.pressed.connect(_archive_and_choose_next_target)
+		report_panel.add_child(report_next_target_button)
+	submit_button = _button(
+		GameManager.text("ARCHIVE", "归档"),
+		Vector2(832 if free_report else 722, 402),
+		Vector2(104 if free_report else 214, 42),
+		Color("18452f")
+	)
+	submit_button.disabled = true
 	submit_button.pressed.connect(_submit)
 	report_panel.add_child(submit_button)
+	report_analysis_status = _label_to(
+		report_panel,
+		GameManager.text("ANALYSIS: reconstructing evidence chain", "分析中：正在重建证据链"),
+		Vector2(622, 450),
+		Vector2(220, 18),
+		9,
+		AMBER
+	)
+	report_analysis_skip_button = _button(GameManager.text("SKIP", "跳过"), Vector2(850, 446), Vector2(86, 24), Color("111d29"))
+	report_analysis_skip_button.disabled = report_analysis_running
+	report_analysis_skip_button.pressed.connect(_finish_report_analysis)
+	report_panel.add_child(report_analysis_skip_button)
+	if not report_analysis_running:
+		_finish_report_analysis()
 	_refresh_report_choice()
+
+
+func _advance_report_analysis(delta: float) -> void:
+	if not report_analysis_running:
+		return
+	report_analysis_elapsed += delta
+	report_analysis_progress = clampf(report_analysis_elapsed / REPORT_ANALYSIS_DURATION, 0.0, 1.0)
+	var phase := mini(4, int(floor(report_analysis_progress * 5.0)))
+	if phase != report_analysis_phase:
+		report_analysis_phase = phase
+		var events := [
+			["RAW BUFFER", "INGEST", "NOISE + SKY SIGNAL"],
+			["RFI MASK", "APPLIED", "%d REMOVED" % int(report_product.get("removed_rfi_count", 0))],
+			["DISPERSION", "CORRECTED", "DM %.2f" % model.trial_dm],
+			["PERIOD FOLD", "STACKED", "%.3f ms" % model.trial_period_ms],
+			["EVIDENCE CHAIN", "READY", "SNR %.1f" % model.fold_snr()],
+		]
+		_terminal_event(str(events[phase][0]), str(events[phase][1]), str(events[phase][2]), "", 0.0, phase == 4)
+	if report_analysis_skip_button != null and is_instance_valid(report_analysis_skip_button):
+		report_analysis_skip_button.disabled = report_analysis_elapsed < REPORT_ANALYSIS_SKIP_DELAY
+	if report_analysis_status != null and is_instance_valid(report_analysis_status):
+		var statuses := [
+			GameManager.text("ANALYSIS: ingesting raw receiver buffer", "分析中：正在读入原始接收数据"),
+			GameManager.text("ANALYSIS: removing classified interference", "分析中：正在剔除已标记干扰"),
+			GameManager.text("ANALYSIS: correcting frequency-dependent delay", "分析中：正在校正频率相关延迟"),
+			GameManager.text("ANALYSIS: folding repeated arrival times", "分析中：正在折叠重复到达时刻"),
+			GameManager.text("ANALYSIS: evidence chain ready", "分析完成：证据链已建立"),
+		]
+		report_analysis_status.text = statuses[phase]
+	if report_product_plot != null and is_instance_valid(report_product_plot):
+		report_product_plot.queue_redraw()
+	if report_analysis_progress >= 1.0:
+		_finish_report_analysis()
+
+
+func _finish_report_analysis() -> void:
+	report_analysis_running = false
+	report_analysis_progress = 1.0
+	report_analysis_phase = 4
+	if report_product_plot != null and is_instance_valid(report_product_plot):
+		report_product_plot.queue_redraw()
+	if report_analysis_status != null and is_instance_valid(report_analysis_status):
+		report_analysis_status.text = GameManager.text("EVIDENCE READY · choose the supported conclusion", "证据已就绪 · 请选择有数据支持的结论")
+		report_analysis_status.add_theme_color_override("font_color", GREEN)
+	if report_analysis_skip_button != null and is_instance_valid(report_analysis_skip_button):
+		report_analysis_skip_button.visible = false
+	for key in report_choice_buttons:
+		var button := report_choice_buttons[key] as Button
+		button.disabled = false
+		button.modulate.a = 1.0
+	if report_reanalyse_button != null and is_instance_valid(report_reanalyse_button):
+		report_reanalyse_button.disabled = false
+	if report_next_target_button != null and is_instance_valid(report_next_target_button):
+		report_next_target_button.disabled = report_choice == ""
+	_refresh_report_choice()
+
+
+func _reanalyse_report() -> void:
+	if report_analysis_running or running or stage_transition_active:
+		return
+	_reset_report_choice()
+	fold_step = 0
+	_terminal_event("SCIENCE PRODUCT", "REOPEN", "PERIOD SEARCH", "", 0.0, true)
+	_begin_stage_handoff(3)
+
+
+func _reset_report_choice() -> void:
+	report_choice = ""
+	_refresh_report_choice()
+
+
+func _archive_and_choose_next_target() -> void:
+	if report_analysis_running or running or report_choice == "":
+		return
+	report_choose_next_requested = true
+	_submit()
+
+
+func _report_evidence_chain_text() -> String:
+	if report_product.is_empty():
+		return ""
+	return GameManager.text(
+		"POINTING  %.0f%%  → received power\nPASSBAND  %.0f%%  → candidate retained\nRFI  %d/%d removed → noise floor lower\nFOLD  P %.0f%% · DM %.0f%% → peak SNR %.1f" % [
+			float(report_product.get("pointing_quality", 0.0)) * 100.0,
+			float(report_product.get("tuning_quality", 0.0)) * 100.0,
+			int(report_product.get("removed_rfi_count", 0)),
+			int(report_product.get("raw_rfi_count", 0)),
+			float(report_product.get("period_quality", 0.0)) * 100.0,
+			float(report_product.get("dm_quality", 0.0)) * 100.0,
+			model.fold_snr(),
+		],
+		"指向  %.0f%%  → 接收功率\n通带  %.0f%%  → 候选信号保留\n干扰  已剔除 %d/%d → 噪声底下降\n折叠  周期 %.0f%% · DM %.0f%% → 峰值 SNR %.1f" % [
+			float(report_product.get("pointing_quality", 0.0)) * 100.0,
+			float(report_product.get("tuning_quality", 0.0)) * 100.0,
+			int(report_product.get("removed_rfi_count", 0)),
+			int(report_product.get("raw_rfi_count", 0)),
+			float(report_product.get("period_quality", 0.0)) * 100.0,
+			float(report_product.get("dm_quality", 0.0)) * 100.0,
+			model.fold_snr(),
+		]
+	)
 
 
 func _ordered_report_choices(choices: Array) -> Array:
@@ -4045,36 +4236,129 @@ func _draw_report_product(plot: RadioPlot) -> void:
 		_draw_frb_report_product(plot)
 		return
 	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
-	var raw_rect := Rect2(Vector2(8, 24), Vector2(126, 82))
-	var folded_rect := Rect2(Vector2(142, 24), Vector2(126, 82))
-	var predicted_rect := Rect2(Vector2(276, 24), Vector2(126, 82))
-	var pulse_rect := Rect2(Vector2(8, 136), Vector2(394, 88))
-	for rect in [raw_rect, folded_rect, predicted_rect, pulse_rect]:
-		_draw_crt_grid(plot, rect, 24.0, Color(0.18, 0.34, 0.38, 0.14))
+	var waterfall_rect := Rect2(Vector2(8, 22), Vector2(558, 100))
+	var raw_dm_rect := Rect2(Vector2(8, 148), Vector2(272, 62))
+	var corrected_dm_rect := Rect2(Vector2(294, 148), Vector2(272, 62))
+	var folded_rect := Rect2(Vector2(8, 236), Vector2(558, 60))
+	for rect in [waterfall_rect, raw_dm_rect, corrected_dm_rect, folded_rect]:
+		_draw_crt_grid(plot, rect, 22.0, Color(0.18, 0.34, 0.38, 0.14))
 		plot.draw_rect(rect, Color(BRASS, 0.48), false, 1.0)
-	_draw_plot_text(plot, GameManager.text("RAW", "原始"), raw_rect.position + Vector2(4, -5), 9, MUTED)
-	_draw_plot_text(plot, GameManager.text("FOLDED", "折叠"), folded_rect.position + Vector2(4, -5), 9, CYAN)
-	_draw_plot_text(plot, GameManager.text("PREDICTED", "预测"), predicted_rect.position + Vector2(4, -5), 9, GREEN)
-	_draw_plot_text(plot, GameManager.text("CLOCK-CONFIRMED PULSE", "宇宙时钟确认轮廓"), pulse_rect.position + Vector2(4, -5), 9, MUTED)
-	_draw_timing_evidence_thumbnail(plot, raw_rect, 0)
-	_draw_timing_evidence_thumbnail(plot, folded_rect, 1)
-	_draw_timing_evidence_thumbnail(plot, predicted_rect, 2)
-	var profile := model.folded_profile(128)
+	_draw_plot_text(plot, GameManager.text("TIME-FREQUENCY WATERFALL · RAW → RFI CLEAN", "时频瀑布图 · 原始 → 干扰净化"), Vector2(12, 14), 9, GOLD)
+	_draw_plot_text(plot, GameManager.text("DISPERSION BEFORE", "色散校正前"), raw_dm_rect.position + Vector2(4, -5), 9, MUTED)
+	_draw_plot_text(plot, GameManager.text("DM-CORRECTED", "色散校正后"), corrected_dm_rect.position + Vector2(4, -5), 9, CYAN)
+	_draw_plot_text(plot, GameManager.text("TWO-PERIOD FOLDED PROFILE", "双周期折叠轮廓"), folded_rect.position + Vector2(4, -5), 9, GREEN)
+	_draw_science_waterfall(plot, waterfall_rect)
+	_draw_dispersion_evidence(plot, raw_dm_rect, false)
+	_draw_dispersion_evidence(plot, corrected_dm_rect, true)
+	_draw_folded_science_profile(plot, folded_rect)
+
+
+func _draw_science_waterfall(plot: RadioPlot, rect: Rect2) -> void:
+	var raw: Array = report_product.get("raw_spectrum", [])
+	var clean: Array = report_product.get("clean_spectrum", [])
+	if raw.is_empty() or clean.is_empty():
+		return
+	var frequency_bins := raw.size()
+	var time_bins := (raw[0] as Array).size()
+	var reveal := clampf((report_analysis_progress - 0.02) / 0.38, 0.0, 1.0)
+	var visible_columns := maxi(1, int(float(time_bins) * reveal))
+	var half_width := (rect.size.x - 5.0) * 0.5
+	for side in range(2):
+		var spectrum: Array = raw if side == 0 else clean
+		var side_x := rect.position.x + 2.0 + float(side) * (half_width + 3.0)
+		for frequency_index in range(frequency_bins):
+			for time_index in range(mini(time_bins, visible_columns)):
+				var value := float((spectrum[frequency_index] as Array)[time_index])
+				var cell_x := side_x + float(time_index) * half_width / float(time_bins)
+				var cell_y := rect.end.y - 2.0 - float(frequency_index + 1) * (rect.size.y - 4.0) / float(frequency_bins)
+				var color := Color(
+					lerpf(0.025, 0.42, value),
+					lerpf(0.045, 0.86, value),
+					lerpf(0.055, 0.74, value),
+					0.92
+				)
+				plot.draw_rect(
+					Rect2(
+						Vector2(cell_x, cell_y),
+						Vector2(half_width / float(time_bins) + 0.35, (rect.size.y - 4.0) / float(frequency_bins) + 0.35)
+					),
+					color,
+					true
+				)
+	_draw_plot_text(plot, GameManager.text("RAW", "原始"), rect.position + Vector2(5, 12), 8, MUTED)
+	_draw_plot_text(plot, GameManager.text("CLEAN", "净化"), rect.position + Vector2(half_width + 9, 12), 8, CYAN)
+	plot.draw_line(Vector2(rect.position.x + half_width + 2.5, rect.position.y), Vector2(rect.position.x + half_width + 2.5, rect.end.y), Color(BRASS, 0.65), 1.0)
+	for mark_value in report_product.get("rfi_marks", []):
+		var mark: Dictionary = mark_value
+		var y := rect.end.y - 2.0 - float(mark.get("frequency_normalized", 0.5)) * (rect.size.y - 4.0)
+		plot.draw_line(Vector2(rect.position.x + 2, y), Vector2(rect.position.x + half_width, y), Color(RED, 0.70), 1.0)
+		var clean_color := Color(GREEN, 0.58) if bool(mark.get("removed", false)) else Color(RED, 0.70)
+		plot.draw_line(Vector2(rect.position.x + half_width + 5, y), Vector2(rect.end.x - 2, y), clean_color, 1.0)
+
+
+func _draw_dispersion_evidence(plot: RadioPlot, rect: Rect2, corrected: bool) -> void:
+	var reveal_start := 0.38 if not corrected else 0.52
+	var reveal := clampf((report_analysis_progress - reveal_start) / 0.20, 0.0, 1.0)
+	if reveal <= 0.0:
+		return
+	var rows := 10
+	var mismatch := 1.0 if not corrected else 1.0 - float(report_product.get("dm_quality", 0.0))
+	for row in range(rows):
+		var frequency_normalized := float(row) / float(rows - 1)
+		var y := rect.position.y + 7.0 + frequency_normalized * (rect.size.y - 14.0)
+		var arrival := 0.32 + (1.0 - frequency_normalized) * mismatch * 0.46
+		var x := rect.position.x + 8.0 + arrival * (rect.size.x - 16.0)
+		var pulse_width := lerpf(10.0, 4.0, float(report_product.get("dm_quality", 0.0)) if corrected else 0.0)
+		plot.draw_line(Vector2(rect.position.x + 6.0, y), Vector2(rect.end.x - 6.0, y), Color(CRT, 0.07), 1.0)
+		plot.draw_line(Vector2(x - pulse_width, y), Vector2(x + pulse_width, y), Color(CYAN if corrected else AMBER, 0.25 + reveal * 0.62), 2.0)
+	if corrected:
+		_draw_plot_text(plot, "DM %.2f pc/cm³" % model.trial_dm, rect.position + Vector2(166, 12), 8, GREEN)
+	else:
+		_draw_plot_text(plot, GameManager.text("frequency delay", "低频延迟"), rect.position + Vector2(168, 12), 8, AMBER)
+
+
+func _draw_folded_science_profile(plot: RadioPlot, rect: Rect2) -> void:
+	var reveal := clampf((report_analysis_progress - 0.68) / 0.24, 0.0, 1.0)
+	if reveal <= 0.0:
+		return
+	var values: Array = report_product.get("folded_two_cycles", [])
+	if values.is_empty():
+		return
+	var visible_values := maxi(2, int(float(values.size()) * reveal))
 	var points := PackedVector2Array()
-	for i in range(profile.size()):
-		var x := pulse_rect.position.x + 6.0 + (pulse_rect.size.x - 12.0) * float(i) / float(profile.size() - 1)
-		var y := pulse_rect.end.y - 8.0 - clampf(float(profile[i]), 0.0, 1.2) * (pulse_rect.size.y - 18.0)
+	for i in range(mini(values.size(), visible_values)):
+		var x := rect.position.x + 5.0 + (rect.size.x - 10.0) * float(i) / float(values.size() - 1)
+		var y := rect.end.y - 5.0 - clampf(float(values[i]), 0.0, 1.2) * (rect.size.y - 12.0)
 		points.append(Vector2(x, y))
-	plot.draw_polyline(points, Color(GREEN, 0.18), 6.0, true)
-	plot.draw_polyline(points, GREEN, 1.8, true)
-	_draw_plot_text(plot, "OBS %s · %s" % [str(GameManager.current_level().get("level_number", "--")), str(model.target_id).to_upper()], Vector2(12, 12), 10, GOLD)
+	if points.size() >= 2:
+		plot.draw_polyline(points, Color(GREEN, 0.16), 6.0, true)
+		plot.draw_polyline(points, GREEN, 1.6, true)
+	plot.draw_line(Vector2(rect.get_center().x, rect.position.y + 2), Vector2(rect.get_center().x, rect.end.y - 2), Color(BRASS, 0.35), 1.0)
+	_draw_plot_text(
+		plot,
+		GameManager.text(
+			"W %.2f ms · duty %.1f%% · confidence %.0f%%" % [
+				float(report_product.get("pulse_width_ms", 0.0)),
+				float(report_product.get("duty_cycle_percent", 0.0)),
+				float(report_product.get("confidence", 0.0)) * 100.0,
+			],
+			"脉宽 %.2f ms · 占空比 %.1f%% · 置信度 %.0f%%" % [
+				float(report_product.get("pulse_width_ms", 0.0)),
+				float(report_product.get("duty_cycle_percent", 0.0)),
+				float(report_product.get("confidence", 0.0)) * 100.0,
+			]
+		),
+		rect.position + Vector2(304, 12),
+		8,
+		CRT
+	)
 
 
 func _draw_hi_report_product(plot: RadioPlot) -> void:
 	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
-	var raw_rect := Rect2(Vector2(10, 26), Vector2(190, 86))
-	var clean_rect := Rect2(Vector2(210, 26), Vector2(190, 86))
-	var velocity_rect := Rect2(Vector2(10, 140), Vector2(390, 86))
+	var raw_rect := Rect2(Vector2(8, 22), Vector2(272, 104))
+	var clean_rect := Rect2(Vector2(294, 22), Vector2(272, 104))
+	var velocity_rect := Rect2(Vector2(8, 150), Vector2(558, 142))
 	for rect in [raw_rect, clean_rect, velocity_rect]:
 		_draw_crt_grid(plot, rect, 24.0, Color(0.18, 0.34, 0.38, 0.14))
 		plot.draw_rect(rect, Color(BRASS, 0.48), false, 1.0)
@@ -4096,14 +4380,14 @@ func _draw_hi_report_product(plot: RadioPlot) -> void:
 			velocity_rect.end.y - 8.0 - value * (velocity_rect.size.y - 18.0)))
 	plot.draw_polyline(velocity_points, Color(GREEN, 0.18), 5.0, true)
 	plot.draw_polyline(velocity_points, GREEN, 1.7, true)
-	_draw_plot_text(plot, GameManager.text("DATA PRODUCT · SPECTRAL-LINE VELOCITY", "数据产品 · 谱线速度分布"), Vector2(12, 13), 10, GOLD)
+	_draw_plot_text(plot, GameManager.text("DATA PRODUCT · SPECTRAL-LINE VELOCITY", "数据产品 · 谱线速度分布"), Vector2(12, 13), 9, GOLD)
 
 
 func _draw_frb_report_product(plot: RadioPlot) -> void:
 	plot.draw_rect(Rect2(Vector2.ZERO, plot.size), Color("061119"), true)
-	var raw_rect := Rect2(Vector2(10, 26), Vector2(190, 86))
-	var dedispersed_rect := Rect2(Vector2(210, 26), Vector2(190, 86))
-	var waterfall_rect := Rect2(Vector2(10, 140), Vector2(390, 86))
+	var raw_rect := Rect2(Vector2(8, 22), Vector2(272, 104))
+	var dedispersed_rect := Rect2(Vector2(294, 22), Vector2(272, 104))
+	var waterfall_rect := Rect2(Vector2(8, 150), Vector2(558, 142))
 	for rect in [raw_rect, dedispersed_rect, waterfall_rect]:
 		_draw_crt_grid(plot, rect, 24.0, Color(0.18, 0.34, 0.38, 0.14))
 		plot.draw_rect(rect, Color(BRASS, 0.48), false, 1.0)
@@ -4129,7 +4413,7 @@ func _draw_frb_report_product(plot: RadioPlot) -> void:
 		var confirmed_x := waterfall_rect.position.x + waterfall_rect.size.x * 0.62
 		var x := lerpf(sweep_x, confirmed_x, model.dm_match())
 		plot.draw_line(Vector2(x - 6.0, y), Vector2(x + 6.0, y), Color(GREEN, 0.28 + 0.04 * row), 2.0)
-	_draw_plot_text(plot, GameManager.text("DATA PRODUCT · TIME-FREQUENCY WATERFALL", "数据产品 · 时频瀑布图"), Vector2(12, 13), 10, GOLD)
+	_draw_plot_text(plot, GameManager.text("DATA PRODUCT · TIME-FREQUENCY WATERFALL", "数据产品 · 时频瀑布图"), Vector2(12, 13), 9, GOLD)
 
 
 func _draw_timing_evidence_thumbnail(plot: RadioPlot, rect: Rect2, evidence_stage: int) -> void:
@@ -4168,6 +4452,10 @@ func _draw_spectrum_trace_in_rect(plot: RadioPlot, rect: Rect2, samples: Array, 
 
 
 func _select_report_choice(choice: String) -> void:
+	if report_analysis_running:
+		return
+	if report_choice == choice:
+		return
 	report_choice = choice
 	_note_player_activity()
 	_tutorial_action("report_choose")
@@ -4178,14 +4466,47 @@ func _select_report_choice(choice: String) -> void:
 func _refresh_report_choice() -> void:
 	for key in report_choice_buttons:
 		var button := report_choice_buttons[key] as Button
-		InteractionFeedback.selection(button, str(key) == report_choice, CYAN, true, "fast_report_choice")
+		_apply_report_choice_style(button, str(key) == report_choice)
 	if submit_button != null and is_instance_valid(submit_button):
-		submit_button.disabled = report_choice == ""
+		submit_button.disabled = report_analysis_running or report_choice == ""
+	if report_next_target_button != null and is_instance_valid(report_next_target_button):
+		report_next_target_button.disabled = report_analysis_running or report_choice == ""
+
+
+func _apply_report_choice_style(button: Button, selected: bool) -> void:
+	if button == null or not is_instance_valid(button):
+		return
+	var title := str(button.get_meta("choice_title", ""))
+	var evidence := str(button.get_meta("choice_evidence", ""))
+	var marker := "✓" if selected else "○"
+	button.text = "%s  %s\n    %s" % [marker, title, evidence]
+	var normal_fill := Color("142a2a") if selected else Color("0b1117")
+	var normal_border := Color("63d9bd") if selected else Color("46515c")
+	var hover_fill := Color("16232a") if not selected else Color("183634")
+	var hover_border := Color("a8c5cc") if not selected else Color("8af1d5")
+	button.add_theme_stylebox_override("normal", _flat(normal_fill, normal_border, 2 if selected else 1))
+	button.add_theme_stylebox_override("hover", _flat(hover_fill, hover_border, 2))
+	button.add_theme_stylebox_override("focus", _flat(hover_fill, hover_border, 2))
+	button.add_theme_stylebox_override("pressed", _flat(Color("1a3b35"), GREEN, 2))
+	button.add_theme_color_override("font_color", Color("d7fff3") if selected else Color("c4cbd0"))
+	button.add_theme_color_override("font_hover_color", Color("f1ffff"))
+	button.add_theme_color_override("font_focus_color", Color("f1ffff"))
+	if selected and not InteractionFeedback.is_reduced_motion():
+		button.modulate = Color(0.76, 1.0, 0.91, 1.0)
+		var tween := button.create_tween()
+		tween.tween_property(button, "modulate", Color.WHITE, 0.16).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	else:
+		button.modulate = Color.WHITE if not button.disabled else Color(1.0, 1.0, 1.0, 0.42)
 
 
 func _submit() -> void:
 	if running:
 		return
+	# UI controls stay disabled until the analysis reveal completes. Direct
+	# automation and restored saves may invoke submission without replaying the
+	# presentation, so finish the reveal deterministically before validation.
+	if report_analysis_running:
+		_finish_report_analysis()
 	if report_choice == "":
 		status_label.text = GameManager.text("Select the conclusion supported by the measured evidence.", "请选择实测证据支持的结论。")
 		status_label.add_theme_color_override("font_color", AMBER)
@@ -4222,20 +4543,85 @@ func _submit() -> void:
 		"rfi_cleared": int(rep["rfi_cleared"]),
 		"prediction_confirmed": prediction_confirmed,
 		"report_conclusion": report_choice,
+		"radio_target_kind": str(model.target_kind),
+		"integration_s": float(rep.get("integration_s", 0.0)),
+		"pulse_width_ms": float(rep.get("pulse_width_ms", 0.0)),
+		"duty_cycle_percent": float(rep.get("duty_cycle_percent", 0.0)),
+		"confidence": float(rep.get("confidence", report_product.get("confidence", 0.0))),
+		"pointing_quality": float(report_product.get("pointing_quality", 0.0)),
+		"tuning_quality": float(report_product.get("tuning_quality", 0.0)),
+		"raw_rfi_count": int(report_product.get("raw_rfi_count", 0)),
+		"radio_data_product": model.science_product(48, 12),
 		"feedback_en": "Clock confirmed: the recovered period predicted and captured the next radio pulse. " + str(rep.get("result_en", "A repeating radio pulse confirmed the source.")),
 		"feedback_zh": "宇宙时钟已确认：恢复出的周期准确预报并捕获了下一次射电脉冲。" + str(rep.get("result_zh", "重复射电脉冲确认了目标。")),
 	}
 	if GameManager.is_remote_free_observation("radio"):
+		var current_entry_id := str(GameManager.active_remote_free_entry("radio").get("id", ""))
 		observation["integration_s"] = float(rep.get("integration_s", 0.0))
 		var archived := GameManager.record_remote_free_observation("radio", observation)
 		_terminal_event("FREE OBSERVATION", "ARCHIVED" if bool(archived.get("recorded", false)) else "HOLD", str(model.target_id).to_upper(), "", 0.0, true)
 		await get_tree().create_timer(0.34 if not InteractionFeedback.is_reduced_motion() else 0.08).timeout
+		if report_choose_next_requested:
+			_begin_next_radio_target_acquisition(current_entry_id)
+			return
 		GameManager.remote_observation_context.clear()
 		GameManager.set_observatory_spawn("computer")
 		GameManager.go("observatory")
 		return
 	await get_tree().create_timer(0.34 if not InteractionFeedback.is_reduced_motion() else 0.08).timeout
 	GameManager.complete_current_mission(GameManager.current_target_object_id(), observation)
+
+
+func _begin_next_radio_target_acquisition(current_entry_id: String) -> void:
+	report_choose_next_requested = false
+	running = false
+	report_choice = ""
+	report_product.clear()
+	stage = 0
+	fold_step = 0
+	prediction_running = false
+	prediction_confirmed = false
+	acquisition_entries = _radio_acquisition_entries()
+	if acquisition_entries.is_empty():
+		GameManager.remote_observation_context.clear()
+		GameManager.set_observatory_spawn("computer")
+		GameManager.go("observatory")
+		return
+	var next_index := 0
+	for index in range(acquisition_entries.size()):
+		if str(acquisition_entries[index].get("id", "")) == current_entry_id:
+			next_index = (index + 1) % acquisition_entries.size()
+			break
+	var next_entry: Dictionary = acquisition_entries[next_index]
+	acquisition_required = true
+	acquisition_active = true
+	acquisition_completed = false
+	acquisition_transition_pending = false
+	acquisition_state = "search"
+	acquisition_candidate_id = str(next_entry.get("id", ""))
+	acquisition_azimuth = wrapf(float(next_entry.get("azimuth", model.true_azimuth)) + 18.0, 0.0, 360.0)
+	acquisition_altitude = clampf(float(next_entry.get("altitude", model.true_altitude)) + 9.0, 50.0, 88.0)
+	acquisition_velocity = Vector2.ZERO
+	acquisition_drive_vector = Vector2.ZERO
+	acquisition_braking = false
+	acquisition_boundary_warning = ""
+	_terminal_event(
+		"OBSERVATION ARCHIVE",
+		"SEALED",
+		current_entry_id.to_upper(),
+		"",
+		0.0,
+		true
+	)
+	_terminal_event(
+		"RADIO SKY",
+		"SEARCH",
+		str(next_entry.get("target_id", next_entry.get("id", ""))).to_upper(),
+		"",
+		0.0,
+		true
+	)
+	_rebuild()
 
 
 func _report_contradiction(choice: String, rep: Dictionary) -> String:

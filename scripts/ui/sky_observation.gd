@@ -385,7 +385,7 @@ func _ready() -> void:
 	GameManager.language_changed.connect(_on_language_changed)
 	if str(GameManager.current_level().get("variation", "")) == "finder_calibration":
 		GameManager.seed_finder_offset_if_needed()
-	target_id = GameManager.current_target_object_id()
+	target_id = GameManager.active_observation_target_object_id()
 	observation_mode = GameManager.current_observation_mode()
 	# A world-map detour and a return from Telescope View must not silently throw
 	# away a free-observation selection. Keep it only when it belongs to a real

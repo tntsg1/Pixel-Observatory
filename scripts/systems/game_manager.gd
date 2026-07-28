@@ -83,6 +83,8 @@ const BADGE_NAMES_ZH := {
 const DEPRECATED_GREGORIAN_LEVELS := [56, 57, 58, 59, 60, 61, 62, 63, 64, 65]
 const FIRST_INFRARED_LEVEL := 66
 const ASSEMBLY_FAMILIES := ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian", "space_segmented", "fast_radio"]
+const PLAYER_OPTICAL_FAMILIES := ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian"]
+const OPTICAL_OWNERSHIP_VERSION := 1
 
 const SCENES := {
 	"menu": "res://scenes/main_menu.tscn",
@@ -387,6 +389,9 @@ func default_progress() -> Dictionary:
 		"campaign_version": CAMPAIGN_VERSION,
 		"current_level": 1,
 		"selected_telescope_family": "refractor",
+		"active_optical_telescope_id": "",
+		"owned_optical_telescope_families": [],
+		"optical_ownership_transfer_version": 0,
 		"credits": 0,
 		"completed_levels": [],
 		"program_completed": false,
@@ -503,7 +508,7 @@ func acknowledge_free_exploration_confirmation() -> void:
 
 
 func go(scene_key: String) -> void:
-	if scene_key == "sky":
+	if scene_key == "sky" and not is_local_optical_free_observation():
 		match current_observation_mode():
 			"radio": scene_key = "radio_observation"
 			"multi_device": scene_key = "multi_observation"
@@ -631,6 +636,154 @@ func postgraduate_free_build() -> bool:
 	return campaign_completed() and bool(progress.get("graduation_seen", false))
 
 
+func is_player_optical_family(family: String) -> bool:
+	return family in PLAYER_OPTICAL_FAMILIES
+
+
+func unlocked_optical_telescope_families() -> Array[String]:
+	var unlocked: Array[String] = []
+	var completed: Array = progress.get("completed_levels", [])
+	var reached := int(progress.get("current_level", 1))
+	var unlocked_parts: Array = progress.get("unlocked_parts", [])
+	for family in PLAYER_OPTICAL_FAMILIES:
+		var available: bool = family == "refractor"
+		for level_value in levels_data:
+			if not level_value is Dictionary:
+				continue
+			var level: Dictionary = level_value
+			if bool(level.get("deprecated", false)) or str(level.get("telescope_family", "")) != family:
+				continue
+			var number := int(level.get("level_number", level.get("id", 0)))
+			if number > 0 and (reached >= number or completed.has(number) or completed.has(str(number))):
+				available = true
+				break
+		if not available:
+			for part_id_value in unlocked_parts:
+				var part := get_part(str(part_id_value))
+				if str(part.get("telescope_family", "")) == family:
+					available = true
+					break
+		if available:
+			unlocked.append(family)
+	return unlocked
+
+
+func transfer_unlocked_optical_equipment_ownership() -> Array[String]:
+	if not campaign_completed() or not bool(progress.get("graduation_seen", false)):
+		return []
+	_ensure_progress_array("owned_optical_telescope_families")
+	var transferred: Array[String] = []
+	for family in unlocked_optical_telescope_families():
+		if not progress["owned_optical_telescope_families"].has(family):
+			progress["owned_optical_telescope_families"].append(family)
+			transferred.append(family)
+	progress["optical_ownership_transfer_version"] = OPTICAL_OWNERSHIP_VERSION
+	_ensure_active_optical_telescope()
+	return transferred
+
+
+func owned_optical_telescope_families() -> Array[String]:
+	var result: Array[String] = []
+	for family_value in progress.get("owned_optical_telescope_families", []):
+		var family := str(family_value)
+		if is_player_optical_family(family) and not result.has(family):
+			result.append(family)
+	return result
+
+
+func owns_optical_telescope_family(family: String) -> bool:
+	return owned_optical_telescope_families().has(family)
+
+
+func optical_equipment_ownership_label(family: String = "") -> String:
+	var resolved := family if family != "" else assembly_family()
+	if owns_optical_telescope_family(resolved):
+		return text("MY EQUIPMENT · OWNED", "我的设备 · 已拥有")
+	if is_player_optical_family(resolved):
+		return text("CLUB COURSE EQUIPMENT · ON LOAN", "俱乐部课程器材 · 借用中")
+	return text("REMOTE RESEARCH FACILITY · ACCESS ONLY", "远程科研设施 · 仅限使用权")
+
+
+func optical_telescope_family_name(family: String) -> String:
+	return _family_display_name(family)
+
+
+func active_optical_telescope_family() -> String:
+	var family := str(progress.get("active_optical_telescope_id", ""))
+	return family if is_player_optical_family(family) else ""
+
+
+func set_active_optical_telescope(family: String) -> bool:
+	if not is_player_optical_family(family):
+		return false
+	if bool(progress.get("graduation_seen", false)) and not owns_optical_telescope_family(family):
+		return false
+	if assembly_family() == family:
+		_store_postgraduate_family_state(family)
+	progress["active_optical_telescope_id"] = family
+	save()
+	return true
+
+
+func active_optical_telescope_is_ready() -> bool:
+	var family := active_optical_telescope_family()
+	if family == "":
+		return false
+	if assembly_family() == family:
+		return telescope_is_ready()
+	var saved_states: Dictionary = progress.get("family_assembly_states", {})
+	var state_value: Variant = saved_states.get(family, {})
+	return state_value is Dictionary and bool((state_value as Dictionary).get("telescope_ready", false))
+
+
+func equip_completed_optical_telescope(family: String = "") -> bool:
+	var resolved := family if family != "" else assembly_family()
+	if not is_player_optical_family(resolved) or not telescope_is_ready():
+		return false
+	return set_active_optical_telescope(resolved)
+
+
+func _ensure_active_optical_telescope() -> void:
+	var active := active_optical_telescope_family()
+	if active != "" and (not bool(progress.get("graduation_seen", false)) or owns_optical_telescope_family(active)):
+		return
+	var saved_states: Dictionary = progress.get("family_assembly_states", {})
+	var owned := owned_optical_telescope_families()
+	for index in range(owned.size() - 1, -1, -1):
+		var family := owned[index]
+		var state_value: Variant = saved_states.get(family, {})
+		if state_value is Dictionary and bool((state_value as Dictionary).get("telescope_ready", false)):
+			progress["active_optical_telescope_id"] = family
+			return
+	var selected := str(progress.get("selected_telescope_family", ""))
+	if is_player_optical_family(selected) and (not bool(progress.get("graduation_seen", false)) or owns_optical_telescope_family(selected)):
+		if bool(progress.get("telescope_ready", false)) and not saved_states.has(selected):
+			_store_postgraduate_family_state(selected)
+		progress["active_optical_telescope_id"] = selected
+		return
+	var last_completed := _last_completed_optical_family()
+	if last_completed != "" and (not bool(progress.get("graduation_seen", false)) or owned.has(last_completed)):
+		progress["active_optical_telescope_id"] = last_completed
+
+
+func _last_completed_optical_family() -> String:
+	var completed: Array = progress.get("completed_levels", [])
+	var best_family := ""
+	var best_number := -1
+	for level_value in levels_data:
+		if not level_value is Dictionary:
+			continue
+		var level: Dictionary = level_value
+		var number := int(level.get("level_number", level.get("id", 0)))
+		var family := str(level.get("telescope_family", ""))
+		if number <= best_number or not is_player_optical_family(family):
+			continue
+		if completed.has(number) or completed.has(str(number)):
+			best_number = number
+			best_family = family
+	return best_family
+
+
 func assembly_context_family() -> String:
 	if postgraduate_free_build():
 		return assembly_family()
@@ -726,6 +879,8 @@ func current_target_object_id() -> String:
 
 
 func current_observation_mode() -> String:
+	if is_local_optical_free_observation():
+		return "telescope"
 	return str(current_level().get("observation_mode", "telescope"))
 
 
@@ -745,6 +900,8 @@ func current_requires_telescope() -> bool:
 
 
 func current_requires_focus() -> bool:
+	if is_local_optical_free_observation():
+		return true
 	return bool(current_level().get("requires_focus", false))
 
 
@@ -1156,10 +1313,18 @@ func _local_optical_seed_object_id() -> String:
 
 
 func begin_local_optical_free_observation() -> bool:
-	var family := assembly_family()
-	if not family in ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian"]:
+	var family := active_optical_telescope_family()
+	if family == "" and not postgraduate_free_build():
+		family = assembly_family() if is_player_optical_family(assembly_family()) else ""
+	if not is_player_optical_family(family):
 		return false
-	if not telescope_is_ready():
+	if assembly_family() != family and postgraduate_free_build():
+		var previous_family := assembly_family()
+		_store_postgraduate_family_state(previous_family)
+		assembly_family_id = family
+		progress["selected_telescope_family"] = family
+		_restore_postgraduate_family_state(family)
+	if not active_optical_telescope_is_ready():
 		return false
 	var seed_object_id := _local_optical_seed_object_id()
 	if seed_object_id == "":
@@ -1178,6 +1343,14 @@ func begin_local_optical_free_observation() -> bool:
 
 func is_local_optical_free_observation() -> bool:
 	return bool(local_optical_observation_context.get("active", false))
+
+
+func active_observation_target_object_id() -> String:
+	if is_local_optical_free_observation():
+		var selected := selected_object_id
+		if selected != "" and not get_object(selected).is_empty():
+			return selected
+	return current_target_object_id()
 
 
 func go_to_local_optical_observation(spawn: String) -> bool:
@@ -1793,6 +1966,7 @@ func mark_graduation_presented() -> void:
 		return
 	progress["graduation_seen"] = true
 	progress["graduation_pending"] = false
+	transfer_unlocked_optical_equipment_ownership()
 	save()
 
 
@@ -2814,6 +2988,8 @@ func has_tracking_mount_equipped() -> bool:
 
 func current_environment() -> Dictionary:
 	var level := current_level()
+	if is_local_optical_free_observation():
+		level = assembly_level_context()
 	var environment: Dictionary = level.get("environment", {})
 	if not environment.is_empty():
 		return environment
@@ -3263,6 +3439,10 @@ func _normalize_progress() -> void:
 	_migrate_progress_schema()
 	_repair_campaign_progress()
 	_unlock_parts_for_current_level()
+	if campaign_completed() and bool(progress.get("graduation_seen", false)):
+		transfer_unlocked_optical_equipment_ownership()
+	else:
+		_ensure_active_optical_telescope()
 	save()
 
 

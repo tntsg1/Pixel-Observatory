@@ -52,6 +52,7 @@ func _init() -> void:
 		"res://scenes/observatory_room.tscn": "lobby",
 		"res://scenes/telescope_assembly.tscn": "assembly",
 		"res://scenes/sky_observation.tscn": "outdoor",
+		"res://scenes/telescope_view.tscn": "silent",
 		"res://scenes/radio_observation.tscn": "giant"
 	}
 	for scene_path in expected_music:

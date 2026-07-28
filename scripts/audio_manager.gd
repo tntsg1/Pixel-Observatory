@@ -27,8 +27,15 @@ const SFX_PREFERENCE_VERSION := 1
 const EVENT_COOLDOWN := 0.08
 const MUSIC_FADE_SECONDS := 2.2
 const AMBIENCE_FADE_SECONDS := 1.2
+const SILENT_MUSIC_CATEGORY := "silent"
 const FAST_TERMINAL_AMBIENCE_PATH := "res://assets/audio/ambient/fast_terminal_hum.ogg"
 const FAST_TERMINAL_AMBIENCE_MUSIC_OFFSET_DB := -12.0
+const RETIRED_MUSIC_PATHS := {
+	"res://assets/audio/music/giant_telescope.mp3": true,
+}
+const RETIRED_MUSIC_UIDS := {
+	"uid://b4x44bsg33mdj": true,
+}
 const MUSIC_PATHS := {
 	"lobby": "res://assets/audio/music/lobby.mp3",
 	"assembly": "res://assets/audio/music/telescope_assembly.mp3",
@@ -261,7 +268,16 @@ func play_sfx(path: String, pitch_variation := 0.08, volume_db := -8.0) -> void:
 func play_music(path: String) -> void:
 	if not MUSIC_OUTPUT_ENABLED or not music_enabled or path == "":
 		return
-	if path == _current_music_path and _active_music_player != null and _active_music_player.playing:
+	if not _is_music_path_approved(path):
+		_reject_retired_music(path)
+		return
+	_enforce_music_policy(path)
+	if (
+		path == _current_music_path
+		and _active_music_player != null
+		and _active_music_player.playing
+		and _player_stream_path(_active_music_player) == path
+	):
 		return
 
 	var stream := load(path) as AudioStream
@@ -375,9 +391,15 @@ func _refresh_music_for_scene() -> void:
 	if scene == null:
 		return
 	var category := _music_category_for_scene(scene.scene_file_path)
+	if category == SILENT_MUSIC_CATEGORY:
+		_enforce_music_policy("")
+		_fade_music_to_silence()
+		return
 	if category == "":
 		return
-	play_music(str(MUSIC_PATHS.get(category, "")))
+	var expected_path := str(MUSIC_PATHS.get(category, ""))
+	_enforce_music_policy(expected_path)
+	play_music(expected_path)
 
 
 func _refresh_ambience_for_scene() -> void:
@@ -397,12 +419,151 @@ func _music_category_for_scene(scene_path: String) -> String:
 		return "lobby"
 	if file_name in ["telescope_assembly", "advanced_assembly", "optical_tube_assembly", "telescope_types", "collimation"]:
 		return "assembly"
-	if file_name in ["sky_observation", "telescope_view", "world_map", "constellation_observation"]:
+	if file_name == "telescope_view":
+		return SILENT_MUSIC_CATEGORY
+	if file_name in ["sky_observation", "world_map", "constellation_observation"]:
 		return "outdoor"
 	if file_name in ["space_observation", "radio_observation", "multi_observation"]:
 		return "giant"
 	# Story and learning overlays retain the music of the scene they came from.
 	return ""
+
+
+func _is_music_path_approved(path: String) -> bool:
+	if path.is_empty() or RETIRED_MUSIC_PATHS.has(path):
+		return false
+	return MUSIC_PATHS.values().has(path)
+
+
+func _player_stream_path(player: AudioStreamPlayer) -> String:
+	if player == null or player.stream == null:
+		return ""
+	var stream_path := str(player.stream.resource_path)
+	if stream_path.begins_with("uid://") and RETIRED_MUSIC_UIDS.has(stream_path):
+		return stream_path
+	return stream_path
+
+
+func _enforce_music_policy(expected_path: String) -> void:
+	# Scene changes may reuse an Autoload player that was created by an older
+	# build. Inspect the stream actually assigned to every channel; a retired
+	# decoder is stopped immediately instead of being allowed to crossfade
+	# into FAST or the space observatory.
+	for player in _music_players:
+		if player == null or not player.playing:
+			continue
+		var assigned_path := str(
+			_music_player_paths.get(player.get_instance_id(), _player_stream_path(player))
+		)
+		var stream_path := _player_stream_path(player)
+		var retired := (
+			RETIRED_MUSIC_PATHS.has(assigned_path)
+			or RETIRED_MUSIC_PATHS.has(stream_path)
+			or RETIRED_MUSIC_UIDS.has(stream_path)
+			or not _is_music_path_approved(assigned_path)
+		)
+		if retired:
+			player.stop()
+			player.stream = null
+			player.volume_db = -60.0
+			_music_player_paths.erase(player.get_instance_id())
+			_music_playback_positions.erase(assigned_path)
+			_music_playback_positions.erase(stream_path)
+			if player == _active_music_player:
+				_active_music_player = null
+				_current_music_path = ""
+	if RETIRED_MUSIC_PATHS.has(_current_music_path):
+		_music_playback_positions.erase(_current_music_path)
+		_current_music_path = ""
+	if expected_path != "" and not _is_music_path_approved(expected_path):
+		_reject_retired_music(expected_path)
+
+
+func _reject_retired_music(path: String) -> void:
+	_music_playback_positions.erase(path)
+	for player in _music_players:
+		if player == null:
+			continue
+		var assigned_path := str(
+			_music_player_paths.get(player.get_instance_id(), _player_stream_path(player))
+		)
+		if assigned_path == path or _player_stream_path(player) == path:
+			player.stop()
+			player.stream = null
+			player.volume_db = -60.0
+			_music_player_paths.erase(player.get_instance_id())
+			if player == _active_music_player:
+				_active_music_player = null
+				_current_music_path = ""
+	if OS.is_debug_build():
+		push_warning("Blocked non-approved music path: %s" % path)
+
+
+func music_runtime_state() -> Dictionary:
+	var channels: Array[Dictionary] = []
+	for player in _music_players:
+		channels.append({
+			"name": player.name,
+			"playing": player.playing,
+			"assigned_path": str(
+				_music_player_paths.get(player.get_instance_id(), "")
+			),
+			"stream_path": _player_stream_path(player),
+			"position": player.get_playback_position() if player.playing else 0.0,
+		})
+	return {
+		"current_path": _current_music_path,
+		"active_stream_path": _player_stream_path(_active_music_player),
+		"channels": channels,
+	}
+
+
+func _fade_music_to_silence() -> void:
+	if _active_music_player == null or not _active_music_player.playing:
+		_current_music_path = ""
+		return
+	if _current_music_path.is_empty():
+		return
+	var old_player := _active_music_player
+	var old_path := _current_music_path
+	_remember_music_position(old_player, old_path)
+	_music_transition_serial += 1
+	var transition_serial := _music_transition_serial
+	if _music_tween != null and _music_tween.is_valid():
+		_music_tween.kill()
+	_current_music_path = ""
+	var fading_players: Array[AudioStreamPlayer] = []
+	for player in _music_players:
+		if player.playing:
+			fading_players.append(player)
+	_music_tween = create_tween().set_parallel(true)
+	for player in fading_players:
+		_music_tween.tween_property(
+			player,
+			"volume_db",
+			-60.0,
+			MUSIC_FADE_SECONDS
+		).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	_music_tween.finished.connect(
+		_finish_music_silence.bind(transition_serial, fading_players)
+	)
+
+
+func _finish_music_silence(
+	transition_serial: int,
+	fading_players: Array[AudioStreamPlayer]
+) -> void:
+	if transition_serial != _music_transition_serial:
+		return
+	if not _current_music_path.is_empty():
+		return
+	for player in fading_players:
+		if player == null or not is_instance_valid(player):
+			continue
+		player.stop()
+		player.volume_db = -60.0
+		_music_player_paths.erase(player.get_instance_id())
+	_active_music_player = null
 
 
 func _play_ambience(path: String, target_volume_db: float) -> void:

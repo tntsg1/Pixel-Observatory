@@ -280,6 +280,7 @@ func _confirm() -> void:
 	if GameManager.collimation_is_acceptable():
 		InteractionFeedback.success(confirm_button, "collimation_complete")
 		await get_tree().create_timer(0.34 if not InteractionFeedback.is_reduced_motion() else 0.08).timeout
+		GameManager.equip_completed_optical_telescope(GameManager.assembly_family())
 		GameManager.update_room_guidance_for_level()
 		GameManager.set_observatory_spawn("assembly")
 		GameManager.go("observatory")

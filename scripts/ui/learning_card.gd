@@ -27,6 +27,91 @@ const FAST_OBSERVATION_MEDIA_PATH := "res://data/fast_observation_media.json"
 var _fast_observation_media_cache: Dictionary = {}
 
 
+class FastCompletionPlot extends Control:
+	var product: Dictionary = {}
+	var target_kind := "pulsar"
+
+	func configure(value: Dictionary, kind: String) -> void:
+		product = value
+		target_kind = kind
+		queue_redraw()
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), Color("061119"), true)
+		for x in range(0, int(size.x) + 1, 24):
+			draw_line(Vector2(x, 0), Vector2(x, size.y), Color(0.30, 0.55, 0.58, 0.10), 1.0)
+		for y in range(0, int(size.y) + 1, 24):
+			draw_line(Vector2(0, y), Vector2(size.x, y), Color(0.30, 0.55, 0.58, 0.10), 1.0)
+		draw_rect(Rect2(Vector2.ZERO, size), Color("7b9498"), false, 1.0)
+		if target_kind in ["hi_line", "hydrogen"]:
+			_draw_hi()
+		elif target_kind in ["repeating_frb", "frb"]:
+			_draw_frb()
+		else:
+			_draw_pulsar()
+
+	func _draw_pulsar() -> void:
+		var waterfall: Array = product.get("clean_spectrum", [])
+		var waterfall_rect := Rect2(8, 20, size.x - 16, 62)
+		_draw_waterfall(waterfall, waterfall_rect)
+		_text("CLEAN TIME-FREQUENCY DATA", Vector2(10, 14), 9, Color("9fc7ca"))
+		var profile: Array = product.get("folded_two_cycles", [])
+		var profile_rect := Rect2(8, 104, size.x - 16, size.y - 112)
+		_text("TWO-PERIOD FOLDED PROFILE", Vector2(10, 98), 9, Color("9fd9c1"))
+		_draw_profile(profile, profile_rect, Color("9fe8c9"))
+		draw_line(Vector2(profile_rect.get_center().x, profile_rect.position.y), Vector2(profile_rect.get_center().x, profile_rect.end.y), Color(0.85, 0.68, 0.34, 0.32), 1.0)
+
+	func _draw_hi() -> void:
+		_text("21 CM VELOCITY PROFILE", Vector2(10, 18), 10, Color("9fc7ca"))
+		var values: Array = product.get("clean_spectrum_1d", product.get("folded_two_cycles", []))
+		if values.is_empty():
+			for index in range(96):
+				var t := float(index) / 95.0
+				values.append(0.08 + exp(-pow((t - 0.55) / 0.12, 2.0)) * 0.82)
+		_draw_profile(values, Rect2(10, 34, size.x - 20, size.y - 48), Color("9fe8c9"))
+		draw_line(Vector2(size.x * 0.55, 34), Vector2(size.x * 0.55, size.y - 14), Color(0.85, 0.68, 0.34, 0.38), 1.0)
+
+	func _draw_frb() -> void:
+		_text("DEDISPERSED BURST · TIME × FREQUENCY", Vector2(10, 18), 10, Color("9fc7ca"))
+		var rect := Rect2(10, 30, size.x - 20, size.y - 42)
+		var dm_quality := float(product.get("dm_quality", 0.82))
+		for row in range(14):
+			var f := float(row) / 13.0
+			var arrival := 0.53 + (1.0 - f) * (1.0 - dm_quality) * 0.32
+			var y := rect.position.y + f * rect.size.y
+			var x := rect.position.x + arrival * rect.size.x
+			draw_line(Vector2(rect.position.x, y), Vector2(rect.end.x, y), Color(0.25, 0.46, 0.50, 0.12), 1.0)
+			draw_line(Vector2(x - 8, y), Vector2(x + 8, y), Color(0.62, 0.90, 0.80, 0.78), 2.0)
+
+	func _draw_waterfall(data: Array, rect: Rect2) -> void:
+		if data.is_empty():
+			return
+		var rows := data.size()
+		var columns := (data[0] as Array).size()
+		for row in range(rows):
+			for column in range(columns):
+				var value := clampf(float((data[row] as Array)[column]), 0.0, 1.0)
+				var cell := Rect2(
+					rect.position + Vector2(float(column) * rect.size.x / columns, float(row) * rect.size.y / rows),
+					Vector2(rect.size.x / columns + 0.4, rect.size.y / rows + 0.4)
+				)
+				draw_rect(cell, Color(0.04 + value * 0.28, 0.09 + value * 0.66, 0.11 + value * 0.52, 0.94), true)
+
+	func _draw_profile(values: Array, rect: Rect2, color: Color) -> void:
+		if values.size() < 2:
+			return
+		var points := PackedVector2Array()
+		for index in range(values.size()):
+			var x := rect.position.x + rect.size.x * float(index) / float(values.size() - 1)
+			var y := rect.end.y - clampf(float(values[index]), 0.0, 1.2) * rect.size.y * 0.86
+			points.append(Vector2(x, y))
+		draw_polyline(points, Color(color, 0.20), 5.0, true)
+		draw_polyline(points, color, 1.6, true)
+
+	func _text(value: String, pos: Vector2, font_size: int, color: Color) -> void:
+		draw_string(ThemeDB.fallback_font, pos, value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+
 func _ready() -> void:
 	GameManager.language_changed.connect(_on_language_changed)
 	_build()
@@ -248,6 +333,9 @@ func _build_mission_complete(data: Dictionary) -> void:
 	var level: Dictionary = data.get("level", {})
 	var observation: Dictionary = data.get("observation", {})
 	var concept: Dictionary = data.get("concept_card", {})
+	if _is_fast_completion(level, observation):
+		_build_fast_mission_complete(data)
+		return
 
 	_mission_bg()
 	_title_banner()
@@ -272,6 +360,228 @@ func _build_mission_complete(data: Dictionary) -> void:
 	else:
 		_build_next_mission_route()
 
+	_build_completion_navigation(level)
+
+
+func _is_fast_completion(level: Dictionary, observation: Dictionary) -> bool:
+	return (
+		str(level.get("telescope_family", "")) == "fast_radio"
+		or str(level.get("observation_mode", "")) == "radio"
+		or str(observation.get("observation_mode", "")) == "radio"
+	)
+
+
+func _build_fast_mission_complete(data: Dictionary) -> void:
+	var obj: Dictionary = data.get("object", {})
+	var level: Dictionary = data.get("level", {})
+	var observation: Dictionary = data.get("observation", {})
+	var product := _fast_completion_product(observation)
+	var kind := str(observation.get("radio_target_kind", product.get("target_kind", "pulsar")))
+	var target_name := _dict_inline(obj, "name")
+	var type_label := _fast_type_label(kind)
+	var conclusion := _fast_conclusion_label(kind, str(observation.get("report_conclusion", "")))
+	var confidence := clampf(float(observation.get("confidence", product.get("confidence", 0.0))), 0.0, 1.0)
+
+	_mission_bg()
+	_title_banner()
+	_dark_panel(Vector2(166, 78), Vector2(692, 508), Color(0.018, 0.035, 0.045, 0.97), Color("7c999c"))
+	_label(target_name, Vector2(190, 92), Vector2(452, 32), 25, Color("e4f4ee"))
+	_label(type_label, Vector2(190, 123), Vector2(452, 22), 13, Color("8fc6c7"))
+	var result_chip := _dark_panel(Vector2(646, 94), Vector2(188, 50), Color("102b27"), Color("68d5b5"))
+	result_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_label(conclusion, Vector2(654, 98), Vector2(172, 22), 12, Color("d5fff2"), HORIZONTAL_ALIGNMENT_CENTER)
+	_label(
+		GameManager.text("Confidence %.0f%%" % (confidence * 100.0), "置信度 %.0f%%" % (confidence * 100.0)),
+		Vector2(654, 120), Vector2(172, 18), 10, Color("9ed7c6"), HORIZONTAL_ALIGNMENT_CENTER
+	)
+
+	var plot_panel := _dark_panel(Vector2(190, 160), Vector2(438, 196), Color("041018"), Color("759296"))
+	plot_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var plot := FastCompletionPlot.new()
+	plot.name = "FastRadioCompletionPlot"
+	plot.position = Vector2(6, 6)
+	plot.size = Vector2(426, 184)
+	plot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	plot.configure(product, kind)
+	plot_panel.add_child(plot)
+
+	_label(GameManager.text("MEASURED RADIO DATA", "射电测量记录"), Vector2(650, 158), Vector2(180, 22), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	var metrics := _fast_metric_rows(observation, product, kind)
+	for index in range(metrics.size()):
+		var row: Array = metrics[index]
+		var y := 186.0 + float(index) * 27.0
+		_label(str(row[0]), Vector2(650, y), Vector2(88, 20), 10, MUTED)
+		var value_label := _label(str(row[1]), Vector2(738, y), Vector2(94, 20), 11, Color("d9f1ea"), HORIZONTAL_ALIGNMENT_RIGHT)
+		value_label.name = "FastMetric_%d" % index
+		if not InteractionFeedback.is_reduced_motion():
+			value_label.modulate.a = 0.0
+			var value_tween := value_label.create_tween()
+			value_tween.tween_interval(0.08 + float(index) * 0.055)
+			value_tween.tween_property(value_label, "modulate:a", 1.0, 0.14)
+
+	_label(GameManager.text("EVIDENCE CHAIN", "证据链"), Vector2(190, 372), Vector2(644, 24), 14, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	var chain := _fast_operation_chain(observation, product, kind)
+	for index in range(3):
+		var x := 190.0 + float(index) * 214.0
+		var headers := [
+			GameManager.text("PLAYER ACTION", "玩家操作"),
+			GameManager.text("SYSTEM EFFECT", "系统变化"),
+			GameManager.text("MEASURED RESULT", "测量结果"),
+		]
+		_label(str(headers[index]), Vector2(x, 398), Vector2(198, 18), 10, Color("8fc6c7"), HORIZONTAL_ALIGNMENT_CENTER)
+		var body := _label(str(chain[index]), Vector2(x, 417), Vector2(198, 60), 11, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+		body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		body.max_lines_visible = 4
+		if index < 2:
+			_label(">", Vector2(x + 198, 432), Vector2(16, 24), 14, Color("68d5b5"), HORIZONTAL_ALIGNMENT_CENTER)
+
+	var quality := str(observation.get("quality", "Good"))
+	_label(
+		GameManager.text("DATA QUALITY  %s" % quality.to_upper(), "数据质量  %s" % quality),
+		Vector2(190, 492), Vector2(214, 22), 12, _paper_quality_color(quality)
+	)
+	var archive_note := _label(
+		GameManager.text(
+			"This is a measured timing product, not an optical photograph.",
+			"这是由射电计时数据得到的成果，不是光学照片。"
+		),
+		Vector2(404, 492), Vector2(430, 38), 11, MUTED, HORIZONTAL_ALIGNMENT_RIGHT
+	)
+	archive_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	archive_note.max_lines_visible = 2
+
+	_label(GameManager.text("REWARDS ARCHIVED", "奖励已归档"), Vector2(190, 535), Vector2(644, 20), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	var reward: Dictionary = data.get("reward_summary", {})
+	_label(
+		GameManager.text(
+			"+%d Club Credits · FAST signal record saved" % int(reward.get("credits_awarded", 0)),
+			"+%d 社团积分 · FAST 信号记录已保存" % int(reward.get("credits_awarded", 0))
+		),
+		Vector2(190, 557), Vector2(644, 20), 12, Color("9ed7c6"), HORIZONTAL_ALIGNMENT_CENTER
+	)
+
+	if not InteractionFeedback.is_reduced_motion():
+		plot_panel.scale = Vector2(0.97, 0.97)
+		plot_panel.pivot_offset = plot_panel.size * 0.5
+		plot_panel.modulate.a = 0.0
+		var reveal := plot_panel.create_tween().set_parallel(true)
+		reveal.tween_property(plot_panel, "scale", Vector2.ONE, 0.24).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		reveal.tween_property(plot_panel, "modulate:a", 1.0, 0.18)
+
+	_dark_panel(Vector2(168, 594), Vector2(688, 66), Color(0.02, 0.05, 0.035, 0.95), GOLD)
+	var completed_level_number := int(level.get("level_number", 0))
+	if bool(GameManager.progress.get("program_completed", false)) and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL:
+		_build_program_complete_route()
+	else:
+		_build_next_mission_route()
+	_build_completion_navigation(level)
+
+
+func _fast_completion_product(observation: Dictionary) -> Dictionary:
+	var product: Dictionary = observation.get("radio_data_product", {}).duplicate(true)
+	if not product.is_empty():
+		return product
+	var values: Array = []
+	var confidence := clampf(float(observation.get("confidence", 0.78)), 0.25, 1.0)
+	for index in range(128):
+		var phase := fmod(float(index) / 64.0, 1.0)
+		var distance := minf(absf(phase - 0.50), 1.0 - absf(phase - 0.50))
+		var pulse := exp(-pow(distance / lerpf(0.095, 0.045, confidence), 2.0))
+		var noise := sin(float(index) * 1.73) * (1.0 - confidence) * 0.10
+		values.append(clampf(0.05 + pulse * 0.88 + noise, 0.0, 1.1))
+	product["folded_two_cycles"] = values
+	product["confidence"] = confidence
+	product["target_kind"] = str(observation.get("radio_target_kind", "pulsar"))
+	product["pulse_width_ms"] = float(observation.get("pulse_width_ms", 0.0))
+	product["duty_cycle_percent"] = float(observation.get("duty_cycle_percent", 0.0))
+	return product
+
+
+func _fast_type_label(kind: String) -> String:
+	if kind in ["hi_line", "hydrogen"]:
+		return GameManager.text("Neutral Hydrogen · 21 cm Spectral Measurement", "中性氢 · 21 厘米谱线测量")
+	if kind in ["repeating_frb", "frb"]:
+		return GameManager.text("Fast Radio Burst · Dispersed Transient", "快速射电爆发 · 色散暂现源")
+	return GameManager.text("Radio Pulsar · Precision Timing", "射电脉冲星 · 精密计时")
+
+
+func _fast_conclusion_label(kind: String, choice: String) -> String:
+	if choice == "residual_rfi":
+		return GameManager.text("RFI REMAINS", "仍有干扰")
+	if choice == "insufficient_signal":
+		return GameManager.text("SIGNAL INSUFFICIENT", "信号不足")
+	if kind in ["hi_line", "hydrogen"]:
+		return GameManager.text("21 CM LINE CONFIRMED", "21 厘米谱线已确认")
+	if kind in ["repeating_frb", "frb"]:
+		return GameManager.text("BURST CONFIRMED", "射电爆发已确认")
+	return GameManager.text("PERIODICITY CONFIRMED", "周期信号已确认")
+
+
+func _fast_metric_rows(observation: Dictionary, product: Dictionary, kind: String) -> Array:
+	var common := [
+		[GameManager.text("S/N", "信噪比"), "%.1f" % float(observation.get("snr", 0.0))],
+		[GameManager.text("Integration", "积分时长"), "%.0f s" % float(observation.get("integration_s", 0.0))],
+		[GameManager.text("RFI removed", "剔除干扰"), "%d" % int(observation.get("rfi_cleared", 0))],
+	]
+	if kind in ["hi_line", "hydrogen"]:
+		return [
+			[GameManager.text("Rest line", "静止谱线"), "1420.406 MHz"],
+			[GameManager.text("Velocity", "径向速度"), "%.1f km/s" % float(product.get("velocity_kms", 0.0))],
+		] + common
+	if kind in ["repeating_frb", "frb"]:
+		return [
+			["DM", "%.2f pc/cm³" % float(observation.get("dispersion_measure", 0.0))],
+			[GameManager.text("Burst width", "爆发宽度"), "%.2f ms" % float(observation.get("pulse_width_ms", 0.0))],
+		] + common
+	return [
+		[GameManager.text("Period", "周期"), "%.3f ms" % float(observation.get("pulse_period_ms", 0.0))],
+		["DM", "%.2f pc/cm³" % float(observation.get("dispersion_measure", 0.0))],
+		[GameManager.text("Pulse width", "脉冲宽度"), "%.2f ms" % float(observation.get("pulse_width_ms", product.get("pulse_width_ms", 0.0)))],
+		[GameManager.text("Duty cycle", "占空比"), "%.1f%%" % float(observation.get("duty_cycle_percent", product.get("duty_cycle_percent", 0.0)))],
+	] + common
+
+
+func _fast_operation_chain(observation: Dictionary, product: Dictionary, kind: String) -> Array[String]:
+	var action := GameManager.text(
+		"Locked the feed cabin, tuned the passband, removed RFI, and solved the timing model.",
+		"锁定馈源舱、调谐通带、剔除干扰并求解计时模型。"
+	)
+	var effect := GameManager.text(
+		"Pointing %.0f%% · tuning %.0f%% · RFI %d/%d removed." % [
+			float(observation.get("pointing_quality", product.get("pointing_quality", 0.0))) * 100.0,
+			float(observation.get("tuning_quality", product.get("tuning_quality", 0.0))) * 100.0,
+			int(observation.get("rfi_cleared", product.get("removed_rfi_count", 0))),
+			int(observation.get("raw_rfi_count", product.get("raw_rfi_count", 0))),
+		],
+		"指向 %.0f%% · 调谐 %.0f%% · 已剔除干扰 %d/%d。" % [
+			float(observation.get("pointing_quality", product.get("pointing_quality", 0.0))) * 100.0,
+			float(observation.get("tuning_quality", product.get("tuning_quality", 0.0))) * 100.0,
+			int(observation.get("rfi_cleared", product.get("removed_rfi_count", 0))),
+			int(observation.get("raw_rfi_count", product.get("raw_rfi_count", 0))),
+		]
+	)
+	var result := GameManager.text(
+		"The cleaned data support a repeatable radio measurement.",
+		"净化后的数据支持可重复的射电测量结果。"
+	)
+	if kind not in ["hi_line", "hydrogen", "repeating_frb", "frb"]:
+		result = GameManager.text(
+			"Period %.3f ms · DM %.2f · S/N %.1f formed a stable folded pulse." % [
+				float(observation.get("pulse_period_ms", 0.0)),
+				float(observation.get("dispersion_measure", 0.0)),
+				float(observation.get("snr", 0.0)),
+			],
+			"周期 %.3f ms · DM %.2f · 信噪比 %.1f 形成稳定折叠脉冲。" % [
+				float(observation.get("pulse_period_ms", 0.0)),
+				float(observation.get("dispersion_measure", 0.0)),
+				float(observation.get("snr", 0.0)),
+			]
+		)
+	return [action, effect, result]
+
+
+func _build_completion_navigation(level: Dictionary) -> void:
+	var completed_level_number := int(level.get("level_number", 0))
 	var program_complete := bool(GameManager.progress.get("program_completed", false)) \
 		and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL
 	var continue_text := GameManager.text("Graduation Ceremony", "参加毕业典礼") if program_complete \
@@ -280,20 +590,15 @@ func _build_mission_complete(data: Dictionary) -> void:
 	continue_button.name = "GraduationButton" if program_complete else "ContinueButton"
 	continue_button.pressed.connect(func() -> void:
 		if program_complete:
-			# The final Maya epilogue closes the FAST lesson, then hands off to
-			# a ceremony instead of rebuilding L85 as the next mission.
 			if GameManager.try_story_epilogue(completed_level_number, "graduation"):
 				return
 			GameManager.go("graduation")
 			return
 		GameManager.update_room_guidance_for_level()
-		# Family-arc levels close with a short Maya epilogue (summary plus the
-		# motivation for the next stage) before returning to the lobby.
 		if GameManager.try_story_epilogue(completed_level_number, "observatory"):
 			return
 		GameManager.go("observatory")
 	)
-
 	var journal_button: Button = _mission_button(GameManager.text("Open Journal", "打开观测日志"), Vector2(536, 668), Vector2(230, 48), Color(0.06, 0.20, 0.42))
 	journal_button.pressed.connect(func() -> void:
 		GameManager.set_observatory_spawn("journal")

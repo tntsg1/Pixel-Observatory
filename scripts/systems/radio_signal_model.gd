@@ -498,6 +498,148 @@ func timing_stability() -> float:
 	return clampf(0.55 + 0.4 * period_match() * dm_match() + 0.05 * classification_score(), 0.0, 1.0)
 
 
+func pointing_quality() -> float:
+	return 1.0 if is_locked() else clampf(1.0 - pointing_error() / 18.0, 0.0, 1.0)
+
+
+func dynamic_spectrum(
+	time_bins := 72,
+	frequency_bins := 24,
+	apply_cleaning := false,
+	apply_dedispersion := false
+) -> Array:
+	# Deterministic time-frequency data product. Every visible feature is tied to
+	# pointing, passband placement, RFI decisions, and the current DM solution.
+	var rows: Array = []
+	var safe_time_bins := maxi(time_bins, 8)
+	var safe_frequency_bins := maxi(frequency_bins, 6)
+	var signal_scale := pointing_quality() * tuning_quality() * source_strength
+	if source_deleted():
+		signal_scale *= 0.04
+	var remaining_dispersion := 0.0 if apply_dedispersion else 1.0
+	if apply_dedispersion:
+		remaining_dispersion = 1.0 - dm_match()
+	for frequency_index in range(safe_frequency_bins):
+		var frequency_normalized := float(frequency_index) / float(safe_frequency_bins - 1)
+		var row: Array = []
+		for time_index in range(safe_time_bins):
+			var time_normalized := float(time_index) / float(safe_time_bins - 1)
+			var deterministic_noise := (
+				sin(float(time_index) * 1.73 + float(frequency_index) * 0.61)
+				+ sin(float(time_index) * 0.37 - float(frequency_index) * 1.19)
+			) * 0.035
+			var value := 0.09 + deterministic_noise
+			if target_kind == "pulsar":
+				var delay := (1.0 - frequency_normalized) * 0.30 * remaining_dispersion
+				var pulse_phase := fposmod(time_normalized * 4.0 - delay - true_phase, 1.0)
+				var pulse_distance := minf(pulse_phase, 1.0 - pulse_phase)
+				value += exp(-pow(pulse_distance / 0.052, 2.0)) * 0.58 * signal_scale
+			elif target_kind in ["repeating_frb", "frb"]:
+				var burst_delay := (1.0 - frequency_normalized) * 0.52 * remaining_dispersion
+				var burst_distance := absf(time_normalized - (0.57 + burst_delay * 0.45))
+				value += exp(-pow(burst_distance / 0.032, 2.0)) * 0.72 * signal_scale
+			else:
+				var line_center := clampf(
+					(true_center_mhz - BAND_MIN) / (BAND_MAX - BAND_MIN),
+					0.0,
+					1.0
+				)
+				value += exp(-pow((frequency_normalized - line_center) / 0.055, 2.0)) * 0.42 * signal_scale
+
+			for peak_index in range(rfi_peaks.size()):
+				var peak: Dictionary = rfi_peaks[peak_index]
+				if not bool(peak.get("is_rfi", false)):
+					continue
+				var peak_frequency := clampf(
+					(float(peak.get("mhz", BAND_MIN)) - BAND_MIN) / (BAND_MAX - BAND_MIN),
+					0.0,
+					1.0
+				)
+				var frequency_distance := absf(frequency_normalized - peak_frequency)
+				var pattern := str(peak.get("pattern", "fixed_narrow"))
+				var pattern_strength := 0.0
+				match pattern:
+					"periodic":
+						pattern_strength = 0.65 if sin(time_normalized * TAU * 9.0) > 0.30 else 0.05
+					"burst":
+						pattern_strength = 0.78 if absf(time_normalized - 0.63) < 0.075 else 0.02
+					"comb":
+						pattern_strength = 0.56 if posmod(time_index, 8) <= 1 else 0.07
+					"sweep":
+						var sweep_frequency := fposmod(time_normalized * 0.85 + 0.12, 1.0)
+						frequency_distance = absf(frequency_normalized - sweep_frequency)
+						pattern_strength = 0.70
+					_:
+						pattern_strength = 0.62
+				var rejected := apply_cleaning and str(classifications.get(peak_index, "")) == "rfi"
+				var rejection_gain := 0.08 if rejected else 1.0
+				value += (
+					exp(-pow(frequency_distance / 0.018, 2.0))
+					* pattern_strength
+					* float(peak.get("strength", 0.7))
+					* rejection_gain
+				)
+			row.append(clampf(value, 0.0, 1.0))
+		rows.append(row)
+	return rows
+
+
+func science_product(time_bins := 72, frequency_bins := 24) -> Dictionary:
+	var report_data := report()
+	var measured_period := maxf(float(report_data.get("trial_period_ms", trial_period_ms)), 0.001)
+	var width_ms := pulse_width_ms()
+	var confidence := clampf(
+		pointing_quality() * 0.18
+		+ tuning_quality() * 0.17
+		+ classification_score() * 0.20
+		+ period_match() * 0.18
+		+ dm_match() * 0.14
+		+ clampf(fold_snr() / maxf(report_snr_threshold * 1.6, 1.0), 0.0, 1.0) * 0.13,
+		0.0,
+		1.0
+	)
+	var rfi_marks: Array = []
+	for peak_index in range(rfi_peaks.size()):
+		var peak: Dictionary = rfi_peaks[peak_index]
+		if not bool(peak.get("is_rfi", false)):
+			continue
+		rfi_marks.append({
+			"frequency_normalized": clampf(
+				(float(peak.get("mhz", BAND_MIN)) - BAND_MIN) / (BAND_MAX - BAND_MIN),
+				0.0,
+				1.0
+			),
+			"removed": str(classifications.get(peak_index, "")) == "rfi",
+			"pattern": str(peak.get("pattern", "fixed_narrow")),
+		})
+	var folded_two_cycles: Array = []
+	var one_cycle := folded_profile(96)
+	for _cycle in range(2):
+		folded_two_cycles.append_array(one_cycle)
+	return {
+		"raw_spectrum": dynamic_spectrum(time_bins, frequency_bins, false, false),
+		"clean_spectrum": dynamic_spectrum(time_bins, frequency_bins, true, false),
+		"corrected_spectrum": dynamic_spectrum(time_bins, frequency_bins, true, true),
+		"folded_two_cycles": folded_two_cycles,
+		"rfi_marks": rfi_marks,
+		"pointing_quality": pointing_quality(),
+		"tuning_quality": tuning_quality(),
+		"rfi_quality": classification_score(),
+		"period_quality": period_match(),
+		"dm_quality": dm_match(),
+		"phase_quality": phase_match(),
+		"confidence": confidence,
+		"pulse_width_ms": width_ms,
+		"duty_cycle_percent": clampf(width_ms / measured_period * 100.0, 0.0, 100.0),
+		"raw_rfi_count": maxi(0, rfi_peaks.size() - 1),
+		"removed_rfi_count": correctly_rejected_rfi_count(),
+		"residual_rfi_count": residual_rfi_count(),
+		"period_error_ms": absf(trial_period_ms - true_period_ms),
+		"dm_residual": absf(trial_dm - true_dm),
+		"report": report_data,
+	}
+
+
 func report() -> Dictionary:
 	var snr := fold_snr()
 	var success := is_locked() \

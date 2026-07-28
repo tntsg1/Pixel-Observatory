@@ -37,6 +37,14 @@ func _initialize() -> void:
 func _test_final_completion_and_ceremony(gm: Node, sm: Node) -> void:
 	gm.new_game()
 	gm.debug_jump_to_level(85, true)
+	var mission_manager: Node = root.get_node_or_null("/root/MissionManager")
+	if mission_manager != null:
+		var completed_before_final: Array = []
+		for number_value in mission_manager.get("campaign_order") as Array:
+			var number := int(number_value)
+			if number < 85:
+				completed_before_final.append(number)
+		gm.progress["completed_levels"] = completed_before_final
 	for step_value in gm.mission_steps():
 		var step: Dictionary = step_value
 		gm.mark_mission_step_done(str(step.get("id", "")))
@@ -75,6 +83,57 @@ func _test_final_completion_and_ceremony(gm: Node, sm: Node) -> void:
 	_check(bool(gm.progress.get("graduation_seen", false)), "presenting the ceremony is remembered")
 	_check(not bool(gm.progress.get("graduation_pending", true)), "ceremony queue clears after presentation")
 	_check(_collect_text(current_scene).contains("YOUNG OBSERVER"), "ceremony presents the Young Observer award")
+	_check(_collect_text(current_scene).contains("LOOK HOW FAR YOU CAME"), "graduation begins with a concise journey recap")
+	var recap_copy := current_scene.find_child("GraduationRecapCopy", true, false)
+	if recap_copy is Label:
+		var original_text := (recap_copy as Label).text
+		(recap_copy as Label).text = original_text + " " + "VeryLongCatalogIdentifierWithoutSpaces".repeat(8)
+		await process_frame
+		var copy_rect := (recap_copy as Label).get_global_rect()
+		var parent_rect := (recap_copy as Label).get_parent_control().get_global_rect()
+		_check(copy_rect.end.x <= parent_rect.end.x + 0.5, "long graduation dialogue stays inside its content rect")
+		_check((recap_copy as Label).autowrap_mode != TextServer.AUTOWRAP_OFF, "graduation dialogue keeps automatic wrapping enabled")
+		(recap_copy as Label).text = original_text
+	else:
+		_check(false, "graduation recap dialogue exists")
+
+	var next_button := current_scene.find_child("GraduationNextButton", true, false)
+	_check(next_button is Button, "graduation recap can continue into the archive")
+	if next_button is Button:
+		(next_button as Button).pressed.emit()
+		await process_frame
+	_check(_collect_text(current_scene).contains("YOUR OBSERVING RECORD"), "graduation unfolds the player's real observing archive")
+	_check(_collect_text(current_scene).contains("PSR B0329+54"), "archive recap includes the final recorded target")
+
+	next_button = current_scene.find_child("GraduationNextButton", true, false)
+	if next_button is Button:
+		(next_button as Button).pressed.emit()
+		await process_frame
+	_check(_collect_text(current_scene).contains("EQUIPMENT & ACCESS HANDOVER"), "graduation explicitly separates equipment ownership from facility access")
+	_check(_collect_text(current_scene).contains("OWNERSHIP TRANSFERRED"), "graduation transfers unlocked optical equipment")
+	_check(_collect_text(current_scene).contains("SPACE INFRARED"), "graduation names Space Infrared free observation")
+	_check(_collect_text(current_scene).contains("FAST RADIO"), "graduation names FAST free observation")
+	_check(_collect_text(current_scene).contains("REMOTE ACCESS GRANTED"), "graduation keeps national facilities as remote access")
+	var owned_optical: Array[String] = gm.owned_optical_telescope_families()
+	_check(not owned_optical.is_empty(), "graduation persists ownership of unlocked optical families")
+	_check(not owned_optical.has("space_segmented") and not owned_optical.has("fast_radio"), "remote facilities are never transferred as personal equipment")
+	_check(gm.is_player_optical_family(gm.active_optical_telescope_family()), "graduation active equipment is always an optical family")
+	for index in range(3):
+		var access_card := current_scene.find_child("GraduationAccessCard%d" % index, true, false)
+		var access_copy := current_scene.find_child("GraduationAccessCopy%d" % index, true, false)
+		if access_card is Control and access_copy is Control:
+			_check((access_copy as Control).get_global_rect().end.x <= (access_card as Control).get_global_rect().end.x + 0.5, "graduation access card %d text stays inside its content rect" % (index + 1))
+		else:
+			_check(false, "graduation access card %d exposes a bounded copy control" % (index + 1))
+	var access_dialogue := current_scene.find_child("GraduationAccessDialogue", true, false)
+	_check(access_dialogue is Label and (access_dialogue as Label).autowrap_mode != TextServer.AUTOWRAP_OFF, "graduation ownership dialogue remains wrapped")
+
+	next_button = current_scene.find_child("GraduationNextButton", true, false)
+	if next_button is Button:
+		(next_button as Button).pressed.emit()
+		await process_frame
+	_check(_collect_text(current_scene).contains("INDEPENDENT NIGHT 01"), "graduation ends with a concrete first independent observing prompt")
+	_check(current_scene.find_child("BeginIndependentNightButton", true, false) is Button, "graduation offers a clear start-independent-night action")
 
 
 func _test_postgraduate_board_and_duplicate_protection(gm: Node) -> void:
@@ -82,8 +141,8 @@ func _test_postgraduate_board_and_duplicate_protection(gm: Node) -> void:
 	var journal_before_repeat := (gm.progress.get("journal_entries", []) as Array).size()
 	var completed_before_repeat := (gm.progress.get("completed_levels", []) as Array).size()
 
-	var return_button := current_scene.find_child("ReturnToObservatoryButton", true, false) if current_scene != null else null
-	_check(return_button is Button, "ceremony has a return-to-observatory action")
+	var return_button := current_scene.find_child("BeginIndependentNightButton", true, false) if current_scene != null else null
+	_check(return_button is Button, "ceremony has a begin-independent-night action")
 	if return_button is Button:
 		(return_button as Button).pressed.emit()
 		await process_frame
@@ -145,6 +204,17 @@ func _test_old_save_graduation_migration(gm: Node) -> void:
 	_check(bool(gm.progress.get("graduation_pending", false)), "old completed save receives the missing ceremony once")
 	_check(not bool(gm.progress.get("graduation_seen", true)), "old completed save does not falsely mark ceremony seen")
 	_check((gm.progress.get("badges", []) as Array).has("Young Observer"), "old completed save recovers the graduation badge")
+
+	gm.progress["graduation_seen"] = true
+	gm.progress["graduation_pending"] = false
+	gm.progress.erase("owned_optical_telescope_families")
+	gm.progress.erase("active_optical_telescope_id")
+	gm.progress.erase("optical_ownership_transfer_version")
+	gm._normalize_progress()
+	var migrated_owned: Array[String] = gm.owned_optical_telescope_families()
+	_check(not migrated_owned.is_empty(), "old graduated save receives optical ownership without replaying the ceremony")
+	_check(not migrated_owned.has("space_segmented") and not migrated_owned.has("fast_radio"), "old graduated save migration excludes remote facilities")
+	_check(gm.is_player_optical_family(gm.active_optical_telescope_family()), "old graduated save infers an optical active family instead of a remote facility")
 
 
 func _collect_text(node: Node) -> String:

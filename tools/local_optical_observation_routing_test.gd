@@ -39,10 +39,15 @@ func _initialize() -> void:
 		"optical_alignment": 94.0,
 	}
 	gm.progress["telescope_ready"] = true
+	_check(gm.equip_completed_optical_telescope("dobsonian"), "finishing the Dobsonian equips it as the active optical telescope")
 
 	_check(str(gm.current_level().get("telescope_family", "")) == "fast_radio", "fixture keeps the FAST campaign active")
 	_check(gm.telescope_is_ready(), "assembled Dobsonian is ready in postgraduate free build")
-	_check(gm.begin_local_optical_free_observation(), "central pad can begin a local optical session during a FAST mission")
+	_check(gm.active_optical_telescope_family() == "dobsonian", "active optical identity is independent from the FAST mission family")
+	_check(gm.go_to_local_optical_observation("telescope"), "central pad can begin a local optical session during a FAST mission")
+	await process_frame
+	await process_frame
+	_check(current_scene != null and current_scene.name == "SkyObservation", "local optical context bypasses the FAST sky-route redirect")
 	_check(gm.is_local_optical_free_observation(), "local optical session owns the central pad")
 	_check(gm.is_free_observation(), "local optical session cannot advance the FAST campaign")
 	_check(str(gm.local_optical_observation_context.get("family", "")) == "dobsonian", "selected ground family is preserved")
@@ -52,6 +57,7 @@ func _initialize() -> void:
 	gm.begin_remote_campaign("radio")
 	_check(not gm.is_local_optical_free_observation(), "lower-right remote console cleanly takes ownership")
 	_check(str(gm.remote_observation_context.get("kind", "")) == "radio", "FAST remains available only through the remote context")
+	_check(gm.active_optical_telescope_family() == "dobsonian", "visiting FAST does not overwrite the active optical telescope")
 
 	gm.select_assembly_family("cassegrain")
 	gm.progress["assembly_state"] = {
@@ -66,9 +72,28 @@ func _initialize() -> void:
 	}
 	gm.progress["telescope_ready"] = true
 	_check(gm.telescope_is_ready(), "assembled Cassegrain is ready in postgraduate free build")
+	_check(gm.equip_completed_optical_telescope("cassegrain"), "finishing the Cassegrain makes it the active optical telescope")
 	_check(gm.begin_local_optical_free_observation(), "central pad opens the assembled Cassegrain instead of FAST")
 	_check(str(gm.local_optical_observation_context.get("family", "")) == "cassegrain", "Cassegrain remains the active local optical family")
 	_check(gm.remote_observation_context.is_empty(), "Cassegrain central-pad entry clears the FAST remote context")
+
+	gm.begin_remote_campaign("space")
+	_check(gm.active_optical_telescope_family() == "cassegrain", "visiting Space Infrared does not overwrite the active optical telescope")
+	_check(gm.begin_local_optical_free_observation(), "central pad can resume the active Cassegrain after Space Infrared")
+	_check(str(gm.local_optical_observation_context.get("family", "")) == "cassegrain", "Space Infrared return preserves the Cassegrain build")
+
+	gm.save()
+	var save_manager: Node = root.get_node_or_null("/root/SaveManager")
+	if save_manager != null:
+		gm.progress = save_manager.load_progress(gm.default_progress())
+		gm._normalize_progress()
+		_check(gm.active_optical_telescope_family() == "cassegrain", "active optical telescope survives save reload")
+	else:
+		_check(false, "SaveManager is available for active optical persistence")
+
+	gm.progress["active_optical_telescope_id"] = ""
+	_check(not gm.begin_local_optical_free_observation(), "central pad refuses entry when no optical telescope is equipped")
+	_check(str(gm.remote_observation_context.get("kind", "")) != "radio", "missing optical equipment never falls back to FAST")
 
 	print("LOCAL OPTICAL OBSERVATION ROUTING TEST %s" % ("PASS" if failures == 0 else "FAIL"))
 	_finish(0 if failures == 0 else 1)
