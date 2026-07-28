@@ -7,7 +7,12 @@
   const when = value => {
     const timestamp = Number(value);
     if (!timestamp) return "";
-    return new Date(timestamp > 10_000_000_000 ? timestamp : timestamp * 1000).toLocaleString();
+    const date = new Date(timestamp > 10_000_000_000 ? timestamp : timestamp * 1000);
+    const today = new Date();
+    const sameDay = date.toDateString() === today.toDateString();
+    return new Intl.DateTimeFormat(isZh() ? "zh-CN" : "en", sameDay
+      ? {hour: "2-digit", minute: "2-digit"}
+      : {month: "short", day: "numeric"}).format(date);
   };
 
   document.body.insertAdjacentHTML("beforeend", `
@@ -82,7 +87,7 @@
     }
     content.innerHTML = `<div class="po-inbox-shell">
       <aside class="po-inbox-sidebar">
-        <header class="po-inbox-head"><h2>${t("Inbox","信箱")}</h2><p>${esc(state.user.username)}</p></header>
+        <header class="po-inbox-head"><p class="po-inbox-kicker">${t("Observer network","观测员通信")}</p><h2>${t("Messages","信箱")}</h2><p>${esc(state.user.username)} · ${t("Online","在线")}</p></header>
         <button class="po-secondary po-compose" id="po-compose" type="button">${t("New message","写新消息")}</button>
         <div class="po-conversations" id="po-conversations"></div>
       </aside>
@@ -161,11 +166,23 @@
           <div class="po-message-meta"><strong>${esc(message.sender_label)}</strong><time>${esc(when(message.created_at))}</time></div>
           <div class="po-message-body">${esc(message.body)}</div></article>`;
       }).join("")}</div>
-      <form class="po-reply" id="po-reply"><textarea name="body" maxlength="4000" required placeholder="${t("Write a reply...","写下回复……")}"></textarea>
-        <button class="po-primary" type="submit">${t("Send","发送")}</button><p class="po-inbox-status" role="status"></p></form>`;
+      <form class="po-reply" id="po-reply"><textarea name="body" maxlength="4000" rows="1" required placeholder="${t("Message","输入消息")}"></textarea>
+        <button class="po-send" type="submit" aria-label="${t("Send message","发送消息")}">${t("Send","发送")}</button><p class="po-inbox-status" role="status"></p></form>`;
     thread.querySelector(".po-inbox-mobile-back").onclick = () => { thread.classList.remove("is-open"); };
     const messages = document.getElementById("po-messages");
     messages.scrollTop = messages.scrollHeight;
+    const replyInput = thread.querySelector(".po-reply textarea");
+    const resizeReply = () => {
+      replyInput.style.height = "auto";
+      replyInput.style.height = `${Math.min(replyInput.scrollHeight, 124)}px`;
+    };
+    replyInput.addEventListener("input", resizeReply);
+    replyInput.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        event.currentTarget.form.requestSubmit();
+      }
+    });
     thread.querySelector("form").onsubmit = async event => {
       event.preventDefault();
       const form = new FormData(event.currentTarget);
