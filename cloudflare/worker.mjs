@@ -1031,10 +1031,13 @@ async function handleCommunityPostGet(request, env, postId) {
 	if (!post) return apiError("Community post not found.", 404, "not_found");
 	const replies = await env.DB.prepare(
 		`SELECT community_replies.id, community_replies.body, community_replies.created_at,
+		   community_replies.parent_reply_id, parent_user.username AS reply_to_username,
 		   users.id AS user_id, users.username, user_profiles.avatar_id, user_profiles.selected_title,
 		   user_profiles.play_seconds, user_profiles.last_active_at
 		 FROM community_replies JOIN users ON users.id = community_replies.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN community_replies AS parent_reply ON parent_reply.id = community_replies.parent_reply_id
+		 LEFT JOIN users AS parent_user ON parent_user.id = parent_reply.user_id
 		 WHERE community_replies.post_id = ? AND community_replies.deleted_at = 0
 		 ORDER BY community_replies.created_at ASC LIMIT 300`,
 	).bind(postId).all();
@@ -1051,6 +1054,8 @@ async function handleCommunityPostGet(request, env, postId) {
 			id: row.id,
 			body: row.body,
 			createdAt: Number(row.created_at),
+			parentReplyId: row.parent_reply_id || null,
+			replyToUsername: row.reply_to_username || null,
 			author: socialProfile({ ...row, id: row.user_id }, viewer?.id || ""),
 		})),
 	});
@@ -1070,13 +1075,24 @@ async function handleCommunityReplyCreate(request, env, postId) {
 	}
 	const body = normalizeMessageBody(payload.body);
 	if (!body || body.length > 2000) return apiError("Write a reply up to 2000 characters.", 400, "invalid_reply");
+	const requestedParentId = typeof payload.parentReplyId === "string"
+		? payload.parentReplyId.trim().slice(0, 120)
+		: "";
+	let parentReplyId = null;
+	if (requestedParentId) {
+		const parent = await env.DB.prepare(
+			"SELECT id FROM community_replies WHERE id = ? AND post_id = ? AND deleted_at = 0",
+		).bind(requestedParentId, postId).first();
+		if (!parent) return apiError("The comment you are replying to is no longer available.", 400, "invalid_parent_reply");
+		parentReplyId = parent.id;
+	}
 	const id = `REPLY-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
 	const now = Date.now();
 	await env.DB.batch([
 		env.DB.prepare(
-			`INSERT INTO community_replies (id, post_id, user_id, body, deleted_at, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, 0, ?, ?)`,
-		).bind(id, postId, user.id, body, now, now),
+			`INSERT INTO community_replies (id, post_id, user_id, body, parent_reply_id, deleted_at, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+		).bind(id, postId, user.id, body, parentReplyId, now, now),
 		env.DB.prepare(
 			"UPDATE community_posts SET reply_count = reply_count + 1, updated_at = ? WHERE id = ?",
 		).bind(now, postId),
