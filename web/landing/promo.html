@@ -7,6 +7,7 @@
 <meta name="description" content="Starlight Observatory is a pixel astronomy simulation. Build your telescope, read the sky, and discover more.">
 <link rel="stylesheet" href="account.css?v=20260728-glass-controls">
 <link rel="stylesheet" href="inbox.css?v=20260728-glass-controls">
+<link rel="stylesheet" href="social.css?v=20260728-observer-network">
 <style>
   :root{
     --ink-0:#05070d;
@@ -143,7 +144,7 @@
   /* ---------- hero ---------- */
   .hero{
     min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;padding:80px 24px 110px;position:relative;overflow:hidden;pointer-events:none;
+    text-align:center;padding:80px 24px 110px;position:relative;overflow:hidden;pointer-events:auto;
   }
   .hero a,.hero button{pointer-events:auto}
   #sky{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
@@ -624,6 +625,9 @@
     <span aria-hidden="true">&#9993;</span><span class="en">Inbox</span><span class="zh">信箱</span>
     <b id="inbox-badge" hidden>0</b>
   </button>
+  <button class="gnav-tool" id="community-open" type="button">
+    <span aria-hidden="true">&#10022;</span><span class="en">Community</span><span class="zh">社区</span>
+  </button>
   <button class="gnav-tool gnav-feedback" id="feedback-open" type="button">Feedback</button>
   <div class="lang-sw" role="group" aria-label="Language / 语言">
     <button type="button" id="langZh" aria-pressed="false">中文</button>
@@ -683,8 +687,8 @@
       <a class="btn btn-gold" href="game/" target="_blank" rel="noopener">
         <span class="play-ico" aria-hidden="true"></span>
         <span class="en">Play in Browser</span><span class="zh">立即在线游玩</span></a>
-      <a class="btn btn-ghost" href="#eye">
-        <span class="en">Explore the Game</span><span class="zh">探索游戏</span></a>
+      <button class="btn btn-ghost" id="community-hero-open" type="button">
+        <span class="en">Enter Community</span><span class="zh">进入社区</span></button>
     </div>
   </div>
   <div class="scroll-hint"><span class="en">Scroll</span><span class="zh">向下滚动</span></div>
@@ -2002,6 +2006,7 @@
     btnZh.setAttribute('aria-pressed', String(l === 'zh'));
     btnEn.setAttribute('aria-pressed', String(l === 'en'));
     if(remember){ try{ localStorage.setItem('so-lang', l); }catch(e){} }
+    document.dispatchEvent(new CustomEvent('po:language-changed', {detail:{lang:l}}));
   }
   var saved = null;
   try{ saved = localStorage.getItem('so-lang'); }catch(e){}
@@ -2137,6 +2142,19 @@
   }, {passive:true});
   onScroll();
   revealNavAfterStop();
+  var hero = document.getElementById('top');
+  if(hero){
+    hero.addEventListener('pointerdown', function(event){
+      if(event.target.closest('a,button,input,textarea,select')) return;
+      if(gnav){
+        clearTimeout(navStopTimer);
+        gnav.classList.remove('hide');
+        navStopTimer = setTimeout(function(){
+          if(scrollY < 90) gnav.classList.add('hide');
+        }, 4200);
+      }
+    });
+  }
 
   /* ---------- scatter static SVG stars ---------- */
   function scatter(id, n, w, h, seed){
@@ -2215,5 +2233,6 @@
 </script>
 <script src="account.js?v=20260728-glass-controls" defer></script>
 <script src="inbox.js?v=20260728-glass-controls" defer></script>
+<script src="social.js?v=20260728-observer-network" defer></script>
 </body>
 </html>

@@ -59,10 +59,14 @@
         <p class="po-lead">${t("Your field record can follow you between browsers.","你的观测记录可以在不同浏览器之间同步。")}</p>
         <div class="po-user-panel"><div class="po-user-name">${esc(state.user.username)}</div>
         <div class="po-sync">${t("Cloud archive connected. The game synchronises after sign-in and whenever progress is saved.","云端档案已连接。登录后以及游戏保存进度时会自动同步。")}</div>
+        <button class="po-secondary" id="po-open-profile" type="button">${t("Open observer profile","打开个人主页")}</button>
+        <button class="po-secondary" id="po-open-friends" type="button">${t("Friends and online status","好友与在线状态")}</button>
         ${state.user.role==="admin"?'<a class="po-secondary" href="admin/" style="display:grid;place-items:center;text-decoration:none">Open feedback console</a>':""}
         <button class="po-secondary" id="po-change-password" type="button">${t("Change password","修改密码")}</button>
         <button class="po-secondary" id="po-logout" type="button">${t("Sign out","退出登录")}</button></div>`;
       document.getElementById("po-change-password").onclick=renderPasswordChange;
+      document.getElementById("po-open-profile").onclick=()=>{close(accountModal);document.dispatchEvent(new CustomEvent("po:open-social",{detail:{tab:"profile"}}));};
+      document.getElementById("po-open-friends").onclick=()=>{close(accountModal);document.dispatchEvent(new CustomEvent("po:open-social",{detail:{tab:"friends"}}));};
       document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; updateNav(); document.dispatchEvent(new CustomEvent("po:session-changed")); renderAccount(); };
       return;
     }
