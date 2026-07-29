@@ -1108,6 +1108,80 @@ async function handleFriendAction(request, env, friendshipId) {
 	return apiError("That friendship action is not available.", 400, "invalid_action");
 }
 
+async function handleFriendSignalsGet(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to receive friend signals.", 401, "unauthorized");
+	const result = await env.DB.prepare(
+		`SELECT friend_signals.id, friend_signals.kind, friend_signals.created_at,
+		   users.username, user_profiles.avatar_id
+		 FROM friend_signals
+		 JOIN users ON users.id = friend_signals.sender_id
+		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 WHERE friend_signals.recipient_id = ? AND friend_signals.seen_at = 0
+		 ORDER BY friend_signals.created_at ASC LIMIT 20`,
+	).bind(user.id).all();
+	return json({
+		ok: true,
+		signals: (result.results || []).map(row => ({
+			id: row.id,
+			kind: row.kind,
+			createdAt: Number(row.created_at),
+			sender: { username: row.username, avatarId: Number(row.avatar_id || 1) },
+		})),
+	});
+}
+
+async function handleFriendSignalCreate(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to reach a friend.", 401, "unauthorized");
+	const restriction = await communicationRestriction(env, user);
+	if (restriction) return restriction;
+	if (!(await rateLimit(env, request, `friend-signal-${user.id}`, 40, 3600))) {
+		return apiError("Your observatory signal needs a short rest.", 429, "rate_limited");
+	}
+	let body;
+	try {
+		body = await readJson(request, 2_000);
+	} catch {
+		return apiError("Invalid friend signal.");
+	}
+	const usernameKey = String(body.username || "").trim().toLowerCase();
+	const kind = String(body.kind || "");
+	if (!["poke", "come_online"].includes(kind)) return apiError("Unknown friend signal.", 400, "invalid_signal");
+	const target = await env.DB.prepare("SELECT id, username FROM users WHERE username_key = ?").bind(usernameKey).first();
+	if (!target) return apiError("That observer could not be found.", 404, "not_found");
+	const pairKey = [user.id, target.id].sort().join(":");
+	const friendship = await env.DB.prepare(
+		"SELECT id FROM friendships WHERE pair_key = ? AND status = 'accepted'",
+	).bind(pairKey).first();
+	if (!friendship) return apiError("Only confirmed friends can receive this signal.", 403, "not_friends");
+	const now = Math.floor(Date.now() / 1000);
+	const recent = await env.DB.prepare(
+		`SELECT created_at FROM friend_signals
+		 WHERE sender_id = ? AND recipient_id = ? AND kind = ?
+		 ORDER BY created_at DESC LIMIT 1`,
+	).bind(user.id, target.id, kind).first();
+	if (recent && now - Number(recent.created_at) < 120) {
+		return apiError("That signal is already travelling to your friend.", 429, "signal_cooldown");
+	}
+	const id = `SG-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`;
+	await env.DB.prepare(
+		`INSERT INTO friend_signals (id, sender_id, recipient_id, kind, seen_at, created_at)
+		 VALUES (?, ?, ?, ?, 0, ?)`,
+	).bind(id, user.id, target.id, kind, now).run();
+	return json({ ok: true, id, username: target.username, kind }, 201);
+}
+
+async function handleFriendSignalSeen(request, env, signalId) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to acknowledge a friend signal.", 401, "unauthorized");
+	const result = await env.DB.prepare(
+		"UPDATE friend_signals SET seen_at = ? WHERE id = ? AND recipient_id = ? AND seen_at = 0",
+	).bind(Math.floor(Date.now() / 1000), signalId, user.id).run();
+	if (!Number(result.meta?.changes || 0)) return apiError("Friend signal not found.", 404, "not_found");
+	return json({ ok: true });
+}
+
 async function handleCommunityPostsGet(request, env) {
 	const viewer = await sessionForRequest(env, request);
 	const result = await env.DB.prepare(
@@ -1271,6 +1345,12 @@ async function handleApi(request, env, url) {
 	if (url.pathname === "/api/social/friends" && request.method === "GET") return handleFriendsGet(request, env);
 	if (url.pathname === "/api/social/friends" && request.method === "POST") return handleFriendRequest(request, env);
 	if (url.pathname === "/api/social/users" && request.method === "GET") return handleObserverSearch(request, env, url);
+	if (url.pathname === "/api/social/signals" && request.method === "GET") return handleFriendSignalsGet(request, env);
+	if (url.pathname === "/api/social/signals" && request.method === "POST") return handleFriendSignalCreate(request, env);
+	const friendSignalMatch = url.pathname.match(/^\/api\/social\/signals\/([^/]+)$/);
+	if (friendSignalMatch && request.method === "PATCH") {
+		return handleFriendSignalSeen(request, env, decodeURIComponent(friendSignalMatch[1]));
+	}
 	const friendshipMatch = url.pathname.match(/^\/api\/social\/friends\/([^/]+)$/);
 	if (friendshipMatch && (request.method === "PATCH" || request.method === "DELETE")) {
 		return handleFriendAction(request, env, decodeURIComponent(friendshipMatch[1]));
