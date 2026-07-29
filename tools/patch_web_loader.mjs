@@ -46,6 +46,8 @@ const STATUS_MARKUP = `
 		</div>`;
 const LOADER_CSS = "../game-loader.css?v=20260728-deepspace";
 const LOADER_JS = "../game-loader.js?v=20260728-deepspace";
+const ACCOUNT_CSS = "../account.css?v=20260729-ingame-feedback";
+const ACCOUNT_JS = "../account.js?v=20260729-ingame-feedback";
 
 export async function patchWebLoader(indexPath) {
 	let html = await readFile(indexPath, "utf8");
@@ -62,6 +64,14 @@ export async function patchWebLoader(indexPath) {
 	} else {
 		html = html.replace("</head>", `\t\t<link rel="stylesheet" href="${LOADER_CSS}">\n\t</head>`);
 	}
+	if (/<link rel="stylesheet" href="\.\.\/account\.css(?:\?[^"]*)?">/.test(html)) {
+		html = html.replace(
+			/<link rel="stylesheet" href="\.\.\/account\.css(?:\?[^"]*)?">/,
+			`<link rel="stylesheet" href="${ACCOUNT_CSS}">`,
+		);
+	} else {
+		html = html.replace("</head>", `\t\t<link rel="stylesheet" href="${ACCOUNT_CSS}">\n\t</head>`);
+	}
 	html = html.replace(
 		/<div id="status">[\s\S]*?<div id="status-notice"><\/div>\s*<\/div>/,
 		STATUS_MARKUP.trim(),
@@ -73,6 +83,14 @@ export async function patchWebLoader(indexPath) {
 		);
 	} else {
 		html = html.replace("</body>", `\t\t<script src="${LOADER_JS}"></script>\n\t</body>`);
+	}
+	if (/<script src="\.\.\/account\.js(?:\?[^"]*)?"><\/script>/.test(html)) {
+		html = html.replace(
+			/<script src="\.\.\/account\.js(?:\?[^"]*)?"><\/script>/,
+			`<script src="${ACCOUNT_JS}"></script>`,
+		);
+	} else {
+		html = html.replace("</body>", `\t\t<script src="${ACCOUNT_JS}"></script>\n\t</body>`);
 	}
 
 	if (!html.includes("class=\"observatory-loader\"")) {

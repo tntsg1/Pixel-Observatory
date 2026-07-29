@@ -10,6 +10,14 @@
   --loader-glass-y: 18%;
   --loader-pointer-x: 0;
   --loader-pointer-y: 0;
+  --txt-hi: #edf7fb;
+  --txt-mid: #a7bac7;
+  --txt-low: #718692;
+  --gold: #e3b24f;
+  --gold-soft: #f0cf86;
+  --line: rgba(150, 190, 218, .22);
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 
 body {
@@ -44,6 +52,82 @@ body {
   pointer-events: auto;
   transform: translateY(-50%) scale(1);
 }
+
+.game-feedback-dock {
+  position: fixed;
+  z-index: 9;
+  right: 14px;
+  bottom: 18px;
+  width: min(264px, calc((100vw - 133.333vh) / 2 - 24px));
+  box-sizing: border-box;
+  color: #edf7fb;
+  font-family: var(--sans);
+  letter-spacing: 0;
+}
+
+.game-feedback-button {
+  --feedback-button-x: 74%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  width: 100%;
+  min-height: 66px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 22px;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid rgba(188, 226, 242, .28);
+  border-top-color: rgba(244, 252, 255, .5);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle 90px at var(--feedback-button-x) 0%, rgba(139, 220, 248, .16), transparent 72%),
+    linear-gradient(155deg, rgba(19, 38, 57, .78), rgba(5, 13, 23, .68));
+  backdrop-filter: blur(26px) saturate(160%);
+  box-shadow: 0 18px 48px rgba(0,0,0,.36), inset 0 1px rgba(255,255,255,.13);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .24s cubic-bezier(.2,.8,.2,1), border-color .2s ease, box-shadow .24s ease;
+}
+
+.game-feedback-button::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(108deg, transparent 22%, rgba(224, 246, 255, .13) 48%, transparent 70%);
+  background-size: 220% 100%;
+  background-position: 120% 0;
+  transition: background-position .62s cubic-bezier(.2,.8,.2,1);
+}
+
+.game-feedback-button:hover {
+  transform: translateY(-2px);
+  border-color: rgba(174, 225, 246, .56);
+  box-shadow: 0 24px 58px rgba(0,0,0,.42), 0 0 26px rgba(94, 191, 228, .1), inset 0 1px rgba(255,255,255,.18);
+}
+.game-feedback-button:hover::before { background-position: -30% 0; }
+.game-feedback-button:active { transform: scale(.965); transition-duration: 80ms; }
+.game-feedback-button:focus-visible { outline: 3px solid rgba(111, 211, 246, .28); outline-offset: 3px; }
+.game-feedback-button span:nth-child(2) { min-width: 0; display: grid; gap: 4px; }
+.game-feedback-button small { color: #78c9e7; font: 750 9px/1 var(--mono); letter-spacing: .08em; }
+.game-feedback-button strong { overflow-wrap: anywhere; color: #edf7fb; font: 700 12px/1.25 var(--sans); }
+.game-feedback-button b { width: 20px; height: 20px; display: grid; place-items: center; border: 1px solid rgba(167, 222, 244, .3); border-radius: 50%; color: #b8e7f7; font: 400 15px/1 var(--sans); }
+
+.game-feedback-signal {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(126, 213, 245, .28);
+  border-radius: 11px;
+  background: rgba(77, 166, 199, .1);
+}
+.game-feedback-signal::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: #8ce3ff; box-shadow: 0 0 14px rgba(112, 218, 255, .82); }
+.game-feedback-signal i { position: absolute; width: 15px; height: 15px; border: 1px solid rgba(137, 220, 249, .42); border-left-color: transparent; border-bottom-color: transparent; border-radius: 50%; transform: rotate(45deg); }
+.game-feedback-signal i:nth-child(2) { width: 23px; height: 23px; opacity: .54; }
 
 .game-glass-panel {
   overflow: hidden;
@@ -384,7 +468,8 @@ body {
 }
 
 @media (max-aspect-ratio: 16/9), (max-width: 1399px) {
-  .game-social-rail { display: none !important; }
+  .game-social-rail,
+  .game-feedback-dock { display: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -392,7 +477,9 @@ body {
   .game-friend-toast,
   .game-friend-pet,
   .game-signal-button,
-  .game-nudge-button { transition-duration: .01ms !important; }
+  .game-nudge-button,
+  .game-feedback-button,
+  .game-feedback-button::before { transition-duration: .01ms !important; }
   .game-session-orbit,
   .game-friends-pulse::after,
   .game-pet-avatar,

@@ -77,6 +77,21 @@
     state.widgetId=window.turnstile.render(container,{sitekey:state.config.turnstileSiteKey,theme:"dark",appearance:"interaction-only"});
   }
   const challengeToken=()=>state.widgetId===null||!window.turnstile?"":window.turnstile.getResponse(state.widgetId);
+  function feedbackContext(){
+    const canvas=document.getElementById("canvas");
+    const loader=document.getElementById("status");
+    const gamePage=/\/game\/?$/i.test(location.pathname);
+    return {
+      language:document.documentElement.dataset.lang||navigator.language,
+      viewport:`${innerWidth}x${innerHeight}`,
+      surface:gamePage?"game":"website",
+      gameState:gamePage
+        ? (loader&&getComputedStyle(loader).visibility!=="hidden"?"loading":"running")
+        : "not_applicable",
+      canvas:canvas?`${canvas.width}x${canvas.height}`:null,
+      browserLanguage:navigator.language,
+    };
+  }
   function updateNav(){
     const button=document.getElementById("account-open");
     button?.classList.toggle("is-signed-in",Boolean(state.user));
@@ -172,7 +187,7 @@
       const form=new FormData(event.currentTarget), submit=event.currentTarget.querySelector('[type="submit"]'), status=document.getElementById("po-feedback-status");
       submit.disabled=true; submit.classList.add("is-sending"); submit.querySelector(".po-submit-label").textContent=t("Transmitting…","正在发送…"); status.textContent="";
       try{
-        const data=await api("/api/feedback",{method:"POST",body:JSON.stringify({category:form.get("category"),message:form.get("message"),website:form.get("website"),turnstileToken:challengeToken(),page:location.href,context:{language:document.documentElement.dataset.lang,viewport:`${innerWidth}x${innerHeight}`}})});
+        const data=await api("/api/feedback",{method:"POST",body:JSON.stringify({category:form.get("category"),message:form.get("message"),website:form.get("website"),turnstileToken:challengeToken(),page:location.href,context:feedbackContext()})});
         if(state.widgetId!==null && window.turnstile){ try{window.turnstile.remove(state.widgetId);}catch(_){} state.widgetId=null; }
         feedbackContent.innerHTML=`<div class="po-receipt"><span class="po-receipt-orbit" aria-hidden="true"><i></i></span><span class="po-eyebrow">${t("Transmission complete","传输完成")}</span><strong>${t("You made the observatory better.","你刚刚让天文台变得更好了。")}</strong><p>${t("Thank you for taking the time to mark a rough edge instead of simply walking past it. Your report is now waiting in the developer console.","谢谢你没有直接绕过这个问题，而是认真地把它标记出来。这条反馈已经进入开发者工作台。")}</p><div class="po-receipt-id"><span>${t("Receipt","回执编号")}</span><code>${esc(data.receipt)}</code></div>${data.conversationId?`<p>${t("A personal thank-you letter is waiting in your inbox. The developer can continue replying there.","一封专门写给你的感谢信已经送到信箱，开发者之后也可以在那里继续回复你。")}</p><button class="po-primary po-feedback-submit" id="po-open-feedback-letter" type="button">${t("Read the letter","查看感谢信")}</button>`:""}<button class="po-secondary po-receipt-close" id="po-feedback-done" type="button">${t("Return to the observatory","返回天文台")}</button></div>`;
         const letterButton=document.getElementById("po-open-feedback-letter");
@@ -183,5 +198,8 @@
   }
   document.getElementById("account-open")?.addEventListener("click",()=>{renderAccount();open(accountModal);});
   document.getElementById("feedback-open")?.addEventListener("click",()=>{renderFeedback();open(feedbackModal);});
+  ["pointerdown","pointerup","click","wheel","keydown","keyup"].forEach(type=>{
+    feedbackModal.addEventListener(type,event=>event.stopPropagation());
+  });
   api("/api/auth/session").then(data=>{state.user=data.user;updateNav();}).catch(updateNav);
 })();

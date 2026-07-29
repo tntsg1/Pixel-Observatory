@@ -254,6 +254,7 @@
   "use strict";
 
   const zh = /^zh\b/i.test(navigator.language || "");
+  document.documentElement.dataset.lang = zh ? "zh" : "en";
   const t = (en, cn) => zh ? cn : en;
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -302,6 +303,13 @@
         <p class="game-signal-status" id="game-signal-status" aria-live="polite"></p>
       </div>
     </aside>
+    <aside class="game-feedback-dock" aria-label="${t("Game feedback", "游戏反馈")}">
+      <button class="game-feedback-button" id="feedback-open" type="button">
+        <span class="game-feedback-signal" aria-hidden="true"><i></i><i></i></span>
+        <span><small>${t("FIELD REPORT", "现场记录")}</small><strong>${t("Report this moment", "反馈此刻的问题")}</strong></span>
+        <b aria-hidden="true">+</b>
+      </button>
+    </aside>
     <div class="game-friend-toast" id="game-friend-toast" hidden role="status" aria-live="polite"></div>`);
 
   const sessionRail = document.getElementById("game-session-rail");
@@ -311,6 +319,7 @@
   const offlineToggle = document.getElementById("game-offline-toggle");
   const signalStatus = document.getElementById("game-signal-status");
   const toast = document.getElementById("game-friend-toast");
+  const feedbackDock = document.querySelector(".game-feedback-dock");
   let toastTimer = 0;
 
   function avatarStyle(id) {
@@ -488,7 +497,7 @@
     const button = event.target.closest("[data-signal]");
     if (button) sendSignal(button);
   });
-  [sessionRail, friendsRail].forEach(rail => {
+  [sessionRail, friendsRail, feedbackDock].forEach(rail => {
     rail.addEventListener("pointerdown", event => event.stopPropagation());
     rail.addEventListener("keydown", event => event.stopPropagation());
   });
