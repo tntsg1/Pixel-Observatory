@@ -10,6 +10,7 @@
     badgeUnsubscribe: null,
     closeTimer: null,
     glassFrame: null,
+    composeUsername: "",
   };
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
@@ -53,6 +54,7 @@
 
   const api = messaging.request;
   function setBadge(total) {
+    if (!badge) return;
     const count = Number(total) || 0;
     badge.hidden = count < 1;
     badge.textContent = count > 99 ? "99+" : String(count);
@@ -79,13 +81,17 @@
       setBadge(0);
     }
   }
-  function open() {
+  function open(detail = {}) {
+    const requestedUsername = String(detail?.username || "").trim();
+    state.composeUsername = /^[a-zA-Z0-9_.-]{3,24}$/.test(requestedUsername) ? requestedUsername : "";
     clearTimeout(state.closeTimer);
     modal.classList.remove("po-inbox-closing");
     modal.hidden = false;
     document.getElementById("inbox-open")?.setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
-    render().catch(showError);
+    render().then(() => {
+      if (state.composeUsername) renderCompose();
+    }).catch(showError);
   }
   function close() {
     if (modal.hidden || modal.classList.contains("po-inbox-closing")) return;
@@ -171,7 +177,7 @@
     thread.innerHTML = `<header class="po-thread-head"><button class="po-secondary po-inbox-mobile-back" type="button">←</button>
       <h3>${t("New message","写新消息")}</h3><p>${t("Text only. Enter the exact observer name.","仅支持文字，请输入对方准确的用户名。")}</p></header>
       <form class="po-new-form" id="po-new-message">
-        <label class="po-field">${t("Observer name","观测员用户名")}<input name="username" minlength="3" maxlength="24" required autocomplete="off"></label>
+        <label class="po-field">${t("Observer name","观测员用户名")}<input name="username" minlength="3" maxlength="24" required autocomplete="off" value="${esc(state.composeUsername)}"></label>
         <label class="po-field">${t("Message","消息")}<textarea name="body" minlength="1" maxlength="4000" required></textarea></label>
         <button class="po-primary" type="submit">${t("Send message","发送消息")}</button>
         <p class="po-inbox-status" role="status"></p>
@@ -275,7 +281,7 @@
   modal.onclick = event => { if (event.target === modal) close(); };
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.hidden) close(); });
   document.getElementById("inbox-open")?.addEventListener("click", open);
-  document.addEventListener("po:open-inbox", open);
+  document.addEventListener("po:open-inbox", event => open(event.detail));
   document.addEventListener("po:session-changed", refreshBadge);
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden) {

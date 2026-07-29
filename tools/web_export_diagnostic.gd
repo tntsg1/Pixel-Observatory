@@ -1,6 +1,7 @@
 extends SceneTree
 
-const RELEASE_OUTPUT := "E:/godot/ai-game-0628/build/web/game/index.html"
+# The public game index is permanently owned by the custom shell builder.
+const RELEASE_OUTPUT := "E:/godot/ai-game-0628/build/web/.godot-export/index.html"
 const RELEASE_EXCLUDES := "addons/tama/**,addons/blastbullets2d/**,artifacts/**,web/**,output/**,TIWAN/**,tama-web-backup/**,ImportedAssets/_archives/**,spritesheets/**,spriteframes/**,assets/audio/music/giant_telescope.mp3,assets/audio/music/space_fast_theme.mp3,assets/audio/ambient/fast_terminal_hum.ogg,assets/reference/observatory_ai_mockup.png"
 
 func _initialize() -> void:

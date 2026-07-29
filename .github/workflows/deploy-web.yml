@@ -53,7 +53,7 @@ jobs:
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . --import
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . \
             --script res://tools/fast_music_rights_audit_test.gd
-          ./Godot_v4.7-stable_linux.x86_64 --headless --path . --export-release Web build/web/index.html
+          ./Godot_v4.7-stable_linux.x86_64 --headless --path . --export-release Web build/web/.godot-export/index.html
 
       - name: Verify retired remote audio is absent
         run: |
@@ -65,7 +65,11 @@ jobs:
           test ! -e build/web/fast_terminal_hum.ogg
 
       - name: Add Pixel Observatory web shell
-        run: node tools/build_web_shell.mjs build/web
+        env:
+          PIXEL_OBSERVATORY_BUILD_SHA: ${{ github.sha }}
+        run: |
+          node tools/build_web_shell.mjs build/web build/web/.godot-export
+          node tools/verify_web_game_shell.mjs build/web
 
       - name: Upload GitHub Pages artifact
         uses: actions/upload-pages-artifact@v3

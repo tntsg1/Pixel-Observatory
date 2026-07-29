@@ -1,26 +1,37 @@
-import { cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
 import { patchWebLoader } from "./patch_web_loader.mjs";
 
 const outputDir = resolve(process.argv[2] || "build/web");
+const stagingDir = resolve(process.argv[3] || join(outputDir, ".godot-export"));
 const landingDir = resolve("web/landing");
 const gameDir = join(outputDir, "game");
+const buildSha = process.env.PIXEL_OBSERVATORY_BUILD_SHA
+	|| process.env.GITHUB_SHA
+	|| (() => {
+		try {
+			return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
+		} catch {
+			return "local";
+		}
+	})();
 
-await readFile(join(outputDir, "index.html")).catch(() => {
-	throw new Error(`Missing Godot Web export at ${outputDir}.`);
+await readFile(join(stagingDir, "index.html")).catch(() => {
+	throw new Error(`Missing staged Godot Web export at ${stagingDir}.`);
 });
 
 await rm(gameDir, { recursive: true, force: true });
 await mkdir(gameDir, { recursive: true });
-for (const entry of await readdir(outputDir)) {
-	if (entry !== "game") {
-		await rename(join(outputDir, entry), join(gameDir, entry));
-	}
+for (const entry of await readdir(stagingDir)) {
+	if (entry !== "index.html") await cp(join(stagingDir, entry), join(gameDir, entry), { recursive: true });
 }
 
 const gameIndex = join(gameDir, "index.html");
-await patchWebLoader(gameIndex);
+await cp(join(stagingDir, "index.html"), gameIndex);
+await patchWebLoader(gameIndex, { buildSha });
 
 await cp(landingDir, outputDir, { recursive: true, force: true });
-await rename(join(outputDir, "promo.html"), join(outputDir, "index.html"));
-console.log(`Published landing at ${outputDir} and game at ${gameDir}`);
+await cp(join(landingDir, "promo.html"), join(outputDir, "index.html"));
+await rm(stagingDir, { recursive: true, force: true });
+console.log(`Published custom game shell at ${gameIndex}; Godot runtime assets remain at ${gameDir}; build=${buildSha}`);

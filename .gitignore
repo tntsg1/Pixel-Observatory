@@ -79,6 +79,10 @@ PlayerCharacter/
 /.playwright-cli/
 /.wrangler/
 /.dev.vars
+/.mail-*.cookie
+/.mailbox-test-users.json
+/.npm-cache-admin/
+/.npm-cache-deploy/
 /.tmp_user_parts/
 /artifacts/*appdata*/
 /artifacts/observation_ui_isolated_tests/appdata_*/

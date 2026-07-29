@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 const baseUrl = process.env.PLAYTIME_TEST_URL || "http://127.0.0.1:8791";
 const password = "ClockTest!2026";
 const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 10_000)}`;
+const segmentSeconds = Math.max(1, Math.min(30, Math.floor(Number(process.env.PLAYTIME_SEGMENT_SECONDS || 2))));
+const segmentCount = Math.max(1, Math.min(18, Math.floor(Number(process.env.PLAYTIME_SEGMENTS || 1))));
+const testNetwork = 20 + Math.floor(Math.random() * 200);
 
 function sessionCookie(response) {
 	const raw = response.headers.get("set-cookie") || "";
@@ -32,7 +35,7 @@ async function request(path, options = {}, cookie = "") {
 async function register(username, addressOctet) {
 	const { response, data } = await request("/api/auth/register", {
 		method: "POST",
-		headers: { "cf-connecting-ip": `198.51.100.${addressOctet}` },
+		headers: { "X-Pixel-Observatory-Test-IP": `198.18.${testNetwork}.${addressOctet}` },
 		body: JSON.stringify({
 			username,
 			password,
@@ -43,10 +46,10 @@ async function register(username, addressOctet) {
 	return { username: data.user.username, cookie: sessionCookie(response) };
 }
 
-async function heartbeat(account, sessionId, event, activeSeconds) {
+async function heartbeat(account, sessionId, event, activeSeconds, reportId = crypto.randomUUID()) {
 	const { data } = await request("/api/social/playtime", {
 		method: "POST",
-		body: JSON.stringify({ sessionId, event, activeSeconds }),
+		body: JSON.stringify({ sessionId, reportId, event, activeSeconds }),
 	}, account.cookie);
 	return data;
 }
@@ -58,16 +61,32 @@ const sessionB = `playtime_${suffix}_account_b`;
 
 const openedA = await heartbeat(accountA, sessionA, "resume", 0);
 assert.equal(openedA.earnedSeconds, 0);
-await new Promise(resolve => setTimeout(resolve, 2_200));
-const tickA = await heartbeat(accountA, sessionA, "heartbeat", 2);
-assert.ok(tickA.earnedSeconds >= 1 && tickA.earnedSeconds <= 3, "Foreground time should be credited.");
+let creditedSeconds = 0;
+let tickAReport = "";
+for (let segment = 1; segment <= segmentCount; segment += 1) {
+	// Cross the whole-second boundary before reporting a capped foreground
+	// interval.  A 30-second segment deliberately waits 31 seconds so Worker
+	// clock rounding cannot turn a verified 30 seconds into 29.
+	await new Promise(resolve => setTimeout(resolve, segmentSeconds * 1_000 + (segmentSeconds >= 30 ? 1_000 : 200)));
+	tickAReport = crypto.randomUUID();
+	const tickA = await heartbeat(accountA, sessionA, "heartbeat", segmentSeconds, tickAReport);
+	assert.equal(tickA.earnedSeconds, segmentSeconds, `Foreground segment ${segment} must be credited exactly.`);
+	creditedSeconds += tickA.earnedSeconds;
+	console.log(`PROGRESS foreground=${creditedSeconds}/${segmentSeconds * segmentCount}`);
+}
 
-const duplicateA = await heartbeat(accountA, sessionA, "heartbeat", 2);
+const duplicateA = await heartbeat(accountA, sessionA, "heartbeat", segmentSeconds, tickAReport);
 assert.equal(duplicateA.earnedSeconds, 0, "Immediate duplicate heartbeat must not double count.");
+assert.equal(duplicateA.acknowledgedSeconds, segmentSeconds, "A retry receives its original acknowledgement without duplicate credit.");
 
 await new Promise(resolve => setTimeout(resolve, 1_100));
 const hiddenA = await heartbeat(accountA, sessionA, "heartbeat", 0);
 assert.equal(hiddenA.earnedSeconds, 0, "A hidden-page heartbeat carries no active seconds.");
+
+const refreshedA = await heartbeat(accountA, sessionA, "resume", 0);
+assert.equal(refreshedA.earnedSeconds, 0, "Refreshing the same tab cannot duplicate recorded time.");
+const competingA = await heartbeat(accountA, `competing_${suffix}_account_a`, "resume", 0);
+assert.equal(competingA.leaseAccepted, false, "A concurrent second tab cannot claim the active lease.");
 
 await heartbeat(accountB, sessionB, "resume", 0);
 await new Promise(resolve => setTimeout(resolve, 1_100));
@@ -85,13 +104,17 @@ const entryB = leaderboard.entries.find(entry => entry.username === accountB.use
 assert.ok(entryA && entryB, "Both authenticated test observers appear on the leaderboard.");
 assert.equal(profileA.profile.playSeconds, entryA.playSeconds, "Profile and leaderboard use the same total.");
 assert.ok(entryA.playSeconds > 0, "Account A has non-zero effective playtime.");
+assert.equal(entryA.playSeconds, creditedSeconds, "The first account records exactly the verified foreground total.");
 assert.ok(entryB.playSeconds > 0, "Account B's short session is not lost.");
 
 console.log(JSON.stringify({
 	ok: true,
-	accountA: { username: accountA.username, playSeconds: entryA.playSeconds },
-	accountB: { username: accountB.username, playSeconds: entryB.playSeconds },
+	accountA: { playSeconds: entryA.playSeconds },
+	accountB: { playSeconds: entryB.playSeconds },
 	profileMatchesLeaderboard: true,
 	duplicateEarnedSeconds: duplicateA.earnedSeconds,
 	hiddenEarnedSeconds: hiddenA.earnedSeconds,
+	refreshEarnedSeconds: refreshedA.earnedSeconds,
+	secondTabLeaseAccepted: competingA.leaseAccepted,
+	foregroundSeconds: creditedSeconds,
 }, null, 2));

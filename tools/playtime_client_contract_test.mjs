@@ -16,8 +16,14 @@ assert.match(source, /pagehide/, "Short sessions are settled when leaving.");
 assert.match(source, /beforeunload/, "Navigation has a keepalive fallback.");
 assert.match(source, /pending-play-seconds/, "Failed reports retain a bounded pending segment.");
 assert.match(source, /sessionUserKey/, "Account changes reset per-tab pending playtime.");
-assert.match(source, /activeSeconds:\s*Math\.floor\(pendingSeconds\)/, "Only measured foreground time is hinted.");
+assert.match(source, /pending-playtime-report/, "A failed heartbeat persists one report identity for retry.");
+assert.match(source, /reportId:\s*report\.id/, "Each heartbeat carries an idempotency report id.");
+assert.match(source, /activeSeconds:\s*report\.activeSeconds/, "Only the measured foreground snapshot is hinted.");
+assert.match(source, /acknowledgedSeconds/, "A retry clears only seconds the Worker has already acknowledged.");
 assert.match(source, /leaseAccepted/, "The client respects the server's single-tab lease.");
 assert.match(source, /playtime-sync/, "Sync failures expose a non-blocking UI state.");
+assert.match(source, /effective-play-seconds/, "The rail persists only the current effective session clock across a refresh.");
+assert.match(source, /observatory:playtime-local/, "The rail receives foreground-only session time updates.");
+assert.match(source, /leaseAccepted && !document\.hidden/, "The visible session clock pauses when this tab loses the server lease.");
 
 console.log("PASS playtime client contract: auth, foreground lifecycle, retry, and account isolation");
