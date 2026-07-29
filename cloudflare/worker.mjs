@@ -1010,6 +1010,46 @@ async function handleFriendsGet(request, env) {
 	return json({ ok: true, ...groups });
 }
 
+async function handleObserverSearch(request, env, url) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to find observers.", 401, "unauthorized");
+	if (!(await rateLimit(env, request, `observer-search-${user.id}`, 180, 3600))) {
+		return apiError("Observer search is moving too quickly. Please pause.", 429, "rate_limited");
+	}
+	const query = String(url.searchParams.get("q") || "").trim().toLowerCase().slice(0, 24);
+	const escaped = query.replace(/[\\%_]/g, "\\$&");
+	const contains = `%${escaped}%`;
+	const prefix = `${escaped}%`;
+	const result = await env.DB.prepare(
+		`SELECT friendships.id AS friendship_id, friendships.status AS friendship_status,
+		   friendships.requester_id, users.id, users.username, users.role,
+		   user_profiles.bio, user_profiles.avatar_id, user_profiles.selected_title,
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		 FROM users
+		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN friendships ON friendships.pair_key =
+		   CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
+		 WHERE users.id <> ? AND users.username_key LIKE ? ESCAPE '\\'
+		 ORDER BY
+		   CASE WHEN users.username_key = ? THEN 0 WHEN users.username_key LIKE ? ESCAPE '\\' THEN 1 ELSE 2 END,
+		   user_profiles.last_active_at DESC, user_profiles.play_seconds DESC, users.username_key ASC
+		 LIMIT 12`,
+	).bind(user.id, user.id, user.id, user.id, contains, query, prefix).all();
+	const observers = (result.results || []).map(row => {
+		let relationship = "none";
+		if (row.friendship_status === "accepted") relationship = "friends";
+		else if (row.friendship_status === "pending" && row.requester_id === user.id) relationship = "outgoing";
+		else if (row.friendship_status === "pending") relationship = "incoming";
+		else if (row.friendship_status === "blocked") relationship = "unavailable";
+		return {
+			...socialProfile(row, user.id),
+			friendshipId: row.friendship_id || "",
+			relationship,
+		};
+	});
+	return json({ ok: true, query, observers });
+}
+
 async function handleFriendRequest(request, env) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to add a friend.", 401, "unauthorized");
@@ -1230,6 +1270,7 @@ async function handleApi(request, env, url) {
 	if (url.pathname === "/api/social/leaderboard" && request.method === "GET") return handleLeaderboard(request, env);
 	if (url.pathname === "/api/social/friends" && request.method === "GET") return handleFriendsGet(request, env);
 	if (url.pathname === "/api/social/friends" && request.method === "POST") return handleFriendRequest(request, env);
+	if (url.pathname === "/api/social/users" && request.method === "GET") return handleObserverSearch(request, env, url);
 	const friendshipMatch = url.pathname.match(/^\/api\/social\/friends\/([^/]+)$/);
 	if (friendshipMatch && (request.method === "PATCH" || request.method === "DELETE")) {
 		return handleFriendAction(request, env, decodeURIComponent(friendshipMatch[1]));

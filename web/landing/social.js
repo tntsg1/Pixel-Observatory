@@ -387,7 +387,7 @@
     </article>`;
   }
 
-  async function renderFriends() {
+  async function renderFriendsLegacy() {
     if (!state.user) return authGate(t("your friends", "好友页面"));
     const data = await api("/api/social/friends");
     const buttons = (item, kind) => {
@@ -441,6 +441,131 @@
         setStatus(document.getElementById("friend-status"), error.message);
       }
     });
+  }
+
+  async function renderFriends() {
+    if (!state.user) return authGate(t("your friends", "好友页面"));
+    const [data, discovery] = await Promise.all([
+      api("/api/social/friends"),
+      api("/api/social/users?q="),
+    ]);
+    const friendActions = (item, kind) => {
+      if (kind === "incoming") return `<button class="social-button success" data-friend-action="accept" data-id="${esc(item.friendshipId)}">${t("Accept", "接受")}</button><button class="social-button danger" data-friend-action="decline" data-id="${esc(item.friendshipId)}">${t("Decline", "忽略")}</button>`;
+      if (kind === "friends") return `<button class="social-button" data-profile="${esc(item.username)}">${t("Profile", "主页")}</button><button class="social-button danger" data-friend-remove="${esc(item.friendshipId)}">${t("Remove", "删除")}</button>`;
+      return `<button class="social-button" disabled>${t("Sent", "已发送")}</button>`;
+    };
+    const friendList = (items, kind) => items.length
+      ? items.map(item => friendRow(item, friendActions(item, kind))).join("")
+      : `<div class="friend-empty">${kind === "friends" ? t("No friends yet. Search above to find your observing partners.", "还没有好友。可以从上方搜索你的观测伙伴。") : t("Nothing waiting.", "目前没有待处理内容。")}</div>`;
+    const candidateActions = item => {
+      if (item.relationship === "friends") return `<button class="social-button" data-profile="${esc(item.username)}">${t("View profile", "查看主页")}</button>`;
+      if (item.relationship === "outgoing") return `<button class="social-button" disabled>${t("Request sent", "申请已发送")}</button>`;
+      if (item.relationship === "incoming") return `<button class="social-button success" data-friend-action="accept" data-id="${esc(item.friendshipId)}">${t("Accept", "接受")}</button>`;
+      if (item.relationship === "unavailable") return `<button class="social-button" disabled>${t("Unavailable", "暂不可用")}</button>`;
+      return `<button class="social-button primary" data-add-observer="${esc(item.username)}">${t("Add", "添加")}</button>`;
+    };
+    const candidateList = items => items.length
+      ? items.map(item => `<article class="observer-result">
+          <button class="observer-profile-hit" type="button" data-profile="${esc(item.username)}">
+            ${avatar(item, "small")}
+            <span><strong>${esc(item.username)}</strong><small>${item.online ? t("Online now", "当前在线") : t("Offline", "离线")} · ${esc(rankName(item.rank))}</small></span>
+          </button>
+          <div class="observer-result-action">${candidateActions(item)}</div>
+        </article>`).join("")
+      : `<div class="friend-empty">${t("No matching observers found. Try another name.", "没有找到相关观测者，换一个名字试试。")}</div>`;
+
+    main.innerHTML = `<div class="friends-page">
+      <section class="social-card observer-discovery">
+        <div class="observer-discovery-copy">
+          <span>${t("Observer directory", "观测者名录")}</span>
+          <h2>${t("Find your observing partners", "寻找你的观测伙伴")}</h2>
+          <p>${t("Search by name, compare portraits and ranks, then choose the right person before sending a request.", "输入名字后会显示相关用户、头像、段位与在线状态，确认是正确的人再发送申请。")}</p>
+        </div>
+        <label class="observer-search">
+          <span aria-hidden="true">⌕</span>
+          <input id="observer-search-input" type="search" maxlength="24" autocomplete="off" placeholder="${t("Search observer names", "搜索观测者用户名")}">
+          <kbd>${t("LIVE", "实时")}</kbd>
+        </label>
+        <p class="social-status" id="friend-status"></p>
+        <div class="observer-results-head"><strong id="observer-results-title">${t("Suggested observers", "推荐观测者")}</strong><span id="observer-results-count">${discovery.observers.length}</span></div>
+        <div class="observer-results" id="observer-results">${candidateList(discovery.observers)}</div>
+      </section>
+      ${data.incoming.length ? `<section class="friends-section priority"><div class="friends-heading"><h3>${t("Requests for you", "收到的申请")}</h3><span class="friends-count">${data.incoming.length}</span></div><div class="friend-list">${friendList(data.incoming, "incoming")}</div></section>` : ""}
+      <section class="friends-section"><div class="friends-heading"><h3>${t("Your observing circle", "我的好友")}</h3><span class="friends-count">${data.friends.length}</span></div><div class="friend-list">${friendList(data.friends, "friends")}</div></section>
+      ${data.outgoing.length ? `<details class="friends-sent"><summary>${t("Sent requests", "已发送的申请")} <span>${data.outgoing.length}</span></summary><div class="friend-list">${friendList(data.outgoing, "outgoing")}</div></details>` : ""}
+    </div>`;
+
+    const status = document.getElementById("friend-status");
+    const results = document.getElementById("observer-results");
+    const resultsTitle = document.getElementById("observer-results-title");
+    const resultsCount = document.getElementById("observer-results-count");
+    const searchInput = document.getElementById("observer-search-input");
+    let searchTimer = 0;
+    let searchSequence = 0;
+    searchInput.addEventListener("input", () => {
+      clearTimeout(searchTimer);
+      const query = searchInput.value.trim();
+      searchTimer = setTimeout(async () => {
+        const sequence = ++searchSequence;
+        results.classList.add("is-loading");
+        try {
+          const response = await api(`/api/social/users?q=${encodeURIComponent(query)}`);
+          if (sequence !== searchSequence) return;
+          resultsTitle.textContent = query ? t("Search results", "搜索结果") : t("Suggested observers", "推荐观测者");
+          resultsCount.textContent = response.observers.length;
+          results.innerHTML = candidateList(response.observers);
+        } catch (error) {
+          if (sequence === searchSequence) setStatus(status, error.message);
+        } finally {
+          if (sequence === searchSequence) results.classList.remove("is-loading");
+        }
+      }, 240);
+    });
+
+    main.onclick = async event => {
+      const profileButton = event.target.closest("[data-profile]");
+      if (profileButton) return render("profile", profileButton.dataset.profile);
+      const addButton = event.target.closest("[data-add-observer]");
+      if (addButton) {
+        addButton.disabled = true;
+        try {
+          const result = await api("/api/social/friends", { method: "POST", body: JSON.stringify({ username: addButton.dataset.addObserver }) });
+          setStatus(status, t(`Request sent to ${result.username}.`, `已向 ${result.username} 发送好友申请。`), true);
+          addButton.textContent = t("Request sent", "申请已发送");
+          setTimeout(renderFriends, 500);
+        } catch (error) {
+          addButton.disabled = false;
+          setStatus(status, error.message);
+        }
+        return;
+      }
+      const actionButton = event.target.closest("[data-friend-action]");
+      if (actionButton) {
+        actionButton.disabled = true;
+        try {
+          await api(`/api/social/friends/${encodeURIComponent(actionButton.dataset.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ action: actionButton.dataset.friendAction }),
+          });
+          await renderFriends();
+        } catch (error) {
+          actionButton.disabled = false;
+          setStatus(status, error.message);
+        }
+        return;
+      }
+      const removeButton = event.target.closest("[data-friend-remove]");
+      if (removeButton) {
+        removeButton.disabled = true;
+        try {
+          await api(`/api/social/friends/${encodeURIComponent(removeButton.dataset.friendRemove)}`, { method: "DELETE", body: "{}" });
+          await renderFriends();
+        } catch (error) {
+          removeButton.disabled = false;
+          setStatus(status, error.message);
+        }
+      }
+    };
   }
 
   async function renderLeaderboard() {
