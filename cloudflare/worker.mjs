@@ -1430,6 +1430,18 @@ export default {
 			headers.set("Cache-Control", "no-cache");
 			return withIsolationHeaders(new Response(asset.body, { headers }));
 		}
-		return withIsolationHeaders(await env.ASSETS.fetch(request));
+		const response = await env.ASSETS.fetch(request);
+		if (url.pathname === "/game" || url.pathname === "/game/" || url.pathname === "/game/index.html") {
+			const headers = new Headers(response.headers);
+			headers.set("Cache-Control", "no-store, max-age=0");
+			headers.set("Pragma", "no-cache");
+			headers.set("Expires", "0");
+			return withIsolationHeaders(new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers,
+			}));
+		}
+		return withIsolationHeaders(response);
 	},
 };
