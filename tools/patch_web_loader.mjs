@@ -44,8 +44,8 @@ const STATUS_MARKUP = `
 			<img id="status-splash" class="show-image--false" src="index.png" alt="">
 			<div id="status-notice"></div>
 		</div>`;
-const LOADER_CSS = "../game-loader.css?v=20260728-deepspace";
-const LOADER_JS = "../game-loader.js?v=20260728-deepspace";
+const LOADER_CSS = "../game-loader.css?v=20260729-feedback";
+const LOADER_JS = "../game-loader.js?v=20260729-feedback";
 const ACCOUNT_CSS = "../account.css?v=20260729-ingame-feedback";
 const ACCOUNT_JS = "../account.js?v=20260729-ingame-feedback";
 
