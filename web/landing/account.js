@@ -1,26 +1,57 @@
 (() => {
   "use strict";
-  const state = { user:null, config:null, widgetId:null };
+  const state = { user:null, config:null, widgetId:null, feedbackFrame:0 };
+  const closeTimers = new WeakMap();
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
   const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
   document.body.insertAdjacentHTML("beforeend", `
     <section class="po-modal" id="po-account-modal" hidden aria-modal="true" role="dialog"><div class="po-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-account-content"></div></div></section>
-    <section class="po-modal" id="po-feedback-modal" hidden aria-modal="true" role="dialog"><div class="po-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-feedback-content"></div></div></section>`);
+    <section class="po-modal po-feedback-modal" id="po-feedback-modal" hidden aria-modal="true" role="dialog" aria-labelledby="po-feedback-title"><div class="po-dialog po-feedback-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-feedback-content"></div></div></section>`);
   const accountModal = document.getElementById("po-account-modal");
   const feedbackModal = document.getElementById("po-feedback-modal");
   const accountContent = document.getElementById("po-account-content");
   const feedbackContent = document.getElementById("po-feedback-content");
 
-  function open(modal){ modal.hidden=false; document.body.style.overflow="hidden"; setTimeout(()=>modal.querySelector("input,textarea,button")?.focus(),0); }
+  function open(modal){
+    clearTimeout(closeTimers.get(modal));
+    modal.classList.remove("is-closing");
+    modal.classList.add("is-entering");
+    modal.hidden=false;
+    document.body.style.overflow="hidden";
+    requestAnimationFrame(()=>{
+      modal.classList.add("is-open");
+      modal.classList.remove("is-entering");
+    });
+    setTimeout(()=>modal.querySelector("input,textarea,button")?.focus(),160);
+  }
   function close(modal){
-    modal.hidden=true; document.body.style.overflow="";
-    if(state.widgetId!==null && window.turnstile){ try{window.turnstile.remove(state.widgetId);}catch(_){} state.widgetId=null; }
+    modal.classList.remove("is-open","is-entering");
+    modal.classList.add("is-closing");
+    clearTimeout(closeTimers.get(modal));
+    closeTimers.set(modal,setTimeout(()=>{
+      modal.hidden=true;
+      modal.classList.remove("is-closing");
+      document.body.style.overflow="";
+      if(state.widgetId!==null && window.turnstile){ try{window.turnstile.remove(state.widgetId);}catch(_){} state.widgetId=null; }
+    },260));
   }
   document.querySelectorAll(".po-modal").forEach(modal=>{
     modal.querySelector(".po-close").onclick=()=>close(modal);
     modal.onclick=event=>{ if(event.target===modal) close(modal); };
+  });
+  feedbackModal.querySelector(".po-feedback-dialog").addEventListener("pointermove",event=>{
+    if(state.feedbackFrame) return;
+    const dialog=event.currentTarget;
+    const clientX=event.clientX;
+    const clientY=event.clientY;
+    state.feedbackFrame=requestAnimationFrame(()=>{
+      state.feedbackFrame=0;
+      const bounds=dialog.getBoundingClientRect();
+      dialog.style.setProperty("--feedback-x",`${((clientX-bounds.left)/bounds.width)*100}%`);
+      dialog.style.setProperty("--feedback-y",`${((clientY-bounds.top)/bounds.height)*100}%`);
+    });
   });
   document.addEventListener("keydown", event=>{ if(event.key==="Escape") document.querySelectorAll(".po-modal:not([hidden])").forEach(close); });
 
@@ -109,25 +140,45 @@
   }
 
   function renderFeedback(){
-    feedbackContent.innerHTML=`<h2>${t("Send a field report","提交观测反馈")}</h2>
-      <p class="po-lead">${t("A bug, a rough edge, or an idea worth trying: every useful signal reaches the developer console.","无论是问题、体验不顺，还是值得尝试的点子，都会直接进入开发者反馈台。")}</p>
+    const categories=[
+      ["bug",t("Bug","错误")],["idea",t("Idea","建议")],["visual",t("Visual","画面")],
+      ["audio",t("Audio","声音")],["story",t("Story","剧情")],["other",t("Other","其他")],
+    ];
+    feedbackContent.innerHTML=`<div class="po-feedback-hero">
+        <span class="po-feedback-signal" aria-hidden="true"><i></i><i></i><i></i></span>
+        <div><span class="po-eyebrow">${t("Observer Network · Field Report","观测者网络 · 现场反馈")}</span>
+        <h2 id="po-feedback-title">${t("Help us see the rough edges.","帮我们看清那些不够好的地方。")}</h2>
+        <p class="po-lead">${t("Every useful signal reaches the developer console. Clear details help us reproduce the moment you saw.","每一条有效反馈都会进入开发者工作台。描述得越清楚，我们越容易复现你看到的那一刻。")}</p></div>
+      </div>
       <form id="po-feedback-form">
-        <label class="po-field">${t("Signal type","反馈类型")}<select name="category"><option value="bug">${t("Bug","错误")}</option><option value="idea">${t("Idea","建议")}</option><option value="visual">${t("Visual","画面")}</option><option value="audio">${t("Audio","声音")}</option><option value="story">${t("Story or guidance","剧情或引导")}</option><option value="other">${t("Other","其他")}</option></select></label>
-        <label class="po-field">${t("What did you notice?","你发现了什么？")}<textarea name="message" minlength="8" maxlength="4000" required></textarea></label>
-        <label class="po-honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label><div id="po-feedback-turnstile"></div>
-        <button class="po-primary" type="submit">${t("Transmit report","发送反馈")}</button><p class="po-status" id="po-feedback-status" role="status"></p>
+        <fieldset class="po-feedback-categories"><legend>${t("What kind of signal is this?","这属于哪一类反馈？")}</legend>
+          <div class="po-feedback-segments">${categories.map(([value,label],index)=>`<label><input type="radio" name="category" value="${value}" ${index===0?"checked":""}><span>${label}</span></label>`).join("")}</div>
+        </fieldset>
+        <label class="po-field po-feedback-message"><span>${t("What did you notice?","你发现了什么？")}</span>
+          <textarea name="message" minlength="8" maxlength="4000" required placeholder="${t("Where were you, what did you expect, and what happened instead?","当时在哪个界面？你原本期待什么？实际发生了什么？")}"></textarea>
+          <span class="po-field-meta"><span>${t("Page and browser details are attached automatically.","页面与浏览器信息会自动附上。")}</span><output id="po-feedback-count">0 / 4000</output></span>
+        </label>
+        <label class="po-honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+        <div class="po-feedback-verification"><div><strong>${t("Protected channel","安全反馈通道")}</strong><span>${t("A brief human check keeps automated noise away.","简短的人机验证会拦住自动化骚扰。")}</span></div><div id="po-feedback-turnstile"></div></div>
+        <button class="po-primary po-feedback-submit" type="submit"><span class="po-submit-arrow" aria-hidden="true">↑</span><span class="po-submit-label">${t("Send to the developer","发送给开发者")}</span><span class="po-submit-signal" aria-hidden="true"><i></i><i></i><i></i></span></button>
+        <p class="po-status" id="po-feedback-status" role="status" aria-live="polite"></p>
       </form>`;
     turnstile(document.getElementById("po-feedback-turnstile")).catch(()=>{});
+    const message=feedbackContent.querySelector('textarea[name="message"]');
+    const count=document.getElementById("po-feedback-count");
+    message.addEventListener("input",()=>{count.textContent=`${message.value.length} / 4000`;});
     document.getElementById("po-feedback-form").onsubmit=async event=>{
       event.preventDefault();
       const form=new FormData(event.currentTarget), submit=event.currentTarget.querySelector('[type="submit"]'), status=document.getElementById("po-feedback-status");
-      submit.disabled=true; status.textContent="";
+      submit.disabled=true; submit.classList.add("is-sending"); submit.querySelector(".po-submit-label").textContent=t("Transmitting…","正在发送…"); status.textContent="";
       try{
         const data=await api("/api/feedback",{method:"POST",body:JSON.stringify({category:form.get("category"),message:form.get("message"),website:form.get("website"),turnstileToken:challengeToken(),page:location.href,context:{language:document.documentElement.dataset.lang,viewport:`${innerWidth}x${innerHeight}`}})});
-        feedbackContent.innerHTML=`<div class="po-receipt"><strong>${t("Signal received.","反馈已送达。")}</strong><p>${t("Thank you for showing us where the observatory can see more clearly. Your report is now waiting in the developer console.","谢谢你认真告诉我们哪里还不够好。这条反馈已经进入开发者工作台。")}</p><p>${t("Receipt","回执编号")}: <code>${esc(data.receipt)}</code></p>${data.conversationId?`<p>${t("A personal thank-you letter is waiting in your inbox. The developer can continue replying there.","一封专门写给你的感谢信已经送到信箱，开发者之后也可以在那里继续回复你。")}</p><button class="po-primary" id="po-open-feedback-letter" type="button">${t("Read the letter","查看感谢信")}</button>`:""}</div>`;
+        if(state.widgetId!==null && window.turnstile){ try{window.turnstile.remove(state.widgetId);}catch(_){} state.widgetId=null; }
+        feedbackContent.innerHTML=`<div class="po-receipt"><span class="po-receipt-orbit" aria-hidden="true"><i></i></span><span class="po-eyebrow">${t("Transmission complete","传输完成")}</span><strong>${t("You made the observatory better.","你刚刚让天文台变得更好了。")}</strong><p>${t("Thank you for taking the time to mark a rough edge instead of simply walking past it. Your report is now waiting in the developer console.","谢谢你没有直接绕过这个问题，而是认真地把它标记出来。这条反馈已经进入开发者工作台。")}</p><div class="po-receipt-id"><span>${t("Receipt","回执编号")}</span><code>${esc(data.receipt)}</code></div>${data.conversationId?`<p>${t("A personal thank-you letter is waiting in your inbox. The developer can continue replying there.","一封专门写给你的感谢信已经送到信箱，开发者之后也可以在那里继续回复你。")}</p><button class="po-primary po-feedback-submit" id="po-open-feedback-letter" type="button">${t("Read the letter","查看感谢信")}</button>`:""}<button class="po-secondary po-receipt-close" id="po-feedback-done" type="button">${t("Return to the observatory","返回天文台")}</button></div>`;
         const letterButton=document.getElementById("po-open-feedback-letter");
         if(letterButton) letterButton.onclick=()=>{close(feedbackModal);document.dispatchEvent(new CustomEvent("po:open-inbox"));};
-      }catch(error){ status.textContent=error.message; if(state.widgetId!==null) window.turnstile?.reset(state.widgetId); submit.disabled=false; }
+        document.getElementById("po-feedback-done").onclick=()=>close(feedbackModal);
+      }catch(error){ status.textContent=error.message; if(state.widgetId!==null) window.turnstile?.reset(state.widgetId); submit.disabled=false; submit.classList.remove("is-sending"); submit.querySelector(".po-submit-label").textContent=t("Send to the developer","发送给开发者"); }
     };
   }
   document.getElementById("account-open")?.addEventListener("click",()=>{renderAccount();open(accountModal);});
