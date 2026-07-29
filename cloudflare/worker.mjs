@@ -14,6 +14,8 @@ const MAX_MESSAGE_BYTES = 8_000;
 const MAX_MESSAGE_LENGTH = 4_000;
 const MAX_COMMUNITY_BODY = 3_000;
 const ONLINE_WINDOW_SECONDS = 120;
+const PERMANENT_MUTE_UNTIL = 4_102_444_800;
+const ADMIN_PROFILE_THEMES = new Set(["command-gold", "aurora-glass", "deep-space"]);
 const THANK_YOU_MODEL = "@cf/zai-org/glm-4.7-flash";
 const OBSERVER_RANKS = [
 	{ id: "first-light", name: "First Light", minSeconds: 0 },
@@ -241,6 +243,20 @@ async function createSession(env, request, userId) {
 
 function publicUser(user) {
 	return { id: user.id, username: user.username, role: user.role };
+}
+
+async function communicationRestriction(env, user) {
+	if (!user || user.role === "admin") return null;
+	const now = Math.floor(Date.now() / 1000);
+	const moderation = await env.DB.prepare(
+		"SELECT muted_until, reason FROM user_moderation WHERE user_id = ? AND muted_until > ?",
+	).bind(user.id, now).first();
+	if (!moderation) return null;
+	return apiError(
+		`Your community voice is paused until ${new Date(Number(moderation.muted_until) * 1000).toISOString()}.${moderation.reason ? ` Reason: ${moderation.reason}` : ""}`,
+		403,
+		"muted",
+	);
 }
 
 async function handleRegister(request, env) {
@@ -473,6 +489,64 @@ async function handleAdminUpdate(request, env, id) {
 	return json({ ok: true });
 }
 
+async function handleAdminModerationUpdate(request, env, targetUserId) {
+	const admin = await requireAdmin(env, request);
+	if (!admin) return apiError("Administrator access required.", 403, "forbidden");
+	const target = await env.DB.prepare(
+		"SELECT id, username, role FROM users WHERE id = ?",
+	).bind(targetUserId).first();
+	if (!target) return apiError("Observer not found.", 404, "not_found");
+	if (target.id === admin.id) return apiError("You cannot moderate your own account.", 400, "invalid_target");
+	if (target.role === "admin") return apiError("Administrator accounts are protected from this action.", 403, "protected_account");
+
+	let body;
+	try {
+		body = await readJson(request, 3_000);
+	} catch {
+		return apiError("Invalid moderation update.");
+	}
+	const action = String(body.action || "");
+	const permittedDurations = new Set([3600, 86400, 604800, -1]);
+	const durationSeconds = Number(body.durationSeconds || 0);
+	const reason = String(body.reason || "").trim().slice(0, 500);
+	if (action !== "mute" && action !== "unmute") return apiError("Choose mute or unmute.", 400, "invalid_action");
+	if (action === "mute" && !permittedDurations.has(durationSeconds)) {
+		return apiError("Choose a supported mute duration.", 400, "invalid_duration");
+	}
+	if (action === "mute" && reason.length < 3) {
+		return apiError("Add a short moderation reason.", 400, "reason_required");
+	}
+
+	const now = Math.floor(Date.now() / 1000);
+	const mutedUntil = action === "unmute"
+		? 0
+		: (durationSeconds === -1 ? PERMANENT_MUTE_UNTIL : now + durationSeconds);
+	const auditId = `MOD-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
+	await env.DB.batch([
+		env.DB.prepare(
+			`INSERT INTO user_moderation (user_id, muted_until, reason, moderator_id, updated_at)
+			 VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT(user_id) DO UPDATE SET muted_until = excluded.muted_until,
+			   reason = excluded.reason, moderator_id = excluded.moderator_id, updated_at = excluded.updated_at`,
+		).bind(target.id, mutedUntil, action === "unmute" ? "" : reason, admin.id, now),
+		env.DB.prepare(
+			`INSERT INTO moderation_actions
+			 (id, moderator_id, target_user_id, action, duration_seconds, reason, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+		).bind(auditId, admin.id, target.id, action, action === "unmute" ? 0 : durationSeconds, reason, now),
+	]);
+	return json({
+		ok: true,
+		username: target.username,
+		moderation: {
+			muted: mutedUntil > now,
+			mutedUntil,
+			reason: action === "unmute" ? "" : reason,
+		},
+		auditId,
+	});
+}
+
 function normalizeMessageBody(value) {
 	return String(value || "").replace(/\r\n/g, "\n").trim();
 }
@@ -661,6 +735,8 @@ async function handleConversationRead(request, env, conversationId) {
 async function handleMessagePost(request, env, conversationId) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to send messages.", 401, "unauthorized");
+	const restriction = await communicationRestriction(env, user);
+	if (restriction) return restriction;
 	if (!(await rateLimit(env, request, `messages-${user.id}`, 120, 3600))) {
 		return apiError("You are sending messages too quickly. Please pause.", 429, "rate_limited");
 	}
@@ -694,6 +770,8 @@ async function handleMessagePost(request, env, conversationId) {
 async function handleDirectConversationPost(request, env) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to send messages.", 401, "unauthorized");
+	const restriction = await communicationRestriction(env, user);
+	if (restriction) return restriction;
 	if (!(await rateLimit(env, request, `new-conversation-${user.id}`, 20, 3600))) {
 		return apiError("You have opened too many new conversations. Please pause.", 429, "rate_limited");
 	}
@@ -781,31 +859,48 @@ async function ensureProfile(env, userId) {
 function socialProfile(row, viewerId = "") {
 	if (!row) return null;
 	const rank = rankForSeconds(row.play_seconds);
-	return {
+	const result = {
 		id: row.id,
 		username: row.username,
+		role: row.role || "user",
 		bio: row.bio || "",
 		avatarId: Number(row.avatar_id || 1),
 		selectedTitle: row.selected_title || rank.id,
+		profileTheme: row.role === "admin" && ADMIN_PROFILE_THEMES.has(row.profile_theme)
+			? row.profile_theme
+			: "standard",
+		honor: row.role === "admin" ? "Observatory Director" : "",
 		playSeconds: Number(row.play_seconds || 0),
 		rank,
 		online: Number(row.last_active_at || 0) >= Math.floor(Date.now() / 1000) - ONLINE_WINDOW_SECONDS,
 		isSelf: row.id === viewerId,
 		friendship: row.friendship_status || null,
 	};
+	if (row.viewer_is_admin) {
+		const mutedUntil = Number(row.muted_until || 0);
+		result.moderation = {
+			muted: mutedUntil > Math.floor(Date.now() / 1000),
+			mutedUntil,
+			reason: row.moderation_reason || "",
+		};
+	}
+	return result;
 }
 
-async function selectProfile(env, userId, viewerId = "") {
+async function selectProfile(env, userId, viewerId = "", viewerRole = "") {
 	await ensureProfile(env, userId);
 	return env.DB.prepare(
-		`SELECT users.id, users.username, user_profiles.bio, user_profiles.avatar_id,
-		   user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at,
+		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
+		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   ? = 'admin' AS viewer_is_admin, user_moderation.muted_until,
+		   user_moderation.reason AS moderation_reason,
 		   (SELECT status FROM friendships
 		    WHERE pair_key = CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
 		    LIMIT 1) AS friendship_status
 		 FROM users JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_moderation ON user_moderation.user_id = users.id
 		 WHERE users.id = ?`,
-	).bind(viewerId, viewerId, viewerId, userId).first();
+	).bind(viewerRole, viewerId, viewerId, viewerId, userId).first();
 }
 
 async function handleSocialProfileGet(request, env, url) {
@@ -816,7 +911,7 @@ async function handleSocialProfileGet(request, env, url) {
 		target = await env.DB.prepare("SELECT id, username, role FROM users WHERE username_key = ?").bind(username).first();
 	}
 	if (!target) return apiError("Sign in to open an observer profile.", 401, "unauthorized");
-	const row = await selectProfile(env, target.id, viewer?.id || "");
+	const row = await selectProfile(env, target.id, viewer?.id || "", viewer?.role || "");
 	return json({ ok: true, profile: socialProfile(row, viewer?.id || ""), ranks: OBSERVER_RANKS });
 }
 
@@ -837,11 +932,15 @@ async function handleSocialProfilePatch(request, env) {
 	const profile = await env.DB.prepare("SELECT play_seconds FROM user_profiles WHERE user_id = ?").bind(user.id).first();
 	const unlocked = OBSERVER_RANKS.slice(0, rankForSeconds(profile?.play_seconds).level).map(rank => rank.id);
 	const selectedTitle = unlocked.includes(String(body.selectedTitle || "")) ? String(body.selectedTitle) : rankForSeconds(profile?.play_seconds).id;
+	const requestedTheme = String(body.profileTheme || "");
+	const profileTheme = user.role === "admin" && ADMIN_PROFILE_THEMES.has(requestedTheme)
+		? requestedTheme
+		: "standard";
 	const now = Math.floor(Date.now() / 1000);
 	await env.DB.prepare(
-		"UPDATE user_profiles SET bio = ?, avatar_id = ?, selected_title = ?, last_active_at = ?, updated_at = ? WHERE user_id = ?",
-	).bind(bio, avatarId, selectedTitle, now, now, user.id).run();
-	const row = await selectProfile(env, user.id, user.id);
+		"UPDATE user_profiles SET bio = ?, avatar_id = ?, selected_title = ?, profile_theme = ?, last_active_at = ?, updated_at = ? WHERE user_id = ?",
+	).bind(bio, avatarId, selectedTitle, profileTheme, now, now, user.id).run();
+	const row = await selectProfile(env, user.id, user.id, user.role);
 	return json({ ok: true, profile: socialProfile(row, user.id) });
 }
 
@@ -876,8 +975,8 @@ async function handlePresence(request, env, countPlaytime = false) {
 async function handleLeaderboard(request, env) {
 	const viewer = await sessionForRequest(env, request);
 	const result = await env.DB.prepare(
-		`SELECT users.id, users.username, user_profiles.bio, user_profiles.avatar_id,
-		   user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at
+		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
+		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
 		 FROM user_profiles JOIN users ON users.id = user_profiles.user_id
 		 ORDER BY user_profiles.play_seconds DESC, users.created_at ASC LIMIT 100`,
 	).all();
@@ -893,8 +992,8 @@ async function handleFriendsGet(request, env) {
 	await ensureProfile(env, user.id);
 	const result = await env.DB.prepare(
 		`SELECT friendships.id AS friendship_id, friendships.status, friendships.requester_id,
-		   users.id, users.username, user_profiles.bio, user_profiles.avatar_id,
-		   user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at
+		   users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
+		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
 		 FROM friendships
 		 JOIN users ON users.id = CASE WHEN friendships.requester_id = ? THEN friendships.addressee_id ELSE friendships.requester_id END
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
@@ -974,8 +1073,8 @@ async function handleCommunityPostsGet(request, env) {
 	const result = await env.DB.prepare(
 		`SELECT community_posts.id, community_posts.title, community_posts.body,
 		   community_posts.reply_count, community_posts.created_at, community_posts.updated_at,
-		   users.id AS user_id, users.username, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.play_seconds, user_profiles.last_active_at
+		   users.id AS user_id, users.username, users.role, user_profiles.avatar_id, user_profiles.selected_title,
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
 		 FROM community_posts JOIN users ON users.id = community_posts.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
 		 WHERE community_posts.deleted_at = 0
@@ -998,6 +1097,8 @@ async function handleCommunityPostsGet(request, env) {
 async function handleCommunityPostCreate(request, env) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to publish in the community.", 401, "unauthorized");
+	const restriction = await communicationRestriction(env, user);
+	if (restriction) return restriction;
 	if (!(await rateLimit(env, request, `community-post-${user.id}`, 12, 3600))) return apiError("Please leave some room between new posts.", 429, "rate_limited");
 	let body;
 	try {
@@ -1022,8 +1123,9 @@ async function handleCommunityPostCreate(request, env) {
 async function handleCommunityPostGet(request, env, postId) {
 	const viewer = await sessionForRequest(env, request);
 	const post = await env.DB.prepare(
-		`SELECT community_posts.*, users.id AS author_id, users.username,
-		   user_profiles.avatar_id, user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at
+		`SELECT community_posts.*, users.id AS author_id, users.username, users.role,
+		   user_profiles.avatar_id, user_profiles.selected_title, user_profiles.profile_theme,
+		   user_profiles.play_seconds, user_profiles.last_active_at
 		 FROM community_posts JOIN users ON users.id = community_posts.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
 		 WHERE community_posts.id = ? AND community_posts.deleted_at = 0`,
@@ -1032,8 +1134,8 @@ async function handleCommunityPostGet(request, env, postId) {
 	const replies = await env.DB.prepare(
 		`SELECT community_replies.id, community_replies.body, community_replies.created_at,
 		   community_replies.parent_reply_id, parent_user.username AS reply_to_username,
-		   users.id AS user_id, users.username, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.play_seconds, user_profiles.last_active_at
+		   users.id AS user_id, users.username, users.role, user_profiles.avatar_id, user_profiles.selected_title,
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
 		 FROM community_replies JOIN users ON users.id = community_replies.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
 		 LEFT JOIN community_replies AS parent_reply ON parent_reply.id = community_replies.parent_reply_id
@@ -1064,6 +1166,8 @@ async function handleCommunityPostGet(request, env, postId) {
 async function handleCommunityReplyCreate(request, env, postId) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to reply in the community.", 401, "unauthorized");
+	const restriction = await communicationRestriction(env, user);
+	if (restriction) return restriction;
 	if (!(await rateLimit(env, request, `community-reply-${user.id}`, 80, 3600))) return apiError("You are replying too quickly. Please pause.", 429, "rate_limited");
 	const post = await env.DB.prepare("SELECT id FROM community_posts WHERE id = ? AND deleted_at = 0").bind(postId).first();
 	if (!post) return apiError("Community post not found.", 404, "not_found");
@@ -1157,6 +1261,10 @@ async function handleApi(request, env, url) {
 	if (url.pathname === "/api/admin/feedback" && request.method === "GET") return handleAdminList(request, env);
 	const adminMatch = url.pathname.match(/^\/api\/admin\/feedback\/([^/]+)$/);
 	if (adminMatch && request.method === "PATCH") return handleAdminUpdate(request, env, decodeURIComponent(adminMatch[1]));
+	const moderationMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/moderation$/);
+	if (moderationMatch && request.method === "PATCH") {
+		return handleAdminModerationUpdate(request, env, decodeURIComponent(moderationMatch[1]));
+	}
 	return apiError("API route not found.", 404, "not_found");
 }
 

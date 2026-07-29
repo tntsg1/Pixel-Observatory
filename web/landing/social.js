@@ -65,7 +65,14 @@
   }
 
   function avatar(profile, size = "") {
-    return `<span class="social-avatar ${size}" style="${avatarStyle(profile?.avatarId)}" role="img" aria-label="${esc(profile?.username || "Observer")}"></span>`;
+    const adminClass = profile?.role === "admin" ? " is-admin" : "";
+    return `<span class="social-avatar ${size}${adminClass}" style="${avatarStyle(profile?.avatarId)}" role="img" aria-label="${esc(profile?.username || "Observer")}">${profile?.role === "admin" ? '<i class="social-admin-crown" aria-hidden="true">✦</i>' : ""}</span>`;
+  }
+
+  function honor(profile) {
+    return profile?.role === "admin"
+      ? `<span class="social-admin-honor"><i aria-hidden="true">✦</i>${t("Observatory Director", "天文台台长")}<i aria-hidden="true">✦</i></span>`
+      : "";
   }
 
   function rankName(rank) {
@@ -102,7 +109,7 @@
           ${avatar(reply.author, "tiny")}
           <div class="community-reply-copy">
             <div class="community-reply-head">
-              <button class="community-author" type="button" data-profile="${esc(reply.author.username)}">${esc(reply.author.username)} · ${formatWhen(reply.createdAt)}</button>
+              <button class="community-author" type="button" data-profile="${esc(reply.author.username)}">${esc(reply.author.username)}${reply.author.role === "admin" ? ` · ${t("Director", "台长")}` : ""} · ${formatWhen(reply.createdAt)}</button>
               ${state.user ? `<button class="community-inline-reply" type="button" data-reply-to="${esc(reply.id)}" data-reply-user="${esc(reply.author.username)}">${t("Reply", "回复")}</button>` : ""}
             </div>
             ${reply.replyToUsername ? `<span class="community-replying-to">${t("Replying to", "回复")} @${esc(reply.replyToUsername)}</span>` : ""}
@@ -214,9 +221,10 @@
     const data = await api(`/api/social/profile${query}`);
     const profile = data.profile;
     const percent = Math.round((profile.rank?.progress || 0) * 100);
-    const identity = `<section class="social-card social-profile-identity">
+    const identity = `<section class="social-card social-profile-identity theme-${esc(profile.profileTheme || "standard")} ${profile.role === "admin" ? "is-admin-profile" : ""}">
       ${avatar(profile, "large")}
       <h2 class="social-profile-name">${esc(profile.username)}</h2>
+      ${honor(profile)}
       <div class="social-title">${esc(rankName(profile.rank))}</div>
       <div class="social-online ${profile.online ? "" : "offline"}">${profile.online ? t("Online now", "当前在线") : t("Offline", "离线")}</div>
       <div class="social-card social-rank-card">
@@ -236,7 +244,28 @@
             ? `<button class="social-button success" type="button" disabled>${t("Friends", "已是好友")}</button>`
             : `<button class="social-button primary" id="profile-add-friend" type="button">${t("Add friend", "添加好友")}</button>`}
           <button class="social-button" id="profile-back-community" type="button">${t("Back to community", "返回社区")}</button>
-        </div><p class="social-status" id="profile-status"></p>
+        </div>
+        ${state.user?.role === "admin" && profile.role !== "admin" ? `
+          <section class="social-moderation-panel">
+            <div class="social-title">${t("Director controls", "台长管理权限")}</div>
+            <h3>${profile.moderation?.muted ? t("Community voice paused", "当前处于禁言状态") : t("Community voice active", "当前可以正常发言")}</h3>
+            <p>${profile.moderation?.muted
+              ? `${t("Until", "截止")} ${formatWhen(profile.moderation.mutedUntil)}${profile.moderation.reason ? ` · ${esc(profile.moderation.reason)}` : ""}`
+              : t("Posts, replies and private messages are available.", "帖子、回复和私信功能均可正常使用。")}</p>
+            <label class="social-field">${t("Duration", "禁言时长")}<select id="moderation-duration">
+              <option value="3600">${t("1 hour", "1 小时")}</option>
+              <option value="86400">${t("24 hours", "24 小时")}</option>
+              <option value="604800">${t("7 days", "7 天")}</option>
+              <option value="-1">${t("Permanent", "永久")}</option>
+            </select></label>
+            <label class="social-field">${t("Reason", "原因")}<input id="moderation-reason" maxlength="500" placeholder="${t("A clear reason visible to the observer", "填写玩家可以看到的明确原因")}"></label>
+            <div class="social-actions">
+              <button class="social-button danger" id="moderation-mute" type="button">${t("Mute observer", "执行禁言")}</button>
+              ${profile.moderation?.muted ? `<button class="social-button success" id="moderation-unmute" type="button">${t("Restore voice", "解除禁言")}</button>` : ""}
+            </div>
+            <p class="social-status" id="moderation-status"></p>
+          </section>` : ""}
+        <p class="social-status" id="profile-status"></p>
       </section></div>`;
       document.getElementById("profile-back-community").onclick = () => render("community");
       const add = document.getElementById("profile-add-friend");
@@ -251,6 +280,36 @@
           add.disabled = false;
         }
       };
+      const moderate = async action => {
+        const status = document.getElementById("moderation-status");
+        const muteButton = document.getElementById("moderation-mute");
+        const unmuteButton = document.getElementById("moderation-unmute");
+        if (muteButton) muteButton.disabled = true;
+        if (unmuteButton) unmuteButton.disabled = true;
+        try {
+          const payload = action === "mute"
+            ? {
+                action,
+                durationSeconds: Number(document.getElementById("moderation-duration").value),
+                reason: document.getElementById("moderation-reason").value,
+              }
+            : { action };
+          await api(`/api/admin/users/${encodeURIComponent(profile.id)}/moderation`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          });
+          setStatus(status, action === "mute"
+            ? t("Voice paused. The action was written to the moderation log.", "禁言已生效，操作也已写入审计记录。")
+            : t("Community voice restored.", "该玩家已经恢复发言权限。"), true);
+          setTimeout(() => renderProfile(profile.username), 650);
+        } catch (error) {
+          setStatus(status, error.message);
+          if (muteButton) muteButton.disabled = false;
+          if (unmuteButton) unmuteButton.disabled = false;
+        }
+      };
+      document.getElementById("moderation-mute")?.addEventListener("click", () => moderate("mute"));
+      document.getElementById("moderation-unmute")?.addEventListener("click", () => moderate("unmute"));
       return;
     }
 
@@ -263,6 +322,16 @@
     const titleOptions = data.ranks.slice(0, profile.rank.level).map(rank =>
       `<option value="${rank.id}" ${rank.id === profile.selectedTitle ? "selected" : ""}>${esc(isZh() ? (rankZh[rank.id] || rank.name) : rank.name)}</option>`
     ).join("");
+    const adminThemes = profile.role === "admin" ? `<div class="social-field">${t("Director skin", "台长专属皮肤")}
+      <div class="social-theme-picker" role="radiogroup">
+        ${[
+          ["command-gold", t("Command Gold", "指挥金")],
+          ["aurora-glass", t("Aurora Glass", "极光玻璃")],
+          ["deep-space", t("Deep Space", "深空")],
+        ].map(([id, label]) => `<button class="social-theme-choice theme-${id}" type="button" data-theme="${id}" role="radio" aria-checked="${profile.profileTheme === id}"><i></i><span>${label}</span></button>`).join("")}
+      </div>
+      <small class="social-admin-note">${t("Reserved for the Observatory Director. Your portrait, profile and community signature receive the selected ceremonial material.", "仅限天文台台长使用。头像、个人主页与社区署名会采用所选荣誉材质。")}</small>
+    </div>` : "";
 
     main.innerHTML = `<div class="social-profile-grid">${identity}<section class="social-card social-profile-details">
       <div class="social-title">${t("Your observatory identity", "你的天文台身份")}</div>
@@ -274,14 +343,20 @@
         </label>
         <div class="social-field">${t("Observatory portrait", "天文台头像")}<div class="social-avatar-picker" role="radiogroup">${avatarChoices}</div></div>
         <label class="social-field">${t("Displayed title", "展示称号")}<select name="title">${titleOptions}</select></label>
+        ${adminThemes}
         <div class="social-actions"><button class="social-button primary" type="submit">${t("Save profile", "保存个人主页")}</button></div>
         <p class="social-status" id="social-profile-status"></p>
       </form>
     </section></div>`;
     let chosenAvatar = profile.avatarId;
+    let chosenTheme = profile.profileTheme || "standard";
     main.querySelectorAll("[data-avatar]").forEach(button => button.onclick = () => {
       chosenAvatar = Number(button.dataset.avatar);
       main.querySelectorAll("[data-avatar]").forEach(item => item.setAttribute("aria-checked", String(item === button)));
+    });
+    main.querySelectorAll("[data-theme]").forEach(button => button.onclick = () => {
+      chosenTheme = button.dataset.theme;
+      main.querySelectorAll("[data-theme]").forEach(item => item.setAttribute("aria-checked", String(item === button)));
     });
     document.getElementById("social-profile-form").onsubmit = async event => {
       event.preventDefault();
@@ -292,7 +367,7 @@
       try {
         await api("/api/social/profile", {
           method: "PATCH",
-          body: JSON.stringify({ bio: form.get("bio"), avatarId: chosenAvatar, selectedTitle: form.get("title") }),
+          body: JSON.stringify({ bio: form.get("bio"), avatarId: chosenAvatar, selectedTitle: form.get("title"), profileTheme: chosenTheme }),
         });
         setStatus(status, t("Profile saved. Your observer identity is now live.", "个人主页已保存，你的观测者身份已经更新。"), true);
         setTimeout(() => renderProfile(), 500);
@@ -377,7 +452,7 @@
     main.innerHTML = `<section class="social-card leaderboard">${data.entries.map(entry => `
       <button class="leader-row ${entry.isSelf ? "is-self" : ""}" type="button" data-profile="${esc(entry.username)}">
         <span class="leader-position">#${entry.position}</span>${avatar(entry, "small")}
-        <span><span class="leader-name">${esc(entry.username)}</span><br><span class="leader-rank">${esc(rankName(entry.rank))}${entry.online ? ` · ${t("Online", "在线")}` : ""}</span></span>
+        <span><span class="leader-name">${esc(entry.username)}${entry.role === "admin" ? ` <b class="leader-admin-mark">${t("DIRECTOR", "台长")}</b>` : ""}</span><br><span class="leader-rank">${esc(rankName(entry.rank))}${entry.online ? ` · ${t("Online", "在线")}` : ""}</span></span>
         <span class="social-progress"><span style="width:${Math.round((entry.rank.progress || 0) * 100)}%"></span></span>
         <span class="leader-time">${formatDuration(entry.playSeconds)}</span>
       </button>`).join("")}</section>`;
@@ -393,7 +468,7 @@
         <div class="community-posts" id="community-posts">${posts.length ? posts.map(post => `
           <button class="community-post" type="button" data-post="${esc(post.id)}">
             ${avatar(post.author, "small")}<span><h3>${esc(post.title)}</h3><p>${esc(post.body)}</p>
-            <span class="community-post-meta">${esc(post.author.username)} · ${post.replyCount} ${t("replies", "条回复")} · ${formatWhen(post.updatedAt)}</span></span>
+            <span class="community-post-meta">${esc(post.author.username)}${post.author.role === "admin" ? ` · ${t("Observatory Director", "天文台台长")}` : ""} · ${post.replyCount} ${t("replies", "条回复")} · ${formatWhen(post.updatedAt)}</span></span>
           </button>`).join("") : `<div class="social-empty" style="min-height:260px">${t("The community is quiet. Leave the first observing note.", "社区里很安静，来写下第一篇观测记录吧。")}</div>`}</div>
       </section>
       <section class="social-card community-thread" id="community-thread">
