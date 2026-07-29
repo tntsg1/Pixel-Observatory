@@ -14,14 +14,64 @@
   if (!overlay || !progress || !phase || !percent) return;
   const context = canvas?.getContext("2d");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const zh = /^zh\b/i.test(navigator.language || "");
+  const copy = zh ? {
+    brand: "像素观测站",
+    link: "浏览器观测链路已建立",
+    eyebrow: "观测站启动序列",
+    summary: "正在准备仪器、星表与观测席位。",
+    stream: "实时资源流",
+    open: "请保持此标签页开启",
+    archive: "数据档案",
+    optics: "光学平台",
+    catalogue: "天空星表",
+    preparing: "正在准备资源流",
+    phases: [
+      {until: .12, label: "正在打开观测档案"},
+      {until: .38, label: "正在加载仪器与光学组件"},
+      {until: .7, label: "正在绘制恒星星表"},
+      {until: .92, label: "正在校准观测系统"},
+      {until: 1.01, label: "正在让观测站上线"},
+    ],
+    opticalWaiting: "等待校准", opticalReady: "光路已校验",
+    catalogueWaiting: "正在加载坐标", catalogueReady: "星位已索引",
+  } : {
+    brand: "Pixel Observatory",
+    link: "Browser observatory link established",
+    eyebrow: "Observatory startup sequence",
+    summary: "Preparing your instruments, sky catalogue and observing station.",
+    stream: "Live package stream",
+    open: "Keep this tab open",
+    archive: "Data archive",
+    optics: "Optical bench",
+    catalogue: "Sky catalogue",
+    preparing: "Preparing stream",
+    phases: [
+      {until: .12, label: "Opening observatory archive"},
+      {until: .38, label: "Loading instruments and optics"},
+      {until: .7, label: "Plotting the stellar catalogue"},
+      {until: .92, label: "Calibrating observation systems"},
+      {until: 1.01, label: "Bringing the observatory online"},
+    ],
+    opticalWaiting: "Awaiting calibration", opticalReady: "Optical path verified",
+    catalogueWaiting: "Loading coordinates", catalogueReady: "Star positions indexed",
+  };
+  document.documentElement.dataset.lang = zh ? "zh" : "en";
+  const setText = (id, value) => {
+    const node = document.getElementById(id);
+    if (node) node.textContent = value;
+  };
+  setText("loader-brand-name", copy.brand);
+  setText("loader-link-state", copy.link);
+  setText("loader-eyebrow", copy.eyebrow);
+  setText("loader-summary", copy.summary);
+  setText("loader-stream", copy.stream);
+  setText("loader-open", copy.open);
+  setText("loader-data-label", copy.archive);
+  setText("loader-optical-label", copy.optics);
+  setText("loader-catalogue-label", copy.catalogue);
 
-  const phases = [
-    {until: .12, label: "Opening observatory archive"},
-    {until: .38, label: "Loading instruments and optics"},
-    {until: .7, label: "Plotting the stellar catalogue"},
-    {until: .92, label: "Calibrating observation systems"},
-    {until: 1.01, label: "Bringing the observatory online"},
-  ];
+  const phases = copy.phases;
   let lastPercent = -1;
   let stars = [];
   let dust = [];
@@ -46,9 +96,9 @@
       percent.textContent = `${nextPercent}%`;
       if (orbitalPercent) orbitalPercent.textContent = `${nextPercent}%`;
       phase.textContent = phases.find(item => ratio < item.until)?.label || phases.at(-1).label;
-      if (loaded) loaded.textContent = max > 0 ? `${formatBytes(value)} / ${formatBytes(max)}` : "Preparing stream";
-      if (optical) optical.textContent = ratio > .43 ? "Optical path verified" : "Awaiting calibration";
-      if (catalogue) catalogue.textContent = ratio > .72 ? "Star positions indexed" : "Loading coordinates";
+      if (loaded) loaded.textContent = max > 0 ? `${formatBytes(value)} / ${formatBytes(max)}` : copy.preparing;
+      if (optical) optical.textContent = ratio > .43 ? copy.opticalReady : copy.opticalWaiting;
+      if (catalogue) catalogue.textContent = ratio > .72 ? copy.catalogueReady : copy.catalogueWaiting;
     }
     requestAnimationFrame(update);
   }
@@ -154,8 +204,10 @@
   "use strict";
   const rankKey = "pixel-observatory:last-rank-level";
   const pendingKey = "pixel-observatory:pending-play-seconds";
+  const pendingReportKey = "pixel-observatory:pending-playtime-report";
   const sessionKey = "pixel-observatory:play-session-id";
   const sessionUserKey = "pixel-observatory:play-session-user";
+  const effectiveSessionKey = "pixel-observatory:effective-play-seconds";
   const heartbeatIntervalMs = 30_000;
   const maxPendingSeconds = 90;
   let audioContext = null;
@@ -163,12 +215,31 @@
   let signedIn = null;
   let gameInteractive = false;
   let foregroundStartedAt = 0;
+  let foregroundTimer = 0;
   let heartbeatInFlight = false;
+  let leaseAccepted = false;
   let signedInUserId = sessionStorage.getItem(sessionUserKey) || "";
   let pendingSeconds = Math.max(0, Math.min(
     maxPendingSeconds,
     Number(sessionStorage.getItem(pendingKey) || 0),
   ));
+  let pendingReport = null;
+  try {
+    const storedReport = JSON.parse(sessionStorage.getItem(pendingReportKey) || "null");
+    if (storedReport
+      && /^[a-zA-Z0-9_-]{16,96}$/.test(String(storedReport.id || ""))
+      && ["heartbeat", "resume", "pause", "leave"].includes(String(storedReport.event || ""))
+      && Number.isFinite(Number(storedReport.activeSeconds))) {
+      pendingReport = {
+        id: String(storedReport.id),
+        event: String(storedReport.event),
+        activeSeconds: Math.max(0, Math.min(maxPendingSeconds, Math.floor(Number(storedReport.activeSeconds)))),
+      };
+    }
+  } catch {
+    sessionStorage.removeItem(pendingReportKey);
+  }
+  let effectiveSessionSeconds = Math.max(0, Number(sessionStorage.getItem(effectiveSessionKey) || 0));
   let playSessionId = sessionStorage.getItem(sessionKey) || "";
   if (!/^[a-zA-Z0-9_-]{16,96}$/.test(playSessionId)) {
     playSessionId = crypto.randomUUID
@@ -231,16 +302,56 @@
   function syncStatus(status, message = "") {
     document.documentElement.dataset.playtimeSync = status;
     dispatchEvent(new CustomEvent("observatory:playtime-sync", {
-      detail: { status, message, pendingSeconds: Math.floor(pendingSeconds) },
+      detail: {
+        status,
+        message,
+        pendingSeconds: Math.floor(pendingSeconds),
+        effectiveSessionSeconds: Math.floor(effectiveSessionSeconds),
+        leaseAccepted,
+      },
     }));
   }
 
   function persistPending() {
     sessionStorage.setItem(pendingKey, pendingSeconds.toFixed(3));
+    sessionStorage.setItem(effectiveSessionKey, effectiveSessionSeconds.toFixed(3));
+    if (pendingReport) sessionStorage.setItem(pendingReportKey, JSON.stringify(pendingReport));
+    else sessionStorage.removeItem(pendingReportKey);
+  }
+
+  function createReportId() {
+    return crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(2)).join("_")}`;
+  }
+
+  function reportFor(event) {
+    if (pendingReport && pendingReport.event === event) return pendingReport;
+    pendingReport = {
+      id: createReportId(),
+      event,
+      activeSeconds: Math.floor(pendingSeconds),
+    };
+    persistPending();
+    return pendingReport;
+  }
+
+  function publishEffectiveSession() {
+    dispatchEvent(new CustomEvent("observatory:playtime-local", {
+      detail: {
+        active: Boolean(gameInteractive && !document.hidden && leaseAccepted),
+        leaseAccepted,
+        sessionSeconds: Math.floor(effectiveSessionSeconds),
+        pendingSeconds: Math.floor(pendingSeconds),
+      },
+    }));
   }
 
   function resetSessionForUser(userId = "") {
     pendingSeconds = 0;
+    effectiveSessionSeconds = 0;
+    leaseAccepted = false;
+    pendingReport = null;
     persistPending();
     signedInUserId = userId;
     sessionStorage.setItem(sessionUserKey, userId);
@@ -255,8 +366,12 @@
     const now = performance.now();
     const elapsed = Math.max(0, Math.min(maxPendingSeconds, (now - foregroundStartedAt) / 1000));
     pendingSeconds = Math.min(maxPendingSeconds, pendingSeconds + elapsed);
+    if (leaseAccepted && !document.hidden) {
+      effectiveSessionSeconds += elapsed;
+    }
     foregroundStartedAt = document.hidden ? 0 : now;
     persistPending();
+    publishEffectiveSession();
   }
 
   async function resolveSession(force = false) {
@@ -283,10 +398,11 @@
     if (!gameInteractive) return;
     if (document.hidden && event !== "pause" && event !== "leave") return;
     accrueForeground();
-    if (heartbeatInFlight && event === "heartbeat") return;
+    if (heartbeatInFlight) return;
     heartbeatInFlight = true;
     try {
       if (!(await resolveSession(options.forceSession))) return;
+      const report = reportFor(event);
       const response = await fetch("/api/social/playtime", {
         method: "POST",
         credentials: "same-origin",
@@ -294,8 +410,9 @@
         keepalive: Boolean(options.keepalive),
         body: JSON.stringify({
           sessionId: playSessionId,
+          reportId: report.id,
           event,
-          activeSeconds: Math.floor(pendingSeconds),
+          activeSeconds: report.activeSeconds,
         }),
       });
       if (!response.ok) {
@@ -303,14 +420,14 @@
         throw new Error(`Playtime sync failed (${response.status}).`);
       }
       const data = await response.json();
-      const earned = Math.max(0, Number(data.earnedSeconds || 0));
-      if ((event === "pause" || event === "leave") && data.leaseAccepted !== false) {
-        pendingSeconds = 0;
-      } else {
-        pendingSeconds = Math.max(0, pendingSeconds - earned);
-      }
+      const releasesLease = event === "pause" || event === "leave";
+      leaseAccepted = data.leaseAccepted !== false && !releasesLease;
+      const acknowledged = Math.max(0, Number(data.acknowledgedSeconds ?? data.earnedSeconds ?? 0));
+      pendingSeconds = Math.max(0, pendingSeconds - acknowledged);
+      pendingReport = null;
       persistPending();
       syncStatus(data.leaseAccepted === false ? "standby" : "synced");
+      publishEffectiveSession();
       dispatchEvent(new CustomEvent("observatory:playtime", { detail: data }));
       const level = Number(data.rank?.level || 0);
       const previous = Number(localStorage.getItem(rankKey) || 0);
@@ -328,6 +445,8 @@
     if (gameInteractive) return;
     gameInteractive = true;
     foregroundStartedAt = document.hidden ? 0 : performance.now();
+    clearInterval(foregroundTimer);
+    foregroundTimer = setInterval(accrueForeground, 1000);
     clearInterval(heartbeatTimer);
     heartbeat("resume", { forceSession: true });
     heartbeatTimer = setInterval(() => heartbeat("heartbeat"), heartbeatIntervalMs);
@@ -352,9 +471,11 @@
     if (document.hidden) {
       heartbeat("pause", { keepalive: true });
       foregroundStartedAt = 0;
+      publishEffectiveSession();
     } else {
       foregroundStartedAt = performance.now();
       heartbeat("resume", { forceSession: true });
+      publishEffectiveSession();
     }
   });
   addEventListener("pagehide", () => heartbeat("leave", { keepalive: true }));
@@ -362,6 +483,8 @@
   addEventListener("observatory:request-heartbeat", () => heartbeat("heartbeat", { forceSession: true }));
   addEventListener("observatory:session-changed", () => {
     signedIn = null;
+    leaseAccepted = false;
+    publishEffectiveSession();
     heartbeat("resume", { forceSession: true });
   });
   watchForInteractiveGame();
@@ -380,7 +503,7 @@
     user: null,
     profile: null,
     friends: [],
-    sessionStartedAt: Date.now(),
+    effectiveSessionSeconds: Math.max(0, Number(sessionStorage.getItem("pixel-observatory:effective-play-seconds") || 0)),
     totalSeconds: 0,
     refreshTimer: 0,
     refreshInFlight: false,
@@ -430,6 +553,14 @@
         <b aria-hidden="true">+</b>
       </button>
     </aside>
+    <section class="game-compact-controls" id="game-compact-controls" hidden aria-label="${t("Observatory tools", "观测站工具")}">
+      <button class="game-compact-toggle" id="game-compact-toggle" type="button" aria-expanded="false"><span aria-hidden="true">⌁</span>${t("Observatory link", "观测站连接")}</button>
+      <div class="game-compact-actions" id="game-compact-actions" hidden>
+        <button type="button" data-compact-view="session">${t("My shift", "我的班次")}</button>
+        <button type="button" data-compact-view="friends">${t("Friends", "好友")}</button>
+        <button type="button" data-compact-feedback>${t("Report", "反馈")}</button>
+      </div>
+    </section>
     <div class="game-friend-toast" id="game-friend-toast" hidden role="status" aria-live="polite"></div>`);
 
   const sessionRail = document.getElementById("game-session-rail");
@@ -440,6 +571,9 @@
   const signalStatus = document.getElementById("game-signal-status");
   const toast = document.getElementById("game-friend-toast");
   const feedbackDock = document.querySelector(".game-feedback-dock");
+  const compactControls = document.getElementById("game-compact-controls");
+  const compactToggle = document.getElementById("game-compact-toggle");
+  const compactActions = document.getElementById("game-compact-actions");
   let toastTimer = 0;
 
   function avatarStyle(id) {
@@ -472,8 +606,7 @@
   }
 
   function tickClock() {
-    const elapsed = Math.floor((Date.now() - state.sessionStartedAt) / 1000);
-    document.getElementById("game-session-time").textContent = formatClock(elapsed);
+    document.getElementById("game-session-time").textContent = formatClock(state.effectiveSessionSeconds);
   }
 
   function renderSelf() {
@@ -493,7 +626,7 @@
         <span class="game-pet-online" aria-label="${t("Online", "在线")}"></span>
       </div>
       <div class="game-pet-copy"><strong>${name}</strong><span>${escapeHtml(friend.rank?.name || t("Observer", "观测员"))}</span></div>
-      <button class="game-signal-button" type="button" data-signal="poke" data-username="${name}">${t("Poke", "戳一下")}</button>
+      <div class="game-pet-actions"><button class="game-message-button" type="button" data-message="${name}">${t("Message", "私信")}</button><button class="game-signal-button" type="button" data-signal="poke" data-username="${name}">${t("Poke", "戳一下")}</button></div>
     </article>`;
   }
 
@@ -516,6 +649,22 @@
       ? offline.map(offlineMarkup).join("")
       : `<p class="game-empty-offline">${t("Everyone is already here.", "所有好友都已经在线。")}</p>`;
     document.getElementById("game-offline-count").textContent = String(offline.length);
+  }
+
+  function setCompactView(view) {
+    const root = document.documentElement;
+    root.classList.add("game-social-compact-open");
+    root.classList.toggle("game-social-compact-session", view === "session");
+    root.classList.toggle("game-social-compact-friends", view === "friends");
+    compactToggle?.setAttribute("aria-expanded", "true");
+    compactActions.hidden = false;
+  }
+
+  function closeCompactView() {
+    const root = document.documentElement;
+    root.classList.remove("game-social-compact-open", "game-social-compact-session", "game-social-compact-friends");
+    compactToggle?.setAttribute("aria-expanded", "false");
+    compactActions.hidden = true;
   }
 
   function showToast(signal) {
@@ -604,6 +753,7 @@
       renderSelf();
       sessionRail.hidden = false;
       friendsRail.hidden = false;
+      compactControls.hidden = false;
       document.documentElement.classList.add("game-social-enabled");
       tickClock();
       state.clockTimer = setInterval(tickClock, 1000);
@@ -626,6 +776,24 @@
   friendsRail.addEventListener("click", event => {
     const button = event.target.closest("[data-signal]");
     if (button) sendSignal(button);
+    const messageButton = event.target.closest("[data-message]");
+    if (messageButton) {
+      document.dispatchEvent(new CustomEvent("po:open-inbox", {
+        detail: { username: String(messageButton.dataset.message || "") },
+      }));
+    }
+  });
+  compactToggle?.addEventListener("click", () => {
+    if (document.documentElement.classList.contains("game-social-compact-open")) closeCompactView();
+    else setCompactView("session");
+  });
+  compactActions?.addEventListener("click", event => {
+    const view = event.target.closest("[data-compact-view]")?.dataset.compactView;
+    if (view) setCompactView(view);
+    if (event.target.closest("[data-compact-feedback]")) {
+      closeCompactView();
+      document.getElementById("feedback-open")?.click();
+    }
   });
   [sessionRail, friendsRail, feedbackDock].forEach(rail => {
     rail.addEventListener("pointerdown", event => event.stopPropagation());
@@ -636,6 +804,10 @@
     state.totalSeconds = Number(data.playSeconds || state.totalSeconds);
     if (state.profile && data.rank) state.profile.rank = data.rank;
     renderSelf();
+  });
+  addEventListener("observatory:playtime-local", event => {
+    state.effectiveSessionSeconds = Math.max(0, Number(event.detail?.sessionSeconds || 0));
+    tickClock();
   });
   addEventListener("observatory:playtime-sync", event => {
     const status = String(event.detail?.status || "");

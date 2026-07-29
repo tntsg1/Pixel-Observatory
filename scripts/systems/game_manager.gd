@@ -188,6 +188,7 @@ func _ready() -> void:
 	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
 	if cloud_sync != null and cloud_sync.has_signal("session_changed"):
 		cloud_sync.session_changed.connect(_on_cloud_session_changed)
+	call_deferred("_publish_web_context", "")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -596,6 +597,7 @@ func go(scene_key: String) -> void:
 		current.queue_free()
 	get_tree().root.add_child(next_scene)
 	get_tree().current_scene = next_scene
+	_publish_web_context(scene_key)
 	# Universal soft entry: every screen change fades in instead of hard
 	# cutting. Scenes that already call page_enter simply restart the same
 	# keyed tween, so there is no double animation.
@@ -654,6 +656,30 @@ func cycle_language() -> void:
 		language_mode = "en"
 	save()
 	language_changed.emit()
+	_publish_web_context("")
+
+
+func _publish_web_context(scene_key: String) -> void:
+	# The surrounding Web shell receives only presentation context for a feedback
+	# report. It never receives a save, account/session data, or player input.
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return
+	var resolved_scene := scene_key
+	if resolved_scene.is_empty():
+		var current := get_tree().current_scene
+		var current_path := "" if current == null else str(current.scene_file_path)
+		for key_value in SCENES:
+			if str(SCENES[key_value]) == current_path:
+				resolved_scene = str(key_value)
+				break
+	if resolved_scene.is_empty():
+		resolved_scene = "unknown"
+	var payload := {
+		"scene": resolved_scene,
+		"level": int(progress.get("current_level", 1)),
+		"language": language_mode,
+	}
+	JavaScriptBridge.eval("window.dispatchEvent(new CustomEvent('observatory:game-context',{detail:" + JSON.stringify(payload) + "}));", true)
 
 
 func _normalized_language_mode(mode: String) -> String:

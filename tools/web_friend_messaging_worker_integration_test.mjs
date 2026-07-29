@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 const baseUrl = process.env.FRIEND_MESSAGING_TEST_URL || "http://127.0.0.1:8791";
 const password = "FriendMessaging!2026";
 const suffix = `${Date.now().toString(36)}${Math.floor(Math.random() * 10_000)}`;
+const testNetwork = 20 + Math.floor(Math.random() * 200);
 
 function sessionCookie(response) {
 	const raw = response.headers.get("set-cookie") || "";
@@ -33,7 +34,9 @@ async function register(prefix, addressOctet) {
 	const username = `${prefix}${suffix}`;
 	const { response, data } = await api("/api/auth/register", {
 		method: "POST",
-		headers: { "cf-connecting-ip": `192.0.2.${addressOctet}` },
+		// Give each remote acceptance run a reserved, isolated test address so a
+		// prior test cannot consume the production registration rate-limit bucket.
+		headers: { "X-Pixel-Observatory-Test-IP": `198.18.${testNetwork}.${addressOctet}` },
 		body: JSON.stringify({
 			username,
 			password,
@@ -64,6 +67,22 @@ const accountA = await register("msgia", 11);
 const accountB = await register("msgib", 12);
 const outsider = await register("msgic", 13);
 const friendshipId = await becomeFriends(accountA, accountB);
+
+const { data: poke } = await api("/api/social/signals", {
+	method: "POST",
+	body: JSON.stringify({ username: accountB.username, kind: "poke" }),
+}, accountA.cookie, 201);
+assert.equal(poke.kind, "poke");
+const { data: signalsB } = await api("/api/social/signals", {}, accountB.cookie);
+assert.equal(signalsB.signals.some(signal => signal.kind === "poke" && signal.sender?.username === accountA.username), true);
+
+const { data: nudge } = await api("/api/social/signals", {
+	method: "POST",
+	body: JSON.stringify({ username: accountA.username, kind: "come_online" }),
+}, accountB.cookie, 201);
+assert.equal(nudge.kind, "come_online");
+const { data: signalsA } = await api("/api/social/signals", {}, accountA.cookie);
+assert.equal(signalsA.signals.some(signal => signal.kind === "come_online" && signal.sender?.username === accountB.username), true);
 
 const deniedOutsider = await api("/api/messages/conversations", {
 	method: "POST",
@@ -126,6 +145,8 @@ console.log(JSON.stringify({
 	ok: true,
 	conversationId: created.conversationId,
 	existingConversationVisibleToRecipient: true,
+	pokeDelivered: true,
+	nudgeDelivered: true,
 	outsiderDenied: deniedOutsider.data.error,
 	sendAfterUnfriendDenied: deniedAfterRemoval.data.error,
 	historyRetained: true,

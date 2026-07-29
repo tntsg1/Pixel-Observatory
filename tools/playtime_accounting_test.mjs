@@ -9,12 +9,16 @@ function apply(row, input) {
 		previousSeconds: row.playSeconds,
 		previousHeartbeat: row.heartbeat,
 		previousSession: row.session,
+		previousReportId: row.reportId,
+		previousReportCredit: row.reportCredit,
 		...input,
 	});
 	return {
 		playSeconds: transition.playSeconds,
 		heartbeat: transition.nextHeartbeat,
 		session: transition.nextSession,
+		reportId: transition.nextReportId,
+		reportCredit: transition.nextReportCredit,
 		transition,
 	};
 }
@@ -42,12 +46,31 @@ assert.equal(row.playSeconds, 540, "Nine foreground minutes are recorded as 540 
 
 const duplicate = apply(row, {
 	sessionId: SESSION_A,
+	reportId: "duplicate-cross-second-report",
 	event: "heartbeat",
 	activeSecondsHint: 30,
 	now: row.heartbeat,
 });
 assert.equal(duplicate.transition.earnedSeconds, 0, "A duplicate heartbeat cannot double count.");
 assert.equal(duplicate.playSeconds, 540);
+
+const crossSecondFirst = apply(row, {
+	sessionId: SESSION_A,
+	reportId: "retry-report-id-0001",
+	event: "heartbeat",
+	activeSecondsHint: 2,
+	now: row.heartbeat + 2,
+});
+assert.equal(crossSecondFirst.transition.earnedSeconds, 2, "The first report receives its measured foreground seconds.");
+const crossSecondRetry = apply(crossSecondFirst, {
+	sessionId: SESSION_A,
+	reportId: "retry-report-id-0001",
+	event: "heartbeat",
+	activeSecondsHint: 2,
+	now: crossSecondFirst.heartbeat + 1,
+});
+assert.equal(crossSecondRetry.transition.earnedSeconds, 0, "A response-lost retry cannot earn another whole second.");
+assert.equal(crossSecondRetry.transition.acknowledgedSeconds, 2, "The duplicate report acknowledges its original credit for the client retry queue.");
 
 const hidden = apply(row, {
 	sessionId: SESSION_A,

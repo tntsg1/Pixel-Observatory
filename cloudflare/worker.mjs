@@ -45,17 +45,21 @@ export function calculatePlaytimeTransition({
 	previousSeconds = 0,
 	previousHeartbeat = 0,
 	previousSession = "",
+	previousReportId = "",
+	previousReportCredit = 0,
 	sessionId = "",
+	reportId = "",
 	event = "heartbeat",
 	activeSecondsHint = 0,
 	now = 0,
 } = {}) {
 	const elapsed = previousHeartbeat > 0 ? Math.max(0, now - previousHeartbeat) : 0;
 	const sameSession = Boolean(previousSession) && previousSession === sessionId;
+	const duplicateReport = Boolean(reportId) && reportId === previousReportId;
 	const leaseAvailable = !previousSession
 		|| sameSession
 		|| elapsed >= PLAYTIME_LEASE_STALE_SECONDS;
-	const earnedSeconds = leaseAvailable
+	const earnedSeconds = leaseAvailable && !duplicateReport
 		? calculatePlaytimeCredit({
 			serverElapsedSeconds: elapsed,
 			activeSecondsHint,
@@ -63,12 +67,19 @@ export function calculatePlaytimeTransition({
 		})
 		: 0;
 	const releaseLease = event === "pause" || event === "leave";
+	const acknowledgedSeconds = duplicateReport
+		? Math.max(0, Math.floor(Number(previousReportCredit) || 0))
+		: earnedSeconds;
 	return {
 		earnedSeconds,
+		acknowledgedSeconds,
 		playSeconds: Math.max(0, Number(previousSeconds) || 0) + earnedSeconds,
-		leaseAccepted: leaseAvailable,
-		nextSession: leaseAvailable ? (releaseLease ? "" : sessionId) : previousSession,
-		nextHeartbeat: leaseAvailable ? (releaseLease ? 0 : now) : previousHeartbeat,
+		leaseAccepted: duplicateReport ? !releaseLease && Boolean(previousSession) : leaseAvailable,
+		nextSession: duplicateReport ? previousSession : (leaseAvailable ? (releaseLease ? "" : sessionId) : previousSession),
+		nextHeartbeat: duplicateReport ? previousHeartbeat : (leaseAvailable ? (releaseLease ? 0 : now) : previousHeartbeat),
+		nextReportId: duplicateReport ? previousReportId : reportId,
+		nextReportCredit: duplicateReport ? previousReportCredit : earnedSeconds,
+		duplicateReport,
 	};
 }
 // Cloudflare Workers Web Crypto currently caps PBKDF2 at 100,000 rounds.
@@ -224,13 +235,21 @@ async function readJson(request, maxBytes = 32_000) {
 	return JSON.parse(text || "{}");
 }
 
-function clientAddress(request) {
+function clientAddress(request, env) {
+	// Wrangler's remote preview replaces CF-Connecting-IP with its loopback
+	// proxy address.  The isolated acceptance runner gets a synthetic address
+	// only when its explicitly local Turnstile bypass is enabled; production
+	// requests can never select their own rate-limit identity.
+	const testAddress = env.TURNSTILE_BYPASS === "local-test"
+		? String(request.headers.get("X-Pixel-Observatory-Test-IP") || "").trim()
+		: "";
+	if (testAddress) return testAddress;
 	return request.headers.get("CF-Connecting-IP") || "unknown";
 }
 
 async function rateLimit(env, request, bucket, limit, windowSeconds) {
 	const windowStart = Math.floor(Date.now() / 1000 / windowSeconds) * windowSeconds;
-	const subject = await sha256(`${env.RATE_LIMIT_SECRET || "local"}:${clientAddress(request)}:${bucket}`);
+	const subject = await sha256(`${env.RATE_LIMIT_SECRET || "local"}:${clientAddress(request, env)}:${bucket}`);
 	await env.DB.prepare(
 		`INSERT INTO rate_limits (bucket, subject_hash, window_start, count)
 		 VALUES (?, ?, ?, 1)
@@ -1039,6 +1058,10 @@ async function handlePresence(request, env, countPlaytime = false) {
 		if (!VISITOR_ID_PATTERN.test(sessionId)) {
 			return apiError("Invalid playtime session.", 400, "invalid_playtime_session");
 		}
+		const reportId = String(body.reportId || "");
+		if (reportId && !VISITOR_ID_PATTERN.test(reportId)) {
+			return apiError("Invalid playtime report.", 400, "invalid_playtime_report");
+		}
 		const event = ["heartbeat", "resume", "pause", "leave"].includes(String(body.event))
 			? String(body.event)
 			: "heartbeat";
@@ -1047,16 +1070,22 @@ async function handlePresence(request, env, countPlaytime = false) {
 			Math.min(PLAYTIME_HEARTBEAT_CAP_SECONDS, Math.floor(Number(body.activeSeconds) || 0)),
 		);
 		const row = await env.DB.prepare(
-			`SELECT play_seconds, last_play_heartbeat_at, last_play_session_id
+			`SELECT play_seconds, last_play_heartbeat_at, last_play_session_id,
+			        last_play_report_id, last_play_report_credit_seconds
 			 FROM user_profiles WHERE user_id = ?`,
 		).bind(user.id).first();
 		const previous = Number(row?.last_play_heartbeat_at || 0);
 		const previousSession = String(row?.last_play_session_id || "");
+		const previousReportId = String(row?.last_play_report_id || "");
+		const previousReportCredit = Number(row?.last_play_report_credit_seconds || 0);
 		const transition = calculatePlaytimeTransition({
 			previousSeconds: Number(row?.play_seconds || 0),
 			previousHeartbeat: previous,
 			previousSession,
+			previousReportId,
+			previousReportCredit,
 			sessionId,
+			reportId,
 			event,
 			activeSecondsHint,
 			now,
@@ -1064,17 +1093,22 @@ async function handlePresence(request, env, countPlaytime = false) {
 		const updateResult = await env.DB.prepare(
 			`UPDATE user_profiles
 			 SET play_seconds = play_seconds + ?, last_active_at = ?,
-			     last_play_heartbeat_at = ?, last_play_session_id = ?, updated_at = ?
-			 WHERE user_id = ? AND last_play_heartbeat_at = ? AND last_play_session_id = ?`,
+			     last_play_heartbeat_at = ?, last_play_session_id = ?,
+			     last_play_report_id = ?, last_play_report_credit_seconds = ?, updated_at = ?
+			 WHERE user_id = ? AND last_play_heartbeat_at = ? AND last_play_session_id = ?
+			   AND last_play_report_id = ?`,
 		).bind(
 			transition.earnedSeconds,
 			now,
 			transition.nextHeartbeat,
 			transition.nextSession,
+			transition.nextReportId,
+			transition.nextReportCredit,
 			now,
 			user.id,
 			previous,
 			previousSession,
+			previousReportId,
 		).run();
 		const changed = Number(updateResult?.meta?.changes ?? updateResult?.meta?.rows_written ?? 1);
 		if (changed < 1) {
@@ -1085,6 +1119,7 @@ async function handlePresence(request, env, countPlaytime = false) {
 			return json({
 				ok: true,
 				earnedSeconds: 0,
+				acknowledgedSeconds: 0,
 				playSeconds: currentSeconds,
 				rank: rankForSeconds(currentSeconds),
 				leaseAccepted: false,
@@ -1095,6 +1130,7 @@ async function handlePresence(request, env, countPlaytime = false) {
 		return json({
 			ok: true,
 			earnedSeconds: transition.earnedSeconds,
+			acknowledgedSeconds: transition.acknowledgedSeconds,
 			playSeconds: transition.playSeconds,
 			rank: rankForSeconds(transition.playSeconds),
 			leaseAccepted: transition.leaseAccepted,

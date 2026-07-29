@@ -42,6 +42,15 @@ drawers with server-side friendship checks, text-only rendering and retained
 drafts after a failed send. The public site also documents the environment
 simulation chapter in English and Chinese.
 
+**Web launch and timing:** `/game/` now remains a Pixel Observatory launch
+shell after every export: Godot runtime files are staged under a private export
+directory, while the public game entrypoint supplies the deep-space progress
+sequence, reduced-motion behavior, game-adjacent observer rails, friend
+actions and field-report dock. Static release assets never contain a PCK;
+runtime PCK/WASM delivery remains on the game-asset route. Playtime reports are
+idempotent across a lost response, so an acknowledged heartbeat cannot be
+credited twice on retry.
+
 ## 2026-07-28 - Observatory Accounts and Field Reports
 
 **Delivered:** The canonical website now supports observer accounts with

@@ -2,6 +2,7 @@
   "use strict";
   const state = { user:null, config:null, widgetId:null, feedbackFrame:0 };
   const closeTimers = new WeakMap();
+  const gameContext = { scene:"", level:"", language:"" };
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
   const esc = value => String(value).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -77,12 +78,18 @@
     state.widgetId=window.turnstile.render(container,{sitekey:state.config.turnstileSiteKey,theme:"dark",appearance:"interaction-only"});
   }
   const challengeToken=()=>state.widgetId===null||!window.turnstile?"":window.turnstile.getResponse(state.widgetId);
+  addEventListener("observatory:game-context",event=>{
+    const detail=event.detail||{};
+    gameContext.scene=String(detail.scene||"").replace(/[^a-z0-9_./-]/gi,"").slice(0,120);
+    gameContext.level=String(detail.level||"").replace(/[^0-9]/g,"").slice(0,6);
+    gameContext.language=/^(zh|en)$/i.test(String(detail.language||""))?String(detail.language).toLowerCase():"";
+  });
   function feedbackContext(){
     const canvas=document.getElementById("canvas");
     const loader=document.getElementById("status");
     const gamePage=/\/game\/?$/i.test(location.pathname);
     return {
-      language:document.documentElement.dataset.lang||navigator.language,
+      language:gameContext.language||document.documentElement.dataset.lang||navigator.language,
       viewport:`${innerWidth}x${innerHeight}`,
       surface:gamePage?"game":"website",
       gameState:gamePage
@@ -90,6 +97,9 @@
         : "not_applicable",
       canvas:canvas?`${canvas.width}x${canvas.height}`:null,
       browserLanguage:navigator.language,
+      scene:gameContext.scene||"unavailable",
+      level:gameContext.level||"unavailable",
+      build:String(document.documentElement.dataset.pixelObservatoryBuild||"local").replace(/[^a-z0-9._-]/gi,"").slice(0,80),
     };
   }
   function updateNav(){
@@ -196,8 +206,20 @@
       }catch(error){ status.textContent=error.message; if(state.widgetId!==null) window.turnstile?.reset(state.widgetId); submit.disabled=false; submit.classList.remove("is-sending"); submit.querySelector(".po-submit-label").textContent=t("Send to the developer","发送给开发者"); }
     };
   }
-  document.getElementById("account-open")?.addEventListener("click",()=>{renderAccount();open(accountModal);});
-  document.getElementById("feedback-open")?.addEventListener("click",()=>{renderFeedback();open(feedbackModal);});
+  // The game shell inserts its feedback control after this shared account
+  // module has loaded.  Delegate instead of taking a one-time snapshot so the
+  // same, privacy-scoped form works on the website and on /game/.
+  document.addEventListener("click",event=>{
+    if(event.target.closest("#account-open")){
+      renderAccount();
+      open(accountModal);
+      return;
+    }
+    if(event.target.closest("#feedback-open")){
+      renderFeedback();
+      open(feedbackModal);
+    }
+  });
   ["pointerdown","pointerup","click","wheel","keydown","keyup"].forEach(type=>{
     feedbackModal.addEventListener(type,event=>event.stopPropagation());
   });

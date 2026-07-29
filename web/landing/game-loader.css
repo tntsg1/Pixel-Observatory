@@ -83,7 +83,7 @@ body {
   background:
     radial-gradient(circle 90px at var(--feedback-button-x) 0%, rgba(139, 220, 248, .16), transparent 72%),
     linear-gradient(155deg, rgba(19, 38, 57, .78), rgba(5, 13, 23, .68));
-  backdrop-filter: blur(26px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(145%);
   box-shadow: 0 18px 48px rgba(0,0,0,.36), inset 0 1px rgba(255,255,255,.13);
   color: inherit;
   text-align: left;
@@ -137,7 +137,7 @@ body {
   background:
     radial-gradient(circle at 78% 5%, rgba(130, 207, 235, .12), transparent 32%),
     linear-gradient(155deg, rgba(18, 33, 51, .74), rgba(5, 12, 22, .62));
-  backdrop-filter: blur(24px) saturate(155%);
+  backdrop-filter: blur(14px) saturate(145%);
   box-shadow: 0 22px 58px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.09);
 }
 
@@ -348,7 +348,8 @@ body {
 .game-pet-copy span,
 .game-offline-friend span { display: block; margin-top: 3px; color: #718797; font-size: 8px; }
 .game-signal-button,
-.game-nudge-button {
+.game-nudge-button,
+.game-message-button {
   border: 1px solid rgba(127,205,233,.33);
   color: #bfe7f4;
   background: rgba(88,170,205,.11);
@@ -357,12 +358,17 @@ body {
   transition: transform .18s ease, background .2s ease, border-color .2s ease;
 }
 .game-signal-button { min-width: 48px; height: 29px; padding: 0 8px; border-radius: 10px; }
+.game-message-button { height: 26px; padding: 0 7px; border-radius: 9px; color: #d3eef7; }
+.game-pet-actions { display: grid; gap: 4px; justify-items: end; }
 .game-signal-button:hover,
-.game-nudge-button:hover { border-color: rgba(145,220,245,.64); background: rgba(88,170,205,.24); }
+.game-nudge-button:hover,
+.game-message-button:hover { border-color: rgba(145,220,245,.64); background: rgba(88,170,205,.24); }
 .game-signal-button:active,
-.game-nudge-button:active { transform: scale(.94); }
+.game-nudge-button:active,
+.game-message-button:active { transform: scale(.94); }
 .game-signal-button:disabled,
-.game-nudge-button:disabled { cursor: default; opacity: .7; }
+.game-nudge-button:disabled,
+.game-message-button:disabled { cursor: default; opacity: .7; }
 .game-friend-pet.is-poked .game-pet-avatar { animation: game-pet-poke .65s cubic-bezier(.2,.9,.2,1); }
 
 .game-no-friends {
@@ -456,7 +462,7 @@ body {
   border-radius: 17px;
   color: #eaf6fb;
   background: rgba(13,28,43,.76);
-  backdrop-filter: blur(26px) saturate(165%);
+  backdrop-filter: blur(14px) saturate(145%);
   box-shadow: 0 20px 60px rgba(0,0,0,.38), inset 0 1px rgba(255,255,255,.12);
   opacity: 0;
   transform: translateY(-14px) scale(.96);
@@ -476,9 +482,102 @@ body {
   58% { transform: translateY(1px) rotate(5deg) scale(.97); }
 }
 
-@media (max-aspect-ratio: 16/9), (max-width: 1399px) {
-  .game-social-rail,
+.game-compact-controls { display: none; }
+.game-compact-controls[hidden] { display: none !important; }
+.game-compact-actions[hidden] { display: none !important; }
+
+/* A 1920×1080 viewport leaves two 240px gutters around the fixed 4:3
+   game canvas: enough room for the compact full rails.  Collapse only once
+   either gutter is materially narrower, so ordinary 16:9 desktop players do
+   not lose the social surface that exists specifically for that space. */
+@media (max-width: 1727px) {
   .game-feedback-dock { display: none !important; }
+  .game-compact-controls {
+    position: fixed;
+    z-index: 14;
+    left: 50%;
+    bottom: max(10px, env(safe-area-inset-bottom));
+    display: grid;
+    justify-items: center;
+    gap: 8px;
+    width: min(392px, calc(100vw - 24px));
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 10px);
+    transition: opacity .2s cubic-bezier(.2,.8,.2,1), transform .24s cubic-bezier(.16,1,.3,1);
+  }
+  .game-social-enabled .game-compact-controls { opacity: 1; pointer-events: auto; transform: translate(-50%, 0); }
+  .game-compact-toggle,
+  .game-compact-actions button {
+    border: 1px solid rgba(177,224,242,.32);
+    color: #e5f5fb;
+    background: rgba(8,22,35,.88);
+    box-shadow: 0 10px 30px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.12);
+    font: 700 11px/1 var(--sans);
+    cursor: pointer;
+    transition: transform .18s cubic-bezier(.2,.8,.2,1), border-color .18s ease, background .18s ease;
+  }
+  .game-compact-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    min-height: 38px;
+    padding: 0 15px;
+    border-radius: 999px;
+  }
+  .game-compact-toggle span { color: #8ee3fd; font-size: 19px; line-height: 0; }
+  .game-compact-toggle:active,
+  .game-compact-actions button:active { transform: scale(.96); }
+  .game-compact-toggle:focus-visible,
+  .game-compact-actions button:focus-visible { outline: 3px solid rgba(113,211,246,.32); outline-offset: 3px; }
+  .game-compact-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    max-width: 100%;
+  }
+  .game-compact-actions button { min-height: 34px; padding: 0 11px; border-radius: 12px; }
+  .game-social-rail {
+    display: block !important;
+    top: auto;
+    right: auto;
+    bottom: 64px;
+    left: 50%;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(610px, calc(100vh - 126px));
+    visibility: hidden;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translate(-50%, 16px) !important;
+    transition: visibility .2s step-end, opacity .18s ease, transform .24s cubic-bezier(.16,1,.3,1) !important;
+  }
+  .game-social-rail[hidden] { display: none !important; }
+  html.game-social-compact-open .game-social-rail {
+    visibility: visible;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+    transform: translate(-50%, 0) !important;
+    transition: visibility 0s, opacity .18s ease, transform .24s cubic-bezier(.16,1,.3,1) !important;
+  }
+  html.game-social-compact-session .game-friends-rail,
+  html.game-social-compact-friends .game-session-rail { display: none !important; }
+  .game-friends-panel { max-height: min(610px, calc(100vh - 126px)); }
+}
+
+@media (max-width: 600px) {
+  /* A portrait 4:3 canvas is vertically centred, leaving a genuine bottom
+     safe area.  Keep a collapsed trigger there; when a sheet is open the
+     trigger moves to the upper letterbox and the sheet begins below the game
+     image instead of covering its controls. */
+  .game-social-rail { bottom: 12px; width: calc(100vw - 18px); max-height: min(260px, calc(100vh - 84px)); }
+  html.game-social-compact-open .game-compact-controls { top: max(10px, env(safe-area-inset-top)); bottom: auto; }
+  .game-session-panel { padding: 15px 15px 13px; }
+  .game-session-orbit { display: none; }
+  .game-session-time { margin-top: 13px; }
+  .game-friends-panel { max-height: min(260px, calc(100vh - 84px)); overflow-y: auto; }
+  .game-online-pets { max-height: 108px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -487,6 +586,7 @@ body {
   .game-friend-pet,
   .game-signal-button,
   .game-nudge-button,
+  .game-message-button,
   .game-feedback-button,
   .game-feedback-button::before { transition-duration: .01ms !important; }
   .game-session-orbit,
