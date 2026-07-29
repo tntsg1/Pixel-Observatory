@@ -284,9 +284,54 @@
 .community-author { margin: 13px 0 20px; padding: 0; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: #91a5b4; font: inherit; font-size: 12px; cursor: pointer; }
 .community-body { color: #c6d2da; line-height: 1.72; white-space: pre-wrap; overflow-wrap: anywhere; }
 .community-replies { margin-top: 27px; display: grid; gap: 10px; }
+.community-reply-branch {
+  margin-left: min(calc(var(--reply-depth) * 24px), 96px);
+  display: grid;
+  gap: 8px;
+}
+.community-reply-branch + .community-reply-branch { margin-top: 2px; }
 .community-reply { padding: 14px; display: grid; grid-template-columns: auto 1fr; gap: 11px; }
 .community-reply p { margin: 5px 0 0; color: #b3c2cc; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.community-reply-copy { min-width: 0; }
+.community-reply-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.community-reply-head .community-author { margin: 0; }
+.community-inline-reply {
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #7fcceb;
+  font: 700 11px system-ui, sans-serif;
+  cursor: pointer;
+  transition: color .18s ease, background .18s ease, transform .18s ease;
+}
+.community-inline-reply:hover { color: #d9f5ff; background: rgba(112,205,242,.12); transform: translateY(-1px); }
+.community-replying-to { display: block; margin-top: 4px; color: #718a9b; font-size: 11px; }
 .community-reply-form { margin-top: 14px; display: grid; grid-template-columns: 1fr auto; gap: 9px; }
+.community-reply-target {
+  grid-column: 1 / -1;
+  min-height: 34px;
+  padding: 6px 8px 6px 12px;
+  border: 1px solid rgba(112,205,242,.22);
+  border-radius: 12px;
+  background: rgba(74,157,193,.1);
+  color: #a9dbef;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  animation: social-rise .22s cubic-bezier(.2,.8,.2,1) both;
+}
+.community-reply-target[hidden] { display: none; }
+.community-reply-target button {
+  width: 25px;
+  height: 25px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,.07);
+  color: #cce8f3;
+  cursor: pointer;
+}
 .community-reply-form textarea {
   min-height: 46px;
   max-height: 110px;
@@ -353,6 +398,7 @@
   .leader-row { grid-template-columns: 37px auto 1fr; }
   .leader-rank { grid-column: 3; }
   .leader-time { display: none; }
+  .community-reply-branch { margin-left: min(calc(var(--reply-depth) * 14px), 42px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

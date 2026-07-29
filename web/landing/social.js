@@ -88,6 +88,32 @@
     return new Intl.DateTimeFormat(isZh() ? "zh-CN" : "en", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(date);
   }
 
+  function replyTree(replies) {
+    const byParent = new Map();
+    const known = new Set(replies.map(reply => reply.id));
+    replies.forEach(reply => {
+      const parent = reply.parentReplyId && known.has(reply.parentReplyId) ? reply.parentReplyId : "";
+      if (!byParent.has(parent)) byParent.set(parent, []);
+      byParent.get(parent).push(reply);
+    });
+    const renderBranch = (parentId = "", depth = 0) => (byParent.get(parentId) || []).map(reply => `
+      <div class="community-reply-branch" style="--reply-depth:${Math.min(depth, 4)}">
+        <article class="social-card community-reply">
+          ${avatar(reply.author, "tiny")}
+          <div class="community-reply-copy">
+            <div class="community-reply-head">
+              <button class="community-author" type="button" data-profile="${esc(reply.author.username)}">${esc(reply.author.username)} · ${formatWhen(reply.createdAt)}</button>
+              ${state.user ? `<button class="community-inline-reply" type="button" data-reply-to="${esc(reply.id)}" data-reply-user="${esc(reply.author.username)}">${t("Reply", "回复")}</button>` : ""}
+            </div>
+            ${reply.replyToUsername ? `<span class="community-replying-to">${t("Replying to", "回复")} @${esc(reply.replyToUsername)}</span>` : ""}
+            <p>${esc(reply.body)}</p>
+          </div>
+        </article>
+        ${renderBranch(reply.id, depth + 1)}
+      </div>`).join("");
+    return renderBranch();
+  }
+
   function setStatus(element, message, good = false) {
     if (!element) return;
     element.textContent = message;
@@ -424,20 +450,44 @@
       <h2 class="community-thread-title">${esc(data.post.title)}</h2>
       <button class="community-author" type="button" data-profile="${esc(data.post.author.username)}">${avatar(data.post.author, "tiny")}<span>${esc(data.post.author.username)} · ${esc(rankName(data.post.author.rank))} · ${formatWhen(data.post.createdAt)}</span></button>
       <div class="community-body">${esc(data.post.body)}</div>
-      <div class="community-replies">${data.replies.length ? data.replies.map(reply => `
-        <article class="social-card community-reply">${avatar(reply.author, "tiny")}<div><button class="community-author" style="margin:0" type="button" data-profile="${esc(reply.author.username)}">${esc(reply.author.username)} · ${formatWhen(reply.createdAt)}</button><p>${esc(reply.body)}</p></div></article>`).join("") : `<div class="social-empty" style="min-height:90px">${t("No replies yet.", "还没有回复。")}</div>`}</div>
-      ${state.user ? `<form class="community-reply-form" id="community-reply-form"><textarea name="body" maxlength="2000" required placeholder="${t("Write a reply…", "写下回复…")}"></textarea><button class="social-button primary" type="submit">${t("Reply", "回复")}</button></form><p class="social-status" id="reply-status"></p>` : `<p class="social-section-copy">${t("Sign in to reply.", "登录后即可回复。")}</p>`}
+      <div class="community-replies">${data.replies.length ? replyTree(data.replies) : `<div class="social-empty" style="min-height:90px">${t("No replies yet.", "还没有回复。")}</div>`}</div>
+      ${state.user ? `<form class="community-reply-form" id="community-reply-form">
+        <div class="community-reply-target" id="community-reply-target" hidden><span></span><button type="button" aria-label="${t("Cancel directed reply", "取消定向回复")}">&times;</button></div>
+        <textarea name="body" maxlength="2000" required placeholder="${t("Write a reply…", "写下回复…")}"></textarea>
+        <button class="social-button primary" type="submit">${t("Reply", "回复")}</button>
+      </form><p class="social-status" id="reply-status"></p>` : `<p class="social-section-copy">${t("Sign in to reply.", "登录后即可回复。")}</p>`}
     </div>`;
     thread.querySelectorAll("[data-profile]").forEach(button => button.onclick = () => render("profile", button.dataset.profile));
     const form = document.getElementById("community-reply-form");
+    const target = document.getElementById("community-reply-target");
+    const textarea = form?.querySelector("textarea");
+    const clearTarget = () => {
+      if (!form || !target || !textarea) return;
+      form.dataset.parentReplyId = "";
+      target.hidden = true;
+      target.querySelector("span").textContent = "";
+      textarea.placeholder = t("Write a reply…", "写下回复…");
+    };
+    thread.querySelectorAll("[data-reply-to]").forEach(button => button.onclick = () => {
+      form.dataset.parentReplyId = button.dataset.replyTo;
+      target.hidden = false;
+      target.querySelector("span").textContent = `${t("Replying to", "正在回复")} @${button.dataset.replyUser}`;
+      textarea.placeholder = t(`Reply to @${button.dataset.replyUser}…`, `回复 @${button.dataset.replyUser}…`);
+      textarea.focus({ preventScroll: true });
+      form.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+    target?.querySelector("button").addEventListener("click", clearTarget);
     if (form) form.onsubmit = async event => {
       event.preventDefault();
       const values = new FormData(event.currentTarget);
-      const submit = event.currentTarget.querySelector("button");
+      const submit = event.currentTarget.querySelector('[type="submit"]');
       submit.disabled = true;
       try {
-        await api(`/api/community/posts/${encodeURIComponent(id)}/replies`, { method: "POST", body: JSON.stringify({ body: values.get("body") }) });
-        await renderCommunity();
+        await api(`/api/community/posts/${encodeURIComponent(id)}/replies`, {
+          method: "POST",
+          body: JSON.stringify({ body: values.get("body"), parentReplyId: event.currentTarget.dataset.parentReplyId || null }),
+        });
+        await openPost(id);
       } catch (error) {
         setStatus(document.getElementById("reply-status"), error.message);
         submit.disabled = false;
