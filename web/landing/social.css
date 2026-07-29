@@ -181,6 +181,152 @@
 .social-avatar.small { width: 46px; height: 46px; border-radius: 14px; }
 .social-avatar.tiny { width: 34px; height: 34px; border-radius: 11px; }
 
+.social-avatar.is-admin {
+  position: relative;
+  border-color: rgba(255,226,145,.78);
+  box-shadow:
+    0 0 0 3px rgba(229,182,77,.11),
+    0 0 0 6px rgba(108,210,255,.07),
+    0 16px 38px rgba(0,0,0,.34),
+    0 0 26px rgba(238,192,85,.22);
+}
+.social-avatar.is-admin::before,
+.social-avatar.is-admin::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  pointer-events: none;
+  border: 1px solid rgba(246,205,105,.5);
+  border-radius: inherit;
+  animation: social-admin-orbit 8s linear infinite;
+}
+.social-avatar.is-admin::after {
+  inset: -15px;
+  border-color: rgba(116,217,255,.22);
+  border-style: dashed;
+  animation-direction: reverse;
+  animation-duration: 13s;
+}
+.social-admin-crown {
+  position: absolute;
+  z-index: 3;
+  top: -15px;
+  right: -12px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,235,171,.74);
+  border-radius: 50%;
+  color: #fff1b5;
+  font-style: normal;
+  background: linear-gradient(145deg,rgba(255,219,120,.36),rgba(105,172,205,.2)),rgba(8,18,29,.82);
+  box-shadow: inset 0 1px rgba(255,255,255,.3),0 6px 20px rgba(0,0,0,.4),0 0 22px rgba(235,190,81,.32);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+.social-admin-honor {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px auto 12px;
+  padding: 8px 13px;
+  border: 1px solid rgba(246,213,128,.34);
+  border-radius: 999px;
+  color: #ffe9a8;
+  background: linear-gradient(110deg,rgba(216,166,55,.15),rgba(103,205,241,.09));
+  box-shadow: inset 0 1px rgba(255,255,255,.12),0 10px 24px rgba(0,0,0,.2);
+  font: 750 10px/1 var(--mono,monospace);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+.social-admin-honor i { color: #8ee2ff; font-style: normal; }
+
+.social-profile-identity.is-admin-profile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.social-profile-identity.is-admin-profile::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -35%;
+  opacity: .48;
+  background: conic-gradient(from 120deg,transparent,rgba(244,198,88,.22),transparent 28%,rgba(103,211,250,.2),transparent 63%);
+  animation: social-admin-aura 18s linear infinite;
+}
+.social-profile-identity.theme-command-gold {
+  border-color: rgba(238,196,96,.45);
+  background: linear-gradient(145deg,rgba(87,64,19,.24),rgba(7,17,29,.76));
+}
+.social-profile-identity.theme-aurora-glass {
+  border-color: rgba(114,230,216,.4);
+  background: linear-gradient(145deg,rgba(28,100,105,.22),rgba(42,39,101,.18),rgba(7,17,29,.76));
+}
+.social-profile-identity.theme-deep-space {
+  border-color: rgba(150,142,255,.38);
+  background: radial-gradient(circle at 20% 12%,rgba(90,67,194,.26),transparent 42%),rgba(5,10,24,.78);
+}
+
+.social-theme-picker {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 9px;
+}
+.social-theme-choice {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid rgba(164,210,232,.18);
+  border-radius: 14px;
+  color: #b6c6d0;
+  background: rgba(3,10,18,.38);
+  cursor: pointer;
+  transition: transform .2s cubic-bezier(.2,.8,.2,1),border-color .2s ease,background .2s ease,box-shadow .2s ease;
+}
+.social-theme-choice i {
+  display: block;
+  height: 42px;
+  margin-bottom: 8px;
+  border-radius: 9px;
+  background: linear-gradient(145deg,rgba(231,183,65,.42),rgba(71,141,174,.18));
+  box-shadow: inset 0 1px rgba(255,255,255,.2);
+}
+.social-theme-choice.theme-aurora-glass i { background: linear-gradient(135deg,rgba(72,218,181,.42),rgba(116,91,230,.35)); }
+.social-theme-choice.theme-deep-space i { background: radial-gradient(circle at 30% 30%,#8c7ae9 0 2px,transparent 3px),radial-gradient(circle at 72% 60%,#e4c56e 0 1px,transparent 2px),#080d22; }
+.social-theme-choice:hover { transform: translateY(-2px); border-color: rgba(142,216,247,.52); }
+.social-theme-choice[aria-checked="true"] {
+  color: white;
+  border-color: rgba(226,241,247,.68);
+  background: rgba(116,194,226,.13);
+  box-shadow: 0 0 0 3px rgba(102,199,239,.08),0 10px 28px rgba(0,0,0,.2);
+}
+.social-admin-note { display: block; margin-top: 9px; color: #748a99; line-height: 1.5; }
+
+.social-moderation-panel {
+  margin-top: 26px;
+  padding: 20px;
+  border: 1px solid rgba(244,166,109,.24);
+  border-radius: 18px;
+  background: linear-gradient(145deg,rgba(107,48,29,.12),rgba(7,15,25,.44));
+  box-shadow: inset 0 1px rgba(255,255,255,.07);
+}
+.social-moderation-panel h3 { margin: 9px 0 5px; color: #f1f6f8; font-size: 17px; }
+.social-moderation-panel > p { margin: 0 0 18px; color: #9eb0bc; line-height: 1.5; }
+.leader-admin-mark {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 3px 6px;
+  border: 1px solid rgba(242,203,109,.38);
+  border-radius: 999px;
+  color: #f4d57f;
+  font: 750 8px/1 var(--mono,monospace);
+  letter-spacing: .08em;
+  vertical-align: 2px;
+}
+
+@keyframes social-admin-orbit { to { transform: rotate(360deg); } }
+@keyframes social-admin-aura { to { transform: rotate(360deg); } }
+
 .social-profile-name { margin: 17px 0 5px; color: #f5f9fc; font-size: 27px; letter-spacing: -.02em; }
 .social-title { color: var(--social-gold); font: 700 11px/1.4 var(--mono, monospace); letter-spacing: .12em; text-transform: uppercase; }
 .social-bio { color: #aebdca; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -395,6 +541,7 @@
   .community-feed { max-height: 360px; }
   .friend-list { grid-template-columns: 1fr; }
   .social-avatar-picker { grid-template-columns: repeat(4, 1fr); }
+  .social-theme-picker { grid-template-columns: 1fr; }
   .leader-row { grid-template-columns: 37px auto 1fr; }
   .leader-rank { grid-column: 3; }
   .leader-time { display: none; }
@@ -410,7 +557,10 @@
   .community-post,
   .leader-row { transition: opacity .18s ease, color .18s ease, background .18s ease; transform: none !important; }
   .social-loading::before,
-  .rank-firework { animation: none; }
+  .rank-firework,
+  .social-avatar.is-admin::before,
+  .social-avatar.is-admin::after,
+  .social-profile-identity.is-admin-profile::before { animation: none; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
