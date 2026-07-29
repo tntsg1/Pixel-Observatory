@@ -1,7 +1,6 @@
 extends SceneTree
 
-const FIRST_OPTICAL_EXPANSION_LEVEL := 25
-const LAST_GROUND_OPTICAL_LEVEL := 65
+const EXPECTED_ACTIVE_LEVEL_COUNT := 75
 
 var failures := 0
 var gm: Node
@@ -19,14 +18,26 @@ func _initialize() -> void:
 	if gm == null:
 		_finish()
 		return
-	for level_number in range(FIRST_OPTICAL_EXPANSION_LEVEL, LAST_GROUND_OPTICAL_LEVEL + 1):
-		_test_level(level_number)
+	var active_levels: Array[int] = gm.available_level_numbers()
+	_check(active_levels.size() == EXPECTED_ACTIVE_LEVEL_COUNT, "campaign exposes exactly 75 active levels")
+	for level_number in active_levels:
+		gm.new_game()
+		gm.debug_jump_to_level(level_number, true)
+		var actual_level_number := int(gm.current_level().get("level_number", 0))
+		_check(actual_level_number == level_number, "L%d routes to the requested active level" % level_number)
+		if actual_level_number == level_number and _is_ground_optical_level(gm.current_level()):
+			_test_current_level(level_number)
 	_finish()
 
 
-func _test_level(level_number: int) -> void:
-	gm.new_game()
-	gm.debug_jump_to_level(level_number, true)
+func _is_ground_optical_level(level: Dictionary) -> bool:
+	if str(level.get("observation_mode", "")) != "telescope":
+		return false
+	var family := str(level.get("telescope_family", "refractor"))
+	return family not in ["space_segmented", "fast_radio"]
+
+
+func _test_current_level(level_number: int) -> void:
 	var level: Dictionary = gm.current_level()
 	gm.selected_object_id = gm.current_target_object_id()
 	gm.set_collimation_score(100.0)

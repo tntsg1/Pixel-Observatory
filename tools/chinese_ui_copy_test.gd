@@ -15,6 +15,19 @@ func _initialize() -> void:
 		return
 	gm.language_mode = "zh"
 	gm.progress["language_mode"] = "zh"
+	var mission_manager := root.get_node_or_null("/root/MissionManager")
+	_check(mission_manager != null, "MissionManager is available")
+	var level_three: Dictionary = mission_manager.get_level(3) if mission_manager != null else {}
+	_check(
+		str(level_three.get("description_zh", "")).contains("物镜")
+		and str(level_three.get("description_zh", "")).contains("目镜"),
+		"L3 explains the objective lens and eyepiece with standard Chinese terms"
+	)
+	_check(
+		str(level_three.get("success_text_zh", "")).contains("物镜")
+		and str(level_three.get("success_text_zh", "")).contains("目镜"),
+		"L3 success copy keeps the same Chinese optical terminology"
+	)
 
 	var host := Control.new()
 	host.size = Vector2(1024, 768)

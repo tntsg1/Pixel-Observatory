@@ -10,7 +10,7 @@ const POINTS := {
 	"telescope": Vector2(512, 575),
 	"mission": Vector2(676, 323),
 	"journal": Vector2(343, 520),
-	"computer": Vector2(730, 592)
+	"computer": Vector2(721, 610)
 }
 
 const EXPECTED_RECTS := {
@@ -20,7 +20,7 @@ const EXPECTED_RECTS := {
 	"assembly": Rect2(728, 328, 249, 176),
 	"telescope": Rect2(423, 330, 190, 190),
 	"journal": Rect2(48, 412, 258, 172),
-	"computer": Rect2(783, 532, 168, 124),
+	"computer": Rect2(754, 516, 201, 144),
 }
 
 const EXPECTED_COLLISION_RECTS := [
@@ -31,9 +31,21 @@ const EXPECTED_COLLISION_RECTS := [
 	Rect2(907, 169, 27, 120),
 	Rect2(729, 368, 239, 122),
 	Rect2(74, 489, 191, 91),
-	Rect2(766, 591, 153, 63),
+	Rect2(766, 591, 154, 62),
 	Rect2(499, 417, 24, 27),
 ]
+
+const MARKED_FURNITURE_POINTS := {
+	"parts cabinet": Vector2(130, 230),
+	"left dome plant": Vector2(365, 250),
+	"right dome plant": Vector2(645, 242),
+	"mission board desk": Vector2(760, 270),
+	"tall mission-side plant": Vector2(920, 220),
+	"assembly workbench": Vector2(850, 440),
+	"learning journal desk": Vector2(160, 530),
+	"official remote terminal desk": Vector2(840, 620),
+	"central telescope pivot": Vector2(512, 430),
+}
 
 var failures := 0
 var gm: Node
@@ -54,6 +66,8 @@ func _initialize() -> void:
 	_check_focus_points()
 	_check_visual_hitboxes()
 	_check_table_depth_and_occlusion()
+	_check_marked_furniture_collision()
+	_check_key_walkways()
 	_check_spawn_clearance()
 	_check_control_bar_toggle()
 	_check_exact_pose_restore()
@@ -109,9 +123,10 @@ func _check_visual_hitboxes() -> void:
 	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(420, 450))), "observation platform remains walkable")
 	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(535, 350))), "raised telescope tube is an occluder, not a foot blocker")
 	_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(130, 230))), "parts cabinet body cannot be entered from its side")
-	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(770, 590))), "computer aisle has no collision before the painted cabinet edge")
-	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(790, 590))), "computer monitor area is raised above the player's feet")
-	_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(790, 620))), "computer collision begins at the lower cabinet")
+	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(760, 600))), "computer left aisle has no rectangular air wall")
+	_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(820, 625))), "official computer desk blocks the whole marked footprint")
+	_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(780, 630))), "computer left cabinet blocks the player's feet")
+	_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(910, 620))), "computer right cabinet blocks the player's feet")
 	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(735, 350))), "assembly rear approach remains open above the marked footprint")
 	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(720, 410))), "assembly left aisle remains open outside the marked footprint")
 	_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(Vector2(735, 390))), "assembly feet cannot enter the marked left edge")
@@ -126,6 +141,58 @@ func _check_visual_hitboxes() -> void:
 	_check(not obstacles.any(func(rect: Rect2) -> bool: return rect.intersects(door_mat_rect)), "door mat has no duplicate threshold collision")
 
 
+func _check_marked_furniture_collision() -> void:
+	var obstacles: Array = view.get("obstacles")
+	for label in MARKED_FURNITURE_POINTS:
+		var point: Vector2 = MARKED_FURNITURE_POINTS[label]
+		_check(obstacles.any(func(rect: Rect2) -> bool: return rect.has_point(point)), "%s footprint cannot be entered" % label)
+
+
+func _check_key_walkways() -> void:
+	var start := Vector2(512, 646)
+	var routes := {
+		"central floor to cabinet front": Vector2(216, 350),
+		"central floor to dome doorway": Vector2(512, 282),
+		"central floor to remote-terminal left approach": Vector2(721, 610),
+	}
+	for label in routes:
+		_check(_route_is_reachable(start, routes[label]), "%s remains reachable without clipping furniture" % label)
+
+
+func _route_is_reachable(start: Vector2, goal: Vector2) -> bool:
+	const STEP := 8.0
+	var queue: Array[Vector2] = [start]
+	var seen := {}
+	seen[_grid_key(start, STEP)] = true
+	var offsets: Array[Vector2] = [Vector2.LEFT, Vector2.RIGHT, Vector2.UP, Vector2.DOWN]
+	while not queue.is_empty():
+		var current: Vector2 = queue.pop_front()
+		if current.distance_to(goal) <= STEP:
+			return true
+		for offset in offsets:
+			var candidate: Vector2 = current + offset * STEP
+			var key := _grid_key(candidate, STEP)
+			if seen.has(key) or not _can_occupy(candidate):
+				continue
+			seen[key] = true
+			queue.append(candidate)
+	return false
+
+
+func _grid_key(point: Vector2, step: float) -> String:
+	return "%d:%d" % [roundi(point.x / step), roundi(point.y / step)]
+
+
+func _can_occupy(position: Vector2) -> bool:
+	var collision: Rect2 = view.call("_player_collision_rect_for", position)
+	if not view.call("_player_rect_is_on_walkable_floor", collision):
+		return false
+	for obstacle_value in view.get("obstacles"):
+		if collision.intersects(obstacle_value as Rect2):
+			return false
+	return true
+
+
 func _check_table_depth_and_occlusion() -> void:
 	var obstacles: Array = view.get("obstacles")
 	var depth_points := {
@@ -133,7 +200,7 @@ func _check_table_depth_and_occlusion() -> void:
 		"mission desk": Vector2(760, 270),
 		"assembly lower cabinet": Vector2(780, 470),
 		"journal desk": Vector2(160, 530),
-		"computer console": Vector2(850, 610),
+		"computer console": Vector2(840, 620),
 	}
 	for label in depth_points:
 		var point: Vector2 = depth_points[label]
@@ -146,7 +213,7 @@ func _check_table_depth_and_occlusion() -> void:
 		"telescope": [Vector2(520, 370), Vector2(520, 505)],
 		"assembly": [Vector2(850, 360), Vector2(850, 530)],
 		"journal": [Vector2(160, 480), Vector2(160, 610)],
-		"computer": [Vector2(850, 555), Vector2(850, 678)],
+		"computer": [Vector2(850, 575), Vector2(735, 635)],
 	}
 	for id in sample_positions:
 		var positions: Array = sample_positions[id]

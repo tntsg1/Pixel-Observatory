@@ -284,6 +284,13 @@ func _test_scene(gm: Node) -> void:
 	_check(gm_completed(gm), "5. Submit Report completes the mission")
 	scene.queue_free()
 	await process_frame
+	var audio := root.get_node_or_null("/root/AudioManager")
+	if audio != null and audio.has_method("release_transient_sfx"):
+		audio.call("release_transient_sfx")
+		await process_frame
+	# A final report chime may still be in the audio mixer after the scene is
+	# released.  Drain one bounded mixer window before ending this headless run.
+	await create_timer(0.12).timeout
 
 
 func gm_completed(gm: Node) -> bool:

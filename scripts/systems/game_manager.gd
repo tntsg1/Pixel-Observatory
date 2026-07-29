@@ -8,7 +8,7 @@ const LocalizationScript := preload("res://scripts/systems/localization.gd")
 const TelescopeMathScript := preload("res://scripts/systems/telescope_math.gd")
 const AssemblyManagerScript := preload("res://scripts/systems/assembly_manager.gd")
 const ObservationSystemScript := preload("res://scripts/systems/observation_system.gd")
-const DeveloperConsoleScript := preload("res://scripts/ui/developer_console.gd")
+const DEVELOPER_CONSOLE_SCRIPT_PATH := "res://scripts/ui/developer_console.gd"
 const ADVANCED_LEVELS_PATH := "res://data/advanced_levels.json"
 const ADVANCED_PARTS_PATH := "res://data/advanced_telescope_parts.json"
 const EXPANSION_DIR := "res://data/expansion/"
@@ -153,6 +153,7 @@ var last_sky_aim: Dictionary = {"valid": false}
 # remembers the player's explicit selection without rewriting level data.
 var assembly_family_id := ""
 var developer_console: Control
+var _developer_console_test_permission: Variant = null
 var foundation_training_time_cache: Dictionary = {}
 # Remote campaign and free-observation sessions share the same instrument
 # scenes, but never the same progression path. This context is transient; only
@@ -184,6 +185,9 @@ func _ready() -> void:
 	_unlock_parts_for_current_level()
 	save()
 	set_process_unhandled_input(true)
+	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+	if cloud_sync != null and cloud_sync.has_signal("session_changed"):
+		cloud_sync.session_changed.connect(_on_cloud_session_changed)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -192,11 +196,43 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key_event := event as InputEventKey
 	if not key_event.pressed or key_event.echo or key_event.keycode != KEY_EQUAL:
 		return
+	if not can_open_developer_console():
+		return
 	toggle_developer_console()
 	get_viewport().set_input_as_handled()
 
 
+func can_open_developer_console() -> bool:
+	# Production web clients are denied by default until the signed server
+	# session explicitly reports role=admin. Local editor builds retain their
+	# development workflow; automated tests must opt in with the explicit hook.
+	if _developer_console_test_permission != null:
+		if not bool(_developer_console_test_permission):
+			return false
+		var test_cloud_sync := get_node_or_null("/root/CloudSyncManager")
+		return test_cloud_sync != null and test_cloud_sync.has_method("is_admin") and bool(test_cloud_sync.is_admin())
+	if OS.has_feature("web"):
+		var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+		return cloud_sync != null and cloud_sync.has_method("is_admin") and bool(cloud_sync.is_admin())
+	return true
+
+
+func set_developer_console_test_permission_for_tests(allowed: bool) -> void:
+	# Deliberately unavailable in production Web exports: this exists only so
+	# headless regression tests can cover visitor/user/admin denial paths.
+	if OS.has_feature("web"):
+		return
+	_developer_console_test_permission = allowed
+
+
 func toggle_developer_console() -> void:
+	# This is the authoritative guard. Keyboard filtering is only convenience;
+	# scripts or synthetic input must not bypass the same access decision.
+	if not can_open_developer_console():
+		if developer_console != null and is_instance_valid(developer_console):
+			developer_console.queue_free()
+			developer_console = null
+		return
 	if developer_console != null and is_instance_valid(developer_console):
 		developer_console.queue_free()
 		developer_console = null
@@ -204,8 +240,20 @@ func toggle_developer_console() -> void:
 	var current: Node = get_tree().current_scene
 	if current == null:
 		return
-	developer_console = DeveloperConsoleScript.new()
+	# Loading here avoids a preload cycle: the panel independently verifies the
+	# server-backed session role in _ready(), while this manager owns the
+	# authoritative entry guard above.
+	var developer_console_script := load(DEVELOPER_CONSOLE_SCRIPT_PATH) as Script
+	if developer_console_script == null:
+		return
+	developer_console = developer_console_script.new()
 	current.add_child(developer_console)
+
+
+func _on_cloud_session_changed(_user: Dictionary) -> void:
+	if developer_console != null and is_instance_valid(developer_console) and not can_open_developer_console():
+		developer_console.queue_free()
+		developer_console = null
 
 
 func debug_jump_to_level(level_number: int, prepare_equipment: bool = false) -> void:
@@ -387,6 +435,10 @@ func focus_control_installed() -> bool:
 func default_progress() -> Dictionary:
 	return {
 		"campaign_version": CAMPAIGN_VERSION,
+		# This stays false for the bootstrap archive written before the player
+		# begins a campaign. new_game() flips it so the menu can distinguish a
+		# resumable L1 game from an empty/default save file.
+		"save_initialized": false,
 		"current_level": 1,
 		"selected_telescope_family": "refractor",
 		"active_optical_telescope_id": "",
@@ -436,11 +488,21 @@ func default_progress() -> Dictionary:
 
 
 func new_game() -> void:
+	# The menu is available before a meaningful campaign save exists. Preserve
+	# the language the player explicitly selected there instead of recreating a
+	# default-English progress dictionary and then reading it back.
+	var selected_language := _normalized_language_mode(language_mode)
 	var audio_manager := get_node_or_null("/root/AudioManager")
 	if audio_manager != null and audio_manager.has_method("clear_music_progress"):
 		audio_manager.clear_music_progress()
-	progress = SaveManager.reset_progress(default_progress())
-	language_mode = _normalized_language_mode(str(progress.get("language_mode", "en")))
+	progress = default_progress()
+	progress["save_initialized"] = true
+	progress["language_mode"] = selected_language
+	language_mode = selected_language
+	# Save exactly the initialized game state.  Writing the default progress
+	# first would transiently persist English and could queue an incorrect cloud
+	# upload when the player starts a Chinese game from the main menu.
+	SaveManager.save_progress(progress)
 	selected_object_id = ""
 	selected_object_level = 0
 	world_map_return_scene = "sky"
@@ -467,7 +529,7 @@ func new_game() -> void:
 
 
 func has_save() -> bool:
-	return SaveManager.has_save()
+	return SaveManager.has_resumable_save()
 
 
 func save() -> void:
@@ -1884,6 +1946,14 @@ func auto_equip_plan() -> Array:
 			slot_types.append(str(type_value))
 	for slot_value in slot_types:
 		var part_type := str(slot_value)
+		var pending_step_id := pending_mission_step_part_id(part_type)
+		if pending_step_id != "" and progress.get("unlocked_parts", []).has(pending_step_id):
+			var pending_part := get_part(pending_step_id)
+			plan.append(_auto_equip_entry(part_type, pending_part, true, {
+				"en": "The current experiment requires this exact part.",
+				"zh": "当前未完成的实验指定使用该零件。"
+			}))
+			continue
 		var pinned_id := pinned_part_id(part_type)
 		if pinned_id != "" and progress.get("unlocked_parts", []).has(pinned_id):
 			var pinned := get_part(pinned_id)
@@ -2054,6 +2124,86 @@ func _required_equipment_route(required_missing: Array) -> Dictionary:
 	}
 
 
+func pending_mission_step_part_id(part_type: String = "") -> String:
+	var step := next_pending_mission_step()
+	if step.is_empty():
+		return ""
+	var required_id := str(step.get("require_part_id", ""))
+	if required_id == "":
+		return ""
+	if part_type == "":
+		return required_id
+	var part := get_part(required_id)
+	return required_id if str(part.get("type", "")) == part_type else ""
+
+
+func _pending_mission_step_equipment_route() -> Dictionary:
+	var step := next_pending_mission_step()
+	var required_id := pending_mission_step_part_id()
+	if step.is_empty() or required_id == "":
+		return {}
+	var part := get_part(required_id)
+	if part.is_empty():
+		return {}
+	var part_type := str(part.get("type", ""))
+	var required_name := dict_text(part, "name")
+	var step_name := dict_text(step, "label")
+	var unlocked: Array = progress.get("unlocked_parts", [])
+	if not unlocked.has(required_id):
+		return {
+			"target": "cabinet",
+			"title": text("Maya: Experiment equipment is still locked", "玛雅：实验设备尚未解锁"),
+			"hint": text(
+				"This experiment needs %s, but it has not been unlocked yet." % required_name,
+				"本次实验需要%s，但它尚未解锁。" % required_name
+			),
+			"action": text("Review the Parts Cabinet", "查看零件柜"),
+			"outcome": text("Continue the course to unlock this component.", "继续完成课程即可解锁该零件。"),
+			"ready": false,
+			"required_part_id": required_id
+		}
+
+	var equipped_id := equipped_part_id(part_type)
+	if equipped_id != required_id:
+		var equipped_part := get_part(equipped_id)
+		var equipped_name := dict_text(equipped_part, "name") if not equipped_part.is_empty() else text("none", "未装备")
+		return {
+			"target": "cabinet",
+			"title": text("Maya: Prepare the next eyepiece test", "玛雅：准备下一档目镜实验"),
+			"hint": text(
+				"Next experiment: %s. You currently have %s equipped; choose %s in the Parts Cabinet." % [step_name, equipped_name, required_name],
+				"下一项实验：%s。当前装备的是%s，请到零件柜换成%s。" % [step_name, equipped_name, required_name]
+			),
+			"action": text("Equip " + required_name, "装备" + required_name),
+			"outcome": text(
+				"Then install it at the Assembly Table before returning to the Observation Pad.",
+				"随后到组装台重新安装，再返回观测台。"
+			),
+			"ready": false,
+			"required_part_id": required_id,
+			"equipped_part_id": equipped_id
+		}
+
+	var slot_value: Variant = progress.get("assembly_state", {}).get(part_type, {})
+	var slot: Dictionary = slot_value if slot_value is Dictionary else {}
+	var installed_id := str(slot.get("installed_part_id", ""))
+	var installed_current := bool(slot.get("installed", false)) and (installed_id == "" or installed_id == required_id)
+	if not installed_current:
+		return {
+			"target": "assembly",
+			"title": text("Maya: Install the experiment eyepiece", "玛雅：安装实验目镜"),
+			"hint": text(
+				"%s is equipped. Install it at the Assembly Table before observing again." % required_name,
+				"%s已经装备，请先到组装台完成安装，再进行下一次观测。" % required_name
+			),
+			"action": text("Install " + required_name, "安装" + required_name),
+			"outcome": text("The Observation Pad reopens after the eyepiece is installed.", "目镜安装完成后，观测台会重新开放。"),
+			"ready": false,
+			"required_part_id": required_id
+		}
+	return {}
+
+
 func current_room_route() -> Dictionary:
 	# The observatory, mission board, result card, and route indicator all use
 	# this one decision. It keeps the next physical action consistent.
@@ -2085,6 +2235,10 @@ func current_room_route() -> Dictionary:
 	var required_missing: Array = missing_required_parts()
 	if not required_missing.is_empty():
 		return _required_equipment_route(required_missing)
+
+	var mission_step_route := _pending_mission_step_equipment_route()
+	if not mission_step_route.is_empty():
+		return mission_step_route
 
 	var assembly_missing: Array = missing_parts()
 	if not assembly_missing.is_empty() or not telescope_is_ready():
@@ -2583,6 +2737,12 @@ func can_install_part_type(part_type: String, part_id: String = "") -> bool:
 		return false
 	if not is_part_compatible_with_current_level(selected_part):
 		return false
+	# Graduation turns the observatory into a free-build lab. Campaign pinned
+	# part IDs remain instructional constraints for their own lessons, but they
+	# must not reject an otherwise unlocked compatible component after the
+	# player has completed the program.
+	if postgraduate_free_build():
+		return true
 	var pinned_id := pinned_part_id(part_type)
 	return pinned_id == "" or check_id == pinned_id
 
@@ -2700,7 +2860,14 @@ func _effective_required_parts() -> Array:
 	if not postgraduate_free_build() and current_observation_mode() == "constellation":
 		return ["tripod", "mount", "tube", "objective", "eyepiece", "finder_scope"]
 	if family == "space_segmented":
-		return space_segmented_install_types()
+		# Campaign levels promise a compact four-part commissioning contract.
+		# Later-unlocked spacecraft and science modules remain installable on
+		# the bench, but they are optional capabilities and must not silently
+		# become new mission blockers. Postgraduate free build intentionally
+		# exposes the complete unlocked observatory.
+		if postgraduate_free_build():
+			return space_segmented_install_types()
+		return level.get("required_parts", [])
 	if not _uses_tube_subassembly():
 		return level.get("required_parts", [])
 	if family == "dobsonian":

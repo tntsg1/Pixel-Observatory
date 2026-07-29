@@ -9,13 +9,27 @@ const TEXT := Color(0.94, 0.91, 0.80)
 var selected_level := 1
 var status_label: Label
 var selected_label: Label
+# Keep this lookup local to avoid a parse-time autoload cycle with
+# GameManager, which dynamically loads this guarded panel.
+var GameManager: Node
+var InteractionFeedback: Node
 
 
 func _ready() -> void:
+	GameManager = get_node_or_null("/root/GameManager")
+	InteractionFeedback = get_node_or_null("/root/InteractionFeedback")
+	# A direct scene/script instantiation is not an authorization path. The
+	# manager has already checked the server role, and the panel checks again.
+	if GameManager == null or not GameManager.can_open_developer_console():
+		if GameManager != null and GameManager.developer_console == self:
+			GameManager.developer_console = null
+		queue_free()
+		return
 	selected_level = int(GameManager.progress.get("current_level", 1))
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_build()
-	InteractionFeedback.page_enter(self, Vector2(0, 6))
+	if InteractionFeedback != null:
+		InteractionFeedback.page_enter(self, Vector2(0, 6))
 
 
 func _gui_input(event: InputEvent) -> void:
@@ -59,7 +73,7 @@ func _build() -> void:
 	level_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	panel.add_child(level_scroll)
 	var level_grid := Control.new()
-	var level_numbers := GameManager.available_level_numbers()
+	var level_numbers: Array = GameManager.available_level_numbers()
 	var columns := 9
 	var rows := int(ceil(float(level_numbers.size()) / float(columns)))
 	level_grid.custom_minimum_size = Vector2(750, float(rows) * 36.0)
@@ -128,7 +142,7 @@ func _build() -> void:
 
 
 func _readiness_text() -> String:
-	var report := GameManager.prepared_readiness_report()
+	var report: Dictionary = GameManager.prepared_readiness_report()
 	if not bool(report.get("needs_telescope", true)):
 		return GameManager.text(
 			"Test setup ready. Naked-eye night - no rig required. Observation entry: OPEN.",
@@ -137,19 +151,19 @@ func _readiness_text() -> String:
 	var tube_ok: bool = bool(report.get("tube_interior", false))
 	var collimation: float = float(report.get("collimation", -1.0))
 	var open_ok: bool = bool(report.get("observation_open", false))
-	var main_line := GameManager.text("Main assembly: done." if main_ok else "Main assembly: MISSING %s." % ", ".join(report.get("main_missing", [])),
+	var main_line: String = GameManager.text("Main assembly: done." if main_ok else "Main assembly: MISSING %s." % ", ".join(report.get("main_missing", [])),
 		"主装配：完成。" if main_ok else "主装配：缺少 %s。" % ", ".join(report.get("main_missing", [])))
-	var tube_line := GameManager.text("Tube interior: done." if tube_ok else "Tube interior: incomplete.",
+	var tube_line: String = GameManager.text("Tube interior: done." if tube_ok else "Tube interior: incomplete.",
 		"镜筒内部：完成。" if tube_ok else "镜筒内部：未完成。")
 	var collimation_line := ""
 	if collimation >= 0.0:
 		collimation_line = GameManager.text("Collimation: %d%%. " % int(round(collimation)), "准直：%d%%。" % int(round(collimation)))
-	var open_line := GameManager.text("Observation entry: OPEN." if open_ok else "Observation entry: BLOCKED.",
+	var open_line: String = GameManager.text("Observation entry: OPEN." if open_ok else "Observation entry: BLOCKED.",
 		"观测入口：已开放。" if open_ok else "观测入口：未开放。")
 	var mount_id := str(report.get("mount_id", ""))
 	var mount_line := ""
 	if mount_id != "":
-		var mount := GameManager.get_part(mount_id)
+		var mount: Dictionary = GameManager.get_part(mount_id)
 		if bool(report.get("tracking_capable", false)):
 			mount_line = GameManager.text(
 				" Mount: %s · motor tracking %.2fx." % [GameManager.dict_text(mount, "name"), float(report.get("tracking_rate", 0.0))],
@@ -164,20 +178,20 @@ func _readiness_text() -> String:
 
 
 func _refresh_selected_label() -> void:
-	var level := GameManager.current_level()
-	var title := GameManager.dict_text(level, "title")
+	var level: Dictionary = GameManager.current_level()
+	var title: String = GameManager.dict_text(level, "title")
 	if selected_label != null:
 		selected_label.text = GameManager.text("Selected: L%02d  %s" % [selected_level, title], "当前选择：第 %02d 关  %s" % [selected_level, title])
 
 
 func _status_text() -> String:
-	var level := GameManager.current_level()
-	var target := GameManager.dict_text(GameManager.current_target(), "name")
-	var mode := GameManager.current_observation_mode()
+	var level: Dictionary = GameManager.current_level()
+	var target: String = GameManager.dict_text(GameManager.current_target(), "name")
+	var mode: String = GameManager.current_observation_mode()
 	var required: Array[String] = []
 	for type_value in level.get("required_parts", []):
 		required.append(str(type_value).capitalize())
-	var parts := ", ".join(required) if not required.is_empty() else GameManager.text("No telescope parts required", "不需要望远镜零件")
+	var parts: String = ", ".join(required) if not required.is_empty() else GameManager.text("No telescope parts required", "不需要望远镜零件")
 	return GameManager.text("Target: %s | Mode: %s | Required: %s" % [target, mode, parts], "目标：%s | 模式：%s | 所需部件：%s" % [target, mode, parts])
 
 

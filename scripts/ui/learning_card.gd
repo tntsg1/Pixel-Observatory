@@ -794,6 +794,7 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		var material := ShaderMaterial.new()
 		material.shader = preload("res://shaders/optical_target_state.gdshader")
 		material.set_shader_parameter("blur_radius_px", float(state["blur_radius"]))
+		material.set_shader_parameter("defocus_amount", clampf(float(state["blur_radius"]) / 5.6, 0.0, 1.0))
 		material.set_shader_parameter("brightness", float(state["brightness"]))
 		image.material = material
 		var label := _label(str(state["label"]), cell_pos + Vector2(3, 111), Vector2(94, 24), 10, state["border"], HORIZONTAL_ALIGNMENT_CENTER)

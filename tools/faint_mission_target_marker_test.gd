@@ -1,6 +1,8 @@
 extends SceneTree
 
 const TARGET_LEVELS := {
+	"andromeda": 9,
+	"orion_nebula": 18,
 	"crab_nebula": 30,
 	"sombrero_galaxy": 31,
 	"dumbbell_nebula": 33,
@@ -13,6 +15,7 @@ const EXPECTED_WAYPOINT_DIAMETER := 42.0
 
 var failures := 0
 var gm: Node
+var feedback_events: Array[String] = []
 
 
 func _initialize() -> void:
@@ -22,11 +25,17 @@ func _initialize() -> void:
 	if gm == null:
 		quit(1)
 		return
+	var feedback := root.get_node_or_null("/root/InteractionFeedback")
+	if feedback != null:
+		feedback.feedback_sfx_requested.connect(func(event_name: String) -> void:
+			feedback_events.append(event_name)
+		)
 
 	for target_id_value in TARGET_LEVELS.keys():
 		var target_id := str(target_id_value)
 		var view := await _spawn_view(target_id)
 		await _verify_in_view_waypoint(view, target_id)
+		await _verify_centered_lock(view, target_id)
 		await _verify_out_of_view_card(view, target_id)
 		await _verify_stale_tween_cannot_hide_new_card(view, target_id)
 		view.queue_free()
@@ -79,8 +88,10 @@ func _verify_in_view_waypoint(view: Control, target_id: String) -> void:
 	if waypoint != null:
 		_check(waypoint is TextureRect, "%s faint waypoint uses the shared asset-backed ring control" % target_id)
 		var waypoint_texture := (waypoint as TextureRect).texture if waypoint is TextureRect else null
-		_check(waypoint_texture != null and waypoint_texture.resource_path.ends_with("target_lock_ring.png"), "%s faint waypoint uses the formal four-node target ring asset" % target_id)
-		_check(waypoint.size.distance_to(Vector2.ONE * EXPECTED_WAYPOINT_DIAMETER) < 0.1, "%s waypoint stays within the naked-eye 42px marker limit" % target_id)
+		_check(waypoint_texture != null and waypoint_texture.resource_path.ends_with("target_approach_ring.png"), "%s in-view waypoint uses the formal cyan approach ring before centering" % target_id)
+		_check((waypoint as TextureRect).texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR, "%s downsamples the formal approach ring without reducing it to a geometric fallback" % target_id)
+		_check(str(waypoint.get_meta("marker_state", "")) == "approach", "%s cannot inherit a stale locked appearance while still off center" % target_id)
+		_check(waypoint.size.distance_to(Vector2.ONE * EXPECTED_WAYPOINT_DIAMETER) < 0.1, "%s waypoint keeps the authored arrowheads readable at naked-eye size" % target_id)
 		var expected_center: Vector2 = (target_info.get("rect", Rect2()) as Rect2).get_center()
 		var actual_center := waypoint.position + waypoint.size * 0.5
 		_check(actual_center.distance_to(expected_center) < 0.5, "%s waypoint is centered on the real projection" % target_id)
@@ -90,6 +101,34 @@ func _verify_in_view_waypoint(view: Control, target_id: String) -> void:
 	var edge := view.get("edge_target_indicator") as Control
 	_check(edge != null and (not edge.visible or edge.modulate.a <= 0.01), "%s retracts the edge direction card inside the FOV" % target_id)
 	_check(str(view.get("edge_target_state")) == "hidden", "%s edge-card state settles to hidden" % target_id)
+
+
+func _verify_centered_lock(view: Control, target_id: String) -> void:
+	var lock_events_before := feedback_events.count("finder_lock")
+	_set_target_fixture(view, target_id, AIM)
+	await _settle()
+	var targets: Dictionary = view.get("in_view_targets")
+	var target_info: Dictionary = targets.get(target_id, {})
+	_check(targets.has(target_id), "%s remains projected after centering" % target_id)
+	_check(not bool(target_info.get("object_visible", true)), "%s remains scientifically hidden when centered in naked-eye mode" % target_id)
+
+	var waypoint := view.get("faint_mission_target_waypoint") as TextureRect
+	_check(waypoint != null and waypoint.visible, "%s keeps the shared waypoint visible at lock" % target_id)
+	if waypoint != null:
+		var waypoint_texture := waypoint.texture
+		_check(waypoint_texture != null and waypoint_texture.resource_path.ends_with("target_lock_ring.png"), "%s switches to the formal brass lock ring only after centering" % target_id)
+		_check(waypoint.texture_filter == CanvasItem.TEXTURE_FILTER_LINEAR, "%s preserves the authored lock-ring detail at naked-eye scale" % target_id)
+		_check(str(waypoint.get_meta("marker_state", "")) == "locked", "%s exposes the locked state only after the angular threshold is met" % target_id)
+		_check(waypoint.size.distance_to(Vector2.ONE * EXPECTED_WAYPOINT_DIAMETER) < 0.1, "%s lock ring keeps the authored brass nodes readable at naked-eye size" % target_id)
+	_check(str(view.get("target_lock_state")) == "locked", "%s enters the real locked state at the angular center" % target_id)
+	_check(feedback_events.count("finder_lock") == lock_events_before + 1, "%s emits one finder-lock confirmation when entering tolerance" % target_id)
+	view.call("_update_marker_frames")
+	await process_frame
+	_check(feedback_events.count("finder_lock") == lock_events_before + 1, "%s does not repeat the lock sound while remaining centered" % target_id)
+
+	var icons: Dictionary = view.get("object_icons")
+	var icon := icons.get(target_id) as TextureRect
+	_check(icon != null and not icon.visible, "%s locked waypoint does not reveal the hidden object sprite" % target_id)
 
 
 func _verify_out_of_view_card(view: Control, target_id: String) -> void:

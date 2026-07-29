@@ -469,10 +469,19 @@ func fold_phase_drift_per_window() -> float:
 
 func subband_offsets(count: int) -> Array:
 	var out: Array = []
-	var mismatch := 1.0 - dm_match()
+	# Keep the visible sweep responsive even when the trial DM is far outside
+	# the scoring window. Using `1 - dm_match()` saturated at 1.0, so the first
+	# several control inputs changed the number but left every trace frozen.
+	# The signed residual also tells the player which way the sweep is leaning.
+	var residual := (trial_dm - true_dm) / 12.0
+	var signed_dispersion := clampf(
+		residual / (1.0 + absf(residual) * 0.75),
+		-1.0,
+		1.0
+	)
 	for i in range(maxi(count, 1)):
 		var normalized := 0.0 if count <= 1 else (float(i) / float(count - 1) - 0.5) * 2.0
-		out.append(normalized * mismatch * 0.34)
+		out.append(normalized * signed_dispersion * 0.34)
 	return out
 
 

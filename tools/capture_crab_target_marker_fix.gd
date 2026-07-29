@@ -21,26 +21,37 @@ func _initialize() -> void:
 	root.add_child(view)
 	await process_frame
 	await process_frame
+	# This fixture validates target feedback, not the low-altitude/site-change
+	# teaching route. Suppress that blocking layer before rebuilding the sky.
+	var horizon_tween := view.get("horizon_explanation_tween") as Tween
+	if horizon_tween != null:
+		horizon_tween.kill()
+	var horizon_layer := view.get("horizon_explanation_layer") as Control
+	if horizon_layer != null and is_instance_valid(horizon_layer):
+		horizon_layer.queue_free()
+		view.set("horizon_explanation_layer", null)
+	view.set("location_transition_active", true)
+	view.set("horizon_explanation_active", false)
 	view.set("target_id", "crab_nebula")
 	view.set("selected_object_id", "crab_nebula")
-	await _set_fixture(view, "naked_eye")
-	await _save("01_crab_naked_eye_formal_42px_marker.png")
-	await _set_fixture(view, "finder")
-	await _save("02_crab_finder_formal_marker.png")
-	await _set_fixture(view, "telescope")
-	await _save("03_crab_telescope_formal_marker.png")
+	await _set_fixture(view, "naked_eye", Vector2(155.0, 45.0))
+	await _save("01_crab_naked_eye_approach_42px.png")
+	await _set_fixture(view, "naked_eye", Vector2(180.0, 45.0), 1.20)
+	await _save("02_crab_naked_eye_locked_42px.png")
+	await _set_fixture(view, "finder", Vector2(180.0, 45.0), 1.20)
+	await _save("03_crab_finder_locked_54px.png")
 	print("CRAB TARGET MARKER CAPTURES: " + ProjectSettings.globalize_path(OUTPUT_DIR))
 	quit(0)
 
 
-func _set_fixture(view: Control, mode: String) -> void:
+func _set_fixture(view: Control, mode: String, aim_position: Vector2, settle_seconds := 0.30) -> void:
 	view.set("view_mode", mode)
 	view.call("_apply_view_mode")
 	view.call("_update_mode_buttons")
 	var sky: Dictionary = view.get("sky_data")
 	var item: Dictionary = sky.get("crab_nebula", {}).duplicate(true)
-	var target_azimuth := float(item.get("azimuth", AIM.x))
-	var target_altitude := maxf(8.0, float(item.get("altitude", AIM.y)))
+	var target_azimuth := AIM.x
+	var target_altitude := 45.0
 	item["azimuth"] = target_azimuth
 	item["altitude"] = target_altitude
 	item["visible"] = true
@@ -48,10 +59,10 @@ func _set_fixture(view: Control, mode: String) -> void:
 	item["source"] = "capture_fixture"
 	sky["crab_nebula"] = item
 	view.set("sky_data", sky)
-	view.set("telescope_azimuth", target_azimuth)
-	view.set("telescope_altitude", target_altitude)
-	view.set("display_azimuth", target_azimuth)
-	view.set("display_altitude", target_altitude)
+	view.set("telescope_azimuth", aim_position.x)
+	view.set("telescope_altitude", aim_position.y)
+	view.set("display_azimuth", aim_position.x)
+	view.set("display_altitude", aim_position.y)
 	view.set("display_fov_x", view.get("fov_x"))
 	view.set("display_fov_y", view.get("fov_y"))
 	view.call("_rebuild_view")
@@ -59,15 +70,15 @@ func _set_fixture(view: Control, mode: String) -> void:
 	# The capture is a deterministic visual fixture. Stop live input/camera
 	# interpolation only after the real scene has rebuilt at the catalog target.
 	view.set_process(false)
-	view.set("telescope_azimuth", target_azimuth)
-	view.set("telescope_altitude", target_altitude)
-	view.set("display_azimuth", target_azimuth)
-	view.set("display_altitude", target_altitude)
+	view.set("telescope_azimuth", aim_position.x)
+	view.set("telescope_altitude", aim_position.y)
+	view.set("display_azimuth", aim_position.x)
+	view.set("display_altitude", aim_position.y)
 	view.set("display_fov_x", view.get("fov_x"))
 	view.set("display_fov_y", view.get("fov_y"))
 	view.call("_rebuild_view")
 	await process_frame
-	await create_timer(0.30).timeout
+	await create_timer(settle_seconds).timeout
 
 
 func _save(file_name: String) -> void:

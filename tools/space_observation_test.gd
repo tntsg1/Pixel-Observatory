@@ -9,9 +9,13 @@ extends SceneTree
 var failures := 0
 var had_save := false
 var saved_bytes := PackedByteArray()
+var test_finished := false
+var test_checkpoint := "startup"
+const TEST_TIMEOUT_SECONDS := 90.0
 
 
 func _initialize() -> void:
+	create_timer(TEST_TIMEOUT_SECONDS).timeout.connect(_on_test_timeout)
 	_backup_save()
 	await process_frame
 	root.size = Vector2i(1024, 768)
@@ -30,8 +34,17 @@ func _initialize() -> void:
 	await _test_legacy(gm)
 
 	print("SPACE OBSERVATION TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
+	test_finished = true
 	_restore_save()
 	quit(0 if failures == 0 else 1)
+
+
+func _on_test_timeout() -> void:
+	if test_finished:
+		return
+	print("SPACE OBSERVATION TEST FAIL: timed out after %.0f s at %s" % [TEST_TIMEOUT_SECONDS, test_checkpoint])
+	_restore_save()
+	quit(2)
 
 
 func _backup_save() -> void:
@@ -222,6 +235,7 @@ func _distinct_frame_events(frames: Array) -> int:
 
 # ---- scene: staged flow, card select != observe, only Observe/Submit completes
 func _test_scene(gm: Node) -> void:
+	test_checkpoint = "space scene setup"
 	gm.new_game()
 	gm.progress["space_deployed"] = false
 	gm.progress["space_intro_seen"] = false
@@ -244,7 +258,7 @@ func _test_scene(gm: Node) -> void:
 	for cid in ["jwst_infrared_light", "jwst_segmented_mirror", "jwst_sunshield_l2", "jwst_instruments", "jwst_false_colour"]:
 		_check(not gm.get_learning_card(cid).is_empty(), "tut. teaching card '%s' exists" % cid)
 	scene.call("_advance")   # finish briefing
-	await process_frame
+	await _wait_for_stage_ready(scene, "deploy")
 	_check(bool(gm.progress.get("space_intro_seen", false)), "tut. briefing is marked seen (first-time only)")
 	_check(str(scene.call("_key")) == "deploy", "tut. briefing leads straight into deployment (not the lobby)")
 
@@ -270,6 +284,7 @@ func _test_scene(gm: Node) -> void:
 	_check(str(scene.call("_key")) == "deploy", "tut. deployment tutorial follows the briefing")
 
 	# deployment stage never completes the mission
+	test_checkpoint = "deployment"
 	scene.call("_try_deploy", "solar_array")
 	await process_frame
 	_check(bool(scene.get("deploy_animating")), "tut. deployment has a visible in-progress state")
@@ -282,21 +297,23 @@ func _test_scene(gm: Node) -> void:
 		await create_timer(0.80).timeout
 	_check(m.fully_deployed(), "tut. deployment sequence completes")
 	scene.call("_advance")
-	await process_frame
+	await _wait_for_stage_ready(scene, "plan")
 	_check(str(scene.call("_key")) == "plan", "tut. after deploy comes planning")
 	_check(bool(gm.progress.get("space_deployed", false)), "tut. deployment is remembered (first-time teaching)")
 
 	# planning: underexposed plan is blocked
+	test_checkpoint = "planning"
 	m.exposure_time = 60.0; m.integrations = 1
 	scene.call("_confirm_plan")
 	await process_frame
 	_check(str(scene.call("_key")) == "plan", "plan. an underexposed plan cannot advance")
 	m.instrument = "nircam"; m.filter = "near_infrared"; m.exposure_time = 400.0; m.integrations = 5; m.dither = "three_point"
 	scene.call("_confirm_plan")
-	await process_frame
+	await _wait_for_stage_ready(scene, "thermal")
 	_check(str(scene.call("_key")) == "thermal", "plan. a valid plan advances to thermal")
 
 	# thermal: unsafe attitude blocks; the target-specific corridor must be held
+	test_checkpoint = "thermal"
 	# long enough to cool before confirmation advances.
 	m.rotate_to(40.0)
 	scene.call("_confirm_thermal")
@@ -305,12 +322,13 @@ func _test_scene(gm: Node) -> void:
 	m.rotate_to(m.thermal_target_deg)
 	_settle_thermal(m)
 	scene.call("_confirm_thermal")
-	await process_frame
+	await _wait_for_stage_ready(scene, "guide")
 	_check(str(scene.call("_key")) == "guide", "thermal. a held target attitude advances to guiding")
 	var thermal_chain := scene.get_node_or_null("OperationChainFeedback")
 	_check(thermal_chain != null, "thermal. success explains the physical effect and reveals guiding")
 
 	# guide: no lock blocks; a good star locks
+	test_checkpoint = "guiding"
 	scene.call("_confirm_guide")
 	await process_frame
 	_check(str(scene.call("_key")) == "guide", "guide. cannot advance without a lock")
@@ -324,19 +342,20 @@ func _test_scene(gm: Node) -> void:
 	for _i in range(240):
 		m.step_guiding(1.0 / 60.0)
 	scene.call("_confirm_guide")
-	await process_frame
+	await _wait_for_stage_ready(scene, "wavefront")
 	_check(str(scene.call("_key")) == "wavefront", "guide. a stable lock advances to alignment")
 	var guide_chain := scene.get_node_or_null("OperationChainFeedback")
 	_check(guide_chain != null, "guide. success reveals wavefront alignment without optical-telescope wording")
 
 	# wavefront: A/B/C are independent actuator banks. Selection is not
+	test_checkpoint = "wavefront coarse alignment"
 	# completion, and any order is valid as long as each bank settles.
 	for bank_index in [2, 0, 1]:
 		scene.call("_select_wavefront_group", bank_index)
 		_check(m.wavefront_bank_state(bank_index) == "selected",
 			"align. bank %s selection is explicit" % String.chr(65 + bank_index))
 		scene.call("_execute_wavefront_group")
-		await create_timer(1.05).timeout
+		await _wait_for_wavefront_bank(scene, m, bank_index, "resolved")
 		_check(m.wavefront_bank_state(bank_index) == "resolved",
 			"align. bank %s resolves after actuation and settling" % String.chr(65 + bank_index))
 	_check(m.wavefront_coarse_complete and not m.wavefront_ok(),
@@ -351,29 +370,36 @@ func _test_scene(gm: Node) -> void:
 	_check(fine_minus != null and fine_plus != null and fine_minus.visible and fine_plus.visible,
 		"align. signed single-segment actuator controls are available")
 	for segment_index in m.wavefront_anomaly_segments().duplicate():
+		test_checkpoint = "wavefront fine segment %d" % segment_index
 		scene.call("_select_wavefront_segment", segment_index)
-		while absf(m.segment_phase_error(segment_index)) > 0.12:
+		var trim_attempts := 0
+		while absf(m.segment_phase_error(segment_index)) > 0.12 and trim_attempts < 16:
 			var trim := -0.12 if m.segment_phase_error(segment_index) > 0.0 else 0.12
 			scene.call("_adjust_wavefront_segment", trim)
 			await create_timer(0.80).timeout
+			trim_attempts += 1
+		_check(absf(m.segment_phase_error(segment_index)) <= 0.12,
+			"align. segment %d trim converges instead of waiting forever" % segment_index)
 	await create_timer(0.90).timeout
 	_check(m.wavefront_ok(), "align. fine phasing reaches the <150 nm threshold")
 	_check(bool(scene.get("wavefront_convergence_complete")), "align. final phase-retrieval convergence plays")
 	scene.call("_confirm_wavefront")
-	await process_frame
+	await _wait_for_stage_ready(scene, "expose")
 	_check(str(scene.call("_key")) == "expose", "align. good wavefront advances to exposure")
 
 	# expose: must actually acquire
+	test_checkpoint = "exposure"
 	scene.call("_confirm_expose")
 	await process_frame
 	_check(str(scene.call("_key")) == "expose", "expose. cannot process before acquiring frames")
 	scene.call("_start_expose")
 	await process_frame
 	scene.call("_confirm_expose")
-	await process_frame
+	await _wait_for_stage_ready(scene, "process")
 	_check(str(scene.call("_key")) == "process", "expose. after acquisition comes processing")
 
 	# process: needs all steps + SNR
+	test_checkpoint = "processing"
 	# The event profile can contain unrecoverable guide smears or saturated
 	# frames. Review those before testing the numbered processing pipeline,
 	# exactly as the player must do in the UI.
@@ -393,10 +419,11 @@ func _test_scene(gm: Node) -> void:
 			"process. %s animates the central science image" % process_step)
 		await create_timer(0.80).timeout
 	scene.call("_confirm_process")
-	await process_frame
+	await _wait_for_stage_ready(scene, "filter")
 	_check(str(scene.call("_key")) == "filter", "process. a ready, high-SNR image advances to filter mapping")
 
 	# filter: needs distinct channels + correct science
+	test_checkpoint = "filter mapping"
 	scene.call("_confirm_filter")
 	await process_frame
 	_check(str(scene.call("_key")) == "filter", "filter. cannot advance without a full mapping")
@@ -404,11 +431,12 @@ func _test_scene(gm: Node) -> void:
 		scene.call("_set_filter_channel", str(mapping[0]), str(mapping[1]))
 		await process_frame
 		_check(bool(scene.get("filter_animating")), "filter. mapping %s starts a visible recomposition scan" % str(mapping[0]))
-		# The structural scan lasts 0.48 s and finishes through a callback.
-		# Wait past that boundary so the next channel is not intentionally
-		# ignored while the previous detector pass is still active.
-		await create_timer(0.60).timeout
-	_check(_tree_has_label(scene.get("scope") as Node, "EVIDENCE CONFIDENCE"),
+		# The structural scan finishes through a Tween callback. A fixed 0.60 s
+		# sleep races that callback on a busy headless frame, which can make the
+		# next channel intentionally no-op. Await the actual UI state instead.
+		_check(await _wait_for_filter_scan(scene), "filter. mapping %s completes its recomposition scan" % str(mapping[0]))
+	var evidence_heading := "证据置信度" if str(gm.get("language_mode")) == "zh" else "EVIDENCE CONFIDENCE"
+	_check(_tree_has_label(scene.get("scope") as Node, evidence_heading),
 		"filter. a complete mapping teaches the visible structure evidence")
 	scene.call("_set_science_choice", "hot_gas")
 	await create_timer(0.45).timeout
@@ -418,10 +446,11 @@ func _test_scene(gm: Node) -> void:
 	scene.call("_set_science_choice", "dust_rich")
 	await create_timer(0.45).timeout
 	scene.call("_confirm_filter")
-	await process_frame
+	await _wait_for_stage_ready(scene, "report")
 	_check(str(scene.call("_key")) == "report", "filter. correct science advances to the report")
 
 	# report: only Submit completes
+	test_checkpoint = "report submission"
 	_check(scene.find_child("ReportRow_00", true, false) != null and scene.find_child("ReportRow_08", true, false) != null,
 		"science. report decodes all nine telemetry rows")
 	_check(not _completed(gm), "science. reaching the report does not auto-complete")
@@ -440,6 +469,7 @@ func _test_scene(gm: Node) -> void:
 
 
 func _test_hall_console(gm: Node) -> void:
+	test_checkpoint = "hall remote console"
 	gm.new_game()
 	gm.progress["space_intro_seen"] = true
 	gm.progress["space_deployed"] = true
@@ -481,6 +511,43 @@ func _settle_thermal(model: SpaceObservationModel) -> void:
 			return
 
 
+func _wait_for_stage_ready(scene: Node, expected_stage: String, timeout_seconds := 3.0) -> bool:
+	var elapsed := 0.0
+	while is_instance_valid(scene) and elapsed < timeout_seconds:
+		if str(scene.call("_key")) == expected_stage and not bool(scene.get("stage_transition_active")):
+			return true
+		await create_timer(0.05).timeout
+		elapsed += 0.05
+	var actual := "<freed>"
+	var transitioning := false
+	if is_instance_valid(scene):
+		actual = str(scene.call("_key"))
+		transitioning = bool(scene.get("stage_transition_active"))
+	_check(false, "stage handoff. expected %s, got %s (transition=%s)" % [
+		expected_stage, actual, str(transitioning)
+	])
+	return false
+
+
+func _wait_for_wavefront_bank(
+	scene: Node,
+	model: SpaceObservationModel,
+	bank_index: int,
+	expected_state: String,
+	timeout_seconds := 3.0
+) -> bool:
+	var elapsed := 0.0
+	while is_instance_valid(scene) and elapsed < timeout_seconds:
+		if model.wavefront_bank_state(bank_index) == expected_state and not bool(scene.get("wavefront_animating")):
+			return true
+		await create_timer(0.05).timeout
+		elapsed += 0.05
+	_check(false, "align. bank %s timed out in state %s" % [
+		String.chr(65 + bank_index), model.wavefront_bank_state(bank_index)
+	])
+	return false
+
+
 func _tree_has_label(node: Node, needle: String) -> bool:
 	if node == null:
 		return false
@@ -492,12 +559,23 @@ func _tree_has_label(node: Node, needle: String) -> bool:
 	return false
 
 
+func _wait_for_filter_scan(scene: Node, timeout_seconds := 2.0) -> bool:
+	var elapsed := 0.0
+	while is_instance_valid(scene) and elapsed < timeout_seconds:
+		if not bool(scene.get("filter_animating")):
+			return true
+		await create_timer(0.05).timeout
+		elapsed += 0.05
+	return false
+
+
 func _completed(gm: Node) -> bool:
 	return (gm.progress.get("completed_levels", []) as Array).has(66)
 
 
 # ---- legacy untouched
 func _test_legacy(gm: Node) -> void:
+	test_checkpoint = "legacy regression"
 	gm.new_game()
 	var mm: Node = root.get_node_or_null("/root/MissionManager")
 	_check(str(mm.get_level(2).get("required_concept_card", "")) == "naked_eye_limits", "legacy. L2 mainline intact")

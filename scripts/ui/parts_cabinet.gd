@@ -81,6 +81,7 @@ var parts_scroll: ScrollContainer
 var next_step_part_type := ""
 var selected_family := ""
 var auto_equip_popup: Control
+var reassembly_route_ready := false
 
 # --- Mobile touch scrolling -------------------------------------------------
 # Driven from _input (which runs BEFORE gui propagation) so a swipe scrolls the
@@ -148,10 +149,16 @@ func _draw_title_bar() -> void:
 	var title := _label_to(self, GameManager.text("Parts Cabinet", "零件柜"), Vector2(252, 24), Vector2(520, 32), 24, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
 
-	var back := _button(GameManager.text("Back to Base", "返回基地"), Vector2(842, 22), Vector2(144, 40))
+	var back_text := GameManager.text("Continue to Assembly", "前往组装台") if reassembly_route_ready else GameManager.text("Back to Base", "返回基地")
+	var back := _button(back_text, Vector2(842, 22), Vector2(144, 40))
+	back.name = "CabinetPrimaryRouteButton"
+	back.set_meta("destination_scene", GameManager.assembly_scene_key() if reassembly_route_ready else "observatory")
 	back.pressed.connect(func() -> void:
-		GameManager.set_observatory_spawn("cabinet")
-		GameManager.go("observatory")
+		if reassembly_route_ready:
+			_go_to_assembly_after_equipping()
+		else:
+			GameManager.set_observatory_spawn("cabinet")
+			GameManager.go("observatory")
 	)
 	add_child(back)
 
@@ -218,6 +225,9 @@ func _show_auto_equip_preview() -> void:
 		var applied: int = GameManager.apply_auto_equip(plan)
 		auto_equip_popup.queue_free()
 		auto_equip_popup = null
+		reassembly_route_ready = applied > 0
+		if reassembly_route_ready:
+			GameManager.set_room_guidance_for_scene("assembly")
 		_show_feedback(GameManager.text("Equipped %d parts. Reassemble at the Assembly Table.", "已更换 %d 件零件。请回组装台重新安装。") % applied, GREEN)
 	)
 	panel.add_child(confirm)
@@ -364,7 +374,9 @@ func _part_card(part: Dictionary) -> Control:
 	var equipped := GameManager.equipped_part_id(part_type) == part_id
 	var exact_required_id := _required_id_for_type(part_type)
 	var exact_required := exact_required_id == part_id
-	var required_for_mission := (
+	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
+	var pending_step_required := pending_step_part_id == part_id
+	var required_for_mission := pending_step_part_id == "" and (
 		GameManager.required_part_types_for_current_level().has(part_type)
 		or (
 			GameManager.assembly_context_family() == "space_segmented"
@@ -373,7 +385,10 @@ func _part_card(part: Dictionary) -> Control:
 	)
 	var incompatible_equipped := equipped and exact_required_id != "" and not exact_required
 	var recommended := _is_recommended(part)
-	var is_next_step := part_type == next_step_part_type
+	var is_next_step := (
+		part_type == next_step_part_type
+		and (pending_step_part_id == "" or pending_step_required)
+	)
 
 	var root := Control.new()
 	root.custom_minimum_size = CARD_SIZE
@@ -387,7 +402,7 @@ func _part_card(part: Dictionary) -> Control:
 	elif equipped:
 		bg = CARD_EQUIPPED
 		border = GREEN
-	elif exact_required or required_for_mission or recommended or is_next_step:
+	elif exact_required or pending_step_required or required_for_mission or recommended or is_next_step:
 		border = GOLD
 	elif not unlocked:
 		bg = CARD_LOCKED
@@ -404,16 +419,18 @@ func _part_card(part: Dictionary) -> Control:
 		_badge_to(root, GameManager.text("Equipped, but not accepted by this mission", "已装备，但不符合本关指定"), Vector2(122, 10), Vector2(322, 22), WARNING)
 	elif exact_required:
 		_badge_to(root, GameManager.text("Lesson-required: this level teaches this device", "本关指定零件——本关正在学习/要求该设备"), Vector2(122, 10), Vector2(380, 22), GOLD)
+	elif pending_step_required:
+		_badge_to(root, GameManager.text("Required for the current experiment", "当前实验指定目镜"), Vector2(122, 10), Vector2(286, 22), GOLD)
 	elif required_for_mission:
 		_badge_to(root, GameManager.text("Required for current mission", "本关必需"), Vector2(122, 10), Vector2(250, 22), GOLD)
 	elif recommended:
 		_badge_to(root, GameManager.text("Recommended for current mission", "当前任务推荐"), Vector2(122, 10), Vector2(322, 22), GOLD)
-	elif unlocked and GameManager.pinned_part_id(part_type) == "" and str(GameManager.best_part_for_type(part_type).get("id", "")) == part_id:
+	elif pending_step_part_id == "" and unlocked and GameManager.pinned_part_id(part_type) == "" and str(GameManager.best_part_for_type(part_type).get("id", "")) == part_id:
 		_badge_to(root, GameManager.text("Best available for this mission", "本关可用的最佳零件"), Vector2(122, 10), Vector2(300, 22), GOLD)
 	elif is_next_step:
 		_badge_to(root, GameManager.text("Next assembly step", "下一步安装"), Vector2(122, 10), Vector2(220, 22), WARNING)
 	# Free-slot upgrade warning: equipped part beaten by an unlocked one.
-	if equipped and GameManager.pinned_part_id(part_type) == "":
+	if equipped and pending_step_part_id == "" and GameManager.pinned_part_id(part_type) == "":
 		var best_part: Dictionary = GameManager.best_part_for_type(part_type)
 		if not best_part.is_empty() and str(best_part.get("id", "")) != part_id:
 			_badge_to(root, GameManager.text("Better available: ", "可用更佳设备：") + GameManager.dict_text(best_part, "name"), Vector2(446, 10), Vector2(286, 22), Color(1.0, 0.55, 0.40))
@@ -492,7 +509,8 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 			if GameManager.equip_part(part_id):
 				feedback_color = GREEN
 				feedback_text = GameManager.text("Equipped %s. Reassembly required." % str(part.get("name_en", part_id)), "已装备%s。请回组装台重新安装。" % _safe_zh_name(part, str(part_type)))
-				GameManager.update_room_guidance_for_level()
+				reassembly_route_ready = true
+				GameManager.set_room_guidance_for_scene("assembly")
 				_build()
 				call_deferred("_scroll_to_part_type", part_type)
 		)
@@ -500,6 +518,12 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 
 	var lock_note := _unlock_note(part, unlocked)
 	_label_to(root, lock_note, Vector2(column_x - 2, 110), Vector2(154, 28), 10, MUTED if unlocked else Color(0.45, 0.47, 0.50), HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func _go_to_assembly_after_equipping() -> void:
+	GameManager.set_room_guidance_for_scene("assembly")
+	GameManager.set_observatory_spawn("assembly")
+	GameManager.go(GameManager.assembly_scene_key())
 
 
 func _draw_stat_chips(parent: Control, part: Dictionary, pos: Vector2, unlocked: bool) -> void:
@@ -664,6 +688,9 @@ func _is_recommended(part: Dictionary) -> bool:
 	# asks the player to compare using a different mount.
 	if exact_required_id != "":
 		return part_id == exact_required_id
+	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
+	if pending_step_part_id != "":
+		return part_id == pending_step_part_id
 	if _array_has_string(level.get("recommended_part_ids", []), part_id):
 		return true
 	var target_id := str(level.get("target_object_id", ""))

@@ -128,7 +128,136 @@
   overflow: auto;
   padding: 24px;
   scrollbar-color: rgba(139,205,231,.35) transparent;
+  transition: margin-right .28s cubic-bezier(.22,.82,.25,1), opacity .2s ease;
 }
+.social-shell.has-friend-chat .social-main { margin-right: 390px; opacity: .92; }
+
+.friend-chat-drawer {
+  position: absolute;
+  z-index: 8;
+  top: 76px;
+  right: 0;
+  bottom: 0;
+  width: 390px;
+  overflow: hidden;
+  border-left: 1px solid rgba(203,235,248,.3);
+  background:
+    linear-gradient(145deg, rgba(255,255,255,.08), transparent 35%),
+    rgba(7,18,31,.82);
+  backdrop-filter: blur(28px) saturate(165%);
+  box-shadow: -24px 0 58px rgba(0,0,0,.34), inset 1px 0 rgba(255,255,255,.08);
+  transform: translateX(104%) scale(.985);
+  transform-origin: var(--chat-origin-x, 100%) var(--chat-origin-y, 50%);
+  opacity: 0;
+  transition: transform .28s cubic-bezier(.18,.86,.25,1.08), opacity .18s ease;
+}
+.friend-chat-drawer[hidden] { display: none; }
+.friend-chat-drawer.is-open { transform: none; opacity: 1; }
+.friend-chat-content { height: 100%; min-height: 0; display: grid; grid-template-rows: auto minmax(0,1fr) auto; }
+.friend-chat-head {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: auto minmax(0,1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 12px 12px 15px;
+  border-bottom: 1px solid rgba(175,217,237,.18);
+  background: rgba(4,12,22,.42);
+}
+.friend-chat-identity { min-width: 0; }
+.friend-chat-identity strong,
+.friend-chat-presence { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.friend-chat-identity strong { color: #f2f8fb; font-size: 14px; }
+.friend-chat-presence { margin-top: 5px; color: var(--social-green); font: 650 10px/1.2 var(--mono,monospace); }
+.friend-chat-presence.offline { color: #7f94a4; }
+.friend-chat-profile,
+.friend-chat-close {
+  min-height: 34px;
+  border: 1px solid rgba(173,218,237,.22);
+  border-radius: 11px;
+  background: rgba(255,255,255,.05);
+  color: #bdd0dc;
+  cursor: pointer;
+}
+.friend-chat-profile { padding: 0 10px; font: 700 11px/1 system-ui,sans-serif; }
+.friend-chat-close { width: 34px; padding: 0; font-size: 19px; }
+.friend-chat-profile:hover,
+.friend-chat-close:hover { border-color: rgba(132,214,247,.58); color: white; }
+.friend-chat-messages {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 14px 20px;
+  scroll-behavior: smooth;
+  scrollbar-color: rgba(139,205,231,.32) transparent;
+}
+.friend-chat-messages .po-message { max-width: 88%; margin-bottom: 10px; }
+.friend-chat-messages .po-message.mine { margin-left: auto; }
+.friend-chat-messages .po-message.is-materializing { animation: friend-message-materialize .28s cubic-bezier(.2,.85,.25,1) both; }
+.friend-chat-empty,
+.friend-chat-loading {
+  min-height: 100%;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 28px;
+  color: #8096a5;
+  text-align: center;
+  line-height: 1.5;
+}
+.friend-chat-empty strong { color: #d8e6ed; font-size: 14px; }
+.friend-chat-empty span { font-size: 12px; }
+.friend-chat-new {
+  position: absolute;
+  left: 50%;
+  bottom: 86px;
+  z-index: 3;
+  transform: translateX(-50%);
+  border: 1px solid rgba(130,214,247,.5);
+  border-radius: 999px;
+  background: rgba(12,38,57,.94);
+  color: #d9f5ff;
+  padding: 8px 13px;
+  font: 700 11px/1 system-ui,sans-serif;
+  cursor: pointer;
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+.friend-chat-new[hidden] { display: none; }
+.friend-chat-compose {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 8px;
+  padding: 11px 12px max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid rgba(175,217,237,.18);
+  background: rgba(4,12,22,.62);
+}
+.friend-chat-compose textarea {
+  width: 100%;
+  min-height: 42px;
+  max-height: 112px;
+  resize: none;
+  border: 1px solid rgba(164,208,228,.25);
+  border-radius: 13px;
+  outline: 0;
+  background: rgba(2,9,17,.58);
+  color: #eef6fa;
+  padding: 10px 12px;
+  font: 500 13px/1.45 system-ui,sans-serif;
+}
+.friend-chat-compose textarea:focus { border-color: rgba(114,207,245,.72); box-shadow: 0 0 0 3px rgba(85,184,226,.12); }
+.friend-chat-send {
+  min-width: 64px;
+  border: 1px solid rgba(220,246,255,.65);
+  border-radius: 13px;
+  background: linear-gradient(180deg,#c6efff,#72c8eb);
+  color: #07151e;
+  font-weight: 750;
+  cursor: pointer;
+  transition: transform .12s ease, filter .16s ease;
+}
+.friend-chat-send:active { transform: scale(.96); }
+.friend-chat-send.is-sending { color: transparent; background: linear-gradient(100deg,#72c8eb 20%,#d9f7ff 50%,#72c8eb 80%); background-size: 220% 100%; animation: friend-send-flow .8s linear infinite; }
+.friend-chat-send.is-error { border-color: #ff9b92; filter: saturate(.7); }
+.friend-chat-status { grid-column: 1 / -1; min-height: 0; margin: 0; color: #ffaaa1; font-size: 11px; }
 
 .social-loading,
 .social-empty {
@@ -388,6 +517,22 @@
 .friend-meta { margin-top: 4px; color: #7f93a2; font-size: 11px; }
 .friend-actions { display: flex; gap: 7px; }
 .friend-actions .social-button { min-height: 34px; padding: 0 10px; }
+.friend-more { position: relative; }
+.friend-more summary { width: 38px; min-height: 34px; display: grid; place-items: center; padding: 0; list-style: none; cursor: pointer; }
+.friend-more summary::-webkit-details-marker { display: none; }
+.friend-more-menu {
+  position: absolute;
+  z-index: 12;
+  top: calc(100% + 7px);
+  right: 0;
+  min-width: 138px;
+  padding: 6px;
+  border: 1px solid rgba(183,220,238,.24);
+  border-radius: 12px;
+  background: rgba(6,15,27,.97);
+  box-shadow: 0 16px 38px rgba(0,0,0,.42);
+}
+.friend-more-menu .social-button { width: 100%; }
 
 .friends-page { display: grid; gap: 22px; align-content: start; }
 .observer-discovery {
@@ -568,6 +713,10 @@
   76% { opacity: 1; }
   92%, 100% { transform: translateX(100%); opacity: 0; }
 }
+@keyframes friend-message-materialize {
+  from { opacity: 0; transform: translate(18px, 8px) scale(.94); }
+}
+@keyframes friend-send-flow { to { background-position: -120% 0; } }
 
 .leaderboard { overflow: hidden; }
 .leader-row { width: 100%; min-height: 72px; display: grid; grid-template-columns: 54px auto 1fr 190px 90px; gap: 13px; align-items: center; padding: 10px 16px; border: 0; border-bottom: 1px solid rgba(163,205,224,.1); background: transparent; color: inherit; text-align: left; font: inherit; cursor: pointer; transition: background .18s ease, transform .18s ease; }
@@ -715,6 +864,20 @@
   .social-tabs { width: 100%; }
   .social-tab { padding-inline: 12px; }
   .social-main { height: calc(100% - 112px); padding: 13px; }
+  .social-shell.has-friend-chat .social-main { margin-right: 0; opacity: .82; }
+  .friend-chat-drawer {
+    top: auto;
+    left: 0;
+    width: 100%;
+    height: min(82%, 680px);
+    border-left: 0;
+    border-top: 1px solid rgba(203,235,248,.35);
+    border-radius: 22px 22px 0 0;
+    transform: translateY(104%);
+    transform-origin: 50% 100%;
+    box-shadow: 0 -26px 60px rgba(0,0,0,.42), inset 0 1px rgba(255,255,255,.1);
+  }
+  .friend-chat-head { grid-template-columns: auto minmax(0,1fr) auto auto; }
   .social-profile-grid,
   .community-layout { grid-template-columns: 1fr; }
   .community-layout { height: auto; }
@@ -740,23 +903,29 @@
   .social-button,
   .social-icon-button,
   .community-post,
-  .leader-row { transition: opacity .18s ease, color .18s ease, background .18s ease; transform: none !important; }
+  .leader-row,
+  .friend-chat-drawer,
+  .social-main { transition: opacity .18s ease, color .18s ease, background .18s ease; transform: none !important; }
   .social-loading::before,
   .rank-firework,
   .social-avatar.is-admin::before,
   .social-avatar.is-admin::after,
   .social-profile-identity.is-admin-profile::before,
-  .observer-discovery::before { animation: none; }
+  .observer-discovery::before,
+  .friend-chat-send.is-sending,
+  .friend-chat-messages .po-message.is-materializing { animation: none; }
 }
 
 @media (prefers-reduced-transparency: reduce) {
   .social-modal { backdrop-filter: none; background: rgba(2,7,15,.92); }
   .social-shell,
   .social-topbar,
-  .social-card { backdrop-filter: none; background: #081321; }
+  .social-card,
+  .friend-chat-drawer { backdrop-filter: none; background: #081321; }
 }
 
 @media (prefers-contrast: more) {
   .social-shell,
-  .social-card { background: #050d17; border-color: #b9d9e8; }
+  .social-card,
+  .friend-chat-drawer { background: #050d17; border-color: #b9d9e8; }
 }

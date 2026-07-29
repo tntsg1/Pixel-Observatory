@@ -37,12 +37,11 @@ const SPECS := {
 		"travel": 8.0,
 	},
 	"computer": {
-		"rect": Rect2(785, 535, 165, 117),
-		"interior_source": Rect2(785, 535, 165, 117),
+		"rect": Rect2(764, 520, 172, 172.0 * 210.0 / 274.0),
+		"interior_source": Rect2(764, 520, 172, 172.0 * 210.0 / 274.0),
 		"mode": "screen",
-		# The clean furniture cutout already contains the cabinet and monitor.
-		# Online feedback belongs on the CRT glass only, never over the desk.
-		"screen_rect": Rect2(21, 13, 91, 46),
+		# Online feedback is clipped to the middle framed sky display.
+		"screen_rect": Rect2(31, 24, 112, 45),
 	},
 }
 
@@ -290,6 +289,7 @@ func close_all_immediately() -> void:
 func _build_rig(id: String, spec: Dictionary) -> void:
 	var rect: Rect2 = spec.get("rect", Rect2())
 	var mode := str(spec.get("mode", "shutter"))
+	var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
 	var rig_root := Control.new()
 	rig_root.name = "%sFurnitureRig" % id.capitalize()
 	rig_root.position = rect.position
@@ -307,11 +307,18 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	interior.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	interior.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
 	interior.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	interior.texture = _atlas_texture(spec.get("interior_source", rect))
+	if mode == "screen":
+		interior.texture = _atlas_texture(Rect2(rect.position + screen_rect.position, screen_rect.size))
+	else:
+		interior.texture = _atlas_texture(spec.get("interior_source", rect))
 	if mode == "drawer":
 		interior.position = Vector2(3, 1)
 		interior.size = Vector2(rect.size.x - 6, 13)
 		interior.modulate = Color(0.22, 0.25, 0.31, 0.96)
+	elif mode == "screen":
+		interior.position = screen_rect.position
+		interior.size = screen_rect.size
+		interior.modulate = Color.WHITE
 	else:
 		interior.position = Vector2.ZERO
 		interior.size = rect.size
@@ -321,8 +328,12 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 
 	if mode not in ["drawer", "workbench"]:
 		var inner_frame := Panel.new()
-		inner_frame.position = Vector2(2, 2)
-		inner_frame.size = rect.size - Vector2(4, 4)
+		if mode == "screen":
+			inner_frame.position = screen_rect.position
+			inner_frame.size = screen_rect.size
+		else:
+			inner_frame.position = Vector2(2, 2)
+			inner_frame.size = rect.size - Vector2(4, 4)
 		inner_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		inner_frame.add_theme_stylebox_override("panel", _interior_style())
 		rig_root.add_child(inner_frame)
@@ -336,7 +347,6 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		glow.position = Vector2(7, 5)
 		glow.size = Vector2(rect.size.x - 14, 88)
 	elif mode == "screen":
-		var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
 		glow.position = screen_rect.position
 		glow.size = screen_rect.size
 	else:
@@ -364,8 +374,15 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 	var scanline: ColorRect
 	var doors: Array = []
 	if mode in ["hinge", "drawer", "screen", "workbench"]:
-		var door := _door_piece(rect, rect, Vector2.ZERO)
-		door.pivot_offset = Vector2(0, rect.size.y * 0.5) if mode == "hinge" else rect.size * 0.5
+		var door_source := rect
+		var door_rect := rect
+		var door_position := Vector2.ZERO
+		if mode == "screen":
+			door_source = Rect2(rect.position + screen_rect.position, screen_rect.size)
+			door_rect = Rect2(Vector2.ZERO, screen_rect.size)
+			door_position = screen_rect.position
+		var door := _door_piece(door_source, door_rect, door_position)
+		door.pivot_offset = Vector2(0, rect.size.y * 0.5) if mode == "hinge" else door.size * 0.5
 		rig_root.add_child(door)
 		doors.append(door)
 	else:
@@ -402,7 +419,6 @@ func _build_rig(id: String, spec: Dictionary) -> void:
 		focus_frame.add_theme_stylebox_override("panel", _workbench_focus_style())
 		rig_root.add_child(focus_frame)
 	elif mode == "screen":
-		var screen_rect: Rect2 = spec.get("screen_rect", Rect2(8, 8, rect.size.x - 16, rect.size.y * 0.42))
 		scanline = ColorRect.new()
 		scanline.name = "CRTScanline"
 		scanline.position = screen_rect.position + Vector2(2, 2)

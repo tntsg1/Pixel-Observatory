@@ -23,7 +23,7 @@ const SIMULATED_INTEGRATION_RATE := 42.0
 const WATERFALL_ROWS := 24
 const TERMINAL_HISTORY_LINES := 6
 const IDLE_HINT_DELAY := 20.0
-const FAST_TUTORIAL_PREFIX := "fast_guided_stage_"
+const FAST_TUTORIAL_PREFIX := "fast_guided_stage_v2_"
 const RADIO_CONSOLE_BOOT_DURATION := 0.92
 const RADIO_CONSOLE_BOOT_DURATION_REDUCED := 0.64
 const RADIO_CONSOLE_SHUTDOWN_DURATION := 1.62
@@ -34,6 +34,8 @@ const ACQUISITION_FINE_TOLERANCE_DEG := 1.4
 const ACQUISITION_FINE_SPEED_DEG_S := 0.42
 const ACQUISITION_MAX_SPEED_DEG_S := 8.0
 const FOLD_ADJUST_IDLE_SECONDS := 0.10
+const FOLD_CONTROL_RESPONSE_SECONDS := 0.14
+const FOLD_CONTROL_RESPONSE_INITIAL_PROGRESS := 0.16
 const FOLD_VALIDATION_WINDOW_SECONDS := 0.46
 const FOLD_STABLE_WINDOWS_REQUIRED := 3
 const REPORT_ANALYSIS_DURATION := 4.2
@@ -120,14 +122,29 @@ var integration_held := false
 var fold_adjust_audio_idle := -1.0
 var fold_step_label: Label
 var fold_controls_panel: Panel
-var fold_drag_mode := ""
-var fold_drag_last := Vector2.ZERO
+var fold_adjust_panel: Panel
+var fold_adjust_label: Label
+var fold_adjust_minus_button: Button
+var fold_adjust_plus_button: Button
+var fold_adjust_parameter := ""
+var fold_adjust_direction := 0.0
+var fold_adjust_repeat_clock := 0.0
+var fold_keyboard_repeat_clock := 0.0
+var fold_keyboard_adjust_active := false
 var fold_validation_clock := 0.0
 var fold_validation_window_index := 0
 var fold_stable_windows := 0
 var fold_candidate_ready := false
 var fold_profile_history: Array = []
 var fold_last_peak_phase := -1.0
+var fold_control_response_progress := 1.0
+var fold_control_response_parameter := ""
+var fold_control_response_direction := 0.0
+var fold_control_response_from_offsets: Array = []
+var fold_control_response_to_offsets: Array = []
+var fold_control_response_from_profile: Array = []
+var fold_control_response_to_profile: Array = []
+var fold_control_response_serial := 0
 var prediction_running := false
 var prediction_armed := false
 var prediction_confirmed := false
@@ -218,6 +235,8 @@ func _ready() -> void:
 func _exit_tree() -> void:
 	stage_transition.abort()
 	_stop_tune_ratchet(0.0)
+	fold_adjust_direction = 0.0
+	fold_adjust_parameter = ""
 	_stop_fold_adjust_audio(0.0)
 	report_analysis_running = false
 
@@ -453,13 +472,12 @@ func _process(delta: float) -> void:
 	if tune_drag_mode != "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
 		tune_drag_mode = ""
 		_stop_tune_ratchet()
-	if fold_drag_mode != "" and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-		fold_drag_mode = ""
-		_stop_fold_adjust_audio()
 	if fold_adjust_audio_idle >= 0.0:
 		fold_adjust_audio_idle += delta
 		if fold_adjust_audio_idle >= FOLD_ADJUST_IDLE_SECONDS:
 			_stop_fold_adjust_audio()
+	if stage == 3 and fold_control_response_progress < 1.0:
+		_advance_fold_control_response(delta)
 	terminal_clock += delta
 	if terminal_emphasis_until > 0.0 and terminal_clock >= terminal_emphasis_until:
 		terminal_emphasis_until = 0.0
@@ -467,6 +485,8 @@ func _process(delta: float) -> void:
 			terminal_label.add_theme_color_override("font_color", CRT)
 	if stage_transition_active:
 		return
+	if stage == 3 and not discovery_running and not prediction_running:
+		_process_fold_adjust_controls(delta)
 	if not intro_running and not discovery_running and not running:
 		tutorial_idle_seconds += delta
 		if tutorial_idle_seconds >= IDLE_HINT_DELAY:
@@ -536,7 +556,7 @@ func _process(delta: float) -> void:
 			0.75
 		)
 		_note_player_activity()
-		if model.integration_s >= minf(20.0, model.required_integration_s * 0.2):
+		if fold_candidate_ready:
 			_tutorial_action("fold_integrate")
 		_refresh_fold()
 	elif stage in [1, 2] and not running:
@@ -577,6 +597,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if key.keycode == KEY_SPACE and stage == 3:
+			_sync_fold_capture_state()
+			if key.pressed and (fold_step < 2 or fold_candidate_ready):
+				integration_held = false
+				status_label.text = _fold_next_action_text()
+				status_label.add_theme_color_override("font_color", AMBER if not fold_candidate_ready else GREEN)
+				if fold_action_button != null and is_instance_valid(fold_action_button):
+					InteractionFeedback.pulse(fold_action_button, AMBER if not fold_candidate_ready else GREEN, 0.24)
+				get_viewport().set_input_as_handled()
+				return
 			integration_held = key.pressed
 			_terminal_event(
 				"PULSE INTEGRATION",
@@ -834,6 +863,11 @@ func _rebuild() -> void:
 	stage_transition.abort()
 	stage_transition_active = false
 	_stop_tune_ratchet(0.0)
+	fold_adjust_direction = 0.0
+	fold_adjust_parameter = ""
+	fold_adjust_repeat_clock = 0.0
+	fold_keyboard_repeat_clock = 0.0
+	fold_keyboard_adjust_active = false
 	_stop_fold_adjust_audio(0.0)
 	tune_drag_mode = ""
 	for child in get_children():
@@ -1286,22 +1320,16 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 		"aim":
 			return [
 				_tutorial_step_data(
-					"Mountains Between the Heartbeats: tonight you remotely take control of FAST in Guizhou. Radio astronomy begins by recognizing rhythm inside noise.",
-					"“群山之间的心跳”从贵州 FAST 的远程接管开始。射电观测不是拍照，而是在噪声中辨认节奏。",
-					"", scope,
-					"FAST is a fixed 500 m reflector; its active 300 m region and suspended cabin form the beam.",
-					"FAST 的 500 米反射面不会整体转动；活动的 300 米区域与悬吊馈源舱共同形成波束。"
-				),
-				_tutorial_step_data(
-					"Drive the cabin toward the projected sky beam. Watch the velocity arrow and predicted stopping point.",
-					"驱动馈源舱靠近天空波束投影，同时观察速度箭头和预计停止点。",
+					"FAST does not turn its 500 m dish. Use WASD or the highlighted direction pad to drive the suspended cabin toward the stability ring.",
+					"FAST 的 500 米反射面不会整体转动。请用 WASD 或高亮方向键，把悬吊馈源舱驶向稳定环。",
 					"aim_drive", aim_drive_panel,
 					"The cabin has inertia: releasing the control starts coasting, not an instant stop.",
-					"馈源舱具有惯性：松开控制后会继续滑行，不会立即停住。"
+					"馈源舱具有惯性：松开方向后仍会继续滑行，所以要提前准备制动。",
+					Rect2(52, 238, 214, 142)
 				),
 				_tutorial_step_data(
-					"Brake before the cabin crosses the stability ring.",
-					"在馈源舱穿过稳定环之前提前制动。",
+					"Approach the ring, then hold Space or BRAKE before the cabin crosses its center.",
+					"接近稳定环后，在穿过中心前按住空格或“制动”。",
 					"aim_brake", aim_brake_button,
 					"Correct direction is not enough. Excess speed raises cable load and prevents a lock.",
 					"方向正确还不够；速度过高会增加缆索载荷，因此无法锁定。"
@@ -1317,25 +1345,20 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 		"tune":
 			return [
 				_tutorial_step_data(
-					"The receiver hears a wide radio band. First place its center over the broad, persistent candidate.",
-					"接收机会同时听见一大片频段。先把频窗中心移到宽缓、持续的候选信号上。",
-					"", scope,
-					"Center frequency chooses where the receiver listens.",
-					"中心频率决定接收机正在监听哪一段频谱。"
-				),
-				_tutorial_step_data(
-					"Move the center frequency and watch the candidate enter the window.",
-					"调整中心频率，观察候选信号进入频窗。",
-					"tune_center", scope,
+					"First choose where FAST listens. Use CENTER -/+ or A/D until the broad, persistent candidate enters the frequency window.",
+					"先决定 FAST 监听哪一段频谱。用“中心 -/+”或 A/D，把宽缓、持续的候选信号移入频窗。",
+					"tune_center", tune_controls_panel,
 					"The source coverage rose because the window moved, not because it became wider.",
-					"信号覆盖率提高，是因为频窗位置改变，而不是因为带宽变宽。"
+					"信号覆盖率提高，是因为频窗位置改变，而不是因为带宽变宽。",
+					Rect2(350, 30, 180, 78)
 				),
 				_tutorial_step_data(
-					"Now adjust bandwidth. Keep the broad candidate, but exclude tall patterned RFI.",
-					"现在调整带宽：保留宽缓候选，同时把高耸、规律的干扰挡在窗外。",
+					"Now use WIDTH -/+ or W/S. Keep the broad candidate, but exclude tall patterned RFI.",
+					"再用“带宽 -/+”或 W/S：保留宽缓候选，把高耸、规律的干扰挡在窗外。",
 					"tune_width", tune_controls_panel,
 					"Bandwidth controls how much spectrum enters. Wider is not always cleaner.",
-					"带宽决定有多少频谱进入接收机；更宽并不一定更干净。"
+					"带宽决定有多少频谱进入接收机；更宽并不一定更干净。",
+					Rect2(530, 30, 180, 78)
 				),
 				_tutorial_step_data(
 					"Stabilize the window when source coverage is high and RFI load is low.",
@@ -1348,15 +1371,8 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 		"rfi":
 			return [
 				_tutorial_step_data(
-					"Human transmitters leave shapes in the spectrum. Select one peak and judge the evidence, not only its height.",
-					"人类发射源会在频谱留下不同形态。选择一个频峰，依据形态而不是只看高度。",
-					"", scope,
-					"Broad repeating structure suggests the sky; narrow, comb-like, burst or sweep patterns suggest RFI.",
-					"宽缓并重复的结构更像天体；窄带、梳状、突发或扫频更像人造干扰。"
-				),
-				_tutorial_step_data(
-					"Select a peak in the spectrum.",
-					"在频谱中选择一个峰。",
+					"Human transmitters leave recognizable shapes. Click one peak in the spectrum; judge its shape, not only its height.",
+					"人类发射源会留下不同形态。请先点击一个频峰；判断依据是形态，不只是高度。",
 					"rfi_select", scope,
 					"The review panel now names the peak shape and keeps your last decision visible.",
 					"审查面板会显示峰形，并持续保留你刚才的判定。"
@@ -1379,22 +1395,29 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 		"fold":
 			return [
 				_tutorial_step_data(
-					"First straighten the slanted sub-band arrivals by dragging the upper data trace.",
-					"先拖动上方数据轨迹，把斜着到达的各子频段拉直。",
-					"", scope,
-					"Correct DM removes the frequency-dependent arrival delay.",
-					"正确的 DM 会消除不同频率之间的到达延迟。"
+					"Step 1: use the highlighted DM -/+ controls. Stop when the seven slanted arrivals form one vertical column.",
+					"第 1 步：使用高亮的 DM -/+，直到七条斜向到达轨迹排成一条竖线。",
+					"fold_dm_adjust", fold_adjust_panel,
+					"The diagonal delay is gone. The recovered DM now aligns the receiver bands.",
+					"斜向延迟已经消失；当前 DM 已把各接收频段对齐。"
 				),
 				_tutorial_step_data(
-					"Drag the lower two-cycle profile until the pulse stops drifting or splitting.",
-					"再拖动下方双周期轮廓，直到脉冲不再漂移或分裂。",
-					"fold_period_adjust", scope,
-					"A stable fundamental period puts every repetition in the same phase bin.",
-					"稳定的基频会让每次脉冲都落入同一相位区间。"
+					"Step 2: hold Period - or Period +. Stop when the two-cycle pulse no longer drifts or splits.",
+					"第 2 步：按住周期 - 或周期 +，直到双周期脉冲不再漂移或分裂。",
+					"fold_period_adjust", fold_adjust_panel,
+					"The fundamental period is stable. Now place the pulse fully inside the arrival gate.",
+					"基频已经稳定；接下来把完整脉冲送入到达门。"
 				),
 				_tutorial_step_data(
-					"Hold the receiver. A real candidate must keep the same peak position for three windows.",
-					"最后保持接收。真实候选必须在连续三个窗口中保持同一峰位。",
+					"Step 3: hold Phase - or Phase + until the pulse sits inside the gold arrival gate.",
+					"第 3 步：按住相位 - 或相位 +，把脉冲送进顶部金色到达门。",
+					"fold_phase_adjust", fold_adjust_panel,
+					"Dispersion, period and arrival phase now agree. The receiver can test repetition.",
+					"色散、周期和到达相位已经一致，可以开始验证重复性。"
+				),
+				_tutorial_step_data(
+					"Step 4: hold the receiver until the counter reaches three stable windows.",
+					"第 4 步：持续按住“保持接收”，直到稳定窗口达到 3/3。",
 					"fold_integrate", fold_action_button,
 					"Random noise averages down; the repeating pulse remains fixed.",
 					"随机噪声逐渐被平均，重复脉冲则留在固定位置。"
@@ -1410,15 +1433,8 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 		_:
 			return [
 				_tutorial_step_data(
-					"A scientific conclusion must agree with the evidence you produced.",
-					"科学结论必须与刚才亲手得到的证据一致。",
-					"", report_panel_ref,
-					"Compare residual RFI, aligned period and DM, and final SNR.",
-					"请比较残余干扰、周期与 DM 对齐情况，以及最终信噪比。"
-				),
-				_tutorial_step_data(
-					"Select the conclusion supported by the report card.",
-					"选择观测卡证据支持的结论。",
+					"Compare residual RFI, aligned period and DM, and final SNR. Then select the conclusion supported by all three.",
+					"比较残余干扰、周期与 DM 对齐情况和最终信噪比，再选择同时符合三项证据的结论。",
 					"report_choose", report_choices_holder,
 					"The selected statement can now be checked against measured evidence.",
 					"现在可以用实测证据检验这项结论。"
@@ -1439,13 +1455,15 @@ func _tutorial_step_data(
 	wait_action: String,
 	target: Control,
 	result_en: String,
-	result_zh: String
+	result_zh: String,
+	focus_rect := Rect2()
 ) -> Dictionary:
 	return {
 		"text": GameManager.text(text_en, text_zh),
 		"wait": wait_action,
 		"target": target,
 		"result": GameManager.text(result_en, result_zh),
+		"focus_rect": focus_rect,
 	}
 
 
@@ -1471,13 +1489,16 @@ func _show_fast_tutorial_step() -> void:
 	tutorial_waiting_action = str(data.get("wait", ""))
 	tutorial_action_complete = false
 	tutorial_target = data.get("target") as Control
-	status_label.text = str(data.get("text", ""))
+	status_label.text = GameManager.text(
+		"MAYA %d/%d · " % [tutorial_step + 1, tutorial_steps.size()],
+		"玛雅 %d/%d · " % [tutorial_step + 1, tutorial_steps.size()]
+	) + str(data.get("text", ""))
 	status_label.add_theme_color_override("font_color", CYAN)
 	tutorial_next_button.text = GameManager.text(
-		"START" if tutorial_waiting_action == "" else "SKIP STEP",
-		"开始" if tutorial_waiting_action == "" else "跳过本步"
+		"NEXT" if tutorial_waiting_action == "" else "I KNOW THIS",
+		"下一步" if tutorial_waiting_action == "" else "我会这步"
 	)
-	_create_tutorial_frame(tutorial_target)
+	_create_tutorial_frame(tutorial_target, data.get("focus_rect", Rect2()) as Rect2)
 
 
 func _tutorial_action(action: String) -> void:
@@ -1487,7 +1508,10 @@ func _tutorial_action(action: String) -> void:
 		return
 	tutorial_action_complete = true
 	var data := tutorial_steps[tutorial_step]
-	status_label.text = str(data.get("result", ""))
+	status_label.text = GameManager.text(
+		"MAYA · GOOD. ",
+		"玛雅 · 做对了。"
+	) + str(data.get("result", ""))
 	status_label.add_theme_color_override("font_color", GREEN)
 	tutorial_next_button.text = GameManager.text("NEXT", "下一步")
 	if tutorial_frame != null and is_instance_valid(tutorial_frame):
@@ -1541,7 +1565,7 @@ func _replay_stage_tutorial() -> void:
 	_start_stage_tutorial()
 
 
-func _create_tutorial_frame(target: Control) -> void:
+func _create_tutorial_frame(target: Control, focus_rect := Rect2()) -> void:
 	if target == null or not is_instance_valid(target):
 		return
 	tutorial_frame = Panel.new()
@@ -1550,9 +1574,11 @@ func _create_tutorial_frame(target: Control) -> void:
 	tutorial_frame.z_index = 1100
 	var local_origin := get_global_rect().position
 	var target_rect := target.get_global_rect()
+	if focus_rect.size.x > 0.0 and focus_rect.size.y > 0.0:
+		target_rect = Rect2(target_rect.position + focus_rect.position, focus_rect.size)
 	tutorial_frame.position = target_rect.position - local_origin - Vector2(5, 5)
 	tutorial_frame.size = target_rect.size + Vector2(10, 10)
-	tutorial_frame.add_theme_stylebox_override("panel", _flat(Color.TRANSPARENT, CYAN, 2))
+	tutorial_frame.add_theme_stylebox_override("panel", _flat(Color(0.04, 0.16, 0.19, 0.10), CYAN, 3))
 	add_child(tutorial_frame)
 	if not InteractionFeedback.is_reduced_motion():
 		var pulse := create_tween().bind_node(tutorial_frame).set_loops()
@@ -1606,11 +1632,11 @@ func _idle_hint_for_state(tier: int) -> String:
 			if fold_step == 0:
 				area = GameManager.text("Look at the seven sub-band arrival rows.", "请看七条子频段到达轨迹。")
 				phenomenon = GameManager.text("A diagonal sweep means the DM correction is incomplete.", "斜向扫频说明 DM 校正尚未完成。")
-				action = GameManager.text("Drag the upper trace until all arrivals stand vertically.", "拖动上方轨迹，直到所有到达点垂直对齐。")
+				action = GameManager.text("Hold DM -/+ on the right until all arrivals stand vertically.", "按住右侧 DM -/+，直到所有到达点垂直对齐。")
 			elif fold_step == 1:
 				area = GameManager.text("Compare both cycles of the folded pulse.", "请比较折叠脉冲的两个周期。")
 				phenomenon = GameManager.text("Drift or a split pair exposes a wrong or aliased period.", "峰位漂移或成对分裂，说明周期错误或落入假解。")
-				action = GameManager.text("Drag the lower profile and use Q/E to keep one full peak in the gate.", "拖动下方轮廓，并用 Q/E 把完整单峰放入接收门。")
+				action = GameManager.text("Use Period -/+ to stop the drift, then Phase -/+ to place one full peak in the gate.", "先用周期 -/+ 停止漂移，再用相位 -/+ 把完整单峰放入接收门。")
 			else:
 				area = GameManager.text("Watch the three recent folded profiles and stable-window counter.", "请看最近三次折叠轮廓与稳定窗口计数。")
 				phenomenon = GameManager.text("One lucky peak is not evidence; a real pulse stays in place.", "一次偶然峰值不是证据；真实脉冲会持续停在同一位置。")
@@ -3292,10 +3318,9 @@ func _build_fold() -> void:
 	scope = RadioPlot.new()
 	scope.position = Vector2(16, 42)
 	scope.size = Vector2(614, 414)
-	scope.mouse_filter = Control.MOUSE_FILTER_STOP
-	scope.mouse_default_cursor_shape = Control.CURSOR_CROSS
+	scope.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	scope.mouse_default_cursor_shape = Control.CURSOR_ARROW
 	scope.renderer = _draw_fold_plot
-	scope.gui_input.connect(_on_fold_plot_gui_input)
 	signal_panel.add_child(scope)
 	_build_fold_controls_panel()
 
@@ -3305,7 +3330,7 @@ func _build_fold_controls_panel() -> void:
 		fold_controls_panel.queue_free()
 	fold_controls_panel = _panel_to(content, Vector2(694, 6), Vector2(298, 478), PANEL, GOLD, GameManager.text("FOLDING CONSOLE", "折叠控制台"))
 	fold_step_label = _label_to(fold_controls_panel, "", Vector2(14, 42), Vector2(270, 28), 13, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	readout = _label_to(fold_controls_panel, "", Vector2(14, 76), Vector2(270, 126), 12, TEXT)
+	readout = _label_to(fold_controls_panel, "", Vector2(14, 76), Vector2(270, 126), 11, TEXT)
 	readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_build_fold_control(fold_controls_panel)
 	_refresh_fold()
@@ -3314,10 +3339,41 @@ func _build_fold_controls_panel() -> void:
 func _build_fold_control(parent: Control) -> void:
 	fold_slider = null
 	fold_phase_slider = null
+	fold_adjust_panel = _panel_to(
+		parent,
+		Vector2(16, 196),
+		Vector2(266, 82),
+		Color("071118"),
+		Color("52616a"),
+		""
+	)
+	fold_adjust_panel.name = "FoldAdjustmentConsole"
+	fold_adjust_label = _label_to(
+		fold_adjust_panel,
+		"",
+		Vector2(8, 5),
+		Vector2(250, 24),
+		11,
+		CYAN,
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
+	fold_adjust_minus_button = _button("", Vector2(8, 32), Vector2(121, 42), Color("153249"))
+	fold_adjust_plus_button = _button("", Vector2(137, 32), Vector2(121, 42), Color("153249"))
+	fold_adjust_minus_button.name = "FoldAdjustMinus"
+	fold_adjust_plus_button.name = "FoldAdjustPlus"
+	for button in [fold_adjust_minus_button, fold_adjust_plus_button]:
+		button.set_meta("feedback_sfx_suppressed", true)
+		button.focus_mode = Control.FOCUS_ALL
+		fold_adjust_panel.add_child(button)
+	fold_adjust_minus_button.button_down.connect(func() -> void: _start_fold_adjust(-1.0))
+	fold_adjust_minus_button.button_up.connect(_stop_fold_button_adjust)
+	fold_adjust_plus_button.button_down.connect(func() -> void: _start_fold_adjust(1.0))
+	fold_adjust_plus_button.button_up.connect(_stop_fold_button_adjust)
+
 	fold_action_button = _button(
 		GameManager.text("HOLD RECEIVER [SPACE]", "保持接收 [空格]"),
-		Vector2(18, 214),
-		Vector2(262, 52),
+		Vector2(18, 288),
+		Vector2(262, 46),
 		Color("153249")
 	)
 	fold_action_button.set_meta("feedback_sfx_suppressed", true)
@@ -3334,8 +3390,8 @@ func _build_fold_control(parent: Control) -> void:
 
 	fold_confirm_button = _button(
 		GameManager.text("CONFIRM CANDIDATE", "确认候选信号"),
-		Vector2(18, 278),
-		Vector2(262, 48),
+		Vector2(18, 342),
+		Vector2(262, 44),
 		Color("18452f")
 	)
 	fold_confirm_button.disabled = not fold_candidate_ready
@@ -3345,17 +3401,17 @@ func _build_fold_control(parent: Control) -> void:
 	var controls := _label_to(
 		parent,
 		GameManager.text(
-			"Upper trace: drag DM · Lower trace: drag period\nQ/E or wheel: arrival phase",
-			"上方轨迹：拖动 DM · 下方轮廓：拖动周期\nQ/E 或滚轮：调整到达相位"
+			"Hold the lit -/+ keys · keyboard hint follows the active step",
+			"按住亮起的 -/+ 键 · 键盘提示会随当前步骤切换"
 		),
-		Vector2(12, 336),
-		Vector2(274, 38),
+		Vector2(12, 392),
+		Vector2(274, 30),
 		10,
 		MUTED,
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var challenge_label := _label_to(parent, _challenge_hint(), Vector2(18, 382), Vector2(262, 58), 11, CRT, HORIZONTAL_ALIGNMENT_CENTER)
+	var challenge_label := _label_to(parent, _challenge_hint(), Vector2(18, 426), Vector2(262, 38), 10, CRT, HORIZONTAL_ALIGNMENT_CENTER)
 	challenge_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
@@ -3383,70 +3439,178 @@ func _stop_fold_adjust_audio(fade_seconds := 0.035) -> void:
 	AudioManager.stop_event_loop("fast_fold_adjust", fade_seconds)
 
 
-func _on_fold_plot_gui_input(event: InputEvent) -> void:
-	if stage != 3 or discovery_running or prediction_running:
-		return
-	if event is InputEventMouseButton:
-		var button := event as InputEventMouseButton
-		if button.button_index == MOUSE_BUTTON_LEFT:
-			if button.pressed:
-				fold_drag_last = button.position
-				fold_drag_mode = _fold_drag_region(button.position)
-				_note_player_activity()
-			else:
-				fold_drag_mode = ""
-				_stop_fold_adjust_audio()
-			accept_event()
-			return
-		if button.pressed and button.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]:
-			var direction := 1.0 if button.button_index == MOUSE_BUTTON_WHEEL_UP else -1.0
-			var region := _fold_drag_region(button.position)
-			if region == "dm":
-				model.trial_dm = clampf(model.trial_dm + direction * 0.25, 0.0, maxf(model.true_dm + 35.0, 60.0))
-			elif region == "phase":
-				model.trial_phase = fposmod(model.trial_phase + direction * 0.012, 1.0)
-			else:
-				model.trial_period_ms = clampf(
-					model.trial_period_ms + direction * 0.5,
-					model.true_period_ms * 0.42,
-					model.true_period_ms * 2.08
-				)
-			_fold_parameters_changed(region)
-			_note_player_activity()
-			_refresh_fold()
-			accept_event()
-	elif event is InputEventMouseMotion and fold_drag_mode != "":
-		var motion := event as InputEventMouseMotion
-		var delta_x := motion.position.x - fold_drag_last.x
-		fold_drag_last = motion.position
-		if absf(delta_x) < 0.05:
-			return
-		match fold_drag_mode:
-			"dm":
-				model.trial_dm = clampf(model.trial_dm + delta_x * 0.08, 0.0, maxf(model.true_dm + 35.0, 60.0))
-				_tutorial_action("fold_dm_adjust")
-			"phase":
-				model.trial_phase = fposmod(model.trial_phase + delta_x * 0.0025, 1.0)
-				_tutorial_action("fold_phase_adjust")
-			_:
-				model.trial_period_ms = clampf(
-					model.trial_period_ms + delta_x * 1.1,
-					model.true_period_ms * 0.42,
-					model.true_period_ms * 2.08
-				)
-				_tutorial_action("fold_period_adjust")
-		_fold_parameters_changed(fold_drag_mode)
-		_note_player_activity()
-		_refresh_fold()
-		accept_event()
-
-
-func _fold_drag_region(local_position: Vector2) -> String:
-	if local_position.y <= 224.0:
+func _current_fold_adjust_parameter() -> String:
+	if model == null or fold_candidate_ready:
+		return ""
+	if model.dm_match() < 0.72:
 		return "dm"
-	if local_position.x >= 474.0 and local_position.y >= 238.0:
+	if model.period_solution_state() != "fundamental":
+		return "period"
+	if model.phase_match() < 0.72:
 		return "phase"
-	return "period"
+	return ""
+
+
+func _start_fold_adjust(direction: float) -> void:
+	var parameter := _current_fold_adjust_parameter()
+	if parameter == "" or direction == 0.0:
+		return
+	fold_adjust_parameter = parameter
+	fold_adjust_direction = signf(direction)
+	fold_adjust_repeat_clock = 0.0
+	_apply_fold_adjust_step(parameter, fold_adjust_direction)
+
+
+func _stop_fold_button_adjust() -> void:
+	fold_adjust_direction = 0.0
+	fold_adjust_parameter = ""
+	fold_adjust_repeat_clock = 0.0
+	_stop_fold_adjust_audio()
+
+
+func _process_fold_adjust_controls(delta: float) -> void:
+	if fold_adjust_direction != 0.0:
+		fold_adjust_repeat_clock += delta
+		while fold_adjust_repeat_clock >= 0.065:
+			fold_adjust_repeat_clock -= 0.065
+			var parameter := _current_fold_adjust_parameter()
+			if parameter == "" or parameter != fold_adjust_parameter:
+				_stop_fold_button_adjust()
+				break
+			_apply_fold_adjust_step(parameter, fold_adjust_direction)
+		if fold_adjust_direction != 0.0:
+			return
+
+	var keyboard_direction := _fold_keyboard_adjust_direction()
+	if keyboard_direction == 0.0:
+		if fold_keyboard_adjust_active:
+			_stop_fold_adjust_audio()
+		fold_keyboard_adjust_active = false
+		fold_keyboard_repeat_clock = 0.0
+		return
+	fold_keyboard_repeat_clock += delta
+	var first_step := not fold_keyboard_adjust_active
+	fold_keyboard_adjust_active = true
+	if first_step or fold_keyboard_repeat_clock >= 0.065:
+		fold_keyboard_repeat_clock = 0.0
+		var keyboard_parameter := _current_fold_adjust_parameter()
+		if keyboard_parameter != "":
+			_apply_fold_adjust_step(keyboard_parameter, keyboard_direction)
+
+
+func _fold_keyboard_adjust_direction() -> float:
+	var parameter := _current_fold_adjust_parameter()
+	match parameter:
+		"dm":
+			if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN):
+				return -1.0
+			if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP):
+				return 1.0
+		"period":
+			if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT):
+				return -1.0
+			if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT):
+				return 1.0
+		"phase":
+			if Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_LEFT):
+				return -1.0
+			if Input.is_key_pressed(KEY_E) or Input.is_key_pressed(KEY_RIGHT):
+				return 1.0
+	return 0.0
+
+
+func _apply_fold_adjust_step(parameter: String, direction: float) -> void:
+	var before_offsets := _fold_display_offsets()
+	var before_profile := _fold_display_profile()
+	var previous_value := 0.0
+	match parameter:
+		"dm":
+			previous_value = model.trial_dm
+			model.trial_dm = clampf(model.trial_dm + direction * 0.25, 0.0, maxf(model.true_dm + 35.0, 60.0))
+		"phase":
+			previous_value = model.trial_phase
+			model.trial_phase = fposmod(model.trial_phase + direction * 0.012, 1.0)
+		"period":
+			previous_value = model.trial_period_ms
+			model.trial_period_ms = clampf(
+				model.trial_period_ms + direction * 0.5,
+				model.true_period_ms * 0.42,
+				model.true_period_ms * 2.08
+			)
+		_:
+			return
+	var current_value := model.trial_dm
+	if parameter == "phase":
+		current_value = model.trial_phase
+	elif parameter == "period":
+		current_value = model.trial_period_ms
+	if is_equal_approx(previous_value, current_value):
+		return
+	_begin_fold_control_response(parameter, direction, before_offsets, before_profile)
+	_fold_parameters_changed(parameter)
+	_fold_tutorial_parameter_action(parameter)
+	_note_player_activity()
+	_refresh_fold()
+
+
+func _begin_fold_control_response(
+	parameter: String,
+	direction: float,
+	before_offsets: Array,
+	before_profile: Array
+) -> void:
+	fold_control_response_parameter = parameter
+	fold_control_response_direction = signf(direction)
+	fold_control_response_from_offsets = before_offsets.duplicate()
+	fold_control_response_to_offsets = model.subband_offsets(7)
+	fold_control_response_from_profile = before_profile.duplicate()
+	fold_control_response_to_profile = model.folded_profile_for_window(120, fold_validation_window_index)
+	# Begin part-way through the first movement so the press produces a visible
+	# response on its first rendered frame instead of looking inert.
+	fold_control_response_progress = FOLD_CONTROL_RESPONSE_INITIAL_PROGRESS
+	fold_control_response_serial += 1
+
+
+func _advance_fold_control_response(delta: float) -> void:
+	fold_control_response_progress = minf(
+		1.0,
+		fold_control_response_progress + delta / FOLD_CONTROL_RESPONSE_SECONDS
+	)
+	if scope != null and is_instance_valid(scope):
+		scope.queue_redraw()
+
+
+func _fold_display_offsets() -> Array:
+	var live_offsets := model.subband_offsets(7)
+	if fold_control_response_progress >= 1.0:
+		return live_offsets
+	return _lerp_fold_samples(
+		fold_control_response_from_offsets,
+		fold_control_response_to_offsets,
+		fold_control_response_progress
+	)
+
+
+func _fold_display_profile() -> Array:
+	var live_profile := model.folded_profile_for_window(120, fold_validation_window_index)
+	if fold_control_response_progress >= 1.0:
+		return live_profile
+	return _lerp_fold_samples(
+		fold_control_response_from_profile,
+		fold_control_response_to_profile,
+		fold_control_response_progress
+	)
+
+
+func _lerp_fold_samples(from_values: Array, to_values: Array, weight: float) -> Array:
+	if from_values.size() != to_values.size() or to_values.is_empty():
+		return to_values.duplicate()
+	var eased := 1.0 - pow(1.0 - clampf(weight, 0.0, 1.0), 3.0)
+	var result: Array = []
+	result.resize(to_values.size())
+	for index in range(to_values.size()):
+		result[index] = lerpf(float(from_values[index]), float(to_values[index]), eased)
+	return result
 
 
 func _fold_parameters_changed(parameter: String) -> void:
@@ -3470,15 +3634,39 @@ func _fold_parameters_changed(parameter: String) -> void:
 	_sync_fold_capture_state()
 
 
+func _fold_tutorial_parameter_action(parameter: String) -> void:
+	match parameter:
+		"dm":
+			if model.dm_match() >= 0.72:
+				_tutorial_action("fold_dm_adjust")
+		"phase":
+			if model.phase_match() >= 0.72:
+				_tutorial_action("fold_phase_adjust")
+		_:
+			if model.period_solution_state() == "fundamental":
+				_tutorial_action("fold_period_adjust")
+
+
 func _reset_fold_capture_validation(reset_integration: bool) -> void:
 	fold_step = 0
-	fold_drag_mode = ""
+	fold_adjust_parameter = ""
+	fold_adjust_direction = 0.0
+	fold_adjust_repeat_clock = 0.0
+	fold_keyboard_repeat_clock = 0.0
+	fold_keyboard_adjust_active = false
 	fold_validation_clock = 0.0
 	fold_validation_window_index = 0
 	fold_stable_windows = 0
 	fold_candidate_ready = false
 	fold_profile_history.clear()
 	fold_last_peak_phase = -1.0
+	fold_control_response_progress = 1.0
+	fold_control_response_parameter = ""
+	fold_control_response_direction = 0.0
+	fold_control_response_from_offsets.clear()
+	fold_control_response_to_offsets.clear()
+	fold_control_response_from_profile.clear()
+	fold_control_response_to_profile.clear()
 	integration_held = false
 	if reset_integration and model != null:
 		model.set_integration(0.0)
@@ -3580,35 +3768,47 @@ func _fold_next_action_text() -> String:
 	)
 
 
-func _fold_keyboard(keycode: Key) -> void:
-	var direction := -1.0 if keycode in [KEY_LEFT, KEY_A] else (1.0 if keycode in [KEY_RIGHT, KEY_D] else 0.0)
-	var phase_direction := -1.0 if keycode == KEY_Q else (1.0 if keycode == KEY_E else 0.0)
-	var dm_direction := -1.0 if keycode in [KEY_DOWN, KEY_S] else (1.0 if keycode in [KEY_UP, KEY_W] else 0.0)
-	if phase_direction != 0.0:
-		model.trial_phase = fposmod(model.trial_phase + phase_direction * 0.012, 1.0)
-		_fold_parameters_changed("phase")
-		_note_player_activity()
-		_tutorial_action("fold_phase_adjust")
-		_refresh_fold()
-		return
-	if dm_direction != 0.0:
-		model.trial_dm = clampf(model.trial_dm + dm_direction * 0.25, 0.0, maxf(model.true_dm + 35.0, 60.0))
-		_fold_parameters_changed("dm")
-		_note_player_activity()
-		_tutorial_action("fold_dm_adjust")
-		_refresh_fold()
-		return
-	if direction != 0.0:
-		model.trial_period_ms = clampf(
-			model.trial_period_ms + direction * 0.5,
-			model.true_period_ms * 0.42,
-			model.true_period_ms * 2.08
+func _fold_step_heading() -> String:
+	if fold_candidate_ready:
+		return GameManager.text("EVIDENCE READY · CONFIRM", "证据就绪 · 确认候选")
+	match fold_step:
+		0:
+			return GameManager.text("STEP 1/3 · STRAIGHTEN BANDS", "步骤 1/3 · 拉直七条频段")
+		1:
+			return GameManager.text("STEP 2/3 · STABILIZE PULSE", "步骤 2/3 · 稳定周期与相位")
+		_:
+			return GameManager.text("STEP 3/3 · VERIFY REPETITION", "步骤 3/3 · 连续积分验证")
+
+
+func _fold_compact_action_text() -> String:
+	if model.dm_match() < 0.72:
+		return GameManager.text(
+			"NOW: hold DM -/+ until B1-B7 form one vertical column.",
+			"现在做：按住 DM -/+，直到 B1-B7 排成一条竖线。"
 		)
-		_fold_parameters_changed("period")
-		_note_player_activity()
-		_tutorial_action("fold_period_adjust")
-		_refresh_fold()
-	elif keycode == KEY_ENTER:
+	if model.period_solution_state() != "fundamental":
+		return GameManager.text(
+			"NOW: hold Period -/+ until drift and split peaks disappear.",
+			"现在做：按住周期 -/+，直到漂移和分裂峰消失。"
+		)
+	if model.phase_match() < 0.72:
+		return GameManager.text(
+			"NOW: hold Phase -/+ until the pulse enters the gold arrival gate.",
+			"现在做：按住相位 -/+，把脉冲送入金色到达门。"
+		)
+	if fold_stable_windows < FOLD_STABLE_WINDOWS_REQUIRED:
+		return GameManager.text(
+			"NOW: hold the receiver until three consecutive windows keep the same peak.",
+			"现在做：持续按住“保持接收”，直到稳定窗口达到 3/3。"
+		)
+	return GameManager.text(
+		"NOW: confirm the candidate and test its predicted next arrival.",
+		"现在做：确认稳定候选，并验证下一次脉冲到达。"
+	)
+
+
+func _fold_keyboard(keycode: Key) -> void:
+	if keycode == KEY_ENTER:
 		if fold_candidate_ready:
 			_confirm_fold()
 
@@ -3630,12 +3830,13 @@ func _refresh_fold() -> void:
 		return
 	_sync_fold_capture_state()
 	if fold_step_label != null and is_instance_valid(fold_step_label):
-		fold_step_label.text = GameManager.text("PULSE CAPTURE DESK", "脉冲捕获台")
+		fold_step_label.text = _fold_step_heading()
 	var snr := model.fold_snr()
 	var solution := model.period_solution_state()
 	var solution_text := _fold_solution_label(solution)
 	readout.text = GameManager.text(
-		"Trial DM  %.1f pc/cm³\nTrial period  %.3f ms\nCurrent S/N  %.1f\nCandidate  %s\nStable windows  %d / %d" % [
+		"%s\n\nDM %.1f pc/cm³  ·  P %.3f ms\nS/N %.1f  ·  %s\nStable windows %d/%d" % [
+			_fold_compact_action_text(),
 			model.trial_dm,
 			model.trial_period_ms,
 			snr,
@@ -3643,7 +3844,8 @@ func _refresh_fold() -> void:
 			fold_stable_windows,
 			FOLD_STABLE_WINDOWS_REQUIRED,
 		],
-		"试验 DM  %.1f pc/cm³\n试验周期  %.3f ms\n当前信噪比  %.1f\n候选状态  %s\n稳定窗口  %d / %d" % [
+		"%s\n\nDM %.1f pc/cm³  ·  周期 %.3f ms\n信噪比 %.1f  ·  %s\n稳定窗口 %d/%d" % [
+			_fold_compact_action_text(),
 			model.trial_dm,
 			model.trial_period_ms,
 			snr,
@@ -3656,6 +3858,45 @@ func _refresh_fold() -> void:
 		"font_color",
 		GREEN if fold_candidate_ready else (AMBER if fold_step >= 1 else TEXT)
 	)
+	var adjust_parameter := _current_fold_adjust_parameter()
+	if fold_adjust_panel != null and is_instance_valid(fold_adjust_panel):
+		var adjust_color := CYAN if adjust_parameter != "" else GREEN
+		fold_adjust_panel.add_theme_stylebox_override("panel", _flat(Color("071118"), adjust_color, 2))
+	if fold_adjust_label != null and is_instance_valid(fold_adjust_label):
+		match adjust_parameter:
+			"dm":
+				fold_adjust_label.text = GameManager.text("ACTIVE CONTROL · DISPERSION (W/S)", "当前控制 · 色散量（W/S）")
+			"period":
+				fold_adjust_label.text = GameManager.text("ACTIVE CONTROL · PERIOD (A/D)", "当前控制 · 周期（A/D）")
+			"phase":
+				fold_adjust_label.text = GameManager.text("ACTIVE CONTROL · ARRIVAL PHASE (Q/E)", "当前控制 · 到达相位（Q/E）")
+			_:
+				fold_adjust_label.text = GameManager.text("CALIBRATION ALIGNED", "校准参数已对齐")
+		fold_adjust_label.add_theme_color_override("font_color", GREEN if adjust_parameter == "" else CYAN)
+	if fold_adjust_minus_button != null and is_instance_valid(fold_adjust_minus_button):
+		fold_adjust_minus_button.disabled = adjust_parameter == ""
+		fold_adjust_minus_button.text = {
+			"dm": "− DM",
+			"period": GameManager.text("− PERIOD", "− 周期"),
+			"phase": GameManager.text("← PHASE", "← 相位"),
+		}.get(adjust_parameter, "✓")
+	if fold_adjust_plus_button != null and is_instance_valid(fold_adjust_plus_button):
+		fold_adjust_plus_button.disabled = adjust_parameter == ""
+		fold_adjust_plus_button.text = {
+			"dm": "DM +",
+			"period": GameManager.text("PERIOD +", "周期 +"),
+			"phase": GameManager.text("PHASE →", "相位 →"),
+		}.get(adjust_parameter, "✓")
+	if fold_action_button != null and is_instance_valid(fold_action_button):
+		fold_action_button.disabled = fold_step < 2 or fold_candidate_ready
+		if fold_candidate_ready:
+			fold_action_button.text = GameManager.text("3/3 WINDOWS VERIFIED", "3/3 窗口已验证")
+		elif fold_step == 0:
+			fold_action_button.text = GameManager.text("FIRST: STRAIGHTEN BANDS", "请先拉直七条频段")
+		elif fold_step == 1:
+			fold_action_button.text = GameManager.text("NEXT: STABILIZE PULSE", "请先稳定周期与相位")
+		else:
+			fold_action_button.text = GameManager.text("HOLD RECEIVER [SPACE]", "保持接收 [空格]")
 	if fold_confirm_button != null and is_instance_valid(fold_confirm_button):
 		fold_confirm_button.disabled = not fold_candidate_ready
 		fold_confirm_button.text = (
@@ -3663,7 +3904,7 @@ func _refresh_fold() -> void:
 			if fold_candidate_ready
 			else GameManager.text("VERIFY 3 STABLE WINDOWS", "等待 3 个稳定窗口")
 		)
-	if status_label != null and is_instance_valid(status_label) and not integration_held:
+	if status_label != null and is_instance_valid(status_label) and not integration_held and not tutorial_active:
 		status_label.text = _fold_next_action_text()
 		status_label.add_theme_color_override("font_color", GREEN if fold_candidate_ready else CRT)
 	if scope != null and is_instance_valid(scope):
@@ -3676,15 +3917,65 @@ func _draw_fold_plot(plot: RadioPlot) -> void:
 	var profile_rect := Rect2(Vector2(28, 246), Vector2(430, 140))
 	_draw_crt_grid(plot, waterfall_rect, 38.0, Color(0.18, 0.34, 0.38, 0.18))
 	_draw_crt_grid(plot, profile_rect, 38.0, Color(0.18, 0.34, 0.38, 0.18))
-	_draw_plot_text(plot, GameManager.text("DRAG · SUB-BAND ARRIVAL / DISPERSION", "拖动 · 子频段到达 / 色散"), Vector2(28, 17), 10, MUTED)
-	_draw_plot_text(plot, GameManager.text("DRAG · TWO-CYCLE FOLDED PROFILE", "拖动 · 双周期折叠轮廓"), Vector2(28, 239), 10, MUTED)
+	var dm_active := fold_step == 0 and not fold_candidate_ready
+	var pulse_active := fold_step == 1 and not fold_candidate_ready
+	var adjust_parameter := _current_fold_adjust_parameter()
+	var dm_instruction := GameManager.text(
+		"STEP 1 · USE DM −/+ UNTIL B1-B7 ALIGN",
+		"步骤 1 · 使用 DM −/+，直到 B1-B7 竖直对齐"
+	)
+	if not dm_active:
+		dm_instruction = GameManager.text(
+			"STEP 1 · DISPERSION ALIGNED",
+			"步骤 1 · 七条频段已对齐"
+		)
+	var pulse_instruction := GameManager.text(
+		"STEP 2 · USE PERIOD −/+ UNTIL THE PULSE STOPS DRIFTING",
+		"步骤 2 · 使用周期 −/+，直到脉冲停止漂移"
+	)
+	if adjust_parameter == "phase":
+		pulse_instruction = GameManager.text(
+			"STEP 2 · USE PHASE −/+ TO ENTER THE GOLD GATE",
+			"步骤 2 · 使用相位 −/+，把脉冲送入金色到达门"
+		)
+	elif fold_candidate_ready:
+		pulse_instruction = GameManager.text(
+			"STEP 3 · THREE REPEATING WINDOWS VERIFIED",
+			"步骤 3 · 三个重复窗口已验证"
+		)
+	elif fold_step >= 2:
+		pulse_instruction = GameManager.text(
+			"STEP 3 · HOLD THE RECEIVER TO VERIFY REPETITION",
+			"步骤 3 · 持续接收，验证脉冲是否稳定重复"
+		)
+	plot.draw_rect(waterfall_rect.grow(3.0), Color(CYAN if dm_active else CRT, 0.88 if dm_active else 0.18), false, 2.0 if dm_active else 1.0)
+	plot.draw_rect(profile_rect.grow(3.0), Color(CYAN if pulse_active else CRT, 0.88 if pulse_active else 0.18), false, 2.0 if pulse_active else 1.0)
+	_draw_plot_text(
+		plot,
+		dm_instruction,
+		Vector2(28, 17),
+		10,
+		CYAN if dm_active else MUTED
+	)
+	_draw_plot_text(
+		plot,
+		pulse_instruction,
+		Vector2(28, 239),
+		10,
+		CYAN if pulse_active else MUTED
+	)
 
-	var offsets := model.subband_offsets(7)
+	var offsets := _fold_display_offsets()
+	var response_strength := 0.0
+	if fold_control_response_progress < 1.0:
+		response_strength = 1.0 - fold_control_response_progress
 	for row in range(offsets.size()):
 		var y := waterfall_rect.position.y + 18.0 + row * 24.0
 		plot.draw_line(Vector2(waterfall_rect.position.x, y), Vector2(waterfall_rect.end.x, y), Color(CRT, 0.12), 1.0)
 		var center_x := waterfall_rect.position.x + waterfall_rect.size.x * (0.5 + float(offsets[row]))
 		var row_color := Color(CYAN, lerpf(0.32, 0.92, model.dm_match()))
+		if fold_control_response_parameter == "dm" and response_strength > 0.0:
+			row_color = row_color.lightened(response_strength * 0.24)
 		_draw_gaussian_trace(
 			plot,
 			Vector2(center_x, y),
@@ -3701,12 +3992,19 @@ func _draw_fold_plot(plot: RadioPlot) -> void:
 
 	var display_profiles: Array = fold_profile_history.duplicate()
 	if display_profiles.is_empty():
-		display_profiles.append(model.folded_profile_for_window(120, fold_validation_window_index))
+		display_profiles.append(_fold_display_profile())
 	var line_color := GREEN if bool(model.report().get("success", false)) else (CYAN if model.period_match() > 0.45 else AMBER)
 	for history_index in range(display_profiles.size()):
 		var history_profile: Array = display_profiles[history_index]
 		var alpha := lerpf(0.18, 0.95, float(history_index + 1) / float(display_profiles.size()))
-		_draw_two_cycle_profile(plot, profile_rect, history_profile, Color(line_color, alpha), history_index)
+		_draw_two_cycle_profile(
+			plot,
+			profile_rect,
+			history_profile,
+			Color(line_color, alpha),
+			history_index,
+			response_strength
+		)
 	var gate_x := profile_rect.position.x + profile_rect.size.x * 0.5
 	plot.draw_rect(
 		Rect2(Vector2(gate_x - 10.0, profile_rect.position.y), Vector2(20.0, profile_rect.size.y)),
@@ -3731,7 +4029,8 @@ func _draw_two_cycle_profile(
 	rect: Rect2,
 	profile: Array,
 	color: Color,
-	history_index: int
+	history_index: int,
+	response_strength := 0.0
 ) -> void:
 	if profile.is_empty():
 		return
@@ -3741,12 +4040,14 @@ func _draw_two_cycle_profile(
 	for i in range(sample_count):
 		var sample_index := i % profile.size()
 		var x := rect.position.x + rect.size.x * float(i) / float(maxi(sample_count - 1, 1))
+		x += fold_control_response_direction * response_strength * 4.0
 		var deterministic_noise := (
 			sin(float(i) * 2.17 + model.integration_s * 0.02 + float(history_index) * 0.71)
 			* (1.0 - clampf(model.integration_s / maxf(model.required_integration_s, 1.0), 0.0, 1.0))
 			* 0.06
 		)
 		var y := rect.end.y - clampf((float(profile[sample_index]) + deterministic_noise) / max_amp, 0.0, 1.0) * (rect.size.y - 10.0)
+		y -= sin(fold_control_response_progress * PI) * response_strength * 5.0
 		points.append(Vector2(x, y))
 	plot.draw_polyline(points, Color(color, color.a * 0.22), 5.0, true)
 	plot.draw_polyline(points, color, 1.6, true)
@@ -3754,6 +4055,13 @@ func _draw_two_cycle_profile(
 
 func _draw_phase_wheel(plot: RadioPlot, center: Vector2, radius: float) -> void:
 	var wheel_color := GREEN if model.phase_match() >= 0.72 else AMBER
+	var phase_active := (
+		fold_step == 1
+		and model.period_solution_state() == "fundamental"
+		and model.phase_match() < 0.72
+	)
+	if phase_active:
+		plot.draw_arc(center, radius + 6.0, 0.0, TAU, 64, Color(CYAN, 0.82), 2.0, true)
 	plot.draw_arc(center, radius, 0.0, TAU, 64, Color(BRASS, 0.82), 1.4, true)
 	plot.draw_arc(center, radius - 8.0, 0.0, TAU, 64, Color(CRT, 0.18), 1.0, true)
 	var gate_width := 0.22
@@ -3765,6 +4073,8 @@ func _draw_phase_wheel(plot: RadioPlot, center: Vector2, radius: float) -> void:
 	plot.draw_circle(center, 3.0, Color(CRT, 0.8))
 	_draw_plot_text(plot, GameManager.text("ARRIVAL GATE", "到达门"), center + Vector2(-42, -62), 9, GOLD)
 	_draw_plot_text(plot, "%d%%" % int(model.phase_match() * 100.0), center + Vector2(-15, 5), 10, wheel_color)
+	if phase_active:
+		_draw_plot_text(plot, GameManager.text("PHASE − / +", "相位 − / +"), center + Vector2(-34, 70), 9, CYAN)
 
 
 func _draw_gaussian_trace(plot: RadioPlot, center: Vector2, width: float, color: Color) -> void:

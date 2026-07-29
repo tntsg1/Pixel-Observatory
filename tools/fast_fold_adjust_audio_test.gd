@@ -33,7 +33,7 @@ func _initialize() -> void:
 	scene.call("_fold_parameters_changed", "dm")
 	await process_frame
 	_check(audio.is_event_loop_playing("fast_fold_adjust"),
-		"directly dragging DM starts the continuous mechanical loop")
+		"holding a DM adjustment key starts the continuous mechanical loop")
 	var active_loops := audio.get("_loop_event_players") as Dictionary
 	var active_player := active_loops.get("fast_fold_adjust") as AudioStreamPlayer
 	_check(active_player != null and active_player.stream is AudioStreamOggVorbis,
@@ -49,13 +49,13 @@ func _initialize() -> void:
 	scene.call("_fold_parameters_changed", "phase")
 	await process_frame
 	_check(audio.is_event_loop_playing("fast_fold_adjust"),
-		"direct phase adjustment reuses the same continuous loop")
+		"the visible phase adjustment keys reuse the same continuous loop")
 	scene.call("_stop_fold_adjust_audio")
 	await process_frame
 	_check(not audio.is_event_loop_playing("fast_fold_adjust"),
-		"releasing direct manipulation stops the loop immediately")
+		"releasing an adjustment key stops the loop immediately")
 	_check(not feedback_events.has("ui_adjust"),
-		"releasing FAST fold manipulation does not add a one-shot adjustment sound")
+		"releasing FAST fold adjustment does not add a one-shot adjustment sound")
 
 	for _i in range(5):
 		scene.model.trial_period_ms += 0.25
@@ -69,6 +69,10 @@ func _initialize() -> void:
 	await process_frame
 	_check(not audio.is_event_loop_playing("fast_fold_adjust"),
 		"leaving the FAST scene stops the mechanical loop")
+	# Let the audio mixer consume the stop command once before a headless
+	# process exits.  This is teardown only; the assertion above still proves
+	# the interaction loop stops immediately on scene exit.
+	await create_timer(0.12).timeout
 	_finish()
 
 

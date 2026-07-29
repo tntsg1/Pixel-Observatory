@@ -1,33 +1,67 @@
 extends Control
 ## Main Menu: full image background + transparent interaction layer.
 
-const BG_TEXTURE: Texture2D = preload("res://assets/main_menu/main_menu_bg_1024.png")
+const BG_TEXTURE_EN: Texture2D = preload("res://assets/main_menu/main_menu_bg_1024.png")
+const BG_TEXTURE_ZH: Texture2D = preload("res://assets/main_menu/main_menu_bg_zh_1024.png")
 const SCREEN_SIZE := Vector2(1024, 768)
 
-# Button rects are transparent hotspots over the baked full-screen menu art.
-const BUTTON_RECTS := {
+# Button rects are transparent hotspots over the baked menu art. The Chinese
+# source has the same composition but slightly different button spacing.
+const BUTTON_RECTS_EN := {
 	"new": Rect2(337, 336, 350, 54),
 	"continue": Rect2(337, 403, 350, 54),
 	"settings": Rect2(337, 470, 350, 54),
 	"language": Rect2(337, 537, 350, 54),
 	"quit": Rect2(337, 601, 350, 54)
 }
+const BUTTON_RECTS_ZH := {
+	"new": Rect2(344, 327, 357, 57),
+	"continue": Rect2(344, 398, 357, 55),
+	"settings": Rect2(344, 465, 357, 55),
+	"language": Rect2(344, 533, 357, 55),
+	"quit": Rect2(344, 602, 357, 57)
+}
 
 var feedback_label: Label
 var button_visuals: Dictionary = {}
 var settings_panel: Panel
+var _continue_available := false
+
+
+const NO_SAVE_LAYOUT_EN := {
+	"new": Rect2(337, 336, 350, 54),
+	"settings": Rect2(337, 424, 350, 54),
+	"language": Rect2(337, 512, 350, 54),
+	"quit": Rect2(337, 601, 350, 54),
+}
+const NO_SAVE_LAYOUT_ZH := {
+	"new": Rect2(344, 327, 357, 57),
+	"settings": Rect2(344, 417, 357, 55),
+	"language": Rect2(344, 507, 357, 55),
+	"quit": Rect2(344, 602, 357, 57),
+}
 
 
 func _ready() -> void:
 	GameManager.language_changed.connect(_on_language_changed)
+	GameManager.progress_changed.connect(_on_progress_changed)
+	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+	if cloud_sync != null and cloud_sync.has_signal("progress_availability_resolved"):
+		cloud_sync.progress_availability_resolved.connect(_on_cloud_progress_availability_resolved)
+	if cloud_sync != null and cloud_sync.has_signal("session_changed"):
+		cloud_sync.session_changed.connect(_on_cloud_session_changed)
+	_continue_available = _should_show_continue()
 	_build()
 	InteractionFeedback.page_enter(self)
 
 
 func _build() -> void:
 	for child in get_children():
+		remove_child(child)
 		child.queue_free()
 	button_visuals.clear()
+	feedback_label = null
+	settings_panel = null
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	custom_minimum_size = SCREEN_SIZE
 
@@ -37,42 +71,106 @@ func _build() -> void:
 
 
 func _draw_background() -> void:
+	var backdrop := ColorRect.new()
+	backdrop.name = "MainMenuBackdrop"
+	backdrop.position = Vector2.ZERO
+	backdrop.size = SCREEN_SIZE
+	backdrop.color = Color.BLACK
+	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(backdrop)
+
 	var bg := TextureRect.new()
-	bg.texture = BG_TEXTURE
+	bg.name = "MainMenuBackground"
+	bg.texture = _active_background_texture()
 	bg.position = Vector2.ZERO
 	bg.size = SCREEN_SIZE
 	bg.ignore_texture_size = true
 	bg.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bg.stretch_mode = TextureRect.STRETCH_SCALE
+	bg.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
 
 func _build_hotspots() -> void:
-	_add_button_feedback("new", BUTTON_RECTS["new"])
-	var new_button := _transparent_button("new", BUTTON_RECTS["new"])
+	var rects := _active_button_rects()
+	var active_rects := rects
+	if not _continue_available:
+		active_rects = _no_save_button_rects()
+		_draw_no_save_menu_rows(rects, active_rects)
+	_add_button_feedback("new", active_rects["new"])
+	var new_button := _transparent_button("new", active_rects["new"])
 	new_button.pressed.connect(_on_new_game)
 	add_child(new_button)
 
-	_add_button_feedback("continue", BUTTON_RECTS["continue"])
-	var continue_button := _transparent_button("continue", BUTTON_RECTS["continue"])
-	continue_button.pressed.connect(_on_continue)
-	add_child(continue_button)
+	if _continue_available:
+		_add_button_feedback("continue", rects["continue"])
+		var continue_button := _transparent_button("continue", rects["continue"])
+		continue_button.pressed.connect(_on_continue)
+		add_child(continue_button)
 
-	_add_button_feedback("settings", BUTTON_RECTS["settings"])
-	var settings_button := _transparent_button("settings", BUTTON_RECTS["settings"])
+	_add_button_feedback("settings", active_rects["settings"])
+	var settings_button := _transparent_button("settings", active_rects["settings"])
 	settings_button.pressed.connect(_on_settings)
 	add_child(settings_button)
 
-	_add_button_feedback("language", BUTTON_RECTS["language"])
-	var language_button := _transparent_button("language", BUTTON_RECTS["language"])
+	_add_button_feedback("language", active_rects["language"])
+	var language_button := _transparent_button("language", active_rects["language"])
 	language_button.pressed.connect(_on_language)
 	add_child(language_button)
 
-	_add_button_feedback("quit", BUTTON_RECTS["quit"])
-	var quit_button := _transparent_button("quit", BUTTON_RECTS["quit"])
+	_add_button_feedback("quit", active_rects["quit"])
+	var quit_button := _transparent_button("quit", active_rects["quit"])
 	quit_button.pressed.connect(func() -> void: get_tree().quit())
 	add_child(quit_button)
+
+
+func _active_background_texture() -> Texture2D:
+	return BG_TEXTURE_ZH if GameManager.language_mode == "zh" else BG_TEXTURE_EN
+
+
+func _active_button_rects() -> Dictionary:
+	return BUTTON_RECTS_ZH if GameManager.language_mode == "zh" else BUTTON_RECTS_EN
+
+
+func _no_save_button_rects() -> Dictionary:
+	return NO_SAVE_LAYOUT_ZH if GameManager.language_mode == "zh" else NO_SAVE_LAYOUT_EN
+
+
+func _draw_no_save_menu_rows(source_rects: Dictionary, target_rects: Dictionary) -> void:
+	# The menu lettering is painted into the supplied background. Cover all five
+	# original rows, then reuse exact nearest-neighbour crops for the four live
+	# actions. This removes Continue completely instead of leaving a dead slot.
+	var mask := ColorRect.new()
+	mask.name = "MainMenuNoSaveReflowMask"
+	mask.position = Vector2(328, 324) if GameManager.language_mode == "en" else Vector2(335, 315)
+	mask.size = Vector2(368, 339) if GameManager.language_mode == "en" else Vector2(376, 354)
+	mask.color = Color(0.018, 0.052, 0.080, 1.0)
+	mask.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(mask)
+	for action_id in ["new", "settings", "language", "quit"]:
+		var source: Rect2 = source_rects[action_id]
+		var target: Rect2 = target_rects[action_id]
+		var printed_row := TextureRect.new()
+		printed_row.name = "MainMenuPrinted_" + action_id
+		var crop := AtlasTexture.new()
+		crop.atlas = _active_background_texture()
+		crop.region = source
+		printed_row.texture = crop
+		printed_row.position = target.position
+		printed_row.size = target.size
+		printed_row.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		printed_row.stretch_mode = TextureRect.STRETCH_KEEP
+		printed_row.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		printed_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(printed_row)
+
+
+func _should_show_continue() -> bool:
+	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+	if cloud_sync != null and cloud_sync.has_method("is_progress_availability_resolved") \
+			and not bool(cloud_sync.call("is_progress_availability_resolved")):
+		return false
+	return GameManager.has_save()
 
 
 func _build_feedback() -> void:
@@ -89,6 +187,7 @@ func _build_feedback() -> void:
 	
 	# Language indicator
 	var lang_indicator := Label.new()
+	lang_indicator.name = "MainMenuLanguageIndicator"
 	lang_indicator.position = Vector2(440, 660)
 	lang_indicator.size = Vector2(144, 20)
 	lang_indicator.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -98,6 +197,8 @@ func _build_feedback() -> void:
 	lang_indicator.text = "🌐 " + mode_text
 	lang_indicator.add_theme_color_override("font_color", Color(0.65, 0.70, 0.75))
 	lang_indicator.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# The supplied Chinese artwork already includes its own language footer.
+	lang_indicator.visible = mode == "en"
 	add_child(lang_indicator)
 
 
@@ -109,7 +210,7 @@ func _on_new_game() -> void:
 
 
 func _on_continue() -> void:
-	if not _has_meaningful_save():
+	if not _continue_available:
 		_show_feedback(GameManager.text("No save found yet.", "还没有存档。"))
 		return
 	GameManager.go("observatory")
@@ -403,22 +504,6 @@ func _on_settings_legacy() -> void:
 
 func _on_language() -> void:
 	GameManager.cycle_language()
-	_build()
-
-
-func _has_meaningful_save() -> bool:
-	if not GameManager.has_save():
-		return false
-	var progress: Dictionary = GameManager.progress
-	if int(progress.get("current_level", 1)) > 1:
-		return true
-	if bool(progress.get("telescope_ready", false)):
-		return true
-	for key in ["completed_levels", "journal_entries", "seen_story_events", "seen_concept_briefs", "observed_objects", "badges"]:
-		var values: Array = progress.get(key, [])
-		if not values.is_empty():
-			return true
-	return false
 
 
 func _show_feedback(text: String) -> void:
@@ -428,6 +513,7 @@ func _show_feedback(text: String) -> void:
 
 func _transparent_button(id: String, rect: Rect2) -> Button:
 	var button := Button.new()
+	button.name = "MainMenuAction_" + id
 	button.position = rect.position
 	button.size = rect.size
 	button.text = ""
@@ -498,4 +584,22 @@ func _rect(parent: Control, pos: Vector2, size: Vector2, color: Color) -> ColorR
 	return rect
 
 func _on_language_changed() -> void:
+	_continue_available = _should_show_continue()
+	_build()
+
+
+func _on_progress_changed() -> void:
+	_continue_available = _should_show_continue()
+	_build()
+
+
+func _on_cloud_progress_availability_resolved() -> void:
+	_continue_available = _should_show_continue()
+	_build()
+
+
+func _on_cloud_session_changed(_user: Dictionary) -> void:
+	# The session response may belong to a different browser account. Hide the
+	# action until its cloud archive has resolved, then rebuild from that state.
+	_continue_available = _should_show_continue()
 	_build()

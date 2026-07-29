@@ -55,7 +55,7 @@ func _test_data(gm: Node) -> void:
 	_check(str(card.get("title_en", "")) == "Why Some Objects Are Hard to See", "1e. English title unchanged")
 	_check(str(card.get("title_zh", "")) == "为什么有些天体肉眼难以看见", "1e. Chinese title unchanged")
 	_check(str(card.get("text_en", "")).begins_with("Your eyes collect only a small amount of light"), "1f. English explanation unchanged")
-	_check(str(card.get("text_zh", "")).begins_with("眼睛能收集的光很少"), "1f. Chinese explanation unchanged")
+	_check(str(card.get("text_zh", "")).begins_with("眼睛的集光能力有限"), "1f. Chinese explanation unchanged")
 	var level_2: Dictionary = gm.get_level(2) if gm.has_method("get_level") else {}
 	if level_2.is_empty():
 		var mm: Node = root.get_node_or_null("/root/MissionManager")
@@ -142,7 +142,7 @@ func _test_language(gm: Node, tf: Node) -> void:
 	var zh_node := await _open_brief(gm, tf, "zh")
 	var zh_text := _all_text(zh_node)
 	_check(zh_text.contains("为什么有些天体肉眼难以看见"), "4c. Chinese mode translates the title outside the image")
-	_check(zh_text.contains("眼睛能收集的光很少"), "4d. Chinese mode translates the explanation outside the image")
+	_check(zh_text.contains("眼睛的集光能力有限"), "4d. Chinese mode translates the explanation outside the image")
 	# The art itself is untouched English pixel labels - verified by 2d above.
 	zh_node.queue_free()
 	await process_frame

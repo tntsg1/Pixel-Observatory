@@ -1,19 +1,20 @@
 (() => {
   "use strict";
-  const state = { user: null, conversations: [], activeId: null, poll: null, closeTimer: null, glassFrame: null };
+  const messaging = window.POMessaging;
+  const state = {
+    user: null,
+    conversations: [],
+    activeId: null,
+    activeSignature: "",
+    activeUnsubscribe: null,
+    badgeUnsubscribe: null,
+    closeTimer: null,
+    glassFrame: null,
+  };
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
-  const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-  const when = value => {
-    const timestamp = Number(value);
-    if (!timestamp) return "";
-    const date = new Date(timestamp > 10_000_000_000 ? timestamp : timestamp * 1000);
-    const today = new Date();
-    const sameDay = date.toDateString() === today.toDateString();
-    return new Intl.DateTimeFormat(isZh() ? "zh-CN" : "en", sameDay
-      ? {hour: "2-digit", minute: "2-digit"}
-      : {month: "short", day: "numeric"}).format(date);
-  };
+  const esc = messaging.escapeHtml;
+  const when = messaging.when;
   function bindGlassPointer(element, xProperty, yProperty) {
     if (!element || element.dataset.glassPointer === "true") return;
     element.dataset.glassPointer = "true";
@@ -50,16 +51,7 @@
   bindGlassPointer(document.getElementById("feedback-open"), "--nav-glass-x", "--nav-glass-y");
   bindGlassPointer(modal.querySelector(".po-close"), "--close-glass-x", "--close-glass-y");
 
-  async function api(path, options = {}) {
-    const response = await fetch(path, {
-      credentials: "same-origin",
-      ...options,
-      headers: {"content-type":"application/json", ...(options.headers || {})},
-    });
-    const data = await response.json().catch(() => ({message:"Unreadable server response."}));
-    if (!response.ok) throw new Error(data.message || "Request failed.");
-    return data;
-  }
+  const api = messaging.request;
   function setBadge(total) {
     const count = Number(total) || 0;
     badge.hidden = count < 1;
@@ -69,9 +61,19 @@
     try {
       const session = await api("/api/auth/session");
       state.user = session.user;
-      if (!state.user) return setBadge(0);
-      const data = await api("/api/messages/conversations");
-      state.conversations = data.conversations || [];
+      if (!state.user) {
+        state.badgeUnsubscribe?.();
+        state.badgeUnsubscribe = null;
+        return setBadge(0);
+      }
+      if (!state.badgeUnsubscribe) {
+        state.badgeUnsubscribe = messaging.watchConversations((conversations, error) => {
+          if (error || !conversations) return;
+          state.conversations = conversations;
+          setBadge(state.conversations.reduce((sum, item) => sum + Number(item.unread_count || 0), 0));
+        });
+      }
+      state.conversations = await messaging.listConversations();
       setBadge(state.conversations.reduce((sum, item) => sum + Number(item.unread_count || 0), 0));
     } catch (_) {
       setBadge(0);
@@ -84,17 +86,13 @@
     document.getElementById("inbox-open")?.setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
     render().catch(showError);
-    clearInterval(state.poll);
-    state.poll = setInterval(() => {
-      if (!modal.hidden) loadConversations(false).catch(() => {});
-    }, 5000);
   }
   function close() {
     if (modal.hidden || modal.classList.contains("po-inbox-closing")) return;
     modal.classList.add("po-inbox-closing");
     document.getElementById("inbox-open")?.setAttribute("aria-expanded", "false");
-    clearInterval(state.poll);
-    state.poll = null;
+    state.activeUnsubscribe?.();
+    state.activeUnsubscribe = null;
     clearTimeout(state.closeTimer);
     state.closeTimer = setTimeout(() => {
       modal.hidden = true;
@@ -131,8 +129,7 @@
     await loadConversations(true);
   }
   async function loadConversations(openActive) {
-    const data = await api("/api/messages/conversations");
-    state.conversations = data.conversations || [];
+    state.conversations = await messaging.listConversations();
     const list = document.getElementById("po-conversations");
     if (!list) return;
     list.innerHTML = state.conversations.map((item, index) => `
@@ -147,6 +144,24 @@
     if (openActive && state.activeId && state.conversations.some(item => item.id === state.activeId)) {
       await openConversation(state.activeId);
     }
+  }
+
+  function renderActiveConversationUpdate(data, error = null) {
+    if (error || !data || modal.hidden || state.activeId !== data.conversation.id) return;
+    const signature = messaging.conversationSignature(data);
+    if (signature === state.activeSignature) return;
+    const messages = document.getElementById("po-messages");
+    if (!messages) return;
+    const wasNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 44;
+    messages.innerHTML = messaging.renderMessages(data);
+    state.activeSignature = signature;
+    if (wasNearBottom) messages.scrollTop = messages.scrollHeight;
+    messaging.markRead(state.activeId).catch(() => {});
+  }
+
+  async function pollOpenInbox() {
+    if (modal.hidden || document.hidden) return;
+    await messaging.poll(true);
   }
   function renderCompose() {
     state.activeId = null;
@@ -169,10 +184,7 @@
       const status = event.currentTarget.querySelector(".po-inbox-status");
       submit.disabled = true;
       try {
-        const data = await api("/api/messages/conversations", {
-          method: "POST",
-          body: JSON.stringify({username: form.get("username"), body: form.get("body")}),
-        });
+        const data = await messaging.startDirect(form.get("username"), form.get("body"));
         await loadConversations(false);
         await openConversation(data.conversationId);
       } catch (error) {
@@ -183,8 +195,10 @@
     };
   }
   async function openConversation(id) {
+    state.activeUnsubscribe?.();
+    state.activeUnsubscribe = null;
     state.activeId = id;
-    const data = await api(`/api/messages/conversations/${encodeURIComponent(id)}`);
+    const data = await messaging.getConversation(id);
     const peers = (data.members || []).filter(member => member.id !== data.currentUserId).map(member => member.username);
     const title = data.conversation.kind === "feedback"
       ? t("Developer · Feedback","开发者 · 反馈")
@@ -194,16 +208,12 @@
     thread.classList.add("is-open");
     thread.innerHTML = `<header class="po-thread-head"><button class="po-secondary po-inbox-mobile-back" type="button">←</button>
       <h3>${esc(title)}</h3><p>${data.conversation.feedback_id ? `${t("Feedback receipt","反馈回执")} ${esc(data.conversation.feedback_id)}` : t("Private text conversation","纯文字私信")}</p></header>
-      <div class="po-messages" id="po-messages">${(data.messages || []).map((message, index) => {
-        const mine = message.sender_user_id === data.currentUserId;
-        return `<article class="po-message ${mine ? "mine" : ""} ${esc(message.message_kind)}" style="--message-index:${index}">
-          <div class="po-message-meta"><strong>${esc(message.sender_label)}</strong><time>${esc(when(message.created_at))}</time></div>
-          <div class="po-message-body">${esc(message.body)}</div></article>`;
-      }).join("")}</div>
+      <div class="po-messages" id="po-messages">${messaging.renderMessages(data)}</div>
       <form class="po-reply" id="po-reply"><textarea name="body" maxlength="4000" rows="1" required placeholder="${t("Message","输入消息")}"></textarea>
         <button class="po-send" type="submit" aria-label="${t("Send message","发送消息")}">${t("Send","发送")}</button><p class="po-inbox-status" role="status"></p></form>`;
     thread.querySelector(".po-inbox-mobile-back").onclick = () => { thread.classList.remove("is-open"); };
     const messages = document.getElementById("po-messages");
+    state.activeSignature = messaging.conversationSignature(data);
     messages.scrollTop = messages.scrollHeight;
     const replyInput = thread.querySelector(".po-reply textarea");
     const sendButton = thread.querySelector(".po-send");
@@ -227,9 +237,7 @@
       submit.classList.add("is-sending");
       submit.disabled = true;
       try {
-        await api(`/api/messages/conversations/${encodeURIComponent(id)}/messages`, {
-          method: "POST", body: JSON.stringify({body: form.get("body")}),
-        });
+        await messaging.send(id, form.get("body"));
         submit.classList.remove("is-sending");
         submit.classList.add("is-sent");
         await new Promise(resolve => setTimeout(resolve, 320));
@@ -244,8 +252,9 @@
         submit.disabled = false;
       }
     };
-    await api(`/api/messages/conversations/${encodeURIComponent(id)}/read`, {method:"POST", body:"{}"});
+    await messaging.markRead(id);
     await loadConversations(false);
+    state.activeUnsubscribe = messaging.watchConversation(id, renderActiveConversationUpdate);
   }
 
   modal.querySelector(".po-close").onclick = close;
@@ -268,6 +277,15 @@
   document.getElementById("inbox-open")?.addEventListener("click", open);
   document.addEventListener("po:open-inbox", open);
   document.addEventListener("po:session-changed", refreshBadge);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      refreshBadge();
+      pollOpenInbox();
+    }
+  });
+  addEventListener("focus", () => {
+    refreshBadge();
+    pollOpenInbox();
+  });
   refreshBadge();
-  setInterval(refreshBadge, 60000);
 })();

@@ -53,9 +53,17 @@ func _initialize() -> void:
 	_check(bool(sky.call("_is_finder_calibration_level")), "5. L6 is a finder-calibration level")
 	_check(sky.get("calibration_steps_banner") != null, "5. calibration step guide banner exists")
 	_check((sky.get("calibration_step_labels") as Array).size() == 4, "5. guide shows all four steps")
-	_check(int(sky.call("_active_calibration_step")) == 0, "5. step 1 (Switch to Finder) active from telescope view")
-	sky.call("_set_view_mode", "finder")
-	_check(int(sky.call("_active_calibration_step")) >= 1, "5. entering finder advances the active step")
+	_check(str(sky.get("view_mode")) == "finder", "5. calibration opens directly in Finder mode")
+	_check(int(sky.call("_active_calibration_step")) >= 1, "5. finder adjustment step is active immediately")
+	var calibration_panel := sky.get("calibration_panel") as Control
+	var calibration_banner := sky.get("calibration_steps_banner") as Control
+	_check(calibration_panel != null and calibration_panel.visible, "5. calibration controls are visible")
+	_check(calibration_banner != null and calibration_banner.get_parent() == calibration_panel, "5. step guide is contained by the calibration utility strip")
+	var view_rect := Rect2(88, 103, 630, 560)
+	_check(not calibration_panel.get_global_rect().intersects(view_rect), "5. calibration strip never covers the finder sky")
+	var guidance := sky.get("guidance_banner") as Control
+	var controls := sky.get("controls_help") as Control
+	_check(guidance != null and not guidance.visible and controls != null and not controls.visible, "5. generic sky/debug guidance is hidden during calibration")
 	sky.queue_free()
 	await process_frame
 

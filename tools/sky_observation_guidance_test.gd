@@ -49,7 +49,14 @@ func _initialize() -> void:
 	_check(banner != null and (banner.text.contains("Hold A") or banner.text.contains("Hold D")), "live guidance names the horizontal movement key")
 	_check(banner != null and (banner.text.contains("Hold W") or banner.text.contains("Hold S")), "live guidance names the vertical movement key")
 	_check(banner != null and banner.z_index > 0 and banner_bg != null and banner.z_index > banner_bg.z_index, "guidance renders above its opaque backing and moving sky")
-	_check(help != null and help.text.begins_with("MOVE") and help.get_theme_font_size("font_size") >= 12, "persistent movement legend is readable")
+	_check(
+		help != null
+		and help.text.contains("A/D")
+		and help.text.contains("W/S")
+		and help.text.contains("1/2/3")
+		and help.get_theme_font_size("font_size") >= 12,
+		"persistent movement legend is readable"
+	)
 	_check(_visible_han_labels(view).is_empty(), "English sky UI contains no visible Chinese text: %s" % str(_visible_han_labels(view)))
 
 	var mission_hint := _find_label_with_text(view, "Bring Vega into focus")

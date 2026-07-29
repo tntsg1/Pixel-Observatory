@@ -13,7 +13,8 @@ const INTERACT_DISTANCE := 56.0
 const BG_TEXTURE: Texture2D = preload("res://assets/reference/observatory_room_hall_1024.png")
 const PLAYER_TEXTURE: Texture2D = preload("res://assets/characters/player_observer_4dir_clean.png")
 const ASSEMBLY_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_occluders/assembly_table_clean.png")
-const COMPUTER_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_occluders/computer_console_clean.png")
+const COMPUTER_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_furniture/remote_instrument_desk_official.png")
+const COMPUTER_VISUAL_RECT := Rect2(764, 520, 172, 172.0 * 210.0 / 274.0)
 const PLAYER_FRAME_SIZE := Vector2(96, 128)
 # Uniform scale only — the old 44x62 display size squashed the 96x128 frame.
 const PLAYER_DISPLAY_HEIGHT := 72.0
@@ -52,7 +53,7 @@ const INTERACTION_RECTS := {
 	"assembly": Rect2(728, 328, 249, 176),
 	"telescope": Rect2(423, 330, 190, 190),
 	"journal": Rect2(48, 412, 258, 172),
-	"computer": Rect2(783, 532, 168, 124),
+	"computer": Rect2(754, 516, 201, 144),
 }
 
 # The hall has angled walls and a recessed entrance. The player's complete foot
@@ -89,7 +90,7 @@ const OBSTACLE_RECTS := [
 	Rect2(907, 169, 27, 120),  # Tall plant beside the mission desk
 	Rect2(729, 368, 239, 122), # Assembly workbench
 	Rect2(74, 489, 191, 91),   # Journal desk
-	Rect2(766, 591, 153, 63),  # Stats / remote console lower cabinet
+	Rect2(766, 591, 154, 62),  # Official remote terminal desk footprint
 	Rect2(499, 417, 24, 27),   # Central telescope pivot only
 ]
 
@@ -123,10 +124,13 @@ const FURNITURE_OCCLUDER_SPECS := [
 	},
 	{
 		"id": "computer",
-		"rect": Rect2(783, 532, 168, 126),
-		"front_y": 654.0,
+		"rect": COMPUTER_VISUAL_RECT,
+		"front_y": 652.0,
 		"texture": COMPUTER_OCCLUDER_TEXTURE,
-		"texture_rect": Rect2(783, 532, 168, 129),
+		# The official 274x210 RGBA terminal is displayed at a single uniform
+		# scale (172/274). Its transparent surround stays transparent; no black
+		# backdrop or non-uniform stretch is introduced.
+		"texture_rect": COMPUTER_VISUAL_RECT,
 	},
 	{
 		"id": "telescope",
@@ -154,7 +158,7 @@ const SPAWN_POINTS := {
 	"door": Vector2(512, 282),
 	"telescope": Vector2(512, 575),
 	"journal": Vector2(343, 520),
-	"computer": Vector2(730, 592),
+	"computer": Vector2(721, 610),
 	"mission": Vector2(676, 323),
 }
 
@@ -405,9 +409,27 @@ func _draw_full_background() -> void:
 	bg.position = Vector2.ZERO
 	bg.size = Vector2(W, H)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bg.z_index = -20
 	add_child(bg)
+	_draw_official_remote_terminal()
 	if _space_console_active():
 		_draw_space_console_overlay()
+
+
+func _draw_official_remote_terminal() -> void:
+	# The supplied terminal is always the painted lower-right station. The
+	# separate occluder reuses this exact RGBA asset only when the player walks
+	# behind it, so the actor is never covered by a rectangular floor patch.
+	var terminal := Sprite2D.new()
+	terminal.name = "OfficialRemoteInstrumentDesk"
+	terminal.centered = false
+	terminal.position = COMPUTER_VISUAL_RECT.position
+	terminal.texture = COMPUTER_OCCLUDER_TEXTURE
+	terminal.scale = COMPUTER_VISUAL_RECT.size / Vector2(
+		COMPUTER_OCCLUDER_TEXTURE.get_width(), COMPUTER_OCCLUDER_TEXTURE.get_height())
+	terminal.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	terminal.z_index = -10
+	add_child(terminal)
 
 
 func _draw_furniture_animation_overlays() -> void:
@@ -514,20 +536,20 @@ func _remote_console_status(kind: String) -> Dictionary:
 
 
 func _draw_space_console_overlay() -> void:
-	# The furniture art already contains a complete green monitor. Add only a
-	# clipped status strip inside its glass; a second framed panel would cover
-	# the original display and read as a broken foreground layer.
+	# The replacement desk has three framed sky displays. The centre display is
+	# the remote link surface; status feedback stays clipped to that glass and
+	# never tints the books, tabletop, cabinet, or floor.
 	var screen := Control.new()
 	screen.name = "SpaceConsoleScreen"
-	screen.position = Vector2(803, 546)
-	screen.size = Vector2(106, 64)
+	screen.position = Vector2(813, 530)
+	screen.size = Vector2(72, 40)
 	screen.clip_contents = true
 	screen.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(screen)
 	var radio_console := _remote_console_kind() == "radio"
 	var status_strip := Panel.new()
-	status_strip.position = Vector2(2, 45)
-	status_strip.size = Vector2(102, 15)
+	status_strip.position = Vector2(2, 26)
+	status_strip.size = Vector2(68, 12)
 	status_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	status_strip.add_theme_stylebox_override(
 		"panel",
@@ -536,10 +558,10 @@ func _draw_space_console_overlay() -> void:
 	screen.add_child(status_strip)
 	_board_label(
 		status_strip,
-		("FAST LINK / ARRAY READY" if radio_console else "L2 LINK / BUS READY"),
+		("FAST LINK" if radio_console else "L2 LINK"),
 		Vector2(2, 1),
-		Vector2(98, 13),
-		7,
+		Vector2(64, 10),
+		6,
 		Color(0.56, 0.92, 0.82),
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
@@ -2229,7 +2251,7 @@ func _maybe_show_unlock_popup() -> void:
 	unlock_popup.add_child(later)
 
 	var equip_now := Button.new()
-	equip_now.text = GameManager.text("Equip New Parts", "前往装备新零件")
+	equip_now.text = GameManager.text("Open Parts Cabinet", "打开零件柜")
 	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
 	equip_now.size = Vector2(220, 38)
 	equip_now.add_theme_font_size_override("font_size", 13)

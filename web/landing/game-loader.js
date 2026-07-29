@@ -153,9 +153,29 @@
 (() => {
   "use strict";
   const rankKey = "pixel-observatory:last-rank-level";
+  const pendingKey = "pixel-observatory:pending-play-seconds";
+  const sessionKey = "pixel-observatory:play-session-id";
+  const sessionUserKey = "pixel-observatory:play-session-user";
+  const heartbeatIntervalMs = 30_000;
+  const maxPendingSeconds = 90;
   let audioContext = null;
   let heartbeatTimer = 0;
   let signedIn = null;
+  let gameInteractive = false;
+  let foregroundStartedAt = 0;
+  let heartbeatInFlight = false;
+  let signedInUserId = sessionStorage.getItem(sessionUserKey) || "";
+  let pendingSeconds = Math.max(0, Math.min(
+    maxPendingSeconds,
+    Number(sessionStorage.getItem(pendingKey) || 0),
+  ));
+  let playSessionId = sessionStorage.getItem(sessionKey) || "";
+  if (!/^[a-zA-Z0-9_-]{16,96}$/.test(playSessionId)) {
+    playSessionId = crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(2)).join("_")}`;
+    sessionStorage.setItem(sessionKey, playSessionId);
+  }
 
   addEventListener("pointerdown", () => {
     if (!audioContext) {
@@ -208,46 +228,143 @@
     setTimeout(() => layer.remove(), 9_000);
   }
 
-  async function heartbeat() {
-    if (document.hidden) return;
+  function syncStatus(status, message = "") {
+    document.documentElement.dataset.playtimeSync = status;
+    dispatchEvent(new CustomEvent("observatory:playtime-sync", {
+      detail: { status, message, pendingSeconds: Math.floor(pendingSeconds) },
+    }));
+  }
+
+  function persistPending() {
+    sessionStorage.setItem(pendingKey, pendingSeconds.toFixed(3));
+  }
+
+  function resetSessionForUser(userId = "") {
+    pendingSeconds = 0;
+    persistPending();
+    signedInUserId = userId;
+    sessionStorage.setItem(sessionUserKey, userId);
+    playSessionId = crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}_${crypto.getRandomValues(new Uint32Array(2)).join("_")}`;
+    sessionStorage.setItem(sessionKey, playSessionId);
+  }
+
+  function accrueForeground() {
+    if (!gameInteractive || !foregroundStartedAt) return;
+    const now = performance.now();
+    const elapsed = Math.max(0, Math.min(maxPendingSeconds, (now - foregroundStartedAt) / 1000));
+    pendingSeconds = Math.min(maxPendingSeconds, pendingSeconds + elapsed);
+    foregroundStartedAt = document.hidden ? 0 : now;
+    persistPending();
+  }
+
+  async function resolveSession(force = false) {
+    if (!force && signedIn !== null) return signedIn;
+    const sessionResponse = await fetch("/api/auth/session", {
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    if (!sessionResponse.ok) throw new Error(`Session check failed (${sessionResponse.status}).`);
+    const session = await sessionResponse.json();
+    // The Worker returns { ok, user }; it intentionally has no client-owned
+    // "authenticated" flag. The signed server session user is the authority.
+    const userId = String(session?.user?.id || "");
+    signedIn = Boolean(userId);
+    if (!signedIn) {
+      resetSessionForUser("");
+    } else if (signedInUserId !== userId) {
+      resetSessionForUser(userId);
+    }
+    return signedIn;
+  }
+
+  async function heartbeat(event = "heartbeat", options = {}) {
+    if (!gameInteractive) return;
+    if (document.hidden && event !== "pause" && event !== "leave") return;
+    accrueForeground();
+    if (heartbeatInFlight && event === "heartbeat") return;
+    heartbeatInFlight = true;
     try {
-      if (signedIn === null) {
-        const sessionResponse = await fetch("/api/auth/session", {
-          credentials: "same-origin",
-        });
-        if (!sessionResponse.ok) {
-          signedIn = false;
-          return;
-        }
-        const session = await sessionResponse.json();
-        signedIn = Boolean(session?.authenticated && session?.user);
-      }
-      if (!signedIn) return;
+      if (!(await resolveSession(options.forceSession))) return;
       const response = await fetch("/api/social/playtime", {
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: "{}",
+        keepalive: Boolean(options.keepalive),
+        body: JSON.stringify({
+          sessionId: playSessionId,
+          event,
+          activeSeconds: Math.floor(pendingSeconds),
+        }),
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        if (response.status === 401) signedIn = null;
+        throw new Error(`Playtime sync failed (${response.status}).`);
+      }
       const data = await response.json();
+      const earned = Math.max(0, Number(data.earnedSeconds || 0));
+      if ((event === "pause" || event === "leave") && data.leaseAccepted !== false) {
+        pendingSeconds = 0;
+      } else {
+        pendingSeconds = Math.max(0, pendingSeconds - earned);
+      }
+      persistPending();
+      syncStatus(data.leaseAccepted === false ? "standby" : "synced");
       dispatchEvent(new CustomEvent("observatory:playtime", { detail: data }));
       const level = Number(data.rank?.level || 0);
       const previous = Number(localStorage.getItem(rankKey) || 0);
       if (previous > 0 && level > previous) celebrate(data.rank);
       if (level > 0) localStorage.setItem(rankKey, String(level));
-    } catch (_) {
-      // Playtime tracking is intentionally silent when the account service is unavailable.
+    } catch (error) {
+      persistPending();
+      syncStatus("retrying", error instanceof Error ? error.message : "Playtime sync delayed.");
+    } finally {
+      heartbeatInFlight = false;
     }
   }
 
-  function schedule() {
+  function startTracking() {
+    if (gameInteractive) return;
+    gameInteractive = true;
+    foregroundStartedAt = document.hidden ? 0 : performance.now();
     clearInterval(heartbeatTimer);
-    heartbeat();
-    heartbeatTimer = setInterval(heartbeat, 30_000);
+    heartbeat("resume", { forceSession: true });
+    heartbeatTimer = setInterval(() => heartbeat("heartbeat"), heartbeatIntervalMs);
   }
-  addEventListener("visibilitychange", () => { if (!document.hidden) heartbeat(); });
-  schedule();
+
+  function watchForInteractiveGame() {
+    if (!document.getElementById("status")) {
+      startTracking();
+      return;
+    }
+    const observer = new MutationObserver(() => {
+      if (!document.getElementById("status")) {
+        observer.disconnect();
+        startTracking();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  addEventListener("visibilitychange", () => {
+    if (!gameInteractive) return;
+    if (document.hidden) {
+      heartbeat("pause", { keepalive: true });
+      foregroundStartedAt = 0;
+    } else {
+      foregroundStartedAt = performance.now();
+      heartbeat("resume", { forceSession: true });
+    }
+  });
+  addEventListener("pagehide", () => heartbeat("leave", { keepalive: true }));
+  addEventListener("beforeunload", () => heartbeat("leave", { keepalive: true }));
+  addEventListener("observatory:request-heartbeat", () => heartbeat("heartbeat", { forceSession: true }));
+  addEventListener("observatory:session-changed", () => {
+    signedIn = null;
+    heartbeat("resume", { forceSession: true });
+  });
+  watchForInteractiveGame();
 })();
 
 (() => {
@@ -266,6 +383,8 @@
     sessionStartedAt: Date.now(),
     totalSeconds: 0,
     refreshTimer: 0,
+    refreshInFlight: false,
+    lastFriendsRefresh: 0,
     clockTimer: 0,
     cooldowns: new Map(),
   };
@@ -285,6 +404,7 @@
           <div><span>${t("Total time", "累计时长")}</span><strong id="game-total-time">0h 00m</strong></div>
           <div><span>${t("Observer rank", "观测段位")}</span><strong id="game-rank-name">First Light</strong></div>
         </div>
+        <small class="game-playtime-sync" id="game-playtime-sync" aria-live="polite"></small>
       </div>
     </section>
     <aside class="game-social-rail game-friends-rail" id="game-friends-rail" hidden aria-label="${t("Friends at the observatory", "天文台好友")}">
@@ -425,10 +545,17 @@
   }
 
   async function refreshFriends() {
-    const data = await api("/api/social/friends");
-    state.friends = data.friends || [];
-    renderFriends();
-    await receiveSignals();
+    if (state.refreshInFlight) return;
+    state.refreshInFlight = true;
+    try {
+      const data = await api("/api/social/friends");
+      state.friends = data.friends || [];
+      state.lastFriendsRefresh = Date.now();
+      renderFriends();
+      await receiveSignals();
+    } finally {
+      state.refreshInFlight = false;
+    }
   }
 
   async function sendSignal(button) {
@@ -480,9 +607,12 @@
       document.documentElement.classList.add("game-social-enabled");
       tickClock();
       state.clockTimer = setInterval(tickClock, 1000);
+      // Presence is an active-game signal, not something that waits for a
+      // modal or manual refresh. Keep the rail responsive without allowing
+      // concurrent list/signal requests to race each other.
       state.refreshTimer = setInterval(() => {
         if (!document.hidden) refreshFriends().catch(() => {});
-      }, 20_000);
+      }, 8_000);
     } catch (_) {
       // The game stays fully playable when the optional social layer is unavailable.
     }
@@ -507,8 +637,25 @@
     if (state.profile && data.rank) state.profile.rank = data.rank;
     renderSelf();
   });
+  addEventListener("observatory:playtime-sync", event => {
+    const status = String(event.detail?.status || "");
+    const node = document.getElementById("game-playtime-sync");
+    if (!node) return;
+    node.dataset.status = status;
+    node.textContent = status === "retrying"
+      ? t("Playtime sync delayed - retrying", "游玩时长同步延迟，正在重试")
+      : status === "standby"
+        ? t("Counted in another active tab", "正在另一活动标签页中计时")
+        : "";
+  });
   addEventListener("visibilitychange", () => {
-    if (!document.hidden && state.user) refreshFriends().catch(() => {});
+    if (!document.hidden && state.user) {
+      refreshFriends().catch(() => {});
+      dispatchEvent(new Event("observatory:request-heartbeat"));
+    }
+  });
+  addEventListener("focus", () => {
+    if (state.user) refreshFriends().catch(() => {});
   });
   init();
 })();
