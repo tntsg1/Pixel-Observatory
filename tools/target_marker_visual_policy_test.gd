@@ -11,9 +11,9 @@ const TARGET_LEVELS := {
 	"pleiades": 36,
 }
 const MODE_MAXIMUM := {
-	"naked_eye": 42.0,
-	"finder": 64.0,
-	"telescope": 88.0,
+	"naked_eye": 88.0,
+	"finder": 104.0,
+	"telescope": 120.0,
 }
 const AIM := Vector2(180.0, 45.0)
 

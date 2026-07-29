@@ -1875,6 +1875,123 @@
         </div>
       </article>
 
+      <article class="mechanism-card glass rv">
+        <div>
+          <span class="mechanism-kicker">04.5 · <span class="en">Environmental Simulation and Optical Feedback</span><span class="zh">环境模拟与光学反馈</span></span>
+          <h3><span class="en">The weather is not behind the image. It is inside the result.</span>
+            <span class="zh">环境不是画面背后的装饰，而是观测结果的一部分。</span></h3>
+          <p class="en">Clouds cross the fixed eyepiece and attenuate the target in real time. Poor seeing spreads the point-spread function and limits useful magnification. City sky glow lifts the black floor, suppresses faint structure and lowers local contrast. Dark adaptation and averted vision can recover a dim nebula or galaxy, while Earth rotation carries every untracked target across the field until manual correction or an equatorial drive counters it.</p>
+          <p class="zh">云层会穿过固定的目镜视场，实时削弱目标；较差的视宁度会扩散点像，并限制真正可用的倍率；城市天光会抬高黑位、吞掉微弱结构、压低局部对比。暗适应与侧视法能重新找回昏暗的星云或星系，而地球自转会让未追踪的目标持续漂过视场，直到玩家手动修正，或让赤道仪追踪抵消它。</p>
+          <p class="en">The optical path matters too. A refractor can leave red and blue fringes around some bright targets because its lens brings wavelengths to slightly different focus positions. A Newtonian uses mirrors for the main light path, so that lens-produced colour separation is greatly reduced. In every case the cause is communicated through <b>the image itself, the quality score, the current objective and a specific recovery hint</b> — not a hidden penalty.</p>
+          <p class="zh">光路本身也会改变反馈。折射镜的透镜会让不同波长落在略有差异的焦点上，因此部分高亮目标周围会留下红蓝彩边；牛顿镜以反射光路为主，显著减轻这种由大物镜产生的色差。每一种原因都会通过<b>画面本身、质量评分、当前目标和明确的补救提示</b>告诉玩家，而不是藏在不可见的惩罚里。</p>
+          <div class="mechanism-code">environment → optical response → player action → quality result <span>· telescope_view.gd + observation_system.gd</span></div>
+        </div>
+        <figure class="mechanism-figure">
+          <svg viewBox="0 0 320 300" role="img" aria-labelledby="environmentFeedbackTitle environmentFeedbackDesc">
+            <title id="environmentFeedbackTitle">Environmental inputs alter the image and the observation result</title>
+            <desc id="environmentFeedbackDesc">Cloud, seeing, sky glow and Earth rotation feed into optical image changes. The player responds with timing, focus, lower magnification, dark adaptation, manual correction or tracking.</desc>
+            <defs>
+              <linearGradient id="envSignal" x1="0" x2="1">
+                <stop offset="0" stop-color="#546f9f"/>
+                <stop offset=".55" stop-color="#d9a648"/>
+                <stop offset="1" stop-color="#75c9b0"/>
+              </linearGradient>
+              <radialGradient id="envStar" cx=".5" cy=".5" r=".5">
+                <stop offset="0" stop-color="#f6f2dd"/>
+                <stop offset=".25" stop-color="#9fc9ff" stop-opacity=".88"/>
+                <stop offset="1" stop-color="#5e8dc8" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+
+            <g font-family="ui-monospace,monospace" font-size="8.5" letter-spacing="1.1">
+              <text x="12" y="16" fill="#6f7d99">ENVIRONMENT INPUT</text>
+              <text x="122" y="16" fill="#6f7d99">IMAGE RESPONSE</text>
+              <text x="234" y="16" fill="#6f7d99">PLAYER RESPONSE</text>
+            </g>
+
+            <g fill="#0a1020" stroke="#263657">
+              <rect x="10" y="28" width="82" height="32" rx="7"/>
+              <rect x="10" y="68" width="82" height="32" rx="7"/>
+              <rect x="10" y="108" width="82" height="32" rx="7"/>
+              <rect x="10" y="148" width="82" height="32" rx="7"/>
+            </g>
+            <g font-family="ui-monospace,monospace" font-size="9" fill="#c2cad8">
+              <text x="20" y="48">CLOUD COVER</text>
+              <text x="20" y="88">POOR SEEING</text>
+              <text x="20" y="128">SKY GLOW</text>
+              <text x="20" y="168">EARTH ROTATION</text>
+            </g>
+
+            <g stroke="#435777" stroke-width="1.2" fill="none">
+              <path d="M96 44 H118"/>
+              <path d="M96 84 H118"/>
+              <path d="M96 124 H118"/>
+              <path d="M96 164 H118"/>
+            </g>
+            <g fill="#637ca6">
+              <path d="M118 44 l-5 -3 v6 z"/>
+              <path d="M118 84 l-5 -3 v6 z"/>
+              <path d="M118 124 l-5 -3 v6 z"/>
+              <path d="M118 164 l-5 -3 v6 z"/>
+            </g>
+
+            <rect x="122" y="28" width="82" height="152" rx="11" fill="#040711" stroke="#34466d"/>
+            <circle cx="163" cy="101" r="31" fill="#050914" stroke="#263657"/>
+            <circle cx="163" cy="101" r="20" fill="url(#envStar)" opacity=".75"/>
+            <circle cx="163" cy="101" r="5.5" fill="#edf3ff"/>
+            <path d="M137 88 C150 77 177 79 190 91" fill="none" stroke="#69748a" stroke-width="6" opacity=".28"/>
+            <path d="M137 116 C151 124 177 122 190 111" fill="none" stroke="#69748a" stroke-width="8" opacity=".18"/>
+            <line x1="134" y1="139" x2="191" y2="139" stroke="#273858"/>
+            <line x1="146" y1="139" x2="178" y2="139" stroke="#d9a648" stroke-width="2"/>
+            <path d="M146 146 H179" stroke="#8cbddd" stroke-width="1.2" stroke-dasharray="2 3"/>
+            <g font-family="ui-monospace,monospace" font-size="8.5" fill="#8290aa">
+              <text x="134" y="158">BLACK FLOOR ↑</text>
+              <text x="134" y="170">PSF / DRIFT →</text>
+            </g>
+
+            <g stroke="#435777" stroke-width="1.2" fill="none">
+              <path d="M208 84 H230"/>
+              <path d="M208 124 H230"/>
+            </g>
+            <g fill="#637ca6">
+              <path d="M230 84 l-5 -3 v6 z"/>
+              <path d="M230 124 l-5 -3 v6 z"/>
+            </g>
+
+            <g fill="#0a1020" stroke="#263657">
+              <rect x="234" y="28" width="76" height="32" rx="7"/>
+              <rect x="234" y="68" width="76" height="32" rx="7"/>
+              <rect x="234" y="108" width="76" height="32" rx="7"/>
+              <rect x="234" y="148" width="76" height="32" rx="7"/>
+            </g>
+            <g font-family="ui-monospace,monospace" font-size="8.3" fill="#c2cad8">
+              <text x="245" y="48">WAIT / REFOCUS</text>
+              <text x="245" y="88">LOWER POWER</text>
+              <text x="245" y="128">DARK ADAPT</text>
+              <text x="245" y="168">TRACK / GUIDE</text>
+            </g>
+
+            <path d="M20 208 H300" stroke="#263657"/>
+            <path d="M20 232 H300" stroke="url(#envSignal)" stroke-width="2"/>
+            <g fill="#0a1020" stroke="#34466d">
+              <rect x="24" y="217" width="76" height="30" rx="7"/>
+              <rect x="122" y="217" width="76" height="30" rx="7"/>
+              <rect x="220" y="217" width="76" height="30" rx="7"/>
+            </g>
+            <g font-family="ui-monospace,monospace" font-size="8.5" text-anchor="middle">
+              <text x="62" y="236" fill="#8fb4e8">VISIBLE CAUSE</text>
+              <text x="160" y="236" fill="#d9a648">ACTIONABLE HINT</text>
+              <text x="258" y="236" fill="#75c9b0">QUALITY RESULT</text>
+            </g>
+
+            <g font-family="ui-monospace,monospace" font-size="9">
+              <text x="16" y="276" fill="#cf6d5a">REFRACTOR · RED / BLUE FRINGE</text>
+              <text x="16" y="291" fill="#75c9b0">NEWTONIAN · MIRROR PATH · FRINGE REDUCED</text>
+            </g>
+          </svg>
+        </figure>
+      </article>
+
       <article class="mechanism-card glass rv solo">
         <div>
           <span class="mechanism-kicker">05 · <span class="en">Teaching</span><span class="zh">教学</span></span>
@@ -2232,7 +2349,8 @@
 })();
 </script>
 <script src="account.js?v=20260728-liquid-feedback" defer></script>
-<script src="inbox.js?v=20260728-glass-controls" defer></script>
-<script src="social.js?v=20260729-friend-directory" defer></script>
+<script src="messaging.js?v=20260729-friend-drawer" defer></script>
+<script src="inbox.js?v=20260729-shared-messaging" defer></script>
+<script src="social.js?v=20260729-friend-drawer" defer></script>
 </body>
 </html>

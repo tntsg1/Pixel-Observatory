@@ -367,7 +367,7 @@ func _test_shared_rendering_pipeline() -> void:
 	)
 	_expect(
 		telescope_source.contains("EXTENDED_FIELD_OVERSCAN_SIZE / largest_dim")
-		and telescope_source.contains("436.0 * subject_scale / largest_dim"),
+		and telescope_source.contains("436.0 * subject_scale * _magnification_scale() / largest_dim"),
 		"Surface overscan and deep-sky subject composition are not separated"
 	)
 

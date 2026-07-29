@@ -85,6 +85,29 @@ static func _evaluate_telescope(stats: Dictionary, celestial_object: Dictionary,
 	var light_ratio := _ratio(float(stats.get("light_score", 0.0)), float(celestial_object.get("required_light_score", 1.0)))
 	var clarity_ratio := _ratio(effective_clarity, float(celestial_object.get("required_clarity", 1.0)))
 	var stability_ratio := _ratio(float(stats.get("stability_score", 0.0)), float(celestial_object.get("required_stability", 1.0)))
+	var technique_gains := {
+		"dark_adaptation": 1.0,
+		"averted_vision": 1.0
+	}
+	var type_lower := str(celestial_object.get("type_en", "")).to_lower()
+	var diffuse_target := type_lower.contains("nebula") or type_lower.contains("galaxy")
+	if diffuse_target and bool(extra_context.get("visual_detection_techniques_enabled", false)):
+		# These are observer-side detectability gains, not upgrades to the
+		# telescope. They improve faint-structure light/contrast while leaving
+		# mount stability untouched.
+		var adaptation := clampf(float(extra_context.get("dark_adaptation", 0.0)), 0.0, 1.0)
+		# Full adaptation is deliberately meaningful under the L18 cloud
+		# snapshot: it must move a barely comfortable faint-nebula observation
+		# into the next readable tier instead of changing only hidden decimals.
+		var adaptation_light_gain := lerpf(1.0, 1.30, adaptation)
+		var adaptation_clarity_gain := lerpf(1.0, 1.06, adaptation)
+		light_ratio *= adaptation_light_gain
+		clarity_ratio *= adaptation_clarity_gain
+		technique_gains["dark_adaptation"] = adaptation_light_gain
+		if bool(extra_context.get("averted_vision", false)):
+			light_ratio *= 1.08
+			clarity_ratio *= 1.04
+			technique_gains["averted_vision"] = 1.08
 
 	# --- Seeing: atmospheric steadiness limits how much magnification is
 	# actually usable. No environment field = good seeing, high altitude,
@@ -234,6 +257,7 @@ static func _evaluate_telescope(stats: Dictionary, celestial_object: Dictionary,
 		"seeing_eff": seeing_eff,
 		"seeing_label": seeing_label,
 		"technique_failure": requirement_failure,
+		"technique_gains": technique_gains,
 		"ratios": {
 			"light": light_ratio,
 			"clarity": clarity_ratio,

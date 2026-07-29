@@ -1,20 +1,61 @@
 extends Node
 
 const SAVE_PATH := "user://savegame.json"
+const SAVE_INITIALIZED_KEY := "save_initialized"
 
 
 func has_save() -> bool:
 	return FileAccess.file_exists(SAVE_PATH)
 
 
-func load_progress(default_progress: Dictionary) -> Dictionary:
+func load_raw_progress() -> Dictionary:
 	if not has_save():
-		return default_progress.duplicate(true)
+		return {}
 	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
 	if file == null:
-		return default_progress.duplicate(true)
-	var parsed = JSON.parse_string(file.get_as_text())
-	if typeof(parsed) != TYPE_DICTIONARY:
+		return {}
+	var json := JSON.new()
+	if json.parse(file.get_as_text()) != OK:
+		return {}
+	var parsed = json.data
+	return parsed.duplicate(true) if typeof(parsed) == TYPE_DICTIONARY else {}
+
+
+func has_resumable_save() -> bool:
+	return is_resumable_progress(load_raw_progress())
+
+
+func is_resumable_progress(candidate: Dictionary) -> bool:
+	# File existence is not enough: a blank, corrupted, or partially written
+	# archive must never expose a Continue action. A newly started campaign has
+	# an explicit marker; older archives remain compatible through real progress
+	# signals that could safely be resumed.
+	if candidate.is_empty():
+		return false
+	if not candidate.has("campaign_version") or not candidate.has("current_level"):
+		return false
+	var campaign_version := int(candidate.get("campaign_version", 0))
+	var current_level := int(candidate.get("current_level", 0))
+	if campaign_version < 1 or current_level < 1:
+		return false
+	if typeof(candidate.get("selected_parts", null)) != TYPE_DICTIONARY:
+		return false
+	if typeof(candidate.get("completed_levels", null)) != TYPE_ARRAY:
+		return false
+	if bool(candidate.get(SAVE_INITIALIZED_KEY, false)):
+		return true
+	if current_level > 1 or bool(candidate.get("telescope_ready", false)):
+		return true
+	for key in ["completed_levels", "journal_entries", "seen_story_events", "seen_concept_briefs", "observed_objects", "badges"]:
+		var values = candidate.get(key, [])
+		if typeof(values) == TYPE_ARRAY and not (values as Array).is_empty():
+			return true
+	return false
+
+
+func load_progress(default_progress: Dictionary) -> Dictionary:
+	var parsed := load_raw_progress()
+	if parsed.is_empty():
 		return default_progress.duplicate(true)
 	return _merge_defaults(default_progress, parsed)
 

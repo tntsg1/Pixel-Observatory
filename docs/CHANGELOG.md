@@ -17,6 +17,31 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-29 - Observatory Reliability and Remote Instrument Update
+
+**Progress and language:** Starting a campaign now preserves the language
+chosen on the main menu, including a first Chinese-language playthrough. The
+menu shows Continue only for a parseable, initialized save with resumable
+progress; empty, malformed and incomplete archives safely fall back to New
+Game. Browser cloud restoration waits for the signed-in account's archive, so
+one observer's local progress cannot briefly appear for another observer.
+
+**Remote observatories:** Signed-in playtime now uses foreground-only heartbeat
+leases so duplicate tabs and refreshes do not inflate leaderboard time. Space
+Infrared campaign assembly retains its documented four required commissioning
+parts while unlocked modules remain usable; graduation enables full free-build
+auto assembly in dependency order.
+
+**Observatory floor:** The lower-right remote-instrument terminal now uses the
+approved transparent desk asset with nearest-neighbour rendering, fitting
+collision footprints, reachability checks and correct actor occlusion. It
+retains its FAST and Space Infrared control interaction.
+
+**Web community:** Observer friend messaging adds real-time direct-message
+drawers with server-side friendship checks, text-only rendering and retained
+drafts after a failed send. The public site also documents the environment
+simulation chapter in English and Chinese.
+
 ## 2026-07-28 - Observatory Accounts and Field Reports
 
 **Delivered:** The canonical website now supports observer accounts with

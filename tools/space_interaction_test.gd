@@ -25,6 +25,13 @@ func _initialize() -> void:
 	await _test_assembly(gm)
 	await _test_evidence(gm)
 	await _test_legacy(gm)
+	await _release_test_scene(current_scene)
+	current_scene = null
+	var audio_manager := root.get_node_or_null("/root/AudioManager")
+	if audio_manager != null and audio_manager.has_method("release_all_audio"):
+		audio_manager.call("release_all_audio")
+	for _frame in 3:
+		await process_frame
 
 	print("SPACE INTERACTION TEST %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)
@@ -95,8 +102,7 @@ func _test_assembly(gm: Node) -> void:
 			await process_frame
 	_check(gm.telescope_is_ready(), "C. all parts installed via slots -> telescope ready")
 
-	bench.queue_free()
-	await process_frame
+	await _release_test_scene(bench)
 
 
 # ---------------------------------------------------------------- D/E
@@ -139,8 +145,7 @@ func _test_evidence(gm: Node) -> void:
 		await process_frame
 	_check(bool(desk.get("completed")), "E. Confirm with the correct evidence submits the mission")
 
-	desk.queue_free()
-	await process_frame
+	await _release_test_scene(desk)
 
 
 # ---------------------------------------------------------------- F
@@ -154,8 +159,18 @@ func _test_legacy(gm: Node) -> void:
 		await process_frame
 	_check(str(gm.assembly_family()) == "newtonian", "F. Newtonian family still routes to the nested template")
 	_check(bench.has_method("_main_parts"), "F. Newtonian template path intact")
-	bench.queue_free()
-	await process_frame
+	await _release_test_scene(bench)
+
+
+func _release_test_scene(scene: Node) -> void:
+	if scene != null and is_instance_valid(scene) and not scene.is_queued_for_deletion():
+		scene.queue_free()
+	# queue_free is deferred.  A UI scene owns theme, text, and canvas RID
+	# allocations that need two render/process turns after its child tree has
+	# left the viewport; a one-frame exit made the test look like it leaked the
+	# entire bench even though the interaction assertions had passed.
+	for _frame in 3:
+		await process_frame
 
 
 func _check(condition: bool, label: String) -> void:

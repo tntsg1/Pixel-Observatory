@@ -1,5 +1,8 @@
 extends SceneTree
 
+const RELEASE_OUTPUT := "E:/godot/ai-game-0628/build/web/game/index.html"
+const RELEASE_EXCLUDES := "addons/tama/**,addons/blastbullets2d/**,artifacts/**,web/**,output/**,TIWAN/**,tama-web-backup/**,ImportedAssets/_archives/**,spritesheets/**,spriteframes/**,assets/audio/music/giant_telescope.mp3,assets/audio/music/space_fast_theme.mp3,assets/audio/ambient/fast_terminal_hum.ogg,assets/reference/observatory_ai_mockup.png"
+
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -16,12 +19,13 @@ func _run() -> void:
 			names.append(str(property.get("name", "")))
 		print("WEB_MANUAL_PROPERTIES=", names)
 		manual_preset.set("name", "Web Diagnostic")
-		manual_preset.set("export_path", "E:/godot/_web_smoke/index.html")
+		manual_preset.set("export_path", RELEASE_OUTPUT)
 		manual_preset.set("export_filter", 1)
+		manual_preset.set("exclude_filter", RELEASE_EXCLUDES)
 		manual_preset.set("variant/extensions_support", false)
 		manual_preset.set("variant/thread_support", false)
 		platform.clear_messages()
-		var manual_result := platform.export_project(manual_preset, false, "E:/godot/_web_smoke/index.html", 0, false)
+		var manual_result := platform.export_project(manual_preset, false, RELEASE_OUTPUT, 0, false)
 		print("WEB_MANUAL_EXPORT_RESULT=", manual_result)
 		for index in range(platform.get_message_count()):
 			print("WEB_MANUAL_MESSAGE=", platform.get_message_type(index), "|", platform.get_message_category(index), "|", platform.get_message_text(index))

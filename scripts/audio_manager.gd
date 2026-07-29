@@ -9,6 +9,7 @@ var sfx_volume_db := -7.0
 var music_volume_db := -22.0
 var _players: Array[AudioStreamPlayer] = []
 var _loop_event_players: Dictionary = {}
+var _loop_event_fade_tweens: Dictionary = {}
 var _last_event_at: Dictionary = {}
 var _music_players: Array[AudioStreamPlayer] = []
 var _active_music_player: AudioStreamPlayer
@@ -95,6 +96,41 @@ func _ready() -> void:
 	call_deferred("_bind_feedback")
 	call_deferred("_refresh_music_for_scene")
 	call_deferred("_refresh_ambience_for_scene")
+
+
+func _exit_tree() -> void:
+	release_all_audio()
+
+
+func release_all_audio() -> void:
+	# Controlled process/test shutdown.  Unlike normal scene transitions this
+	# releases music and ambience decoders as well as transient SFX, so a
+	# headless run never leaves a playback reference alive at engine exit.
+	if _music_tween != null and _music_tween.is_valid():
+		_music_tween.kill()
+	if _ambient_tween != null and _ambient_tween.is_valid():
+		_ambient_tween.kill()
+	# One-shot players can still be decoding when a short headless test (or a
+	# scene change during shutdown) tears the tree down.  Release them here
+	# rather than leaving an AudioStream playback reference alive until process
+	# exit.  The same applies to a loop that is in its very short fade-out.
+	for tween_value in _loop_event_fade_tweens.values():
+		var loop_tween := tween_value as Tween
+		if loop_tween != null and loop_tween.is_valid():
+			loop_tween.kill()
+	_loop_event_fade_tweens.clear()
+	for player_value in _loop_event_players.values():
+		_release_audio_player(player_value as AudioStreamPlayer)
+	_loop_event_players.clear()
+	release_transient_sfx()
+	for player in _music_players:
+		_release_audio_player(player)
+	_music_players.clear()
+	_release_audio_player(_ambient_player)
+	_ambient_player = null
+	_active_music_player = null
+	_music_tween = null
+	_ambient_tween = null
 
 
 func _process(_delta: float) -> void:
@@ -191,6 +227,7 @@ func play_event(event_name: String) -> void:
 func start_event_loop(event_name: String, volume_offset_db := 0.0) -> void:
 	if not SFX_OUTPUT_ENABLED or not sfx_enabled:
 		return
+	_cancel_loop_fade(event_name)
 	var current := _loop_event_players.get(event_name) as AudioStreamPlayer
 	if current != null and is_instance_valid(current):
 		current.volume_db = sfx_volume_db + volume_offset_db
@@ -223,20 +260,18 @@ func start_event_loop(event_name: String, volume_offset_db := 0.0) -> void:
 
 func stop_event_loop(event_name: String, fade_seconds := 0.045) -> void:
 	var player := _loop_event_players.get(event_name) as AudioStreamPlayer
-	_loop_event_players.erase(event_name)
 	if player == null or not is_instance_valid(player):
+		_loop_event_players.erase(event_name)
+		_cancel_loop_fade(event_name)
 		return
+	_cancel_loop_fade(event_name)
 	if fade_seconds <= 0.0 or not player.playing:
-		player.stop()
-		player.queue_free()
+		_finish_event_loop(event_name, player)
 		return
 	var tween := create_tween().bind_node(player)
+	_loop_event_fade_tweens[event_name] = tween
 	tween.tween_property(player, "volume_db", -60.0, fade_seconds)
-	tween.tween_callback(func() -> void:
-		if is_instance_valid(player):
-			player.stop()
-			player.queue_free()
-	)
+	tween.finished.connect(_finish_event_loop.bind(event_name, player))
 
 
 func stop_all_event_loops(fade_seconds := 0.045) -> void:
@@ -244,9 +279,48 @@ func stop_all_event_loops(fade_seconds := 0.045) -> void:
 		stop_event_loop(str(event_name), fade_seconds)
 
 
+func release_transient_sfx() -> void:
+	# Controlled shutdown helper for tests and future explicit application quit
+	# flows.  Normal scene transitions intentionally leave one-shot cues alone;
+	# a process that is about to exit must instead release their decoders now.
+	stop_all_event_loops(0.0)
+	for player in _players:
+		_release_audio_player(player)
+	_players.clear()
+
+
 func is_event_loop_playing(event_name: String) -> bool:
+	# A release can leave a few milliseconds of fade tail in the mixer, but it
+	# is no longer an active interaction loop.  Callers use this state to decide
+	# whether a held control is still driving audio, so report it as stopped as
+	# soon as the fade begins.
+	if _loop_event_fade_tweens.has(event_name):
+		return false
 	var player := _loop_event_players.get(event_name) as AudioStreamPlayer
 	return player != null and is_instance_valid(player) and player.playing
+
+
+func _cancel_loop_fade(event_name: String) -> void:
+	var tween := _loop_event_fade_tweens.get(event_name) as Tween
+	if tween != null and tween.is_valid():
+		tween.kill()
+	_loop_event_fade_tweens.erase(event_name)
+
+
+func _finish_event_loop(event_name: String, player: AudioStreamPlayer) -> void:
+	var tracked := _loop_event_players.get(event_name) as AudioStreamPlayer
+	if tracked == player:
+		_loop_event_players.erase(event_name)
+	_cancel_loop_fade(event_name)
+	_release_audio_player(player)
+
+
+func _release_audio_player(player: AudioStreamPlayer) -> void:
+	if player == null or not is_instance_valid(player):
+		return
+	player.stop()
+	player.stream = null
+	player.free()
 
 
 func play_sfx(path: String, pitch_variation := 0.08, volume_db := -8.0) -> void:

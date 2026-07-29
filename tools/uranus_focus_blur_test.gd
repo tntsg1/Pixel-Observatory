@@ -74,9 +74,10 @@ func _initialize() -> void:
 	_check(sharp_screen_radius <= 2.5, "exact focus retains only the small real seeing/collimation residual")
 	_check(near_screen_radius > sharp_screen_radius + 1.0, "near focus visibly starts broadening the disk")
 	_check(near_screen_radius < far_screen_radius, "defocus grows continuously with focus error")
-	_check(far_screen_radius >= 14.0, "severe defocus spreads Uranus by at least 14 eyepiece pixels")
+	_check(far_screen_radius >= 26.0, "severe defocus spreads Uranus by at least 26 eyepiece pixels")
 	_check(far_screen_radius >= sharp_screen_radius * 6.0, "severe defocus is unmistakably broader than best focus")
 	_check(far_texture_radius >= 100.0, "small-planet source scale is compensated in texture space")
+	_check(float(material.get_shader_parameter("defocus_amount")) >= 0.90, "solid-body convolution receives the shared severe focus error")
 	_check(main.modulate.a >= 0.98, "defocus does not turn Uranus into a translucent sticker")
 	_check(not star_materials.is_empty(), "background stars share the optical focus state")
 	if not star_materials.is_empty():
@@ -85,7 +86,13 @@ func _initialize() -> void:
 			"background stars become defocused with Uranus"
 		)
 	var shader_source := FileAccess.get_file_as_string("res://shaders/optical_target_state.gdshader")
-	_check(shader_source.count("texture(TEXTURE, uv + step_px") >= 20, "solid-body shader uses a dense PSF kernel")
+	_check(
+		shader_source.contains("PSF_SAMPLE_COUNT = 24")
+		and shader_source.contains("GOLDEN_ANGLE"),
+		"solid-body shader uses the Web-safe circular PSF kernel"
+	)
+	_check(shader_source.contains("source_uv_scale"), "solid-body shader has transparent optical overscan for outward blur")
+	_check(shader_source.contains("convolution_mix"), "solid-body shader removes the clear core as defocus grows")
 
 	view.queue_free()
 	await process_frame

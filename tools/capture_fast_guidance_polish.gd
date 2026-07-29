@@ -17,6 +17,7 @@ func _initialize() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
 	await _capture_aim_tutorial()
+	await _capture_chinese_aim_tutorial()
 	await _capture_tune_tutorial()
 	await _capture_rfi_recovery()
 	await _capture_fold_tutorials()
@@ -38,9 +39,20 @@ func _open(level_number: int, mode: String = "full", language: String = "en") ->
 	current_scene = scene
 	await process_frame
 	await process_frame
-	scene.call("_finish_array_takeover")
-	await create_timer(0.28).timeout
+	await _dismiss_array_takeover(scene)
 	return scene
+
+
+func _dismiss_array_takeover(scene: Control) -> void:
+	# The first FAST scene schedules the takeover with call_deferred. Poll for
+	# the real overlay instead of relying on one timer that can race a slow GPU.
+	for _attempt in range(30):
+		await process_frame
+		if bool(scene.get("intro_running")) or scene.get("intro_overlay") != null:
+			scene.call("_finish_array_takeover")
+			break
+		await create_timer(0.02).timeout
+	await create_timer(0.34).timeout
 
 
 func _capture_aim_tutorial() -> void:
@@ -53,9 +65,27 @@ func _capture_aim_tutorial() -> void:
 	scene.call("_record_aim_trail")
 	scene.call("_refresh_aim")
 	scene.call("_configure_stage_guidance")
+	await create_timer(0.55).timeout
+	_save("01_aim_direction_tutorial.png")
+	scene.call("_tutorial_action", "aim_drive")
 	scene.call("_advance_fast_tutorial")
 	await create_timer(0.18).timeout
-	_save("01_aim_tutorial_500m.png")
+	_save("02_aim_brake_tutorial.png")
+	await _remove(scene)
+
+
+func _capture_chinese_aim_tutorial() -> void:
+	var scene := await _open(79, "full", "zh")
+	var model := scene.get("model") as RadioSignalModel
+	model.azimuth = model.true_azimuth - 3.4
+	model.altitude = model.true_altitude + 2.2
+	model.az_velocity = 1.8
+	model.alt_velocity = -0.6
+	scene.call("_record_aim_trail")
+	scene.call("_refresh_aim")
+	scene.call("_configure_stage_guidance")
+	await create_timer(0.55).timeout
+	_save("01b_aim_direction_tutorial_zh.png")
 	await _remove(scene)
 
 
@@ -69,9 +99,8 @@ func _capture_tune_tutorial() -> void:
 	scene.call("_rebuild")
 	await create_timer(0.24).timeout
 	scene.call("_configure_stage_guidance")
-	scene.call("_advance_fast_tutorial")
 	await create_timer(0.18).timeout
-	_save("02_tune_center_and_bandwidth_tutorial.png")
+	_save("03_tune_center_and_bandwidth_tutorial.png")
 	await _remove(scene)
 
 
@@ -85,10 +114,10 @@ func _capture_rfi_recovery() -> void:
 	scene.set("selected_peak", 0)
 	scene.call("_classify_selected", true)
 	await create_timer(0.22).timeout
-	_save("03_rfi_candidate_lost_restore_available.png")
+	_save("04_rfi_candidate_lost_restore_available.png")
 	scene.call("_restore_raw_spectrum")
 	await create_timer(0.22).timeout
-	_save("04_rfi_raw_spectrum_restored.png")
+	_save("05_rfi_raw_spectrum_restored.png")
 	await _remove(scene)
 
 
@@ -103,7 +132,7 @@ func _capture_fold_tutorials() -> void:
 	await create_timer(0.24).timeout
 	scene.call("_configure_stage_guidance")
 	await create_timer(0.18).timeout
-	_save("05_fold_period_tutorial.png")
+	_save("06_fold_period_tutorial.png")
 	model.trial_period_ms = model.true_period_ms
 	model.trial_dm = model.true_dm + 7.0
 	scene.set("fold_step", 1)
@@ -111,7 +140,7 @@ func _capture_fold_tutorials() -> void:
 	await create_timer(0.24).timeout
 	scene.call("_configure_stage_guidance")
 	await create_timer(0.18).timeout
-	_save("06_fold_dm_tutorial.png")
+	_save("07_fold_dm_tutorial.png")
 	await _remove(scene)
 
 
@@ -128,7 +157,7 @@ func _capture_first_pulse() -> void:
 	await create_timer(0.24).timeout
 	scene.call_deferred("_play_discovery_moment")
 	await create_timer(1.18).timeout
-	_save("07_first_pulse_alignment_keyframe.png")
+	_save("08_first_pulse_alignment_keyframe.png")
 	await create_timer(1.10).timeout
 	await _remove(scene)
 
@@ -144,7 +173,7 @@ func _capture_chinese_report() -> void:
 	scene.set("report_choice", "stable_pulsar")
 	scene.call("_rebuild")
 	await create_timer(0.40).timeout
-	_save("08_chinese_report_and_archive.png")
+	_save("09_chinese_report_and_archive.png")
 	await _remove(scene)
 
 

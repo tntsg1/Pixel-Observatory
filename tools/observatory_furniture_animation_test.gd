@@ -50,8 +50,9 @@ func _initialize() -> void:
 	_check(computer_screen.size.x > 0.0 and computer_screen.size.y > 0.0, "computer defines a monitor-only feedback rectangle")
 	_check(computer_glow != null and computer_glow.position.is_equal_approx(computer_screen.position)
 		and computer_glow.size.is_equal_approx(computer_screen.size), "computer glow is clipped to the monitor glass")
-	_check(computer_screen.size.x < computer_door.size.x * 0.75
-		and computer_screen.size.y < computer_door.size.y * 0.55, "computer feedback cannot tint the full desk cutout")
+	_check(computer_door.position.is_equal_approx(computer_screen.position)
+		and computer_door.size.is_equal_approx(computer_screen.size),
+		"computer animation samples only the monitor glass, never the full desk cutout")
 
 	await _check_open_close_cycle()
 	_check(computer_door.scale.is_equal_approx(Vector2.ONE), "computer cutout stays at one-to-one scale after opening")
@@ -115,6 +116,10 @@ func _check_return_close_cycle() -> void:
 	_check(game_manager != null, "game manager is available for return-state test")
 	if game_manager == null:
 		return
+	# This branch exercises the explicit furniture-spawn contract. The first
+	# room instance continuously records its current pose, which would
+	# intentionally take priority over a spawn hint in normal menu returns.
+	game_manager.call("clear_observatory_return_pose")
 	game_manager.call("set_observatory_spawn", "assembly")
 	room.queue_free()
 	await process_frame
@@ -126,6 +131,8 @@ func _check_return_close_cycle() -> void:
 	var rig: Dictionary = animator.rigs.get("assembly", {})
 	var workbench := (rig.get("doors", []) as Array)[0] as Control
 	var closed_position := workbench.position
+	_check(str(room.get("arrival_furniture_id")) == "assembly", "assembly return preserves the arrival furniture context")
+	await process_frame
 	await create_timer(0.12).timeout
 	_check(animator.is_animating("assembly"), "returning from assembly visibly powers down its work surface")
 	_check(workbench.position.is_equal_approx(closed_position), "workbench feedback never pulls the furniture outward")

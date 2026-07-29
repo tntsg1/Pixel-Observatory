@@ -108,7 +108,7 @@ const CONSTELLATION_SPAN_ALTITUDE := 18.0
 
 const CALIBRATE_STEP_DEGREES := 0.1
 const CALIBRATE_REPEAT_DELAY := 0.09
-const CALIBRATE_RECT := Rect2(148, 668, 460, 46)
+const CALIBRATE_RECT := Rect2(88, 664, 630, 74)
 
 # L16 "Narrow Field Problem": how long / how much aimless movement in the
 # telescope before Maya's stronger reminder panel appears (once per visit).
@@ -239,10 +239,18 @@ class FaintMissionTargetWaypoint extends TextureRect:
 		texture = ring_texture
 		expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		# Keep the authored brass highlights intact. Multiplying this texture by
-		# GOLD made its four mechanical nodes collapse into a dim dotted circle.
-		modulate = Color(1.0, 1.0, 1.0, 0.98 if next_locked else 0.88)
+		# Linear filtering and a readable minimum presentation size preserve the
+		# authored cardinal markers instead of collapsing the artwork into the
+		# generic little circle that used to appear on faint deep-sky targets.
+		texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		# Keep approach and lock visually unambiguous even against a warm horizon:
+		# cyan is navigation, brass is a real angular lock.
+		modulate = (
+			Color(1.0, 0.97, 0.86, 1.0)
+			if next_locked
+			else next_accent.lerp(Color.WHITE, 0.72)
+		)
+		set_meta("marker_state", "locked" if next_locked else "approach")
 
 
 var telescope_azimuth := 180.0
@@ -367,6 +375,7 @@ var calibration_progress_fill: ColorRect
 var calibrate_repeat_timer := 0.0
 var calibration_steps_banner: Control
 var calibration_step_labels: Array = []
+var calibration_complete_visible_until_msec := 0
 
 var workflow_elapsed := 0.0
 var workflow_move_count := 0
@@ -411,6 +420,13 @@ func _ready() -> void:
 		var saved_mode := str(saved_aim.get("view_mode", "naked_eye"))
 		if bool(_mode_available(saved_mode).get("ok", false)):
 			view_mode = saved_mode
+	# Finder calibration is performed through the finder itself. Restoring a
+	# previous naked-eye aim here made the lesson open in the wrong instrument
+	# and left the calibration controls hidden behind generic sky guidance.
+	if _is_finder_calibration_level() and not GameManager.is_finder_aligned():
+		var finder_available := _mode_available("finder")
+		if bool(finder_available.get("ok", false)):
+			view_mode = "finder"
 	visited_modes[view_mode] = true
 	_apply_view_mode()
 	display_azimuth = telescope_azimuth
@@ -755,14 +771,10 @@ func _is_finder_calibration_level() -> bool:
 
 func _handle_calibration_input(delta: float) -> void:
 	if not _is_finder_calibration_level() or view_mode != "finder" or GameManager.is_finder_aligned():
-		if calibration_panel != null:
-			calibration_panel.visible = _is_finder_calibration_level() and view_mode == "finder"
-		# Keep the step guide live even when not in Finder, so its "Switch to
-		# Finder" step is visible from the telescope/naked-eye view.
+		_sync_calibration_utility_strip()
 		_update_calibration_steps_banner()
 		return
-	if calibration_panel != null:
-		calibration_panel.visible = true
+	_sync_calibration_utility_strip()
 	calibrate_repeat_timer -= delta
 	var delta_az := 0.0
 	var delta_alt := 0.0
@@ -791,10 +803,13 @@ func _handle_calibration_input(delta: float) -> void:
 
 
 func _update_calibration_panel() -> void:
-	_update_calibration_steps_banner()
 	if calibration_pct_label == null:
 		return
 	var aligned := GameManager.is_finder_aligned()
+	if aligned and not calibration_success_played:
+		calibration_complete_visible_until_msec = Time.get_ticks_msec() + 900
+	_update_calibration_steps_banner()
+	_sync_calibration_utility_strip()
 	var pct := GameManager.finder_alignment_percent()
 	var prior_pct := previous_calibration_percent
 	if calibration_progress_fill != null:
@@ -913,6 +928,7 @@ func _set_view_mode(mode: String) -> void:
 		# survived a language/UI rebuild with its aiming overlay hidden.
 		_update_mode_buttons()
 		_ensure_scope_reticle_visible()
+		_sync_calibration_utility_strip()
 		return
 	var check := _mode_available(mode)
 	if not bool(check.get("ok", false)):
@@ -927,6 +943,7 @@ func _set_view_mode(mode: String) -> void:
 	_apply_view_mode()
 	_update_optical_lens_mode()
 	_update_mode_buttons()
+	_sync_calibration_utility_strip()
 	if cloud_layer != null:
 		# Cloud screen-size/speed scale with FOV, so switching views rebuilds
 		# them; the underlying cloud_cover amount is unchanged.
@@ -1592,6 +1609,7 @@ func _build() -> void:
 	_draw_action_hitboxes()
 	_build_mobile_sky_controls()
 	_update_mode_buttons()
+	_sync_calibration_utility_strip()
 	_rebuild_view()
 
 
@@ -1638,41 +1656,69 @@ func _build_calibration_panel() -> void:
 	calibration_panel.size = CALIBRATE_RECT.size
 	calibration_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	calibration_panel.visible = false
+	calibration_panel.z_index = Z_GUIDANCE + 4
 	add_child(calibration_panel)
-	_rect(calibration_panel, Vector2.ZERO, CALIBRATE_RECT.size, Color(0.02, 0.03, 0.05, 0.72))
-	calibration_pct_label = _label(calibration_panel, "", Vector2(10, 2), Vector2(CALIBRATE_RECT.size.x - 20, 18), 12, WARNING, HORIZONTAL_ALIGNMENT_CENTER)
-	_rect(calibration_panel, Vector2(12, 21), Vector2(CALIBRATE_RECT.size.x - 24, 5), Color(0.08, 0.13, 0.20, 0.9))
-	calibration_progress_fill = _rect(calibration_panel, Vector2(12, 21), Vector2(0, 5), CYAN)
-	calibration_hint_label = _label(calibration_panel, GameManager.text("IJKL to adjust", "IJKL 微调"), Vector2(10, 27), Vector2(CALIBRATE_RECT.size.x - 20, 17), 12, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	_rect(calibration_panel, Vector2.ZERO, CALIBRATE_RECT.size, Color(0.01, 0.02, 0.035, 0.96))
+	_rect(calibration_panel, Vector2.ZERO, Vector2(CALIBRATE_RECT.size.x, 1), Color(0.72, 0.53, 0.26, 0.82))
 	_build_calibration_steps_banner()
+	_rect(calibration_panel, Vector2(12, 27), Vector2(CALIBRATE_RECT.size.x - 24, 5), Color(0.08, 0.13, 0.20, 0.9))
+	calibration_progress_fill = _rect(calibration_panel, Vector2(12, 27), Vector2(0, 5), CYAN)
+	calibration_pct_label = _label(calibration_panel, "", Vector2(10, 34), Vector2(CALIBRATE_RECT.size.x - 20, 18), 12, WARNING, HORIZONTAL_ALIGNMENT_CENTER)
+	calibration_hint_label = _label(calibration_panel, GameManager.text("IJKL to adjust", "IJKL 微调"), Vector2(10, 53), Vector2(CALIBRATE_RECT.size.x - 20, 17), 12, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	_update_calibration_panel()
 
 
 func _build_calibration_steps_banner() -> void:
-	# Prominent center-top guide so the player is never locked in Finder mode
-	# without knowing the calibration routine. The active step lights up.
-	var banner_w := 566.0
+	# The step guide shares the fixed frame utility strip with the live
+	# calibration readout. It never covers the finder sky or its target.
+	var banner_w := CALIBRATE_RECT.size.x
 	calibration_steps_banner = Control.new()
-	calibration_steps_banner.position = Vector2(VIEW_RECT.position.x + (VIEW_RECT.size.x - banner_w) * 0.5, VIEW_RECT.position.y + 34.0)
-	calibration_steps_banner.size = Vector2(banner_w, 62)
+	calibration_steps_banner.position = Vector2.ZERO
+	calibration_steps_banner.size = Vector2(banner_w, 26)
 	calibration_steps_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	calibration_steps_banner.z_index = 40
-	add_child(calibration_steps_banner)
-	_rect(calibration_steps_banner, Vector2.ZERO, Vector2(banner_w, 62), Color(0.02, 0.03, 0.06, 0.86))
-	_rect(calibration_steps_banner, Vector2.ZERO, Vector2(banner_w, 2), GOLD)
-	_label(calibration_steps_banner, GameManager.text("FINDER CALIBRATION", "寻星镜校准步骤"), Vector2(0, 4), Vector2(banner_w, 18), 13, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	calibration_panel.add_child(calibration_steps_banner)
+	_label(calibration_steps_banner, GameManager.text("FINDER CALIBRATION", "寻星镜校准"), Vector2(8, 4), Vector2(118, 18), 12, GOLD, HORIZONTAL_ALIGNMENT_LEFT)
 	calibration_step_labels.clear()
 	var steps := [
-		GameManager.text("1 Switch to Finder", "1 切换到寻星镜"),
-		GameManager.text("2 Move with I/J/K/L", "2 方向键移动目标"),
-		GameManager.text("3 Center the target", "3 移到中心"),
-		GameManager.text("4 Alignment done", "4 完成校准"),
+		GameManager.text("1 Finder", "1 寻星镜"),
+		GameManager.text("2 Adjust", "2 调偏差"),
+		GameManager.text("3 Center", "3 移到中心"),
+		GameManager.text("4 Aligned", "4 完成"),
 	]
-	var chip_w := banner_w / float(steps.size())
+	var chip_start := 126.0
+	var chip_w := (banner_w - chip_start - 8.0) / float(steps.size())
 	for i in range(steps.size()):
-		var chip := _label(calibration_steps_banner, str(steps[i]), Vector2(chip_w * i, 26), Vector2(chip_w, 30), 12, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
-		chip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var chip := _label(calibration_steps_banner, str(steps[i]), Vector2(chip_start + chip_w * i, 3), Vector2(chip_w, 20), 11, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+		chip.autowrap_mode = TextServer.AUTOWRAP_OFF
 		calibration_step_labels.append(chip)
+
+
+func _calibration_utility_active() -> bool:
+	return (
+		_is_finder_calibration_level()
+		and view_mode == "finder"
+		and (
+			not GameManager.is_finder_aligned()
+			or Time.get_ticks_msec() < calibration_complete_visible_until_msec
+		)
+	)
+
+
+func _sync_calibration_utility_strip() -> void:
+	var calibration_active := _calibration_utility_active()
+	if calibration_panel != null:
+		calibration_panel.visible = calibration_active
+	# The regular navigation strip and the calibration strip occupy the same
+	# frame-safe area. Only one may be visible, so no debug/help layer can sit
+	# above the calibration controls.
+	if guidance_banner_bg != null:
+		guidance_banner_bg.visible = not calibration_active
+	if guidance_banner != null:
+		guidance_banner.visible = not calibration_active
+	if controls_help != null:
+		controls_help.visible = not calibration_active
+	if view_mode_caption != null:
+		view_mode_caption.visible = not calibration_active
 
 
 func _active_calibration_step() -> int:
@@ -1689,9 +1735,7 @@ func _active_calibration_step() -> int:
 func _update_calibration_steps_banner() -> void:
 	if calibration_steps_banner == null or calibration_step_labels.is_empty():
 		return
-	# Show it whenever calibration is incomplete (in any view, so the "Switch to
-	# Finder" step is visible from the telescope view too); hide once aligned.
-	calibration_steps_banner.visible = _is_finder_calibration_level() and not GameManager.is_finder_aligned()
+	calibration_steps_banner.visible = _calibration_utility_active()
 	var active := _active_calibration_step()
 	for i in range(calibration_step_labels.size()):
 		var chip := calibration_step_labels[i] as Label
@@ -3051,7 +3095,22 @@ func _update_marker_frames() -> void:
 			target_state_ring.queue_free()
 		target_state_ring = null
 		assist_frame = faint_mission_target_waypoint
-		target_lock_state = "locked" if _is_target_centered(tracked_id) else "approach"
+		next_state = "locked" if _is_target_centered(tracked_id) else "approach"
+		if previous_state != next_state and next_state == "locked":
+			faint_mission_target_waypoint.scale = Vector2.ONE * (1.28 if not InteractionFeedback.is_reduced_motion() else 1.0)
+			var faint_lock_tween := create_tween().bind_node(faint_mission_target_waypoint).set_parallel(true)
+			faint_lock_tween.tween_property(
+				faint_mission_target_waypoint,
+				"scale",
+				Vector2.ONE,
+				0.26 if not InteractionFeedback.is_reduced_motion() else 0.08
+			).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			faint_lock_tween.tween_property(faint_mission_target_waypoint, "modulate:a", 1.0, 0.20)
+			# The authored ring owns this visual transition. Calling the generic
+			# success helper adds a second green polygon over the brass lock
+			# asset, making faint targets look like a debug hitbox.
+			InteractionFeedback.feedback_sfx_requested.emit("finder_lock")
+		target_lock_state = next_state
 		return
 	_hide_faint_mission_target_waypoint()
 	if _is_constellation_target(tracked_id):
@@ -3146,19 +3205,31 @@ func _update_faint_mission_target_waypoint(object_id: String) -> bool:
 	var info: Dictionary = in_view_targets.get(object_id, {})
 	if info.is_empty() or not bool(info.get("faint_waypoint", false)):
 		return false
-	var diameter := _target_feedback_ring_size(2.0)
+	var diameter := _faint_target_feedback_ring_size()
 	var center: Vector2 = (info.get("rect", Rect2()) as Rect2).get_center()
 	var centered := _is_target_centered(object_id)
-	# Faint mission targets use the same formal four-node brass ring in every
-	# view mode. The old cyan approach texture read as a placeholder circle,
-	# while the small locked version collapsed into a dotted ring. State is
-	# communicated by opacity and the existing lock feedback instead of
-	# swapping to a second, visually unrelated marker.
-	faint_mission_target_waypoint.configure(diameter, GOLD, centered, _load_png_texture(LOCK_RING_TEXTURE))
+	# A catalog waypoint does not reveal the invisible object, but its aiming
+	# language must match every visible target: cyan while approaching, brass
+	# only after the real angular lock tolerance is met.
+	var ring_path := LOCK_RING_TEXTURE if centered else APPROACH_RING_TEXTURE
+	faint_mission_target_waypoint.configure(diameter, GOLD if centered else CYAN, centered, _load_png_texture(ring_path))
 	faint_mission_target_waypoint.position = center - faint_mission_target_waypoint.size * 0.5
 	faint_mission_target_waypoint.visible = true
 	faint_mission_target_waypoint_id = object_id
 	return true
+
+
+func _faint_target_feedback_ring_size() -> float:
+	# A faint waypoint communicates pointing tolerance, not the object's angular
+	# diameter. Keep it in the same compact visual language as visible targets;
+	# the real angular lock threshold remains independent from this size.
+	match view_mode:
+		"naked_eye":
+			return 42.0
+		"finder":
+			return 54.0
+		_:
+			return 64.0
 
 
 func _hide_faint_mission_target_waypoint() -> void:
@@ -3318,27 +3389,35 @@ func _target_hit_diameter(target_diameter: float) -> float:
 
 func _target_ring(parent: Control, texture_path: String, center: Vector2, diameter: float, alpha: float) -> TextureRect:
 	var ring := _asset_texture_rect(parent, texture_path, Rect2(center - Vector2.ONE * diameter * 0.5, Vector2.ONE * diameter))
+	ring.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	ring.z_index = Z_TARGET_FEEDBACK
 	ring.modulate.a = alpha
 	return ring
 
 
 func _update_lock_ring_pulse() -> void:
-	if target_state_ring == null or not is_instance_valid(target_state_ring):
+	var active_ring: TextureRect = target_state_ring
+	if (
+		(active_ring == null or not is_instance_valid(active_ring))
+		and faint_mission_target_waypoint != null
+		and faint_mission_target_waypoint.visible
+	):
+		active_ring = faint_mission_target_waypoint
+	if active_ring == null or not is_instance_valid(active_ring):
 		return
 	if target_lock_state != "approach" and target_lock_state != "locked" and target_lock_state != "success":
 		return
 	if InteractionFeedback.is_reduced_motion():
-		target_state_ring.modulate.a = 1.0 if target_lock_state == "success" else (0.82 if target_lock_state == "approach" else 0.88)
-		target_state_ring.rotation = 0.0
+		active_ring.modulate.a = 1.0 if target_lock_state == "success" else (0.82 if target_lock_state == "approach" else 0.88)
+		active_ring.rotation = 0.0
 		return
 	var phase := Time.get_ticks_msec() / 1000.0
 	var base := 1.0 if target_lock_state == "success" else (0.82 if target_lock_state == "approach" else 0.90)
 	var amplitude := 0.0 if target_lock_state == "success" else (0.10 if target_lock_state == "approach" else 0.08)
-	target_state_ring.modulate.a = clampf(base + sin(phase * 3.2) * amplitude, 0.55, 1.0)
+	active_ring.modulate.a = clampf(base + sin(phase * 3.2) * amplitude, 0.55, 1.0)
 	# Rotating cardinal marks make acquisition visible without filling the
 	# transparent center or covering the celestial texture.
-	target_state_ring.rotation = phase * (0.22 if target_lock_state == "approach" else -0.12)
+	active_ring.rotation = phase * (0.22 if target_lock_state == "approach" else -0.12)
 
 
 func _single(en: String, zh: String) -> String:

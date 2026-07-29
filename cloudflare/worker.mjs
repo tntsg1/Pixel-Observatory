@@ -14,6 +14,8 @@ const MAX_MESSAGE_BYTES = 8_000;
 const MAX_MESSAGE_LENGTH = 4_000;
 const MAX_COMMUNITY_BODY = 3_000;
 const ONLINE_WINDOW_SECONDS = 120;
+const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
+const PLAYTIME_LEASE_STALE_SECONDS = 75;
 const PERMANENT_MUTE_UNTIL = 4_102_444_800;
 const ADMIN_PROFILE_THEMES = new Set(["command-gold", "aurora-glass", "deep-space"]);
 const THANK_YOU_MODEL = "@cf/zai-org/glm-4.7-flash";
@@ -27,6 +29,48 @@ const OBSERVER_RANKS = [
 	{ id: "ephemeris", name: "Ephemeris Specialist", minSeconds: 75 * 60 * 60 },
 	{ id: "chief", name: "Chief Observer", minSeconds: 150 * 60 * 60 },
 ];
+
+export function calculatePlaytimeCredit({
+	serverElapsedSeconds = 0,
+	activeSecondsHint = 0,
+	sameSession = false,
+} = {}) {
+	if (!sameSession) return 0;
+	const serverElapsed = Math.max(0, Math.floor(Number(serverElapsedSeconds) || 0));
+	const activeHint = Math.max(0, Math.floor(Number(activeSecondsHint) || 0));
+	return Math.min(serverElapsed, activeHint, PLAYTIME_HEARTBEAT_CAP_SECONDS);
+}
+
+export function calculatePlaytimeTransition({
+	previousSeconds = 0,
+	previousHeartbeat = 0,
+	previousSession = "",
+	sessionId = "",
+	event = "heartbeat",
+	activeSecondsHint = 0,
+	now = 0,
+} = {}) {
+	const elapsed = previousHeartbeat > 0 ? Math.max(0, now - previousHeartbeat) : 0;
+	const sameSession = Boolean(previousSession) && previousSession === sessionId;
+	const leaseAvailable = !previousSession
+		|| sameSession
+		|| elapsed >= PLAYTIME_LEASE_STALE_SECONDS;
+	const earnedSeconds = leaseAvailable
+		? calculatePlaytimeCredit({
+			serverElapsedSeconds: elapsed,
+			activeSecondsHint,
+			sameSession,
+		})
+		: 0;
+	const releaseLease = event === "pause" || event === "leave";
+	return {
+		earnedSeconds,
+		playSeconds: Math.max(0, Number(previousSeconds) || 0) + earnedSeconds,
+		leaseAccepted: leaseAvailable,
+		nextSession: leaseAvailable ? (releaseLease ? "" : sessionId) : previousSession,
+		nextHeartbeat: leaseAvailable ? (releaseLease ? 0 : now) : previousHeartbeat,
+	};
+}
 // Cloudflare Workers Web Crypto currently caps PBKDF2 at 100,000 rounds.
 const PASSWORD_ITERATIONS = 100_000;
 const VISITOR_ALLOWED_ORIGINS = new Set([
@@ -660,6 +704,22 @@ async function conversationForUser(env, conversationId, userId) {
 	).bind(conversationId, userId).first();
 }
 
+async function acceptedFriendship(env, firstUserId, secondUserId) {
+	const pairKey = [firstUserId, secondUserId].sort().join(":");
+	return env.DB.prepare(
+		"SELECT id FROM friendships WHERE pair_key = ? AND status = 'accepted'",
+	).bind(pairKey).first();
+}
+
+async function directConversationPeer(env, conversationId, userId) {
+	return env.DB.prepare(
+		`SELECT conversation_members.user_id
+		 FROM conversation_members
+		 WHERE conversation_members.conversation_id = ? AND conversation_members.user_id != ?
+		 LIMIT 1`,
+	).bind(conversationId, userId).first();
+}
+
 async function handleConversationList(request, env) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to open your inbox.", 401, "unauthorized");
@@ -671,6 +731,13 @@ async function handleConversationList(request, env) {
 		     JOIN users ON users.id = peers.user_id
 		     WHERE peers.conversation_id = conversations.id AND peers.user_id != ?
 		   ), 'Starlight Observatory') AS title,
+		   COALESCE((
+		     SELECT users.username
+		     FROM conversation_members peers
+		     JOIN users ON users.id = peers.user_id
+		     WHERE peers.conversation_id = conversations.id AND peers.user_id != ?
+		     ORDER BY users.username_key LIMIT 1
+		   ), '') AS peer_username,
 		   COALESCE((
 		     SELECT messages.body FROM messages
 		     WHERE messages.conversation_id = conversations.id
@@ -691,7 +758,7 @@ async function handleConversationList(request, env) {
 		 JOIN conversation_members ON conversation_members.conversation_id = conversations.id
 		 WHERE conversation_members.user_id = ?
 		 ORDER BY conversations.updated_at DESC LIMIT 100`,
-	).bind(user.id, user.id, user.id).all();
+	).bind(user.id, user.id, user.id, user.id).all();
 	return json({ ok: true, conversations: result.results || [] });
 }
 
@@ -742,6 +809,12 @@ async function handleMessagePost(request, env, conversationId) {
 	}
 	const conversation = await conversationForUser(env, conversationId, user.id);
 	if (!conversation) return apiError("Conversation not found.", 404, "not_found");
+	if (conversation.kind === "direct") {
+		const peer = await directConversationPeer(env, conversationId, user.id);
+		if (!peer || !(await acceptedFriendship(env, user.id, peer.user_id))) {
+			return apiError("Only confirmed friends can exchange private messages.", 403, "not_friends");
+		}
+	}
 	let payload;
 	try {
 		payload = await readJson(request, MAX_MESSAGE_BYTES);
@@ -791,6 +864,9 @@ async function handleDirectConversationPost(request, env) {
 	).bind(usernameKey).first();
 	if (!recipient) return apiError("That observer could not be reached.", 404, "not_found");
 	if (recipient.id === user.id) return apiError("Choose another observer.", 400, "invalid_recipient");
+	if (!(await acceptedFriendship(env, user.id, recipient.id))) {
+		return apiError("Only confirmed friends can exchange private messages.", 403, "not_friends");
+	}
 	const directKey = [user.id, recipient.id].sort().join(":");
 	const now = Date.now();
 	let conversation = await env.DB.prepare(
@@ -953,18 +1029,77 @@ async function handlePresence(request, env, countPlaytime = false) {
 	await ensureProfile(env, user.id);
 	const now = Math.floor(Date.now() / 1000);
 	if (countPlaytime) {
+		let body;
+		try {
+			body = await readJson(request, 2_000);
+		} catch {
+			return apiError("Invalid playtime heartbeat.", 400, "invalid_playtime");
+		}
+		const sessionId = String(body.sessionId || "");
+		if (!VISITOR_ID_PATTERN.test(sessionId)) {
+			return apiError("Invalid playtime session.", 400, "invalid_playtime_session");
+		}
+		const event = ["heartbeat", "resume", "pause", "leave"].includes(String(body.event))
+			? String(body.event)
+			: "heartbeat";
+		const activeSecondsHint = Math.max(
+			0,
+			Math.min(PLAYTIME_HEARTBEAT_CAP_SECONDS, Math.floor(Number(body.activeSeconds) || 0)),
+		);
 		const row = await env.DB.prepare(
-			"SELECT play_seconds, last_play_heartbeat_at FROM user_profiles WHERE user_id = ?",
+			`SELECT play_seconds, last_play_heartbeat_at, last_play_session_id
+			 FROM user_profiles WHERE user_id = ?`,
 		).bind(user.id).first();
 		const previous = Number(row?.last_play_heartbeat_at || 0);
-		const earned = previous > 0 ? Math.max(0, Math.min(45, now - previous)) : 0;
-		await env.DB.prepare(
+		const previousSession = String(row?.last_play_session_id || "");
+		const transition = calculatePlaytimeTransition({
+			previousSeconds: Number(row?.play_seconds || 0),
+			previousHeartbeat: previous,
+			previousSession,
+			sessionId,
+			event,
+			activeSecondsHint,
+			now,
+		});
+		const updateResult = await env.DB.prepare(
 			`UPDATE user_profiles
-			 SET play_seconds = play_seconds + ?, last_active_at = ?, last_play_heartbeat_at = ?, updated_at = ?
-			 WHERE user_id = ?`,
-		).bind(earned, now, now, now, user.id).run();
-		const updated = Number(row?.play_seconds || 0) + earned;
-		return json({ ok: true, earnedSeconds: earned, playSeconds: updated, rank: rankForSeconds(updated) });
+			 SET play_seconds = play_seconds + ?, last_active_at = ?,
+			     last_play_heartbeat_at = ?, last_play_session_id = ?, updated_at = ?
+			 WHERE user_id = ? AND last_play_heartbeat_at = ? AND last_play_session_id = ?`,
+		).bind(
+			transition.earnedSeconds,
+			now,
+			transition.nextHeartbeat,
+			transition.nextSession,
+			now,
+			user.id,
+			previous,
+			previousSession,
+		).run();
+		const changed = Number(updateResult?.meta?.changes ?? updateResult?.meta?.rows_written ?? 1);
+		if (changed < 1) {
+			const current = await env.DB.prepare(
+				"SELECT play_seconds FROM user_profiles WHERE user_id = ?",
+			).bind(user.id).first();
+			const currentSeconds = Number(current?.play_seconds || 0);
+			return json({
+				ok: true,
+				earnedSeconds: 0,
+				playSeconds: currentSeconds,
+				rank: rankForSeconds(currentSeconds),
+				leaseAccepted: false,
+				conflict: true,
+				event,
+			});
+		}
+		return json({
+			ok: true,
+			earnedSeconds: transition.earnedSeconds,
+			playSeconds: transition.playSeconds,
+			rank: rankForSeconds(transition.playSeconds),
+			leaseAccepted: transition.leaseAccepted,
+			event,
+		});
 	}
 	await env.DB.prepare(
 		"UPDATE user_profiles SET last_active_at = ?, updated_at = ? WHERE user_id = ?",

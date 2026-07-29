@@ -62,7 +62,7 @@
     "title_en": "Build a Simple Refractor",
     "title_zh": "组装简单折射望远镜",
     "description_en": "Build your first refractor, then revisit the Moon as a controlled comparison. This time resolve dark maria and crater rims that were only vague patches to the naked eye.",
-    "description_zh": "先组装第一台折射镜，再回头看月球。这次要看清月海和环形山边缘。",
+    "description_zh": "先组装第一台折射望远镜：物镜先把月光会聚成像，目镜再把细节放大。再回头看月球，这次要看清月海和环形山边缘。",
     "observation_mode": "telescope",
     "variation": "lunar_detail_comparison",
     "equipment_stage": "refractor_basic",
@@ -90,7 +90,7 @@
     "hint_text_en": "Compare the dark lava plains and bright crater rims with your L1 naked-eye record.",
     "hint_text_zh": "看看暗色月海和明亮环形山边缘，再和第一关的肉眼记录比一比。",
     "success_text_en": "The same Moon now shows structure: the objective resolves detail and the eyepiece makes it inspectable.",
-    "success_text_zh": "同一个月球，现在能看见月海和环形山了。折射镜确实补上了肉眼看不到的细节。",
+    "success_text_zh": "同一个月球，现在能看见月海和环形山了。物镜把光会聚成像，目镜让肉眼看不到的细节变得可辨认。",
     "reward_credits": 50,
     "unlock_parts": [
       "basic_focus_knob"
@@ -937,6 +937,7 @@
       "focus_knob"
     ],
     "drift_enabled": true,
+    "teach_manual_drift_correction": true,
     "hold_seconds": 8,
     "required_assembly_score": 75,
     "hint_text_en": "Keep Sirius centered, focus it as sharply as possible, then notice that its red-blue split still remains.",

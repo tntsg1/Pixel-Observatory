@@ -13,8 +13,25 @@ func _initialize() -> void:
 	gm.new_game()
 	gm.go("observatory")
 	await process_frame
+	var cloud_sync: Node = root.get_node_or_null("/root/CloudSyncManager")
+	gm.set_developer_console_test_permission_for_tests(true)
+	if cloud_sync != null and cloud_sync.has_method("set_test_session_role_for_tests"):
+		cloud_sync.set_test_session_role_for_tests("")
 	gm.toggle_developer_console()
-	_check(gm.developer_console != null and is_instance_valid(gm.developer_console), "developer console opens over the current scene")
+	_check(gm.developer_console == null, "visitor session cannot open developer console through direct call")
+	_check(root.find_children("*", "DeveloperConsole", true, false).is_empty(), "visitor scene tree contains no developer console node")
+	if cloud_sync != null and cloud_sync.has_method("set_test_session_role_for_tests"):
+		cloud_sync.set_test_session_role_for_tests("user")
+	gm.toggle_developer_console()
+	_check(gm.developer_console == null, "ordinary role remains denied")
+	var direct_panel := preload("res://scripts/ui/developer_console.gd").new()
+	current_scene.add_child(direct_panel)
+	await process_frame
+	_check(not is_instance_valid(direct_panel) or direct_panel.get_parent() == null, "direct developer console instantiation fails closed for ordinary role")
+	if cloud_sync != null and cloud_sync.has_method("set_test_session_role_for_tests"):
+		cloud_sync.set_test_session_role_for_tests("admin")
+	gm.toggle_developer_console()
+	_check(gm.developer_console != null and is_instance_valid(gm.developer_console), "explicit admin test session opens developer console")
 	var mm: Node = root.get_node_or_null("/root/MissionManager")
 	_check(mm != null and gm.available_level_numbers() == mm.campaign_order, "developer console mirrors the active campaign order")
 	_check(gm.available_level_numbers().has(45), "developer console includes L45")

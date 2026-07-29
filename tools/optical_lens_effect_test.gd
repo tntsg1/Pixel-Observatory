@@ -117,6 +117,13 @@ func _test_averted_vision_ui() -> void:
 	await process_frame
 	var guide := view.find_child("AvertedVisionGuide", true, false) as Control
 	_check(guide != null and bool(guide.get("enabled")), "averted-vision lesson draws a visible side-gaze marker")
+	var guide_parent := guide.get_parent() if guide != null else null
+	var occluder_clipper := view.find_child("LensRingOccluderClipper", true, false)
+	_check(
+		guide_parent != null and occluder_clipper != null and guide.get_index() > occluder_clipper.get_index(),
+		"side-gaze marker renders above the barrel occluder instead of being covered by it"
+	)
+	_check(int(guide.get("z_index")) > 0, "side-gaze marker has an explicit foreground render layer")
 	view.set("dark_adaptation", 1.0)
 	view.set("drift_offset", Vector2.ZERO)
 	view.set("drift_direction", Vector2.ZERO)

@@ -56,13 +56,21 @@ func _test_guidance_modes_and_persistence() -> void:
 	scene.call("_configure_stage_guidance")
 	await process_frame
 	_check(bool(scene.get("tutorial_active")), "full guidance starts the staged AIM tutorial")
-	_check(str(scene.get("tutorial_waiting_action")) == "", "AIM tutorial starts with a short motivation, not an input lock")
-	scene.call("_advance_fast_tutorial")
-	_check(str(scene.get("tutorial_waiting_action")) == "aim_drive", "AIM tutorial reveals one physical action at a time")
+	_check(str(scene.get("tutorial_waiting_action")) == "aim_drive", "AIM tutorial opens on the first physical action instead of an ambiguous Start prompt")
+	var status := scene.get("status_label") as Label
+	_check(status != null and status.text.contains("MAYA 1/3"), "full guidance identifies Maya and shows concise step progress")
+	var next := scene.get("tutorial_next_button") as Button
+	_check(next != null and next.text == "I KNOW THIS", "the optional bypass is explicit instead of a vague Start button")
+	var frame := scene.get("tutorial_frame") as Control
+	var drive_panel := scene.get("aim_drive_panel") as Control
+	_check(frame != null and drive_panel != null and frame.size.x < drive_panel.size.x, "AIM guidance highlights the direction controls instead of the whole console")
 	scene.call("_tutorial_action", "aim_drive")
 	_check(bool(scene.get("tutorial_action_complete")), "the requested player action completes the current tutorial step")
+	_check(status.text.contains("inertia"), "the completed drive action explains the visible coasting consequence")
+	scene.call("_advance_fast_tutorial")
+	_check(str(scene.get("tutorial_waiting_action")) == "aim_brake", "the next revealed action teaches braking")
 	scene.call("_finish_stage_tutorial")
-	_check(feedback.call("was_tutorial_seen", "fast_guided_stage_aim"), "completed stage tutorial is persisted")
+	_check(feedback.call("was_tutorial_seen", "fast_guided_stage_v2_aim"), "completed versioned stage tutorial is persisted")
 	scene.call("_rebuild")
 	await process_frame
 	_check(not bool(scene.get("tutorial_active")), "persisted tutorial does not replay automatically")
@@ -75,10 +83,12 @@ func _test_guidance_modes_and_persistence() -> void:
 	scene.call("_configure_stage_guidance")
 	await process_frame
 	_check(not bool(scene.get("tutorial_active")), "light guidance does not open the staged tutorial")
-	var status := scene.get("status_label") as Label
+	status = scene.get("status_label") as Label
 	_check(status != null and status.text != "", "light guidance provides one compact stage hint")
 	scene.queue_free()
 	await process_frame
+
+	await _test_every_stage_starts_with_an_action()
 
 	feedback.set("_tutorial_seen", {})
 	gm.progress["tutorial_assistance"] = "free"
@@ -121,6 +131,29 @@ func _test_idle_hints_and_terminal_throttle() -> void:
 		scene.set("terminal_clock", 12.0 + float(i))
 		scene.call("_terminal_event", "EVENT %d" % i, "OK")
 	_check((scene.get("terminal_log") as Array).size() == 6, "terminal keeps six readable lines of real event history")
+	scene.queue_free()
+	await process_frame
+
+
+func _test_every_stage_starts_with_an_action() -> void:
+	feedback.set("_tutorial_seen", {})
+	gm.progress["tutorial_assistance"] = "full"
+	var scene := await _new_fast_scene()
+	var expected := ["aim_drive", "tune_center", "rfi_select", "fold_dm_adjust", "report_choose"]
+	for stage_index in range(expected.size()):
+		scene.set("stage", stage_index)
+		scene.call("_rebuild")
+		await process_frame
+		scene.call("_configure_stage_guidance")
+		await process_frame
+		_check(
+			str(scene.get("tutorial_waiting_action")) == expected[stage_index],
+			"FAST stage %d begins with one concrete player action" % (stage_index + 1)
+		)
+	scene.set("stage", 3)
+	scene.set("fold_step", 0)
+	var hint := str(scene.call("_idle_hint_for_state", 3))
+	_check(not hint.to_lower().contains("drag"), "Fold idle guidance matches the button-driven capture controls")
 	scene.queue_free()
 	await process_frame
 

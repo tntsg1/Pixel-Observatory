@@ -85,6 +85,7 @@ func _build() -> void:
 		NAME_COLOR,
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
+	club_label.name = "StoryClubName"
 
 	# dialogue panel
 	var panel := Panel.new()
@@ -136,8 +137,10 @@ func _build() -> void:
 	portrait_frame.add_child(portrait_rect)
 
 	speaker_label = _label("", Vector2(244, 540), Vector2(420, 28), 19, NAME_COLOR)
+	speaker_label.name = "StorySpeaker"
 	beat_label = _label("", Vector2(676, 542), Vector2(236, 22), 11, Color(0.54, 0.91, 0.96), HORIZONTAL_ALIGNMENT_RIGHT)
 	text_label = _label("", Vector2(244, 574), Vector2(668, 82), 16, TEXT_COLOR)
+	text_label.name = "StoryDialogueText"
 	text_label.max_lines_visible = 4
 
 	counter_label = _label("", Vector2(244, 682), Vector2(120, 20), 11, MUTED)
@@ -157,6 +160,7 @@ func _build() -> void:
 	add_child(diagram_rect)
 
 	next_button = Button.new()
+	next_button.name = "StoryContinueButton"
 	next_button.position = Vector2(812, 664)
 	next_button.size = Vector2(120, 38)
 	next_button.add_theme_font_size_override("font_size", 14)

@@ -7,6 +7,7 @@ var failures := 0
 
 func _initialize() -> void:
 	await process_frame
+	TranslationServer.set_locale("zh")
 	var gm := root.get_node_or_null("/root/GameManager")
 	if gm == null:
 		print("COORDINATE LOCK FEEDBACK TEST FAIL: GameManager missing")
@@ -31,7 +32,11 @@ func _initialize() -> void:
 	var target_id := str(view.get("target_id"))
 	var target: Dictionary = (view.get("sky_data") as Dictionary).get(target_id, {})
 	_check(target_id == "mars", "level 14 targets Mars")
-	_check(str(view.call("_mission_hint", gm.get_object(target_id))).contains("SELECTED"), "mission panel preserves the coordinate-navigation instruction")
+	var mission_hint := str(view.call("_mission_hint", gm.get_object(target_id)))
+	_check(
+		mission_hint.contains("方位角") and mission_hint.contains("俯仰角"),
+		"mission panel preserves the coordinate-navigation instruction"
+	)
 
 	# Fourteen degrees projects outside the Eye mode's visible 64 px center ring.
 	view.set("telescope_azimuth", wrapf(float(target.get("azimuth", 0.0)) + 14.0, 0.0, 360.0))
@@ -54,6 +59,13 @@ func _initialize() -> void:
 	_check(str(view.get("guidance_label").text).contains("金色锁定"), "lock state gives the next Finder action")
 	await _capture("mars_target_locked.png")
 
+	view.queue_free()
+	await process_frame
+	var audio := root.get_node_or_null("/root/AudioManager")
+	if audio != null and audio.has_method("release_transient_sfx"):
+		audio.call("release_transient_sfx")
+		await process_frame
+	await create_timer(0.12).timeout
 	print("COORDINATE LOCK FEEDBACK TEST %s" % ("PASS" if failures == 0 else "FAIL"))
 	quit(0 if failures == 0 else 1)
 

@@ -147,7 +147,7 @@ func early_moon_comparison_test(mm: Node) -> void:
 		and str(refractor_view.get("variation", "")) == "lunar_detail_comparison",
 		"early_moon_comparison_test: L3 is an explicit lunar-detail comparison")
 	_check(str(refractor_view.get("hint_text_en", "")).to_lower().contains("crater")
-		and str(refractor_view.get("hint_text_zh", "")).contains("撞击坑"),
+		and str(refractor_view.get("hint_text_zh", "")).contains("环形山"),
 		"early_moon_comparison_test: L3 tells the player what new detail to inspect")
 
 

@@ -1,17 +1,24 @@
 extends SceneTree
 
-# A completed free observation can return to the current mission target inside
-# the same telescope-view instance. The switch must not advance or mutate the
-# mission, equipment, or campaign state.
+# A completed free observation returns to Sky Observation with the mission
+# target selected. It must preserve the observing site and the mount's real
+# pointing instead of teleporting into a centered eyepiece result.
 
 const SAVE_PATH := "user://savegame.json"
 
 var failures := 0
 var had_save := false
 var saved_bytes := PackedByteArray()
+var test_finished := false
 
 
 func _initialize() -> void:
+	var watchdog := create_timer(30.0)
+	watchdog.timeout.connect(func() -> void:
+		if not test_finished:
+			_fail("test completes before the 30 second watchdog")
+			_finish()
+	)
 	had_save = FileAccess.file_exists(SAVE_PATH)
 	if had_save:
 		saved_bytes = FileAccess.get_file_as_bytes(SAVE_PATH)
@@ -27,17 +34,33 @@ func _initialize() -> void:
 	gm.debug_jump_to_level(5, true) # Jupiter mission
 	gm.selected_object_id = "moon"
 	gm.selected_object_level = int(gm.progress.get("current_level", 1))
+	var southern_site := {
+		"id": "return_test_south",
+		"name_en": "Southern Test Site",
+		"name_zh": "南半球测试地点",
+		"country_en": "Australia",
+		"country_zh": "澳大利亚",
+		"lat": -33.8688,
+		"lon": 151.2093,
+		"bortle": 4
+	}
+	gm.set_observing_location(southern_site)
+	gm.last_sky_aim = {
+		"valid": true,
+		"azimuth": 42.0,
+		"altitude": 18.0,
+		"view_mode": "naked_eye"
+	}
 	var level_before := int(gm.progress.get("current_level", 0))
 	var completed_before: Array = (gm.progress.get("completed_levels", []) as Array).duplicate()
 	var equipped_before: Dictionary = (gm.progress.get("equipped_parts", {}) as Dictionary).duplicate(true)
 
 	var view: Control = load("res://scenes/telescope_view.tscn").instantiate()
 	root.add_child(view)
+	current_scene = view
 	for _frame in range(10):
 		await process_frame
 
-	var original_instance_id := view.get_instance_id()
-	var original_parent := view.get_parent()
 	var mission_button := view.find_child("FreeObservationMissionButton", true, false) as Button
 	_check(bool(view.get("is_free_observation")), "starts in free-observation mode")
 	_check(mission_button != null, "free result exposes return-to-mission action")
@@ -49,22 +72,34 @@ func _initialize() -> void:
 	for _frame in range(30):
 		await process_frame
 
-	_check(is_instance_valid(view), "telescope view remains alive")
-	_check(view.get_instance_id() == original_instance_id, "switch stays in the same telescope-view instance")
-	_check(view.get_parent() == original_parent, "switch does not route to another scene")
+	var sky := current_scene as Control
+	_check(not is_instance_valid(view), "free-observation eyepiece closes")
+	_check(sky != null and sky.name == "SkyObservation", "return routes to sky acquisition")
 	_check(str(gm.selected_object_id) == "jupiter", "mission target becomes the active object")
-	_check(not bool(view.get("is_free_observation")), "mission observation mode is restored")
-	_check(str((view.get("selected_object") as Dictionary).get("id", "")) == "jupiter", "mission target visual data is loaded")
+	_check(not bool(gm.is_free_observation()), "mission observation context is restored")
+	_check(str(gm.observing_location().get("id", "")) == "return_test_south", "observing site and hemisphere are preserved")
+	_check(is_equal_approx(float(gm.last_sky_aim.get("azimuth", -1.0)), 42.0), "mount azimuth is not teleported to the mission")
+	_check(is_equal_approx(float(gm.last_sky_aim.get("altitude", -1.0)), 18.0), "mount altitude is not teleported to the mission")
+	if sky != null and sky.name == "SkyObservation":
+		_check(str(sky.get("target_id")) == "jupiter", "sky view receives the mission navigation target")
+		_check(is_equal_approx(float(sky.get("telescope_azimuth")), 42.0), "sky view restores the previous azimuth")
+		_check(is_equal_approx(float(sky.get("telescope_altitude")), 18.0), "sky view restores the previous altitude")
+		_check(not bool(sky.call("_is_target_centered", "jupiter")), "mission target is not auto-centered or auto-locked")
 	_check(int(gm.progress.get("current_level", 0)) == level_before, "current level is unchanged")
 	_check((gm.progress.get("completed_levels", []) as Array) == completed_before, "completed mission list is unchanged")
 	_check((gm.progress.get("equipped_parts", {}) as Dictionary) == equipped_before, "equipped parts are unchanged")
 
-	view.queue_free()
+	if is_instance_valid(current_scene):
+		current_scene.queue_free()
+		current_scene = null
 	await process_frame
 	_finish()
 
 
 func _finish() -> void:
+	if test_finished:
+		return
+	test_finished = true
 	_restore_save()
 	if failures == 0:
 		print("FREE OBSERVATION RETURN TO MISSION TEST PASS")

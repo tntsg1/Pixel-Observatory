@@ -7,8 +7,16 @@
     activePostId: null,
     closeTimer: 0,
     presenceTimer: 0,
+    friendPresenceTimer: 0,
+    lastPresencePing: 0,
     pointerFrame: 0,
+    friends: new Map(),
+    chatFriend: null,
+    chatConversationId: "",
+    chatUnsubscribe: null,
+    chatNearBottom: true,
   };
+  const messaging = window.POMessaging;
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
   const esc = value => String(value ?? "").replace(/[&<>"']/g, char => ({
@@ -39,12 +47,17 @@
         </header>
         <button class="social-icon-button social-close" type="button" aria-label="Close">&times;</button>
         <main class="social-main" id="social-main"></main>
+        <aside class="friend-chat-drawer" id="friend-chat-drawer" hidden aria-label="Private conversation">
+          <div class="friend-chat-content" id="friend-chat-content"></div>
+        </aside>
       </div>
     </section>`);
 
   const modal = document.getElementById("social-modal");
   const shell = document.getElementById("social-shell");
   const main = document.getElementById("social-main");
+  const chatDrawer = document.getElementById("friend-chat-drawer");
+  const chatContent = document.getElementById("friend-chat-content");
 
   async function api(path, options = {}) {
     const response = await fetch(path, {
@@ -127,19 +140,234 @@
     element.classList.toggle("good", good);
   }
 
+  function closeFriendChat() {
+    state.chatUnsubscribe?.();
+    state.chatUnsubscribe = null;
+    state.chatFriend = null;
+    state.chatConversationId = "";
+    state.chatNearBottom = true;
+    chatDrawer.classList.remove("is-open");
+    shell.classList.remove("has-friend-chat");
+    window.setTimeout(() => {
+      if (!chatDrawer.classList.contains("is-open")) {
+        chatDrawer.hidden = true;
+        chatContent.innerHTML = "";
+      }
+    }, 260);
+  }
+
+  function chatHeader(friend) {
+    return `<header class="friend-chat-head">
+      ${avatar(friend, "small")}
+      <div class="friend-chat-identity">
+        <strong>${esc(friend.username)}</strong>
+        <span class="friend-chat-presence ${friend.online ? "" : "offline"}" data-chat-presence>${friend.online ? t("Online now", "当前在线") : t("Offline", "离线")} · ${esc(rankName(friend.rank))}</span>
+      </div>
+      <button class="friend-chat-profile" type="button" data-chat-profile="${esc(friend.username)}">${t("Profile", "主页")}</button>
+      <button class="friend-chat-close" type="button" aria-label="${t("Close conversation", "关闭对话")}">×</button>
+    </header>`;
+  }
+
+  function chatComposer() {
+    return `<form class="friend-chat-compose" id="friend-chat-compose">
+      <textarea name="body" rows="1" maxlength="4000" required placeholder="${t("Write a message", "输入消息")}"></textarea>
+      <button class="friend-chat-send" type="submit">${t("Send", "发送")}</button>
+      <p class="friend-chat-status" role="status"></p>
+    </form>`;
+  }
+
+  function renderEmptyFriendConversation(friend, draft = "") {
+    chatContent.innerHTML = `${chatHeader(friend)}
+      <div class="friend-chat-messages">
+        <div class="friend-chat-empty">
+          <strong>${t("Start an observing conversation here.", "从这里开始一段观测交流。")}</strong>
+          <span>${t("A conversation is created only after you send the first message.", "发送第一条消息后才会建立会话。")}</span>
+        </div>
+      </div>
+      <button class="friend-chat-new" type="button" hidden>${t("New messages", "有新消息")} ↓</button>
+      ${chatComposer()}`;
+    bindChatChrome(friend);
+    const input = chatContent.querySelector("textarea");
+    input.value = draft;
+    input.focus();
+  }
+
+  function bindChatChrome(friend) {
+    chatContent.querySelector(".friend-chat-close").onclick = closeFriendChat;
+    chatContent.querySelector("[data-chat-profile]").onclick = () => {
+      closeFriendChat();
+      render("profile", friend.username);
+    };
+    const messages = chatContent.querySelector(".friend-chat-messages");
+    const newMessageButton = chatContent.querySelector(".friend-chat-new");
+    if (messages) {
+      messages.addEventListener("scroll", () => {
+        state.chatNearBottom = messages.scrollHeight - messages.scrollTop - messages.clientHeight < 56;
+        if (state.chatNearBottom) newMessageButton.hidden = true;
+      }, { passive: true });
+      newMessageButton.onclick = () => {
+        messages.scrollTop = messages.scrollHeight;
+        state.chatNearBottom = true;
+        newMessageButton.hidden = true;
+      };
+    }
+    const form = chatContent.querySelector("#friend-chat-compose");
+    const input = form.querySelector("textarea");
+    input.addEventListener("input", () => {
+      input.style.height = "auto";
+      input.style.height = `${Math.min(input.scrollHeight, 112)}px`;
+    });
+    input.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    form.onsubmit = async event => {
+      event.preventDefault();
+      const body = input.value.trim();
+      if (!body) return;
+      const send = form.querySelector(".friend-chat-send");
+      const status = form.querySelector(".friend-chat-status");
+      send.disabled = true;
+      send.classList.add("is-sending");
+      status.textContent = "";
+      try {
+        if (!state.chatConversationId) {
+          const result = await messaging.startDirect(friend.username, body);
+          state.chatConversationId = result.conversationId;
+          await attachFriendConversation(friend, state.chatConversationId, true);
+        } else {
+          await messaging.send(state.chatConversationId, body);
+          input.value = "";
+          input.style.height = "";
+          state.chatNearBottom = true;
+          await messaging.poll(true);
+        }
+        input.focus();
+      } catch (error) {
+        status.textContent = error.message;
+        send.classList.add("is-error");
+      } finally {
+        send.disabled = false;
+        send.classList.remove("is-sending");
+        window.setTimeout(() => send.classList.remove("is-error"), 420);
+      }
+    };
+  }
+
+  function updateFriendConversation(data, error = null, materialize = false) {
+    if (error || !data || data.conversation.id !== state.chatConversationId || !state.chatFriend) return;
+    const messages = chatContent.querySelector(".friend-chat-messages");
+    if (!messages) return;
+    const previousSignature = messages.dataset.signature || "";
+    const signature = messaging.conversationSignature(data);
+    if (signature === previousSignature) return;
+    const wasNearBottom = state.chatNearBottom;
+    messages.innerHTML = messaging.renderMessages(data);
+    messages.dataset.signature = signature;
+    if (materialize) messages.lastElementChild?.classList.add("is-materializing");
+    if (wasNearBottom) {
+      messages.scrollTop = messages.scrollHeight;
+    } else {
+      chatContent.querySelector(".friend-chat-new").hidden = false;
+    }
+    messaging.markRead(state.chatConversationId).catch(() => {});
+  }
+
+  async function attachFriendConversation(friend, conversationId, materialize = false) {
+    state.chatUnsubscribe?.();
+    state.chatUnsubscribe = null;
+    state.chatConversationId = conversationId;
+    const data = await messaging.getConversation(conversationId);
+    chatContent.innerHTML = `${chatHeader(friend)}
+      <div class="friend-chat-messages" data-signature="${esc(messaging.conversationSignature(data))}">${messaging.renderMessages(data)}</div>
+      <button class="friend-chat-new" type="button" hidden>${t("New messages", "有新消息")} ↓</button>
+      ${chatComposer()}`;
+    bindChatChrome(friend);
+    const messages = chatContent.querySelector(".friend-chat-messages");
+    messages.scrollTop = messages.scrollHeight;
+    if (materialize) messages.lastElementChild?.classList.add("is-materializing");
+    await messaging.markRead(conversationId);
+    state.chatUnsubscribe = messaging.watchConversation(conversationId, updateFriendConversation);
+  }
+
+  async function openFriendChat(friend, originButton) {
+    if (!state.user) {
+      document.getElementById("account-open")?.click();
+      return;
+    }
+    state.chatFriend = friend;
+    state.chatConversationId = "";
+    state.chatNearBottom = true;
+    state.chatUnsubscribe?.();
+    state.chatUnsubscribe = null;
+    const shellBounds = shell.getBoundingClientRect();
+    const originBounds = originButton.getBoundingClientRect();
+    chatDrawer.style.setProperty("--chat-origin-x", `${originBounds.left + originBounds.width / 2 - shellBounds.left}px`);
+    chatDrawer.style.setProperty("--chat-origin-y", `${originBounds.top + originBounds.height / 2 - shellBounds.top}px`);
+    chatDrawer.hidden = false;
+    shell.classList.add("has-friend-chat");
+    chatContent.innerHTML = `${chatHeader(friend)}<div class="friend-chat-loading">${t("Opening the conversation…", "正在打开对话…")}</div>`;
+    chatContent.querySelector(".friend-chat-close").onclick = closeFriendChat;
+    chatContent.querySelector("[data-chat-profile]").onclick = () => {
+      closeFriendChat();
+      render("profile", friend.username);
+    };
+    requestAnimationFrame(() => chatDrawer.classList.add("is-open"));
+    try {
+      const conversations = await messaging.listConversations();
+      const existing = messaging.findDirectConversation(friend.username, conversations);
+      if (existing) {
+        await attachFriendConversation(friend, existing.id);
+      } else {
+        renderEmptyFriendConversation(friend);
+      }
+    } catch (error) {
+      chatContent.innerHTML = `${chatHeader(friend)}<div class="friend-chat-empty"><strong>${t("Conversation unavailable", "暂时无法打开对话")}</strong><span>${esc(error.message)}</span></div>`;
+      chatContent.querySelector(".friend-chat-close").onclick = closeFriendChat;
+      chatContent.querySelector("[data-chat-profile]").onclick = () => render("profile", friend.username);
+    }
+  }
+
   async function session() {
     const data = await api("/api/auth/session");
     state.user = data.user;
     return state.user;
   }
 
+  function pingPresence() {
+    if (!state.user || document.hidden) return;
+    const now = Date.now();
+    if (now - state.lastPresencePing < 5000) return;
+    state.lastPresencePing = now;
+    api("/api/social/presence", { method: "POST", body: "{}" }).catch(() => {});
+  }
+
   function startPresence() {
-    if (!state.user || state.presenceTimer) return;
-    const ping = () => {
-      if (!document.hidden) api("/api/social/presence", { method: "POST", body: "{}" }).catch(() => {});
-    };
-    ping();
-    state.presenceTimer = setInterval(ping, 45_000);
+    if (!state.user) return;
+    pingPresence();
+    if (state.presenceTimer) return;
+    // Presence is a property of the signed-in observatory, not of the social
+    // modal. A short, visibility-aware heartbeat keeps separate tabs honest
+    // without burning through the worker's per-user rate limit.
+    state.presenceTimer = setInterval(pingPresence, 25_000);
+  }
+
+  function stopPresence() {
+    clearInterval(state.presenceTimer);
+    state.presenceTimer = 0;
+  }
+
+  async function restorePresence() {
+    try {
+      await session();
+      pingPresence();
+      startPresence();
+    } catch (_) {
+      state.user = null;
+      stopPresence();
+    }
   }
 
   function authGate(section) {
@@ -178,9 +406,13 @@
     });
     modal.querySelector(".social-close").setAttribute("aria-label", t("Close", "关闭"));
     modal.setAttribute("aria-label", t("Observer community", "观测者社区"));
+    chatDrawer.setAttribute("aria-label", t("Private conversation", "私信对话"));
   }
 
   async function render(tab = state.tab, detail = null) {
+    if (tab !== "friends") closeFriendChat();
+    clearInterval(state.friendPresenceTimer);
+    state.friendPresenceTimer = 0;
     state.tab = tab;
     updateTabs();
     loading();
@@ -198,6 +430,7 @@
 
   function open(tab = "community", detail = null) {
     clearTimeout(state.closeTimer);
+    refreshChrome();
     modal.hidden = false;
     requestAnimationFrame(() => modal.classList.add("is-open"));
     document.body.style.overflow = "hidden";
@@ -206,9 +439,10 @@
   }
 
   function close() {
+    closeFriendChat();
+    clearInterval(state.friendPresenceTimer);
+    state.friendPresenceTimer = 0;
     modal.classList.remove("is-open");
-    clearInterval(state.presenceTimer);
-    state.presenceTimer = 0;
     state.closeTimer = setTimeout(() => {
       modal.hidden = true;
       document.body.style.overflow = "";
@@ -379,10 +613,10 @@
   }
 
   function friendRow(item, actions = "") {
-    return `<article class="social-card friend-row">
+    return `<article class="social-card friend-row" data-friend-user="${esc(item.username)}">
       ${avatar(item, "small")}
       <div><div class="friend-name">${esc(item.username)}</div>
-      <div class="friend-meta">${item.online ? t("Online", "在线") : t("Offline", "离线")} · ${esc(rankName(item.rank))}</div></div>
+      <div class="friend-meta" data-friend-presence>${item.online ? t("Online", "在线") : t("Offline", "离线")} · ${esc(rankName(item.rank))}</div></div>
       <div class="friend-actions">${actions}</div>
     </article>`;
   }
@@ -449,9 +683,15 @@
       api("/api/social/friends"),
       api("/api/social/users?q="),
     ]);
+    state.friends = new Map(data.friends.map(item => [String(item.username).toLowerCase(), item]));
     const friendActions = (item, kind) => {
       if (kind === "incoming") return `<button class="social-button success" data-friend-action="accept" data-id="${esc(item.friendshipId)}">${t("Accept", "接受")}</button><button class="social-button danger" data-friend-action="decline" data-id="${esc(item.friendshipId)}">${t("Decline", "忽略")}</button>`;
-      if (kind === "friends") return `<button class="social-button" data-profile="${esc(item.username)}">${t("Profile", "主页")}</button><button class="social-button danger" data-friend-remove="${esc(item.friendshipId)}">${t("Remove", "删除")}</button>`;
+      if (kind === "friends") return `<button class="social-button primary friend-message-button" data-message-friend="${esc(item.username)}" type="button">${t("Message", "消息")}</button>
+        <button class="social-button" data-profile="${esc(item.username)}" type="button">${t("Profile", "主页")}</button>
+        <details class="friend-more">
+          <summary class="social-icon-button" aria-label="${t("More actions", "更多操作")}">•••</summary>
+          <div class="friend-more-menu"><button class="social-button danger" data-friend-remove="${esc(item.friendshipId)}" type="button">${t("Remove friend", "删除好友")}</button></div>
+        </details>`;
       return `<button class="social-button" disabled>${t("Sent", "已发送")}</button>`;
     };
     const friendList = (items, kind) => items.length
@@ -523,6 +763,12 @@
     });
 
     main.onclick = async event => {
+      const messageButton = event.target.closest("[data-message-friend]");
+      if (messageButton) {
+        const friend = state.friends.get(String(messageButton.dataset.messageFriend).toLowerCase());
+        if (friend) await openFriendChat(friend, messageButton);
+        return;
+      }
       const profileButton = event.target.closest("[data-profile]");
       if (profileButton) return render("profile", profileButton.dataset.profile);
       const addButton = event.target.closest("[data-add-observer]");
@@ -566,6 +812,30 @@
         }
       }
     };
+
+    async function refreshFriendPresence() {
+      if (state.tab !== "friends" || document.hidden) return;
+      try {
+        const response = await api("/api/social/friends");
+        state.friends = new Map(response.friends.map(item => [String(item.username).toLowerCase(), item]));
+        for (const [username, friend] of state.friends) {
+          const row = main.querySelector(`[data-friend-user="${CSS.escape(friend.username)}"]`);
+          const presence = row?.querySelector("[data-friend-presence]");
+          if (presence) presence.textContent = `${friend.online ? t("Online", "在线") : t("Offline", "离线")} · ${rankName(friend.rank)}`;
+          if (state.chatFriend && String(state.chatFriend.username).toLowerCase() === username) {
+            state.chatFriend = friend;
+            const chatPresence = chatContent.querySelector("[data-chat-presence]");
+            if (chatPresence) {
+              chatPresence.classList.toggle("offline", !friend.online);
+              chatPresence.textContent = `${friend.online ? t("Online now", "当前在线") : t("Offline", "离线")} · ${rankName(friend.rank)}`;
+            }
+          }
+        }
+      } catch (_) {
+        // Keep the last server-backed presence state during a transient outage.
+      }
+    }
+    state.friendPresenceTimer = window.setInterval(refreshFriendPresence, 5000);
   }
 
   async function renderLeaderboard() {
@@ -710,15 +980,36 @@
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !modal.hidden) close(); });
   document.addEventListener("po:session-changed", () => {
     state.user = null;
+    stopPresence();
+    restorePresence();
     if (!modal.hidden) render(state.tab);
   });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) restorePresence();
+  });
+  addEventListener("focus", restorePresence);
   document.addEventListener("po:language-changed", () => {
     refreshChrome();
-    if (!modal.hidden) render(state.tab);
+    if (modal.hidden) return;
+    const activeFriend = state.chatFriend;
+    const activeConversation = state.chatConversationId;
+    const draft = chatContent.querySelector("textarea")?.value || "";
+    render(state.tab).then(async () => {
+      if (!activeFriend || !chatDrawer.classList.contains("is-open")) return;
+      chatDrawer.setAttribute("aria-label", t("Private conversation", "私信对话"));
+      if (activeConversation) {
+        await attachFriendConversation(activeFriend, activeConversation);
+        chatContent.querySelector("textarea").value = draft;
+      } else {
+        renderEmptyFriendConversation(activeFriend, draft);
+      }
+    }).catch(() => {});
   });
   document.addEventListener("po:open-social", event => open(event.detail?.tab || "community", event.detail?.username || null));
   document.getElementById("community-open")?.addEventListener("click", () => open("community"));
   document.getElementById("community-hero-open")?.addEventListener("click", () => open("community"));
   document.getElementById("profile-open")?.addEventListener("click", () => open("profile"));
   document.getElementById("friends-open")?.addEventListener("click", () => open("friends"));
+  // Start the heartbeat even when a player never opens the social modal.
+  restorePresence();
 })();

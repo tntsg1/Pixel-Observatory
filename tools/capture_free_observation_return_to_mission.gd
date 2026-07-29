@@ -5,9 +5,17 @@ const OUTPUT_DIR := "res://artifacts/free_observation_return"
 
 var had_save := false
 var saved_bytes := PackedByteArray()
+var capture_finished := false
 
 
 func _initialize() -> void:
+	var watchdog := create_timer(30.0)
+	watchdog.timeout.connect(func() -> void:
+		if not capture_finished:
+			push_error("FREE OBSERVATION RETURN CAPTURE TIMEOUT")
+			_restore_save()
+			quit(1)
+	)
 	had_save = FileAccess.file_exists(SAVE_PATH)
 	if had_save:
 		saved_bytes = FileAccess.get_file_as_bytes(SAVE_PATH)
@@ -20,9 +28,26 @@ func _initialize() -> void:
 	gm.debug_jump_to_level(5, true) # Jupiter mission
 	gm.selected_object_id = "moon"
 	gm.selected_object_level = int(gm.progress.get("current_level", 1))
+	gm.set_observing_location({
+		"id": "return_capture_south",
+		"name_en": "Southern Test Site",
+		"name_zh": "南半球测试地点",
+		"country_en": "Australia",
+		"country_zh": "澳大利亚",
+		"lat": -33.8688,
+		"lon": 151.2093,
+		"bortle": 4
+	})
+	gm.last_sky_aim = {
+		"valid": true,
+		"azimuth": 42.0,
+		"altitude": 18.0,
+		"view_mode": "naked_eye"
+	}
 
 	var view: Control = load("res://scenes/telescope_view.tscn").instantiate()
 	root.add_child(view)
+	current_scene = view
 	await _settle()
 	_capture("01_free_observation_actions.png")
 
@@ -30,11 +55,14 @@ func _initialize() -> void:
 	if mission_button != null:
 		mission_button.pressed.emit()
 	await _settle()
-	_capture("02_mission_restored_in_place.png")
+	_capture("02_mission_returned_to_sky_acquisition.png")
 
-	view.queue_free()
+	if is_instance_valid(current_scene):
+		current_scene.queue_free()
+		current_scene = null
 	await process_frame
 	_restore_save()
+	capture_finished = true
 	print("FREE OBSERVATION RETURN CAPTURE PASS: " + ProjectSettings.globalize_path(OUTPUT_DIR))
 	quit(0)
 
