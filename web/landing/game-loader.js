@@ -155,6 +155,7 @@
   const rankKey = "pixel-observatory:last-rank-level";
   let audioContext = null;
   let heartbeatTimer = 0;
+  let signedIn = null;
 
   addEventListener("pointerdown", () => {
     if (!audioContext) {
@@ -210,6 +211,18 @@
   async function heartbeat() {
     if (document.hidden) return;
     try {
+      if (signedIn === null) {
+        const sessionResponse = await fetch("/api/auth/session", {
+          credentials: "same-origin",
+        });
+        if (!sessionResponse.ok) {
+          signedIn = false;
+          return;
+        }
+        const session = await sessionResponse.json();
+        signedIn = Boolean(session?.authenticated && session?.user);
+      }
+      if (!signedIn) return;
       const response = await fetch("/api/social/playtime", {
         method: "POST",
         credentials: "same-origin",
