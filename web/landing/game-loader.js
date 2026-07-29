@@ -149,3 +149,89 @@
   requestAnimationFrame(drawStars);
   requestAnimationFrame(update);
 })();
+
+(() => {
+  "use strict";
+  const rankKey = "pixel-observatory:last-rank-level";
+  let audioContext = null;
+  let heartbeatTimer = 0;
+
+  addEventListener("pointerdown", () => {
+    if (!audioContext) {
+      const Context = window.AudioContext || window.webkitAudioContext;
+      if (Context) audioContext = new Context();
+    }
+  }, { once: true, passive: true });
+
+  function playRankSound() {
+    if (!audioContext) return;
+    const now = audioContext.currentTime;
+    const master = audioContext.createGain();
+    master.gain.setValueAtTime(.0001, now);
+    master.gain.exponentialRampToValueAtTime(.18, now + .035);
+    master.gain.exponentialRampToValueAtTime(.0001, now + 2.15);
+    master.connect(audioContext.destination);
+    [261.63, 329.63, 392, 523.25].forEach((frequency, index) => {
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = index === 3 ? "sine" : "triangle";
+      oscillator.frequency.setValueAtTime(frequency, now + index * .13);
+      oscillator.detune.setValueAtTime(index % 2 ? 4 : -3, now);
+      gain.gain.setValueAtTime(.0001, now + index * .13);
+      gain.gain.exponentialRampToValueAtTime(.25, now + index * .13 + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + index * .13 + 1.35);
+      oscillator.connect(gain).connect(master);
+      oscillator.start(now + index * .13);
+      oscillator.stop(now + index * .13 + 1.5);
+    });
+  }
+
+  function celebrate(rank) {
+    if (document.querySelector(".game-rank-celebration")) return;
+    const layer = document.createElement("section");
+    layer.className = "game-rank-celebration";
+    layer.innerHTML = `
+      <i class="game-rank-burst" style="--x:18%;--y:24%;--c:#8ddbf6;--d:0s"></i>
+      <i class="game-rank-burst" style="--x:79%;--y:28%;--c:#edc46b;--d:.18s"></i>
+      <i class="game-rank-burst" style="--x:28%;--y:73%;--c:#bf9cff;--d:.34s"></i>
+      <i class="game-rank-burst" style="--x:72%;--y:76%;--c:#79e4ad;--d:.5s"></i>
+      <div class="game-rank-card">
+        <small>Observer rank advanced</small>
+        <h2>${String(rank.name || "Observer").replace(/[&<>"']/g, "")}</h2>
+        <p>Your patience has become experience. The observatory now recognizes a more accomplished observer.</p>
+        <button class="game-rank-dismiss" type="button">Continue observing</button>
+      </div>`;
+    document.body.appendChild(layer);
+    playRankSound();
+    layer.querySelector("button").onclick = () => layer.remove();
+    setTimeout(() => layer.remove(), 9_000);
+  }
+
+  async function heartbeat() {
+    if (document.hidden) return;
+    try {
+      const response = await fetch("/api/social/playtime", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: "{}",
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const level = Number(data.rank?.level || 0);
+      const previous = Number(localStorage.getItem(rankKey) || 0);
+      if (previous > 0 && level > previous) celebrate(data.rank);
+      if (level > 0) localStorage.setItem(rankKey, String(level));
+    } catch (_) {
+      // Playtime tracking is intentionally silent when the account service is unavailable.
+    }
+  }
+
+  function schedule() {
+    clearInterval(heartbeatTimer);
+    heartbeat();
+    heartbeatTimer = setInterval(heartbeat, 30_000);
+  }
+  addEventListener("visibilitychange", () => { if (!document.hidden) heartbeat(); });
+  schedule();
+})();

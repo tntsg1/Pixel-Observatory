@@ -12,7 +12,19 @@ const MAX_SAVE_BYTES = 900_000;
 const MAX_FEEDBACK_BYTES = 8_000;
 const MAX_MESSAGE_BYTES = 8_000;
 const MAX_MESSAGE_LENGTH = 4_000;
+const MAX_COMMUNITY_BODY = 3_000;
+const ONLINE_WINDOW_SECONDS = 120;
 const THANK_YOU_MODEL = "@cf/zai-org/glm-4.7-flash";
+const OBSERVER_RANKS = [
+	{ id: "first-light", name: "First Light", minSeconds: 0 },
+	{ id: "apprentice", name: "Observer Apprentice", minSeconds: 30 * 60 },
+	{ id: "recorder", name: "Stellar Recorder", minSeconds: 2 * 60 * 60 },
+	{ id: "optician", name: "Optical Technician", minSeconds: 6 * 60 * 60 },
+	{ id: "deep-sky", name: "Deep-Sky Observer", minSeconds: 15 * 60 * 60 },
+	{ id: "researcher", name: "Observatory Researcher", minSeconds: 35 * 60 * 60 },
+	{ id: "ephemeris", name: "Ephemeris Specialist", minSeconds: 75 * 60 * 60 },
+	{ id: "chief", name: "Chief Observer", minSeconds: 150 * 60 * 60 },
+];
 // Cloudflare Workers Web Crypto currently caps PBKDF2 at 100,000 rounds.
 const PASSWORD_ITERATIONS = 100_000;
 const VISITOR_ALLOWED_ORIGINS = new Set([
@@ -737,13 +749,348 @@ async function handleDirectConversationPost(request, env) {
 	return json({ ok: true, conversationId: conversation.id, messageId }, 201);
 }
 
+function rankForSeconds(value) {
+	const seconds = Math.max(0, Number(value) || 0);
+	let index = 0;
+	for (let i = 0; i < OBSERVER_RANKS.length; i += 1) {
+		if (seconds >= OBSERVER_RANKS[i].minSeconds) index = i;
+	}
+	const rank = OBSERVER_RANKS[index];
+	const next = OBSERVER_RANKS[index + 1] || null;
+	const progress = next
+		? Math.max(0, Math.min(1, (seconds - rank.minSeconds) / (next.minSeconds - rank.minSeconds)))
+		: 1;
+	return {
+		id: rank.id,
+		name: rank.name,
+		level: index + 1,
+		progress,
+		next: next ? { id: next.id, name: next.name, minSeconds: next.minSeconds } : null,
+	};
+}
+
+async function ensureProfile(env, userId) {
+	const now = Math.floor(Date.now() / 1000);
+	await env.DB.prepare(
+		`INSERT OR IGNORE INTO user_profiles
+		 (user_id, bio, avatar_id, selected_title, play_seconds, last_active_at, last_play_heartbeat_at, updated_at)
+		 VALUES (?, '', 1, 'first-light', 0, ?, 0, ?)`,
+	).bind(userId, now, now).run();
+}
+
+function socialProfile(row, viewerId = "") {
+	if (!row) return null;
+	const rank = rankForSeconds(row.play_seconds);
+	return {
+		id: row.id,
+		username: row.username,
+		bio: row.bio || "",
+		avatarId: Number(row.avatar_id || 1),
+		selectedTitle: row.selected_title || rank.id,
+		playSeconds: Number(row.play_seconds || 0),
+		rank,
+		online: Number(row.last_active_at || 0) >= Math.floor(Date.now() / 1000) - ONLINE_WINDOW_SECONDS,
+		isSelf: row.id === viewerId,
+		friendship: row.friendship_status || null,
+	};
+}
+
+async function selectProfile(env, userId, viewerId = "") {
+	await ensureProfile(env, userId);
+	return env.DB.prepare(
+		`SELECT users.id, users.username, user_profiles.bio, user_profiles.avatar_id,
+		   user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at,
+		   (SELECT status FROM friendships
+		    WHERE pair_key = CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
+		    LIMIT 1) AS friendship_status
+		 FROM users JOIN user_profiles ON user_profiles.user_id = users.id
+		 WHERE users.id = ?`,
+	).bind(viewerId, viewerId, viewerId, userId).first();
+}
+
+async function handleSocialProfileGet(request, env, url) {
+	const viewer = await sessionForRequest(env, request);
+	const username = String(url.searchParams.get("username") || "").trim().toLowerCase();
+	let target = viewer;
+	if (username) {
+		target = await env.DB.prepare("SELECT id, username, role FROM users WHERE username_key = ?").bind(username).first();
+	}
+	if (!target) return apiError("Sign in to open an observer profile.", 401, "unauthorized");
+	const row = await selectProfile(env, target.id, viewer?.id || "");
+	return json({ ok: true, profile: socialProfile(row, viewer?.id || ""), ranks: OBSERVER_RANKS });
+}
+
+async function handleSocialProfilePatch(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to edit your profile.", 401, "unauthorized");
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid profile update.");
+	}
+	const bio = String(body.bio || "").trim();
+	const avatarId = Number(body.avatarId);
+	if (bio.length > 240) return apiError("Keep your introduction within 240 characters.", 400, "invalid_profile");
+	if (!Number.isInteger(avatarId) || avatarId < 1 || avatarId > 8) return apiError("Choose one of the observatory avatars.", 400, "invalid_avatar");
+	await ensureProfile(env, user.id);
+	const profile = await env.DB.prepare("SELECT play_seconds FROM user_profiles WHERE user_id = ?").bind(user.id).first();
+	const unlocked = OBSERVER_RANKS.slice(0, rankForSeconds(profile?.play_seconds).level).map(rank => rank.id);
+	const selectedTitle = unlocked.includes(String(body.selectedTitle || "")) ? String(body.selectedTitle) : rankForSeconds(profile?.play_seconds).id;
+	const now = Math.floor(Date.now() / 1000);
+	await env.DB.prepare(
+		"UPDATE user_profiles SET bio = ?, avatar_id = ?, selected_title = ?, last_active_at = ?, updated_at = ? WHERE user_id = ?",
+	).bind(bio, avatarId, selectedTitle, now, now, user.id).run();
+	const row = await selectProfile(env, user.id, user.id);
+	return json({ ok: true, profile: socialProfile(row, user.id) });
+}
+
+async function handlePresence(request, env, countPlaytime = false) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to update observatory presence.", 401, "unauthorized");
+	if (!(await rateLimit(env, request, countPlaytime ? `play-${user.id}` : `presence-${user.id}`, 180, 3600))) {
+		return apiError("Presence updates are arriving too quickly.", 429, "rate_limited");
+	}
+	await ensureProfile(env, user.id);
+	const now = Math.floor(Date.now() / 1000);
+	if (countPlaytime) {
+		const row = await env.DB.prepare(
+			"SELECT play_seconds, last_play_heartbeat_at FROM user_profiles WHERE user_id = ?",
+		).bind(user.id).first();
+		const previous = Number(row?.last_play_heartbeat_at || 0);
+		const earned = previous > 0 ? Math.max(0, Math.min(45, now - previous)) : 0;
+		await env.DB.prepare(
+			`UPDATE user_profiles
+			 SET play_seconds = play_seconds + ?, last_active_at = ?, last_play_heartbeat_at = ?, updated_at = ?
+			 WHERE user_id = ?`,
+		).bind(earned, now, now, now, user.id).run();
+		const updated = Number(row?.play_seconds || 0) + earned;
+		return json({ ok: true, earnedSeconds: earned, playSeconds: updated, rank: rankForSeconds(updated) });
+	}
+	await env.DB.prepare(
+		"UPDATE user_profiles SET last_active_at = ?, updated_at = ? WHERE user_id = ?",
+	).bind(now, now, user.id).run();
+	return json({ ok: true, online: true });
+}
+
+async function handleLeaderboard(request, env) {
+	const viewer = await sessionForRequest(env, request);
+	const result = await env.DB.prepare(
+		`SELECT users.id, users.username, user_profiles.bio, user_profiles.avatar_id,
+		   user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at
+		 FROM user_profiles JOIN users ON users.id = user_profiles.user_id
+		 ORDER BY user_profiles.play_seconds DESC, users.created_at ASC LIMIT 100`,
+	).all();
+	return json({
+		ok: true,
+		entries: (result.results || []).map((row, index) => ({ position: index + 1, ...socialProfile(row, viewer?.id || "") })),
+	});
+}
+
+async function handleFriendsGet(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to see your friends.", 401, "unauthorized");
+	await ensureProfile(env, user.id);
+	const result = await env.DB.prepare(
+		`SELECT friendships.id AS friendship_id, friendships.status, friendships.requester_id,
+		   users.id, users.username, user_profiles.bio, user_profiles.avatar_id,
+		   user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at
+		 FROM friendships
+		 JOIN users ON users.id = CASE WHEN friendships.requester_id = ? THEN friendships.addressee_id ELSE friendships.requester_id END
+		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 WHERE friendships.requester_id = ? OR friendships.addressee_id = ?
+		 ORDER BY friendships.updated_at DESC`,
+	).bind(user.id, user.id, user.id).all();
+	const groups = { friends: [], incoming: [], outgoing: [] };
+	for (const row of result.results || []) {
+		const item = { friendshipId: row.friendship_id, ...socialProfile(row, user.id) };
+		if (row.status === "accepted") groups.friends.push(item);
+		else if (row.status === "pending" && row.requester_id === user.id) groups.outgoing.push(item);
+		else if (row.status === "pending") groups.incoming.push(item);
+	}
+	return json({ ok: true, ...groups });
+}
+
+async function handleFriendRequest(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to add a friend.", 401, "unauthorized");
+	if (!(await rateLimit(env, request, `friend-request-${user.id}`, 30, 3600))) return apiError("Too many friend requests. Please pause.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 2_000);
+	} catch {
+		return apiError("Invalid friend request.");
+	}
+	const usernameKey = String(body.username || "").trim().toLowerCase();
+	const target = await env.DB.prepare("SELECT id, username FROM users WHERE username_key = ?").bind(usernameKey).first();
+	if (!target) return apiError("That observer could not be found.", 404, "not_found");
+	if (target.id === user.id) return apiError("You are already on your own observing team.", 400, "invalid_friend");
+	const pairKey = [user.id, target.id].sort().join(":");
+	const existing = await env.DB.prepare("SELECT id, status FROM friendships WHERE pair_key = ?").bind(pairKey).first();
+	if (existing?.status === "accepted") return apiError("You are already friends.", 409, "already_friends");
+	if (existing?.status === "pending") return apiError("A friend request is already waiting.", 409, "already_pending");
+	if (existing?.status === "blocked") return apiError("This observer is unavailable.", 403, "unavailable");
+	const now = Math.floor(Date.now() / 1000);
+	const id = existing?.id || `FR-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`;
+	await env.DB.prepare(
+		`INSERT INTO friendships (id, pair_key, requester_id, addressee_id, status, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 'pending', ?, ?)
+		 ON CONFLICT(pair_key) DO UPDATE SET requester_id = excluded.requester_id,
+		   addressee_id = excluded.addressee_id, status = 'pending', updated_at = excluded.updated_at`,
+	).bind(id, pairKey, user.id, target.id, now, now).run();
+	return json({ ok: true, friendshipId: id, username: target.username }, 201);
+}
+
+async function handleFriendAction(request, env, friendshipId) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to update a friendship.", 401, "unauthorized");
+	const row = await env.DB.prepare("SELECT * FROM friendships WHERE id = ?").bind(friendshipId).first();
+	if (!row || (row.requester_id !== user.id && row.addressee_id !== user.id)) return apiError("Friend request not found.", 404, "not_found");
+	if (request.method === "DELETE") {
+		await env.DB.prepare("DELETE FROM friendships WHERE id = ?").bind(friendshipId).run();
+		return json({ ok: true });
+	}
+	let body;
+	try {
+		body = await readJson(request, 1_000);
+	} catch {
+		return apiError("Invalid friendship update.");
+	}
+	const action = String(body.action || "");
+	if (action === "accept" && row.addressee_id === user.id && row.status === "pending") {
+		await env.DB.prepare("UPDATE friendships SET status = 'accepted', updated_at = ? WHERE id = ?")
+			.bind(Math.floor(Date.now() / 1000), friendshipId).run();
+		return json({ ok: true, status: "accepted" });
+	}
+	if (action === "decline" && row.addressee_id === user.id && row.status === "pending") {
+		await env.DB.prepare("DELETE FROM friendships WHERE id = ?").bind(friendshipId).run();
+		return json({ ok: true, status: "declined" });
+	}
+	return apiError("That friendship action is not available.", 400, "invalid_action");
+}
+
+async function handleCommunityPostsGet(request, env) {
+	const viewer = await sessionForRequest(env, request);
+	const result = await env.DB.prepare(
+		`SELECT community_posts.id, community_posts.title, community_posts.body,
+		   community_posts.reply_count, community_posts.created_at, community_posts.updated_at,
+		   users.id AS user_id, users.username, user_profiles.avatar_id, user_profiles.selected_title,
+		   user_profiles.play_seconds, user_profiles.last_active_at
+		 FROM community_posts JOIN users ON users.id = community_posts.user_id
+		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 WHERE community_posts.deleted_at = 0
+		 ORDER BY community_posts.updated_at DESC LIMIT 60`,
+	).all();
+	return json({
+		ok: true,
+		posts: (result.results || []).map(row => ({
+			id: row.id,
+			title: row.title,
+			body: row.body,
+			replyCount: Number(row.reply_count || 0),
+			createdAt: Number(row.created_at),
+			updatedAt: Number(row.updated_at),
+			author: socialProfile({ ...row, id: row.user_id }, viewer?.id || ""),
+		})),
+	});
+}
+
+async function handleCommunityPostCreate(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to publish in the community.", 401, "unauthorized");
+	if (!(await rateLimit(env, request, `community-post-${user.id}`, 12, 3600))) return apiError("Please leave some room between new posts.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 8_000);
+	} catch {
+		return apiError("That post is too large or invalid.", 413, "invalid_post");
+	}
+	const title = String(body.title || "").trim().replace(/\s+/g, " ");
+	const content = normalizeMessageBody(body.body);
+	if (title.length < 3 || title.length > 90 || content.length < 2 || content.length > MAX_COMMUNITY_BODY) {
+		return apiError("Use a 3-90 character title and a post up to 3000 characters.", 400, "invalid_post");
+	}
+	const id = `POST-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
+	const now = Date.now();
+	await env.DB.prepare(
+		`INSERT INTO community_posts (id, user_id, title, body, reply_count, deleted_at, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, 0, 0, ?, ?)`,
+	).bind(id, user.id, title, content, now, now).run();
+	return json({ ok: true, postId: id }, 201);
+}
+
+async function handleCommunityPostGet(request, env, postId) {
+	const viewer = await sessionForRequest(env, request);
+	const post = await env.DB.prepare(
+		`SELECT community_posts.*, users.id AS author_id, users.username,
+		   user_profiles.avatar_id, user_profiles.selected_title, user_profiles.play_seconds, user_profiles.last_active_at
+		 FROM community_posts JOIN users ON users.id = community_posts.user_id
+		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 WHERE community_posts.id = ? AND community_posts.deleted_at = 0`,
+	).bind(postId).first();
+	if (!post) return apiError("Community post not found.", 404, "not_found");
+	const replies = await env.DB.prepare(
+		`SELECT community_replies.id, community_replies.body, community_replies.created_at,
+		   users.id AS user_id, users.username, user_profiles.avatar_id, user_profiles.selected_title,
+		   user_profiles.play_seconds, user_profiles.last_active_at
+		 FROM community_replies JOIN users ON users.id = community_replies.user_id
+		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 WHERE community_replies.post_id = ? AND community_replies.deleted_at = 0
+		 ORDER BY community_replies.created_at ASC LIMIT 300`,
+	).bind(postId).all();
+	return json({
+		ok: true,
+		post: {
+			id: post.id,
+			title: post.title,
+			body: post.body,
+			createdAt: Number(post.created_at),
+			author: socialProfile({ ...post, id: post.author_id }, viewer?.id || ""),
+		},
+		replies: (replies.results || []).map(row => ({
+			id: row.id,
+			body: row.body,
+			createdAt: Number(row.created_at),
+			author: socialProfile({ ...row, id: row.user_id }, viewer?.id || ""),
+		})),
+	});
+}
+
+async function handleCommunityReplyCreate(request, env, postId) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to reply in the community.", 401, "unauthorized");
+	if (!(await rateLimit(env, request, `community-reply-${user.id}`, 80, 3600))) return apiError("You are replying too quickly. Please pause.", 429, "rate_limited");
+	const post = await env.DB.prepare("SELECT id FROM community_posts WHERE id = ? AND deleted_at = 0").bind(postId).first();
+	if (!post) return apiError("Community post not found.", 404, "not_found");
+	let payload;
+	try {
+		payload = await readJson(request, 5_000);
+	} catch {
+		return apiError("That reply is too large or invalid.", 413, "invalid_reply");
+	}
+	const body = normalizeMessageBody(payload.body);
+	if (!body || body.length > 2000) return apiError("Write a reply up to 2000 characters.", 400, "invalid_reply");
+	const id = `REPLY-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
+	const now = Date.now();
+	await env.DB.batch([
+		env.DB.prepare(
+			`INSERT INTO community_replies (id, post_id, user_id, body, deleted_at, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, 0, ?, ?)`,
+		).bind(id, postId, user.id, body, now, now),
+		env.DB.prepare(
+			"UPDATE community_posts SET reply_count = reply_count + 1, updated_at = ? WHERE id = ?",
+		).bind(now, postId),
+	]);
+	return json({ ok: true, replyId: id }, 201);
+}
+
 async function handleApi(request, env, url) {
 	if (request.method !== "GET" && !requestOriginAllowed(request)) return apiError("Request origin rejected.", 403, "origin_rejected");
 	if (url.pathname === "/api/config" && request.method === "GET") {
 		const siteKey = env.TURNSTILE_BYPASS === "local-test"
 			? "1x00000000000000000000AA"
 			: (env.TURNSTILE_SITE_KEY || "");
-		return json({ turnstileSiteKey: siteKey, cloudSync: true, feedback: true, mailbox: true });
+		return json({ turnstileSiteKey: siteKey, cloudSync: true, feedback: true, mailbox: true, social: true });
 	}
 	if (url.pathname === "/api/auth/register" && request.method === "POST") return handleRegister(request, env);
 	if (url.pathname === "/api/auth/login" && request.method === "POST") return handleLogin(request, env);
@@ -756,6 +1103,27 @@ async function handleApi(request, env, url) {
 	if (url.pathname === "/api/cloud-save" && request.method === "GET") return handleSaveGet(request, env);
 	if (url.pathname === "/api/cloud-save" && request.method === "PUT") return handleSavePut(request, env);
 	if (url.pathname === "/api/feedback" && request.method === "POST") return handleFeedbackPost(request, env);
+	if (url.pathname === "/api/social/profile" && request.method === "GET") return handleSocialProfileGet(request, env, url);
+	if (url.pathname === "/api/social/profile" && request.method === "PATCH") return handleSocialProfilePatch(request, env);
+	if (url.pathname === "/api/social/presence" && request.method === "POST") return handlePresence(request, env, false);
+	if (url.pathname === "/api/social/playtime" && request.method === "POST") return handlePresence(request, env, true);
+	if (url.pathname === "/api/social/leaderboard" && request.method === "GET") return handleLeaderboard(request, env);
+	if (url.pathname === "/api/social/friends" && request.method === "GET") return handleFriendsGet(request, env);
+	if (url.pathname === "/api/social/friends" && request.method === "POST") return handleFriendRequest(request, env);
+	const friendshipMatch = url.pathname.match(/^\/api\/social\/friends\/([^/]+)$/);
+	if (friendshipMatch && (request.method === "PATCH" || request.method === "DELETE")) {
+		return handleFriendAction(request, env, decodeURIComponent(friendshipMatch[1]));
+	}
+	if (url.pathname === "/api/community/posts" && request.method === "GET") return handleCommunityPostsGet(request, env);
+	if (url.pathname === "/api/community/posts" && request.method === "POST") return handleCommunityPostCreate(request, env);
+	const communityRepliesMatch = url.pathname.match(/^\/api\/community\/posts\/([^/]+)\/replies$/);
+	if (communityRepliesMatch && request.method === "POST") {
+		return handleCommunityReplyCreate(request, env, decodeURIComponent(communityRepliesMatch[1]));
+	}
+	const communityPostMatch = url.pathname.match(/^\/api\/community\/posts\/([^/]+)$/);
+	if (communityPostMatch && request.method === "GET") {
+		return handleCommunityPostGet(request, env, decodeURIComponent(communityPostMatch[1]));
+	}
 	if (url.pathname === "/api/messages/conversations" && request.method === "GET") return handleConversationList(request, env);
 	if (url.pathname === "/api/messages/conversations" && request.method === "POST") return handleDirectConversationPost(request, env);
 	const messagePostMatch = url.pathname.match(/^\/api\/messages\/conversations\/([^/]+)\/messages$/);
@@ -799,8 +1167,10 @@ export default {
 
 		const largeGameFiles = {
 			"/index.pck": { key: "index.pck", contentType: "application/octet-stream" },
+			"/index.wasm": { key: "index.wasm", contentType: "application/wasm" },
 			"/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
 			"/game/index.pck": { key: "index.pck", contentType: "application/octet-stream" },
+			"/game/index.wasm": { key: "index.wasm", contentType: "application/wasm" },
 			"/game/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
 		};
 		if (Object.hasOwn(largeGameFiles, url.pathname)) {

@@ -654,6 +654,67 @@ body {
   }
 }
 
+.game-rank-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 100000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(2, 7, 16, .72);
+  backdrop-filter: blur(14px) saturate(155%);
+  animation: game-rank-arrive .35s ease both;
+}
+
+.game-rank-card {
+  position: relative;
+  z-index: 2;
+  width: min(680px, calc(100vw - 42px));
+  padding: 48px 30px;
+  border: 1px solid rgba(213, 239, 251, .38);
+  border-top-color: rgba(255,255,255,.64);
+  border-radius: 28px;
+  background: linear-gradient(150deg, rgba(255,255,255,.13), transparent 42%), rgba(7, 20, 35, .66);
+  box-shadow: 0 34px 100px rgba(0,0,0,.5), inset 0 1px rgba(255,255,255,.13);
+  text-align: center;
+  color: #f6fbff;
+  transform: scale(.86);
+  animation: game-rank-card .7s cubic-bezier(.18,.88,.22,1.18) forwards;
+}
+
+.game-rank-card small {
+  color: #8ddbf6;
+  font: 700 11px/1.3 ui-monospace, monospace;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+}
+
+.game-rank-card h2 {
+  margin: 14px 0 7px;
+  font: 760 clamp(35px, 7vw, 72px)/1.05 system-ui, sans-serif;
+  letter-spacing: -.03em;
+  text-shadow: 0 0 34px rgba(143, 218, 248, .38);
+}
+
+.game-rank-card p { margin: 0; color: #d4e2e9; font: 520 16px/1.6 system-ui, sans-serif; }
+.game-rank-dismiss { margin-top: 26px; min-width: 150px; min-height: 44px; border: 1px solid rgba(229,248,255,.72); border-radius: 14px; background: linear-gradient(#c8f1ff,#72c8ea); color: #06141d; font: 750 13px system-ui,sans-serif; cursor: pointer; transition: transform .18s cubic-bezier(.2,.8,.2,1); }
+.game-rank-dismiss:active { transform: scale(.96); }
+.game-rank-burst { position: absolute; left: var(--x); top: var(--y); width: 7px; height: 7px; border-radius: 50%; background: var(--c); box-shadow: 0 0 18px var(--c); animation: game-rank-burst 1.35s ease-out infinite; animation-delay: var(--d); }
+
+@keyframes game-rank-arrive { from { opacity: 0; } }
+@keyframes game-rank-card { to { transform: scale(1); } }
+@keyframes game-rank-burst {
+  0% { opacity: 0; transform: scale(.1); box-shadow: 0 0 0 var(--c); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.4); box-shadow: 0 -76px 0 -1px var(--c), 54px -54px 0 -1px var(--c), 76px 0 0 -1px var(--c), 54px 54px 0 -1px var(--c), 0 76px 0 -1px var(--c), -54px 54px 0 -1px var(--c), -76px 0 0 -1px var(--c), -54px -54px 0 -1px var(--c); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-rank-celebration,
+  .game-rank-card,
+  .game-rank-burst { animation: none; }
+}
+
 @media (prefers-contrast: more) {
   .observatory-loader::before {
     background: rgba(2, 5, 10, .72);
