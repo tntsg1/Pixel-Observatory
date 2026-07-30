@@ -56,7 +56,7 @@ const STATUS_MARKUP = `
 			<div id="status-notice"></div>
 		</div>`;
 
-const SHELL_VERSION = "20260729-game-shell-v4";
+const SHELL_VERSION = "20260729-game-shell-v5";
 const ASSETS = {
 	loaderCss: `../game-loader.css?v=${SHELL_VERSION}`,
 	loaderJs: `../game-loader.js?v=${SHELL_VERSION}`,
