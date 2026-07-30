@@ -20,7 +20,7 @@ const STATUS_MARKUP = `
 				<div class="loader-caustic" aria-hidden="true"></div>
 				<div class="loader-scanlines" aria-hidden="true"></div>
 				<header class="loader-topbar">
-					<div class="loader-brand"><span class="loader-brand-mark" aria-hidden="true"></span><span id="loader-brand-name">Pixel Observatory</span></div>
+					<div class="loader-brand"><span id="loader-brand-name">Pixel Observatory</span></div>
 					<div class="loader-link-state" id="loader-link-state">Browser observatory link established</div>
 				</header>
 				<main class="loader-stage">
@@ -32,10 +32,10 @@ const STATUS_MARKUP = `
 					<i class="loader-node one" aria-hidden="true"></i>
 					<i class="loader-node two" aria-hidden="true"></i>
 					<i class="loader-node three" aria-hidden="true"></i>
-					<div class="loader-aperture" aria-hidden="true"><span id="loader-orbital-percent">0%</span></div>
 					<div class="loader-title">
 						<p class="loader-eyebrow" id="loader-eyebrow">Observatory startup sequence</p>
-						<h1>Pixel Observatory</h1>
+						<h1 class="loader-loading-word"><span>LOADING</span><small lang="zh-Hans">在加载中</small></h1>
+						<strong id="loader-orbital-percent" aria-live="polite">0%</strong>
 						<p id="loader-summary">Preparing your instruments, sky catalogue and observing station.</p>
 					</div>
 				</main>
@@ -56,7 +56,7 @@ const STATUS_MARKUP = `
 			<div id="status-notice"></div>
 		</div>`;
 
-const SHELL_VERSION = "20260729-game-shell-v5";
+const SHELL_VERSION = "20260729-game-shell-v6";
 const ASSETS = {
 	loaderCss: `../game-loader.css?v=${SHELL_VERSION}`,
 	loaderJs: `../game-loader.js?v=${SHELL_VERSION}`,

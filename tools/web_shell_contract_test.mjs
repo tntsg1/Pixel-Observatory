@@ -20,6 +20,9 @@ assert.match(builder, /\.godot-export/, "Godot export must stage outside the pub
 assert.match(builder, /patchWebLoader/, "The public game page must be built through the custom shell patcher.");
 assert.match(patcher, /pixel-observatory-loader-critical/, "A critical inline style must suppress the stock first paint.");
 assert.match(patcher, /data-pixel-observatory-game-shell="v2"/, "The custom shell has a stable assertion marker.");
+assert.match(patcher, /loader-loading-word/, "The first paint must clearly identify the loading state.");
+assert.match(patcher, /<span>LOADING<\/span><small lang="zh-Hans">在加载中<\/small>/, "The main loading state remains legible in English and Chinese.");
+assert.doesNotMatch(patcher, /class="loader-aperture"|class="loader-brand-mark"/, "The loading shell must not substitute an ambiguous icon for status text.");
 assert.match(patcher, /messaging\.js/, "The game shell loads the existing messaging controller.");
 assert.match(gameLoader, /game-compact-controls/, "Narrow viewports must retain an on-demand social and feedback entry point.");
 assert.match(gameLoader, /po:open-inbox/, "The game rail must reuse the existing private-message drawer.");
