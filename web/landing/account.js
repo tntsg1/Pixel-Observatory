@@ -40,7 +40,8 @@
   }
   document.querySelectorAll(".po-modal").forEach(modal=>{
     modal.querySelector(".po-close").onclick=()=>close(modal);
-    modal.onclick=event=>{ if(event.target===modal) close(modal); };
+    // Account and feedback forms are deliberate tasks. Keep backdrop clicks
+    // inert so an imprecise click cannot discard input or close the dialog.
   });
   feedbackModal.querySelector(".po-feedback-dialog").addEventListener("pointermove",event=>{
     if(state.feedbackFrame) return;

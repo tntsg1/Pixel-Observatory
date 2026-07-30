@@ -967,7 +967,8 @@
 
   modal.querySelectorAll("[data-social-tab]").forEach(button => button.onclick = () => render(button.dataset.socialTab));
   modal.querySelector(".social-close").onclick = close;
-  modal.onclick = event => { if (event.target === modal) close(); };
+  // Community is a full task surface. Only an explicit close control or
+  // Escape should dismiss it; backdrop clicks must not eject the visitor.
   shell.addEventListener("pointermove", event => {
     if (state.pointerFrame) return;
     state.pointerFrame = requestAnimationFrame(() => {

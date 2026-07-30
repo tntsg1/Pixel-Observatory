@@ -17,6 +17,14 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-29 - Deliberate Community and Account Dismissal
+
+**Safer modal tasks:** Clicking the dimmed area around Community, sign-in or
+account creation no longer closes the active surface. This prevents an
+imprecise desktop or touch click from discarding navigation context or typed
+registration details. Players still retain predictable explicit exits through
+the visible close button and Escape key.
+
 ## 2026-07-29 - FAST Active Pulse Capture
 
 **Playable confirmation:** FAST stage 4 no longer asks the observer to hold a
