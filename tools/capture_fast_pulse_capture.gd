@@ -16,12 +16,14 @@ func _initialize() -> void:
 		return
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
 
-	await _capture_state("01_initial_noise.png", "initial")
+	await _capture_state("01_initial_noise_0_of_3.png", "initial")
 	await _capture_state("02_period_search_ridge.png", "period_search")
 	await _capture_state("03_dm_converging.png", "dm_converging")
 	await _capture_state("04_double_peak_forming.png", "double_peak")
-	await _capture_state("05_pulse_lock.png", "locked")
-	await _capture_state("06_report_handoff.png", "report")
+	await _capture_state("05_capture_1_of_3.png", "captured_once")
+	await _capture_state("06_capture_miss_early.png", "capture_miss")
+	await _capture_state("07_pulse_lock_3_of_3.png", "locked")
+	await _capture_state("08_report_handoff.png", "report")
 
 	print("FAST PULSE CAPTURE SCREENSHOTS %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)
@@ -54,6 +56,11 @@ func _capture_state(file_name: String, state: String) -> void:
 			model.trial_period_ms = model.true_period_ms
 			model.trial_phase = model.true_phase
 			model.set_integration(model.required_integration_s * 0.72)
+		"captured_once", "capture_miss":
+			model.trial_dm = model.true_dm
+			model.trial_period_ms = model.true_period_ms
+			model.trial_phase = model.true_phase
+			model.set_integration(0.0)
 		"locked":
 			model.trial_dm = model.true_dm
 			model.trial_period_ms = model.true_period_ms
@@ -67,20 +74,28 @@ func _capture_state(file_name: String, state: String) -> void:
 			scene.set("stage", 4)
 
 	scene.call("_rebuild")
-	if state == "locked":
-		scene.call("_reset_fold_capture_validation", false)
-		scene.fold_monitor_trim_completed = true
-		for _window in range(3):
-			scene.call("_record_fold_validation_window")
-		scene.call("_confirm_fold")
+	if state == "captured_once" or state == "capture_miss" or state == "locked":
+		scene.call("_reset_fold_capture_validation", true)
+		scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+		scene.call("_attempt_fold_pulse_capture", "capture")
+		if state == "capture_miss":
+			var target := float(scene.call("_fold_capture_target_phase"))
+			scene.fold_capture_gate_phase = fposmod(target - 0.16, 1.0)
+			scene.call("_attempt_fold_pulse_capture", "capture")
+		elif state == "locked":
+			for _capture in range(2):
+				scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+				scene.call("_attempt_fold_pulse_capture", "capture")
 		# Capture the actual 0.20 s lock freeze instead of faking its flash. This
 		# keeps the evidence image tied to the same terminal packet players see.
-		await create_timer(0.10).timeout
+		if state == "locked":
+			await create_timer(0.10).timeout
+			_save(file_name)
 	elif state == "report":
 		scene.call("_finish_report_analysis")
 	if state != "locked":
 		await _settle()
-	_save(file_name)
+		_save(file_name)
 	scene.queue_free()
 	current_scene = null
 	await process_frame

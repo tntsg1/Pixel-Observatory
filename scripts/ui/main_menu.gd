@@ -223,7 +223,7 @@ func _on_settings() -> void:
 		return
 	settings_panel = Panel.new()
 	settings_panel.position = Vector2(302, 248)
-	settings_panel.size = Vector2(420, 472)
+	settings_panel.size = Vector2(420, 494)
 	settings_panel.z_index = 100
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.025, 0.040, 0.070, 0.98)
@@ -326,12 +326,28 @@ func _on_settings() -> void:
 	)
 	settings_panel.add_child(sfx)
 
+	var wide_capture := CheckButton.new()
+	wide_capture.name = "WidePulseCaptureWindowToggle"
+	wide_capture.text = GameManager.text("Wide pulse-capture window", "宽松脉冲捕获窗口")
+	wide_capture.tooltip_text = GameManager.text(
+		"Widens the FAST phase gate. You still actively capture all three arrivals.",
+		"放宽 FAST 相位捕获门；仍需主动捕获三次到达。"
+	)
+	wide_capture.position = Vector2(28, 310)
+	wide_capture.size = Vector2(364, 36)
+	wide_capture.button_pressed = GameManager.uses_wide_pulse_capture_window()
+	wide_capture.toggled.connect(func(enabled: bool) -> void:
+		GameManager.set_wide_pulse_capture_window(enabled)
+		_show_feedback(GameManager.text("Pulse-capture assistance updated.", "脉冲捕获辅助已更新。"))
+	)
+	settings_panel.add_child(wide_capture)
+
 	var help_note := Label.new()
 	help_note.text = GameManager.text(
 		"Mission objectives remain available.\nReview lessons in the journal at any time.",
 		"任务目标始终可见。\n学习内容可随时在档案中回顾。"
 	)
-	help_note.position = Vector2(28, 318)
+	help_note.position = Vector2(28, 350)
 	help_note.size = Vector2(364, 50)
 	help_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help_note.clip_text = true
@@ -352,7 +368,7 @@ func _on_settings() -> void:
 
 	var close := Button.new()
 	close.text = GameManager.text("Close", "关闭")
-	close.position = Vector2(130, 414)
+	close.position = Vector2(130, 448)
 	close.size = Vector2(160, 36)
 	close.pressed.connect(func() -> void:
 		if settings_panel != null:

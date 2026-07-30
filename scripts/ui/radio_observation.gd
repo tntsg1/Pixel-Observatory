@@ -19,7 +19,6 @@ const RED := Color("a66f67")
 const TEXT := Color("ecece7")
 const MUTED := Color("858b89")
 const STAGE_KEYS := ["aim", "tune", "rfi", "fold", "report"]
-const SIMULATED_INTEGRATION_RATE := 42.0
 const WATERFALL_ROWS := 24
 const TERMINAL_HISTORY_LINES := 6
 const IDLE_HINT_DELAY := 20.0
@@ -36,8 +35,9 @@ const ACQUISITION_MAX_SPEED_DEG_S := 8.0
 const FOLD_ADJUST_IDLE_SECONDS := 0.10
 const FOLD_CONTROL_RESPONSE_SECONDS := 0.14
 const FOLD_CONTROL_RESPONSE_INITIAL_PROGRESS := 0.16
-const FOLD_VALIDATION_WINDOW_SECONDS := 0.46
-const FOLD_STABLE_WINDOWS_REQUIRED := 3
+const FOLD_CAPTURE_REQUIRED := 3
+const FOLD_CAPTURE_SCAN_SECONDS := 1.46
+const FOLD_CAPTURE_FEEDBACK_SECONDS := 0.15
 const FOLD_LOCK_FREEZE_SECONDS := 0.20
 const FOLD_LOCK_TRANSITION_SECONDS := 0.42
 const FOLD_MONITOR_TRIM_TOLERANCE := 0.012
@@ -120,8 +120,6 @@ var fold_step := 0
 var fold_slider: HSlider
 var fold_phase_slider: HSlider
 var fold_action_button: Button
-var fold_confirm_button: Button
-var integration_held := false
 var fold_adjust_audio_idle := -1.0
 var fold_step_label: Label
 var fold_controls_panel: Panel
@@ -134,9 +132,15 @@ var fold_adjust_direction := 0.0
 var fold_adjust_repeat_clock := 0.0
 var fold_keyboard_repeat_clock := 0.0
 var fold_keyboard_adjust_active := false
-var fold_validation_clock := 0.0
-var fold_validation_window_index := 0
-var fold_stable_windows := 0
+var fold_capture_count := 0
+var fold_capture_clock := 0.0
+var fold_capture_gate_phase := 0.0
+var fold_capture_feedback_seconds := 0.0
+var fold_capture_feedback_kind := ""
+var fold_capture_hint := ""
+var fold_capture_confidence_penalty := 0.0
+var fold_capture_misses := 0
+var fold_capture_space_down := false
 var fold_candidate_ready := false
 var fold_profile_history: Array = []
 var fold_last_peak_phase := -1.0
@@ -497,8 +501,10 @@ func _process(delta: float) -> void:
 		if not InteractionFeedback.is_reduced_motion():
 			fold_visual_clock += delta
 		fold_lock_flash = maxf(0.0, fold_lock_flash - delta / maxf(FOLD_LOCK_TRANSITION_SECONDS, 0.01))
-		if integration_held and fold_step >= 3 and not fold_candidate_ready:
-			fold_stack_turns = minf(8.0, fold_stack_turns + delta * 1.75)
+		if fold_step >= 3 and not fold_candidate_ready and not fold_lock_sequence_running:
+			fold_capture_clock += delta
+			fold_capture_gate_phase = fposmod(fold_capture_clock / FOLD_CAPTURE_SCAN_SECONDS, 1.0)
+		fold_capture_feedback_seconds = maxf(0.0, fold_capture_feedback_seconds - delta)
 		if scope != null and is_instance_valid(scope):
 			scope.queue_redraw()
 	terminal_clock += delta
@@ -560,28 +566,6 @@ func _process(delta: float) -> void:
 		if prediction_time_left <= 0.0:
 			_resolve_prediction_window()
 		return
-	elif stage == 3 and integration_held and not discovery_running and not fold_lock_sequence_running:
-		var integration_rate := maxf(SIMULATED_INTEGRATION_RATE, model.required_integration_s / 1.6)
-		model.set_integration(model.integration_s + delta * integration_rate)
-		fold_validation_clock += delta
-		if fold_validation_clock >= FOLD_VALIDATION_WINDOW_SECONDS:
-			fold_validation_clock = fmod(fold_validation_clock, FOLD_VALIDATION_WINDOW_SECONDS)
-			_record_fold_validation_window()
-		_terminal_event(
-			"PULSE INTEGRATION",
-			"ACCUMULATE",
-			"SNR %.1f  WINDOW %d/%d" % [
-				model.fold_snr(),
-				fold_stable_windows,
-				FOLD_STABLE_WINDOWS_REQUIRED,
-			],
-			"fold_integrate",
-			0.75
-		)
-		_note_player_activity()
-		if fold_candidate_ready:
-			_tutorial_action("fold_integrate")
-		_refresh_fold()
 	elif stage in [1, 2] and not running:
 		waterfall_clock += delta
 		if waterfall_clock >= 0.14:
@@ -590,6 +574,14 @@ func _process(delta: float) -> void:
 			_capture_waterfall_row(tune_waterfall if stage == 1 else rfi_waterfall, stage == 2)
 			if scope != null and is_instance_valid(scope):
 				scope.queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		# Browser focus can leave the key-up outside the canvas. Clear only the
+		# input latch; recovery data remains untouched and the next short press is
+		# immediately eligible.
+		fold_capture_space_down = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -620,21 +612,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 		if key.keycode == KEY_SPACE and stage == 3:
-			_sync_fold_capture_state()
-			if key.pressed and (fold_step < 3 or fold_candidate_ready or fold_lock_sequence_running):
-				integration_held = false
-				status_label.text = _fold_next_action_text()
-				status_label.add_theme_color_override("font_color", AMBER if not fold_candidate_ready else GREEN)
-				if fold_action_button != null and is_instance_valid(fold_action_button):
-					InteractionFeedback.pulse(fold_action_button, AMBER if not fold_candidate_ready else GREEN, 0.24)
-				get_viewport().set_input_as_handled()
-				return
-			integration_held = key.pressed
-			_terminal_event(
-				"PULSE INTEGRATION",
-				"ACCUMULATE" if key.pressed else "HOLD",
-				"%.0f s" % model.integration_s
-			)
+			# Capture is an input edge, never a held-state. Browser focus changes or
+			# a missing key-up event therefore cannot leave the receiver stuck at 0/3.
+			if key.pressed and not key.echo and not fold_capture_space_down:
+				fold_capture_space_down = true
+				_attempt_fold_pulse_capture("space")
+			elif not key.pressed:
+				fold_capture_space_down = false
 			get_viewport().set_input_as_handled()
 			return
 		if not key.pressed or key.echo:
@@ -1439,18 +1423,11 @@ func _tutorial_steps_for_stage() -> Array[Dictionary]:
 					"色散、周期和到达相位已经一致，可以开始验证重复性。"
 				),
 				_tutorial_step_data(
-					"Step 4: hold the receiver until the counter reaches three stable windows.",
-					"第 4 步：持续按住“保持接收”，直到稳定窗口达到 3/3。",
-					"fold_integrate", fold_action_button,
-					"Random noise averages down; the repeating pulse remains fixed.",
-					"随机噪声逐渐被平均，重复脉冲则留在固定位置。"
-				),
-				_tutorial_step_data(
-					"Confirm the stable candidate, then use its recovered timing to predict the next pulse.",
-					"确认稳定候选，再用恢复出的计时结果预测下一次脉冲。",
-					"fold_confirm", fold_confirm_button,
-					"A real periodic source should arrive again when your model predicts.",
-					"真实的周期信号应当在模型预报的时刻再次抵达。"
+					"Step 4: the phase gate sweeps across the folded profile. Tap Capture for each of three recovered arrivals.",
+					"第 4 步：相位门扫过折叠轮廓时，主动捕获三次已恢复的到达。",
+					"fold_capture", fold_action_button,
+					"Each captured arrival sharpens the double peak. Three active captures lock the timing model.",
+					"每次捕获都会让双峰更清晰；三次主动捕获即可锁定计时模型。"
 				),
 			]
 		_:
@@ -3395,60 +3372,46 @@ func _build_fold_control(parent: Control) -> void:
 	fold_adjust_plus_button.button_up.connect(_stop_fold_button_adjust)
 
 	fold_action_button = _button(
-		GameManager.text("HOLD RECEIVER [SPACE]", "保持接收 [空格]"),
+		GameManager.text("CAPTURE PULSE [SPACE]", "捕获脉冲 [空格]"),
 		Vector2(18, 288),
-		Vector2(262, 46),
+		Vector2(262, 52),
 		Color("153249")
 	)
+	fold_action_button.name = "FoldPulseCaptureButton"
 	fold_action_button.set_meta("feedback_sfx_suppressed", true)
 	fold_action_button.button_down.connect(func() -> void:
-		integration_held = true
-		_note_player_activity()
-		_terminal_event("FOLD BUFFER", "OPEN", "ACCUMULATING WINDOWS")
+		InteractionFeedback.pulse(fold_action_button, CYAN, 0.10)
 	)
-	fold_action_button.button_up.connect(func() -> void:
-		integration_held = false
-		_terminal_event("FOLD BUFFER", "HOLD", "%d/%d STABLE" % [fold_stable_windows, FOLD_STABLE_WINDOWS_REQUIRED])
-	)
+	fold_action_button.pressed.connect(_attempt_fold_pulse_capture.bind("button"))
 	parent.add_child(fold_action_button)
-
-	fold_confirm_button = _button(
-		GameManager.text("CONFIRM CANDIDATE", "确认候选信号"),
-		Vector2(18, 342),
-		Vector2(262, 44),
-		Color("18452f")
-	)
-	fold_confirm_button.disabled = not fold_candidate_ready
-	fold_confirm_button.pressed.connect(_confirm_fold)
-	parent.add_child(fold_confirm_button)
 
 	var controls := _label_to(
 		parent,
 		GameManager.text(
-			"Hold the lit -/+ keys · keyboard hint follows the active step",
-			"按住亮起的 -/+ 键 · 键盘提示会随当前步骤切换"
+			"Use lit -/+ keys; capture each recovered pulse as the scan gate crosses it.",
+			"使用亮起的 -/+ 键；扫描门经过恢复脉冲时主动捕获。"
 		),
-		Vector2(12, 392),
-		Vector2(274, 30),
+		Vector2(12, 350),
+		Vector2(274, 48),
 		10,
 		MUTED,
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
 	controls.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	var challenge_label := _label_to(parent, _challenge_hint(), Vector2(18, 426), Vector2(262, 38), 10, CRT, HORIZONTAL_ALIGNMENT_CENTER)
+	var challenge_label := _label_to(parent, _challenge_hint(), Vector2(18, 410), Vector2(262, 48), 10, CRT, HORIZONTAL_ALIGNMENT_CENTER)
 	challenge_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 
 func _challenge_hint() -> String:
 	match str(profile.get("challenge", "balanced")):
 		"long_integration":
-			return GameManager.text("Weak source: hold integration.\nSNR rises with the square root of time.", "微弱源：持续积分。\n信噪比随时间平方根增长。")
+			return GameManager.text("Weak source: stack three matched arrivals.\nSNR rises with coherent integration.", "微弱源：叠加三次匹配到达。\n相干积分会提升信噪比。")
 		"dm_alignment":
 			return GameManager.text("Watch the sub-bands.\nCorrect DM aligns every arrival.", "观察子频段。\n正确 DM 会对齐所有脉冲。")
 		"period_search":
 			return GameManager.text("A wrong period splits the peak.\nConverge the two profiles.", "错误周期会分裂峰形。\n让两个轮廓逐渐重合。")
 		_:
-			return GameManager.text("Search period, align dispersion,\nthen integrate for certainty.", "搜索周期并校正色散，\n再通过积分确认信号。")
+			return GameManager.text("Search period, align dispersion,\nthen capture three matched arrivals.", "搜索周期并校正色散，\n再主动捕获三次匹配到达。")
 
 
 func _note_fold_adjust_audio() -> void:
@@ -3702,7 +3665,7 @@ func _begin_fold_control_response(
 	fold_control_response_from_offsets = before_offsets.duplicate()
 	fold_control_response_to_offsets = model.subband_offsets(7)
 	fold_control_response_from_profile = before_profile.duplicate()
-	fold_control_response_to_profile = model.folded_profile_for_window(120, fold_validation_window_index)
+	fold_control_response_to_profile = model.folded_profile_for_window(120, fold_capture_count)
 	# Begin part-way through the first movement so the press produces a visible
 	# response on its first rendered frame instead of looking inert.
 	fold_control_response_progress = FOLD_CONTROL_RESPONSE_INITIAL_PROGRESS
@@ -3730,7 +3693,7 @@ func _fold_display_offsets() -> Array:
 
 
 func _fold_display_profile() -> Array:
-	var live_profile := model.folded_profile_for_window(120, fold_validation_window_index)
+	var live_profile := model.folded_profile_for_window(120, fold_capture_count)
 	if fold_control_response_progress >= 1.0:
 		return live_profile
 	return _lerp_fold_samples(
@@ -3753,17 +3716,20 @@ func _lerp_fold_samples(from_values: Array, to_values: Array, weight: float) -> 
 
 func _fold_parameters_changed(parameter: String) -> void:
 	_note_fold_adjust_audio()
-	fold_validation_clock = 0.0
-	if parameter == "phase" and fold_monitor_trim_requested:
-		# A small timing trim during verification costs at most one evidence
-		# window. It gives recovery room instead of making one correction erase
-		# the entire discovery chain.
-		fold_stable_windows = maxi(1, fold_stable_windows - 1) if fold_stable_windows > 0 else 0
+	# A correction never erases the whole recovery. It may cost one already
+	# captured arrival, so a player can immediately recover rather than replaying
+	# a passive integration timer.
+	if fold_capture_count > 0:
+		fold_capture_count = maxi(1, fold_capture_count - 1)
+		model.set_integration(model.required_integration_s * float(fold_capture_count) / float(FOLD_CAPTURE_REQUIRED))
+		if not fold_profile_history.is_empty():
+			fold_profile_history.pop_back()
 	else:
-		fold_stable_windows = 0
+		model.set_integration(0.0)
 	fold_candidate_ready = false
 	fold_last_peak_phase = -1.0
-	fold_profile_history.clear()
+	fold_capture_confidence_penalty = minf(0.28, fold_capture_confidence_penalty + 0.035)
+	fold_capture_hint = GameManager.text("Calibration changed: one capture was released. Reacquire on the next gate.", "校准已变化：释放了一次捕获。请在下一个相位门重新捕获。")
 	var detail := ""
 	match parameter:
 		"dm":
@@ -3800,9 +3766,15 @@ func _reset_fold_capture_validation(reset_integration: bool) -> void:
 	fold_adjust_repeat_clock = 0.0
 	fold_keyboard_repeat_clock = 0.0
 	fold_keyboard_adjust_active = false
-	fold_validation_clock = 0.0
-	fold_validation_window_index = 0
-	fold_stable_windows = 0
+	fold_capture_count = 0
+	fold_capture_clock = 0.0
+	fold_capture_gate_phase = 0.0
+	fold_capture_feedback_seconds = 0.0
+	fold_capture_feedback_kind = ""
+	fold_capture_hint = ""
+	fold_capture_confidence_penalty = 0.0
+	fold_capture_misses = 0
+	fold_capture_space_down = false
 	fold_candidate_ready = false
 	fold_profile_history.clear()
 	fold_last_peak_phase = -1.0
@@ -3822,7 +3794,6 @@ func _reset_fold_capture_validation(reset_integration: bool) -> void:
 	fold_lock_sequence_running = false
 	fold_lock_flash = 0.0
 	fold_lock_snapshot.clear()
-	integration_held = false
 	if reset_integration and model != null:
 		model.set_integration(0.0)
 	_stop_fold_adjust_audio(0.0)
@@ -3837,54 +3808,93 @@ func _sync_fold_capture_state() -> void:
 		fold_step = 2
 	else:
 		fold_step = 3
-	fold_candidate_ready = (
-		fold_stable_windows >= FOLD_STABLE_WINDOWS_REQUIRED
-		and bool(model.report().get("success", false))
-	)
+	fold_candidate_ready = fold_capture_count >= FOLD_CAPTURE_REQUIRED and bool(model.report().get("success", false))
 
 
-func _record_fold_validation_window() -> void:
-	fold_validation_window_index += 1
-	var profile_window := model.folded_profile_for_window(120, fold_validation_window_index)
-	fold_profile_history.append(profile_window)
-	while fold_profile_history.size() > FOLD_STABLE_WINDOWS_REQUIRED:
-		fold_profile_history.pop_front()
-	var peak_phase := model.folded_peak_phase(fold_validation_window_index)
-	var signal_is_coherent := (
-		model.period_solution_state() == "fundamental"
-		and model.dm_match() >= 0.78
-		and _fold_effective_phase_match() >= 0.72
-	)
-	if not signal_is_coherent:
-		fold_stable_windows = maxi(0, fold_stable_windows - 1) if absf(fold_monitor_phase_residual) > FOLD_MONITOR_TRIM_TOLERANCE else 0
-	elif fold_last_peak_phase < 0.0:
-		fold_stable_windows = 1
-	elif model.candidate_window_is_stable(fold_last_peak_phase, fold_validation_window_index):
-		fold_stable_windows = mini(FOLD_STABLE_WINDOWS_REQUIRED, fold_stable_windows + 1)
-	else:
-		fold_stable_windows = 1
-	fold_last_peak_phase = peak_phase
-	if signal_is_coherent and fold_stable_windows == 1 and not fold_monitor_trim_completed and is_zero_approx(fold_monitor_phase_residual):
-		# One small, deterministic receiver-clock drift keeps the confirmation
-		# active: the player watches the ring, trims it, and retains their work.
-		fold_monitor_phase_residual = -0.036 if fold_validation_window_index % 2 == 0 else 0.036
-		fold_monitor_trim_requested = false
-		_terminal_event("CLOCK DRIFT", "TRIM", "PHASE %+0.3f" % fold_monitor_phase_residual, "fold_monitor_trim", 0.0, true)
-	var was_ready := fold_candidate_ready
+func _fold_capture_available() -> bool:
+	if model == null or fold_lock_sequence_running or prediction_running or fold_candidate_ready:
+		return false
+	return fold_step >= 3 and model.period_solution_state() == "fundamental" and model.dm_match() >= 0.72 and _fold_effective_phase_match() >= 0.72
+
+
+func _fold_capture_target_phase() -> float:
+	# The high component comes from the same folded profile and measured period
+	# that will be written into the report packet; this is not a decorative timer.
+	return model.folded_peak_phase(fold_capture_count)
+
+
+func _fold_capture_window_phase() -> float:
+	var precision := minf(minf(model.period_match(), model.dm_match()), _fold_effective_phase_match())
+	var width := lerpf(0.082, 0.038, precision)
+	if GameManager.uses_wide_pulse_capture_window():
+		width += 0.026
+	return clampf(width, 0.030, 0.108)
+
+
+func _fold_signed_phase_delta(from_phase: float, target_phase: float) -> float:
+	return fposmod(from_phase - target_phase + 0.5, 1.0) - 0.5
+
+
+func _attempt_fold_pulse_capture(source := "button") -> void:
 	_sync_fold_capture_state()
-	_terminal_event(
-		"FOLD WINDOW %02d" % fold_validation_window_index,
-		"STABLE" if signal_is_coherent else "DRIFT",
-		"PEAK %.3f  SNR %.1f" % [peak_phase, model.fold_snr()],
-		"fold_window",
-		0.0,
-		fold_candidate_ready
+	if not _fold_capture_available():
+		fold_capture_feedback_kind = "blocked"
+		fold_capture_feedback_seconds = FOLD_CAPTURE_FEEDBACK_SECONDS
+		fold_capture_hint = GameManager.text("Move phase peak into capture gate first.", "请先将相位峰移入捕获门。")
+		_terminal_event("PULSE CAPTURE", "WAIT", "CALIBRATE PERIOD / DM / PHASE")
+		if fold_action_button != null and is_instance_valid(fold_action_button):
+			InteractionFeedback.error(fold_action_button)
+		_refresh_fold()
+		return
+	var target_phase := _fold_capture_target_phase()
+	var delta_phase := _fold_signed_phase_delta(fold_capture_gate_phase, target_phase)
+	if absf(delta_phase) > _fold_capture_window_phase():
+		_record_fold_capture_miss(delta_phase)
+		return
+	_record_fold_capture_success(target_phase, source)
+
+
+func _record_fold_capture_miss(delta_phase: float) -> void:
+	fold_capture_misses += 1
+	fold_capture_confidence_penalty = minf(0.28, fold_capture_confidence_penalty + 0.045)
+	fold_capture_feedback_kind = "early" if delta_phase < 0.0 else "late"
+	fold_capture_feedback_seconds = FOLD_CAPTURE_FEEDBACK_SECONDS
+	var offset_ms := absf(delta_phase) * model.trial_period_ms
+	fold_capture_hint = GameManager.text(
+		"Early %.0f ms — let the scan gate travel farther." % offset_ms if delta_phase < 0.0 else "Late %.0f ms — capture on the next phase gate." % offset_ms,
+		"提前 %.0f ms — 让扫描门再前进一些。" % offset_ms if delta_phase < 0.0 else "滞后 %.0f ms — 在下一个相位门捕获。" % offset_ms
 	)
-	if fold_candidate_ready and not was_ready:
-		integration_held = false
-		_terminal_event("REPEATING SOURCE", "CANDIDATE", "3 WINDOWS COHERENT", "", 0.0, true)
-		InteractionFeedback.feedback_sfx_requested.emit("fast_tune_locked")
-		_tutorial_action("fold_integrate")
+	_terminal_event("PULSE CAPTURE", "EARLY" if delta_phase < 0.0 else "LATE", "%+.0f ms  ·  %d/%d CONFIRMED" % [delta_phase * model.trial_period_ms, fold_capture_count, FOLD_CAPTURE_REQUIRED], "fold_capture_miss", 0.0, true)
+	if fold_action_button != null and is_instance_valid(fold_action_button):
+		InteractionFeedback.error(fold_action_button)
+	_refresh_fold()
+
+
+func _record_fold_capture_success(target_phase: float, source: String) -> void:
+	fold_capture_count = mini(FOLD_CAPTURE_REQUIRED, fold_capture_count + 1)
+	model.set_integration(model.required_integration_s * float(fold_capture_count) / float(FOLD_CAPTURE_REQUIRED))
+	fold_profile_history.append(model.folded_profile_for_window(120, fold_capture_count))
+	while fold_profile_history.size() > FOLD_CAPTURE_REQUIRED:
+		fold_profile_history.pop_front()
+	fold_last_peak_phase = target_phase
+	fold_capture_confidence_penalty = maxf(0.0, fold_capture_confidence_penalty - 0.035)
+	fold_capture_feedback_kind = "success"
+	fold_capture_feedback_seconds = FOLD_CAPTURE_FEEDBACK_SECONDS
+	fold_stack_turns = float(fold_capture_count)
+	fold_capture_hint = GameManager.text("Capture %d/%d · profile sharpens · SNR %.1f" % [fold_capture_count, FOLD_CAPTURE_REQUIRED, model.fold_snr()], "捕获 %d/%d · 轮廓收束 · 信噪比 %.1f" % [fold_capture_count, FOLD_CAPTURE_REQUIRED, model.fold_snr()])
+	_terminal_event("PULSE CAPTURE %d/%d" % [fold_capture_count, FOLD_CAPTURE_REQUIRED], "LOCKED", "PHASE %.3f  ·  SNR %.1f" % [target_phase, model.fold_snr()], "fold_capture", 0.0, true)
+	InteractionFeedback.feedback_sfx_requested.emit("fast_tune_locked")
+	_note_player_activity()
+	_sync_fold_capture_state()
+	if fold_candidate_ready:
+		_terminal_event("REPEATING SOURCE", "CONFIRMED", "THREE ACTIVE CAPTURES · SNR %.1f" % model.fold_snr(), "", 0.0, true)
+		_terminal_event("PULSE PROFILE", "CONFIRMED", "THREE CAPTURES · SNR %.1f" % model.fold_snr(), "", 0.0, true)
+		_tutorial_action("fold_capture")
+		if tutorial_active:
+			_finish_stage_tutorial()
+		_refresh_fold()
+		call_deferred("_start_fold_lock_sequence")
+		return
 	_refresh_fold()
 
 
@@ -3920,25 +3930,20 @@ func _fold_next_action_text() -> String:
 			"Rotate the arrival phase with Q/E or the wheel so the peak clears the plot edge.",
 			"用 Q/E 或滚轮调整到达相位，让峰完整进入观察窗。"
 		)
-	if fold_stable_windows < FOLD_STABLE_WINDOWS_REQUIRED:
-		return GameManager.text(
-			"Hold the receiver and verify the peak stays put for three consecutive windows.",
-			"保持接收，确认脉冲峰在连续三个窗口中位置稳定。"
-		)
 	if not fold_candidate_ready:
 		return GameManager.text(
-			"The timing is coherent; keep integrating until the signal rises above the noise.",
-			"计时已经相干；继续积分，直到信号可靠地高出噪声。"
+			"The profile is aligned. Tap Capture as the moving phase gate crosses the bright primary pulse (%d/%d)." % [fold_capture_count, FOLD_CAPTURE_REQUIRED],
+			"轮廓已对齐。移动相位门经过明亮主脉冲时点击捕获（%d/%d）。" % [fold_capture_count, FOLD_CAPTURE_REQUIRED]
 		)
 	return GameManager.text(
-		"Three windows agree. Confirm the candidate, then predict its next arrival.",
-		"三个窗口结果一致。确认候选后，预测下一次到达。"
+		"Three active captures agree. Building the next-arrival model.",
+		"三次主动捕获一致。正在建立下一次到达模型。"
 	)
 
 
 func _fold_step_heading_v2() -> String:
 	if fold_candidate_ready:
-		return GameManager.text("EVIDENCE READY · CONFIRM", "证据就绪 · 确认候选")
+		return GameManager.text("EVIDENCE LOCKED · BUILDING TIMING MODEL", "证据已锁定 · 正在建立计时模型")
 	match fold_step:
 		0:
 			return GameManager.text("1/4 · FIND THE REPEATING CLOCK", "1/4 · 找到重复的宇宙时钟")
@@ -3947,19 +3952,19 @@ func _fold_step_heading_v2() -> String:
 		2:
 			return GameManager.text("3/4 · ROTATE THE FOLD", "3/4 · 旋转相位折叠环")
 		_:
-			return GameManager.text("4/4 · WATCH, TRIM, CONFIRM", "4/4 · 监看、微调、确认")
+			return GameManager.text("4/4 · CAPTURE THREE ARRIVALS", "4/4 · 捕获三次到达")
 
 
 func _fold_step_heading() -> String:
 	if fold_candidate_ready:
-		return GameManager.text("EVIDENCE READY · CONFIRM", "证据就绪 · 确认候选")
+		return GameManager.text("EVIDENCE LOCKED", "证据已锁定")
 	match fold_step:
 		0:
 			return GameManager.text("STEP 1/3 · STRAIGHTEN BANDS", "步骤 1/3 · 拉直七条频段")
 		1:
 			return GameManager.text("STEP 2/3 · STABILIZE PULSE", "步骤 2/3 · 稳定周期与相位")
 		_:
-			return GameManager.text("STEP 3/3 · VERIFY REPETITION", "步骤 3/3 · 连续积分验证")
+			return GameManager.text("STEP 3/3 · CAPTURE REPETITION", "步骤 3/3 · 主动捕获重复信号")
 
 
 func _fold_compact_action_text() -> String:
@@ -3983,33 +3988,27 @@ func _fold_compact_action_text() -> String:
 			"NOW: hold Phase -/+ until the pulse enters the gold arrival gate.",
 			"现在做：按住相位 -/+，把脉冲送入金色到达门。"
 		)
-	if fold_stable_windows < FOLD_STABLE_WINDOWS_REQUIRED:
+	if not fold_candidate_ready:
 		return GameManager.text(
-			"NOW: hold the receiver until three consecutive windows keep the same peak.",
-			"现在做：持续按住“保持接收”，直到稳定窗口达到 3/3。"
+			"NOW: tap Capture when the scan gate enters the bright pulse window (%d/%d)." % [fold_capture_count, FOLD_CAPTURE_REQUIRED],
+			"现在做：扫描门进入明亮脉冲窗口时点击捕获（%d/%d）。" % [fold_capture_count, FOLD_CAPTURE_REQUIRED]
 		)
 	return GameManager.text(
-		"NOW: confirm the candidate and test its predicted next arrival.",
-		"现在做：确认稳定候选，并验证下一次脉冲到达。"
+		"NOW: timing packet locked; prepare the next-arrival proof.",
+		"现在做：计时数据包已锁定；准备验证下一次到达。"
 	)
 
 
 func _fold_keyboard(keycode: Key) -> void:
-	if keycode == KEY_ENTER:
-		if fold_candidate_ready:
-			_confirm_fold()
+	if keycode == KEY_ENTER and _fold_capture_available():
+		_attempt_fold_pulse_capture("enter")
 
 
 func _confirm_fold_step() -> void:
 	# Kept as a compatibility entry point for old save/test calls. Calibration
 	# is now continuous on one capture desk; it never advances hidden steps.
 	_sync_fold_capture_state()
-	if fold_candidate_ready:
-		_confirm_fold()
-	else:
-		status_label.text = _fold_next_action_text()
-		status_label.add_theme_color_override("font_color", AMBER)
-		InteractionFeedback.error(scope)
+	_attempt_fold_pulse_capture("compatibility")
 
 
 func _refresh_fold() -> void:
@@ -4022,23 +4021,23 @@ func _refresh_fold() -> void:
 	var solution := model.period_solution_state()
 	var solution_text := _fold_solution_label(solution)
 	readout.text = GameManager.text(
-		"%s\n\nDM %.1f pc/cm³  ·  P %.3f ms\nS/N %.1f  ·  %s\nStable windows %d/%d" % [
+		"%s\n\nDM %.1f pc/cm³  ·  P %.3f ms\nS/N %.1f  ·  %s\nPulse captures %d/%d" % [
 			_fold_compact_action_text(),
 			model.trial_dm,
 			model.trial_period_ms,
 			snr,
 			solution_text,
-			fold_stable_windows,
-			FOLD_STABLE_WINDOWS_REQUIRED,
+			fold_capture_count,
+			FOLD_CAPTURE_REQUIRED,
 		],
-		"%s\n\nDM %.1f pc/cm³  ·  周期 %.3f ms\n信噪比 %.1f  ·  %s\n稳定窗口 %d/%d" % [
+		"%s\n\nDM %.1f pc/cm³  ·  周期 %.3f ms\n信噪比 %.1f  ·  %s\n脉冲捕获 %d/%d" % [
 			_fold_compact_action_text(),
 			model.trial_dm,
 			model.trial_period_ms,
 			snr,
 			solution_text,
-			fold_stable_windows,
-			FOLD_STABLE_WINDOWS_REQUIRED,
+			fold_capture_count,
+			FOLD_CAPTURE_REQUIRED,
 		]
 	)
 	readout.add_theme_color_override(
@@ -4075,35 +4074,21 @@ func _refresh_fold() -> void:
 			"phase": GameManager.text("PHASE →", "相位 →"),
 		}.get(adjust_parameter, "✓")
 	if fold_action_button != null and is_instance_valid(fold_action_button):
-		fold_action_button.disabled = fold_step < 3 or fold_candidate_ready or fold_lock_sequence_running
-		if fold_candidate_ready:
-			fold_action_button.text = GameManager.text("3/3 WINDOWS VERIFIED", "3/3 窗口已验证")
+		fold_action_button.disabled = not _fold_capture_available()
+		if fold_candidate_ready or fold_lock_sequence_running:
+			fold_action_button.text = GameManager.text("PULSE LOCKED", "脉冲已锁定")
 		elif fold_step == 0:
-			fold_action_button.text = GameManager.text("FIRST: STRAIGHTEN BANDS", "请先拉直七条频段")
+			fold_action_button.text = GameManager.text("FIRST: SCAN PERIOD", "请先扫描周期")
 		elif fold_step == 1:
-			fold_action_button.text = GameManager.text("NEXT: STABILIZE PULSE", "请先稳定周期与相位")
+			fold_action_button.text = GameManager.text("NEXT: STRAIGHTEN BANDS", "请先拉直频段")
+		elif fold_step == 2:
+			fold_action_button.text = GameManager.text("MOVE PHASE PEAK INTO CAPTURE GATE", "请先将相位峰移入捕获门")
 		else:
-			fold_action_button.text = GameManager.text("HOLD RECEIVER [SPACE]", "保持接收 [空格]")
-	if fold_action_button != null and is_instance_valid(fold_action_button) and not fold_candidate_ready:
-		match fold_step:
-			0:
-				fold_action_button.text = GameManager.text("FIRST: SCAN PERIOD", "请先扫描周期")
-			1:
-				fold_action_button.text = GameManager.text("NEXT: STRAIGHTEN BANDS", "请先拉直频段")
-			2:
-				fold_action_button.text = GameManager.text("NEXT: ROTATE PHASE RING", "请先旋转相位环")
-			_:
-				fold_action_button.text = GameManager.text("HOLD RECEIVER [SPACE]", "保持接收 [空格]")
-	if fold_confirm_button != null and is_instance_valid(fold_confirm_button):
-		fold_confirm_button.disabled = not fold_candidate_ready
-		fold_confirm_button.text = (
-			GameManager.text("CONFIRM STABLE CANDIDATE", "确认稳定候选")
-			if fold_candidate_ready
-			else GameManager.text("VERIFY 3 STABLE WINDOWS", "等待 3 个稳定窗口")
-		)
-	if status_label != null and is_instance_valid(status_label) and not integration_held and not tutorial_active:
-		status_label.text = _fold_next_action_text()
-		status_label.add_theme_color_override("font_color", GREEN if fold_candidate_ready else CRT)
+			fold_action_button.text = GameManager.text("CAPTURE PULSE [SPACE]  %d/%d" % [fold_capture_count, FOLD_CAPTURE_REQUIRED], "捕获脉冲 [空格]  %d/%d" % [fold_capture_count, FOLD_CAPTURE_REQUIRED])
+		fold_action_button.tooltip_text = GameManager.text("Short tap only. Holding does not add captures.", "只需短按；长按不会增加捕获次数。")
+	if status_label != null and is_instance_valid(status_label) and not tutorial_active:
+		status_label.text = fold_capture_hint if fold_capture_hint != "" else _fold_next_action_text()
+		status_label.add_theme_color_override("font_color", RED if fold_capture_feedback_kind in ["early", "late"] else (GREEN if fold_candidate_ready else CRT))
 	if fold_lock_sequence_running:
 		# Do not leave the ordinary confirmation button visually alive during the
 		# short freeze.  The freeze is the discovery climax: show the exact packet
@@ -4138,9 +4123,6 @@ func _refresh_fold() -> void:
 		if fold_action_button != null and is_instance_valid(fold_action_button):
 			fold_action_button.disabled = true
 			fold_action_button.text = GameManager.text("TIMING MODEL NEXT", "即将进入计时模型")
-		if fold_confirm_button != null and is_instance_valid(fold_confirm_button):
-			fold_confirm_button.disabled = true
-			fold_confirm_button.text = GameManager.text("PULSE LOCKED", "脉冲已锁定")
 		if status_label != null and is_instance_valid(status_label):
 			status_label.text = GameManager.text("All seven bands agree. Carrying the recovered pulse into the next-arrival model.", "七条频段已经一致；正在将恢复的脉冲带入下一次到达模型。")
 			status_label.add_theme_color_override("font_color", GREEN)
@@ -4207,13 +4189,29 @@ func _draw_fold_plot_v2(plot: RadioPlot) -> void:
 	for history_index in range(display_profiles.size()):
 		var alpha := lerpf(0.16, 0.96, float(history_index + 1) / float(display_profiles.size()))
 		_draw_two_cycle_profile(plot, profile_rect, display_profiles[history_index], Color(GREEN, alpha), history_index, 1.0 - fold_control_response_progress)
-	var gate_x := profile_rect.get_center().x
-	plot.draw_rect(Rect2(Vector2(gate_x - 10.0, profile_rect.position.y), Vector2(20.0, profile_rect.size.y)), Color(GREEN if _fold_effective_phase_match() >= 0.72 else AMBER, 0.10), true)
-	plot.draw_line(Vector2(gate_x, profile_rect.position.y), Vector2(gate_x, profile_rect.end.y), GOLD, 1.0)
+	# The bright window is tied to the recovered primary peak. The pair of moving
+	# scan lines shows the same phase in both rendered cycles, so a tap is an
+	# explicit measurement of a folded arrival rather than a wait-state timer.
+	var capture_target := _fold_capture_target_phase()
+	var capture_window := _fold_capture_window_phase()
+	var cycle_width := profile_rect.size.x * 0.5
+	var target_x := profile_rect.position.x + cycle_width * capture_target
+	var gate_x := profile_rect.position.x + cycle_width * fold_capture_gate_phase
+	var capture_color := GREEN if _fold_capture_available() else AMBER
+	var capture_width_px := maxf(7.0, cycle_width * capture_window)
+	for cycle in range(2):
+		var cycle_offset := cycle_width * float(cycle)
+		plot.draw_rect(Rect2(Vector2(target_x + cycle_offset - capture_width_px, profile_rect.position.y), Vector2(capture_width_px * 2.0, profile_rect.size.y)), Color(capture_color, 0.14), true)
+		plot.draw_line(Vector2(target_x + cycle_offset, profile_rect.position.y), Vector2(target_x + cycle_offset, profile_rect.end.y), Color(GOLD, 0.84), 1.2)
+		plot.draw_line(Vector2(gate_x + cycle_offset, profile_rect.position.y), Vector2(gate_x + cycle_offset, profile_rect.end.y), Color(CYAN, 0.92), 2.0)
+	if fold_capture_feedback_seconds > 0.0:
+		var feedback_color := GREEN if fold_capture_feedback_kind == "success" else RED
+		var feedback_x := target_x if fold_capture_feedback_kind == "success" else gate_x
+		plot.draw_rect(Rect2(Vector2(feedback_x - 9.0, profile_rect.position.y + 2.0), Vector2(18.0, profile_rect.size.y - 4.0)), Color(feedback_color, 0.30 * fold_capture_feedback_seconds / FOLD_CAPTURE_FEEDBACK_SECONDS), false, 2.0)
 	_meter_draw(plot, Rect2(Vector2(profile_rect.position.x, profile_rect.end.y - 10), Vector2(profile_rect.size.x, 6)), clampf(model.fold_snr() / maxf(model.report_snr_threshold, 0.1), 0.0, 1.0), GREEN)
-	_draw_plot_text(plot, "SNR %.1f  ·  stack %d" % [model.fold_snr(), int(floor(fold_stack_turns))], Vector2(profile_rect.end.x - 106, profile_rect.end.y + 19), 9, GREEN if fold_candidate_ready else AMBER)
+	_draw_plot_text(plot, "SNR %.1f  ·  CAPTURE %d/%d" % [model.fold_snr(), fold_capture_count, FOLD_CAPTURE_REQUIRED], Vector2(profile_rect.end.x - 150, profile_rect.end.y + 19), 9, GREEN if fold_candidate_ready else AMBER)
 	_draw_fold_phase_ring_v2(plot, _fold_phase_wheel_center(), 48.0, phase_active)
-	_draw_plot_text(plot, GameManager.text("STABLE %d/%d" % [fold_stable_windows, FOLD_STABLE_WINDOWS_REQUIRED], "稳定 %d/%d" % [fold_stable_windows, FOLD_STABLE_WINDOWS_REQUIRED]), Vector2(480, 390), 10, GREEN if fold_candidate_ready else (CYAN if fold_step >= 3 else MUTED))
+	_draw_plot_text(plot, GameManager.text("GATE %.0f ms  ·  %s" % [capture_window * model.trial_period_ms, fold_capture_hint], "捕获门 %.0f ms  ·  %s" % [capture_window * model.trial_period_ms, fold_capture_hint]), Vector2(28, 405), 9, GREEN if fold_candidate_ready else (CYAN if fold_step >= 3 else MUTED))
 
 	if fold_lock_flash > 0.0:
 		var radius := lerpf(18.0, 158.0, 1.0 - fold_lock_flash)
@@ -4272,13 +4270,13 @@ func _draw_fold_plot(plot: RadioPlot) -> void:
 		)
 	elif fold_candidate_ready:
 		pulse_instruction = GameManager.text(
-			"STEP 3 · THREE REPEATING WINDOWS VERIFIED",
-			"步骤 3 · 三个重复窗口已验证"
+		"STEP 3 · THREE ACTIVE CAPTURES VERIFIED",
+		"步骤 3 · 三次主动捕获已验证"
 		)
 	elif fold_step >= 2:
 		pulse_instruction = GameManager.text(
-			"STEP 3 · HOLD THE RECEIVER TO VERIFY REPETITION",
-			"步骤 3 · 持续接收，验证脉冲是否稳定重复"
+			"STEP 3 · CAPTURE THREE PHASE-GATED ARRIVALS",
+			"步骤 3 · 捕获三次经过相位门的到达"
 		)
 	plot.draw_rect(waterfall_rect.grow(3.0), Color(CYAN if dm_active else CRT, 0.88 if dm_active else 0.18), false, 2.0 if dm_active else 1.0)
 	plot.draw_rect(profile_rect.grow(3.0), Color(CYAN if pulse_active else CRT, 0.88 if pulse_active else 0.18), false, 2.0 if pulse_active else 1.0)
@@ -4349,7 +4347,7 @@ func _draw_fold_plot(plot: RadioPlot) -> void:
 	_draw_phase_wheel(plot, Vector2(532, 314), 50.0)
 	_draw_plot_text(
 		plot,
-		GameManager.text("STABLE %d/%d" % [fold_stable_windows, FOLD_STABLE_WINDOWS_REQUIRED], "稳定 %d/%d" % [fold_stable_windows, FOLD_STABLE_WINDOWS_REQUIRED]),
+		GameManager.text("CAPTURE %d/%d" % [fold_capture_count, FOLD_CAPTURE_REQUIRED], "捕获 %d/%d" % [fold_capture_count, FOLD_CAPTURE_REQUIRED]),
 		Vector2(482, 390),
 		10,
 		GREEN if fold_candidate_ready else MUTED
@@ -4420,46 +4418,15 @@ func _draw_gaussian_trace(plot: RadioPlot, center: Vector2, width: float, color:
 
 
 func _confirm_fold() -> void:
-	if discovery_running or prediction_running:
-		return
-	_sync_fold_capture_state()
-	if not fold_candidate_ready:
-		_terminal_event(
-			"PULSE CANDIDATE",
-			"HOLD",
-			"%d/%d STABLE WINDOWS" % [fold_stable_windows, FOLD_STABLE_WINDOWS_REQUIRED]
-		)
-		status_label.text = _fold_next_action_text()
-		status_label.add_theme_color_override("font_color", AMBER)
-		InteractionFeedback.error(fold_confirm_button if fold_confirm_button != null else scope)
-		return
-	var rep := model.report()
-	if not bool(rep.get("success", false)):
-		var reason := model.conclusion_state()
-		_terminal_event("PULSE CONFIRM", "REJECT", reason.to_upper())
-		match reason:
-			"residual_rfi":
-				status_label.text = GameManager.text("Residual RFI still contaminates the fold. Return to the cleaning stage.", "残余干扰仍在污染折叠结果。请返回净化阶段。")
-			"insufficient_signal":
-				status_label.text = GameManager.text("The pulse shape is aligned but not yet significant. Continue integrating.", "脉冲形态已经对齐，但显著性仍不足。请继续积分。")
-			_:
-				status_label.text = GameManager.text("The pulse is still split or dispersed. Recheck period and DM.", "脉冲仍然分裂或色散。请重新检查周期与 DM。")
-		status_label.add_theme_color_override("font_color", RED)
-		InteractionFeedback.error(scope)
-		return
-	_terminal_event("PERIODICITY", "DETECTED", "%.3f ms" % model.trial_period_ms)
-	_terminal_event("PULSE PROFILE", "CONFIRMED", "3 WINDOWS · SNR %.1f" % model.fold_snr())
-	_tutorial_action("fold_confirm")
-	if tutorial_active:
-		_finish_stage_tutorial()
-	_start_fold_lock_sequence()
+	# Compatibility for older tools/save hooks. Product UI has no separate
+	# confirmation any more: this is exactly one capture edge.
+	_attempt_fold_pulse_capture("compatibility")
 
 
 func _start_fold_lock_sequence() -> void:
 	if fold_lock_sequence_running or prediction_running:
 		return
 	fold_lock_sequence_running = true
-	integration_held = false
 	fold_lock_flash = 1.0
 	fold_lock_snapshot = model.report().duplicate(true)
 	var sky: Dictionary = fold_lock_snapshot.get("sky_position", {})
@@ -4702,7 +4669,6 @@ func _draw_prediction_plot(plot: RadioPlot) -> void:
 
 func _play_discovery_moment() -> void:
 	discovery_running = true
-	integration_held = false
 	discovery_phase = 0.0
 	discovery_event_trace.clear()
 	var overlay := Panel.new()

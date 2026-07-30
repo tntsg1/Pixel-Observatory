@@ -250,12 +250,12 @@ func _test_scene(gm: Node) -> void:
 	m.trial_period_ms = m.true_period_ms
 	m.trial_dm = m.true_dm
 	m.trial_phase = m.true_phase
-	m.set_integration(300.0)
-	scene.call("_fold_parameters_changed", "period")
-	for _window in range(3):
-		scene.call("_record_fold_validation_window")
-	_check(bool(scene.get("fold_candidate_ready")), "5. three coherent fold windows unlock candidate confirmation")
-	scene.call("_confirm_fold")
+	m.set_integration(0.0)
+	scene.call("_reset_fold_capture_validation", true)
+	for _capture in range(3):
+		scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+		scene.call("_attempt_fold_pulse_capture", "test")
+	_check(bool(scene.get("fold_candidate_ready")), "5. three active fold captures lock the recovered pulse")
 	await create_timer(0.72).timeout
 	_check(bool(scene.get("prediction_running")), "5. valid fold plays its bounded pulse-lock sequence before the next-pulse prediction")
 	var integration_before_miss := m.integration_s
