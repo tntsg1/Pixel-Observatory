@@ -3,6 +3,7 @@ extends Node
 signal progress_changed
 signal language_changed
 signal tutorial_assistance_changed(mode: String)
+signal pulse_capture_assistance_changed(enabled: bool)
 
 const LocalizationScript := preload("res://scripts/systems/localization.gd")
 const TelescopeMathScript := preload("res://scripts/systems/telescope_math.gd")
@@ -475,6 +476,7 @@ func default_progress() -> Dictionary:
 		"seen_story_events": [],
 		"tutorial_assistance": TUTORIAL_ASSIST_FULL,
 		"tutorial_free_confirmation_seen": false,
+		"wide_pulse_capture_window": false,
 		"pending_unlock_notice": [],
 		"unlocked_equipment_stages": ["eye"],
 		"language_mode": "en",
@@ -553,6 +555,18 @@ func set_tutorial_assistance_mode(mode: String) -> void:
 	progress["tutorial_assistance"] = normalized
 	save()
 	tutorial_assistance_changed.emit(normalized)
+
+
+func uses_wide_pulse_capture_window() -> bool:
+	return bool(progress.get("wide_pulse_capture_window", false))
+
+
+func set_wide_pulse_capture_window(enabled: bool) -> void:
+	if uses_wide_pulse_capture_window() == enabled:
+		return
+	progress["wide_pulse_capture_window"] = enabled
+	save()
+	pulse_capture_assistance_changed.emit(enabled)
 
 
 func uses_full_tutorials() -> bool:
@@ -3644,6 +3658,7 @@ func _normalize_progress() -> void:
 	var tutorial_mode := str(progress.get("tutorial_assistance", TUTORIAL_ASSIST_FULL))
 	if not tutorial_mode in TUTORIAL_ASSIST_MODES:
 		progress["tutorial_assistance"] = TUTORIAL_ASSIST_FULL
+	progress["wide_pulse_capture_window"] = bool(progress.get("wide_pulse_capture_window", false))
 	var saved_family := str(progress.get("selected_telescope_family", "refractor"))
 	if not saved_family in ASSEMBLY_FAMILIES:
 		saved_family = "refractor"

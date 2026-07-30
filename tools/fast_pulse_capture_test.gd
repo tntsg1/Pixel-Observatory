@@ -77,13 +77,13 @@ func _test_capture_desk() -> void:
 
 	var model: RadioSignalModel = scene.model
 	var fold_guidance: Array[Dictionary] = scene.call("_tutorial_steps_for_stage")
-	_check(fold_guidance.size() >= 5, "fold tutorial teaches period, DM, phase, integration and confirmation progressively without a passive overview page")
+	_check(fold_guidance.size() >= 4, "fold tutorial teaches period, DM, phase, and active pulse capture without a passive wait step")
 	_check(str(fold_guidance[0].get("wait", "")) == "fold_period_adjust", "the first fold tutorial screen starts with period searching")
 	_check(str(fold_guidance[1].get("wait", "")) == "fold_dm_adjust", "the second fold step requires dispersion alignment")
 	_check(str(fold_guidance[2].get("wait", "")) == "fold_phase_adjust", "phase gate has its own visible guided action")
 	_check(fold_guidance[0].get("target") == scene.fold_adjust_panel, "period-search guidance points at the explicit adjustment console")
 	scene.call("_refresh_fold")
-	_check(scene.fold_action_button.disabled, "receiver hold stays disabled until DM, period and phase are physically aligned")
+	_check(scene.fold_action_button.disabled, "pulse capture stays disabled until DM, period and phase are physically aligned")
 	scene.tutorial_active = true
 	scene.status_label.text = "GUIDED STEP MUST REMAIN VISIBLE"
 	scene.call("_refresh_fold")
@@ -101,7 +101,7 @@ func _test_capture_desk() -> void:
 	_check(scene.fold_control_response_progress > 0.0 and scene.fold_control_response_progress < 1.0,
 		"the first rendered frame starts inside the response instead of waiting on a timer")
 	var profile_visible: Array = scene.call("_fold_display_profile")
-	var profile_after: Array = model.folded_profile_for_window(120, scene.fold_validation_window_index)
+	var profile_after: Array = model.folded_profile_for_window(120, scene.fold_capture_count)
 	_check(scene.fold_control_response_parameter == "period" and profile_visible.size() == profile_before.size(),
 		"the first rendered frame binds the period response to the folded trace")
 	_check(not is_equal_approx(float(profile_visible[0]), float(profile_after[0])) or scene.fold_control_response_progress < 1.0,
@@ -130,28 +130,80 @@ func _test_capture_desk() -> void:
 	scene.call("_refresh_fold")
 	_check(str(scene.call("_current_fold_adjust_parameter")) == "phase", "period alignment naturally reveals arrival-phase control")
 	model.trial_phase = model.true_phase
-	model.set_integration(model.required_integration_s)
+	model.set_integration(0.0)
 	scene.call("_refresh_fold")
-	_check(not scene.fold_action_button.disabled, "receiver hold unlocks when the three calibration pictures agree")
+	_check(not scene.fold_action_button.disabled, "active pulse capture unlocks when the three calibration pictures agree")
+	var normal_capture_window := float(scene.call("_fold_capture_window_phase"))
+	gm.set_wide_pulse_capture_window(true)
+	_check(float(scene.call("_fold_capture_window_phase")) > normal_capture_window, "wide capture setting expands the gate without auto-completing")
+	gm.set_wide_pulse_capture_window(false)
 
 	_check(scene.fold_slider == null and scene.fold_phase_slider == null, "capture desk no longer exposes answer sliders")
 	_check(str(scene.call("_current_fold_adjust_parameter")) == "", "adjustment keys retire after DM, period and phase agree")
 
-	scene.call("_record_fold_validation_window")
-	_check(scene.fold_stable_windows == 1, "one coincident peak is not enough evidence")
-	_check(not scene.fold_candidate_ready, "one window cannot unlock candidate confirmation")
-	scene.call("_record_fold_validation_window")
-	_check(not scene.fold_candidate_ready, "two windows still cannot unlock confirmation")
-	scene.call("_record_fold_validation_window")
-	_check(scene.fold_stable_windows == 3, "three coherent windows establish stability")
-	_check(scene.fold_candidate_ready, "three coherent windows plus valid science evidence unlock confirmation")
+	# Edge-triggered keyboard input: a short press captures exactly once, while
+	# repeat/long-hold events and a later release add nothing.
+	scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+	var space_press := InputEventKey.new()
+	space_press.keycode = KEY_SPACE
+	space_press.pressed = true
+	scene.call("_unhandled_input", space_press)
+	_check(scene.fold_capture_count == 1, "one short Space press records capture 1/3")
+	_check(model.integration_s > 0.0 and model.integration_s < model.required_integration_s, "one capture raises SNR without granting the whole integration")
+	var key_repeat := InputEventKey.new()
+	key_repeat.keycode = KEY_SPACE
+	key_repeat.pressed = true
+	key_repeat.echo = true
+	scene.call("_unhandled_input", key_repeat)
+	var key_release := InputEventKey.new()
+	key_release.keycode = KEY_SPACE
+	key_release.pressed = false
+	scene.call("_unhandled_input", key_release)
+	_check(scene.fold_capture_count == 1, "holding Space only records its first input edge")
 
+	# A mistimed press gives an immediately directional reason but does not erase
+	# the earlier recovery work.
+	var target_phase := float(scene.call("_fold_capture_target_phase"))
+	scene.fold_capture_gate_phase = fposmod(target_phase - 0.16, 1.0)
+	scene.call("_attempt_fold_pulse_capture", "test_early")
+	_check(scene.fold_capture_count == 1 and scene.fold_capture_feedback_kind == "early", "an early capture reports direction without clearing progress")
+	scene.fold_capture_gate_phase = fposmod(target_phase + 0.16, 1.0)
+	scene.call("_attempt_fold_pulse_capture", "test_late")
+	_check(scene.fold_capture_count == 1 and scene.fold_capture_feedback_kind == "late", "a late capture reports direction without clearing progress")
+
+	# Mouse uses the same function as Space. Focus changes do not create a stuck
+	# key state because capture has no key-up dependency.
+	target_phase = float(scene.call("_fold_capture_target_phase"))
+	scene.fold_capture_gate_phase = target_phase
+	scene.fold_action_button.emit_signal("pressed")
+	_check(scene.fold_capture_count == 2, "main capture button records the same second capture as Space")
+	scene.notification(Node.NOTIFICATION_WM_WINDOW_FOCUS_OUT)
+	target_phase = float(scene.call("_fold_capture_target_phase"))
+	scene.fold_capture_gate_phase = target_phase
+	var recovered_focus_press := InputEventKey.new()
+	recovered_focus_press.keycode = KEY_SPACE
+	recovered_focus_press.pressed = true
+	scene.call("_unhandled_input", recovered_focus_press)
+	_check(scene.fold_capture_count == 3, "a new Space edge after focus loss completes the third capture")
+	await process_frame
+	_check(scene.fold_candidate_ready and scene.fold_lock_sequence_running, "three active captures immediately start the lock sequence with no extra confirmation")
+
+	scene.call("_reset_fold_capture_validation", true)
 	model.trial_period_ms = model.true_period_ms * 0.5
-	scene.call("_fold_parameters_changed", "period")
-	for _window in range(4):
-		scene.call("_record_fold_validation_window")
-	_check(scene.fold_stable_windows == 0, "half-period alias never counts as a stable fundamental")
-	_check(not scene.fold_candidate_ready, "alias cannot unlock candidate confirmation")
+	model.trial_dm = model.true_dm
+	model.trial_phase = model.true_phase
+	scene.call("_refresh_fold")
+	_check(scene.fold_action_button.disabled, "a half-period alias cannot enable pulse capture")
+	scene.call("_attempt_fold_pulse_capture", "bad_period")
+	_check(scene.fold_capture_count == 0, "an unqualified parameter set cannot capture or auto-complete")
+
+	gm.language_mode = "en"
+	scene.call("_refresh_fold")
+	_check(scene.fold_action_button.text.contains("SCAN") or scene.fold_action_button.text.contains("CAPTURE"), "English capture control remains compact")
+	gm.language_mode = "zh"
+	model.trial_period_ms = model.true_period_ms
+	scene.call("_refresh_fold")
+	_check(scene.fold_action_button.text.length() < 42, "Chinese capture control remains compact without overflow text")
 
 	scene.queue_free()
 	await process_frame

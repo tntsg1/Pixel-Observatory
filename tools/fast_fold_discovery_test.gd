@@ -56,30 +56,30 @@ func _initialize() -> void:
 	model.trial_period_ms = model.true_period_ms * 0.5
 	model.trial_dm = model.true_dm
 	model.trial_phase = model.true_phase
-	model.set_integration(model.required_integration_s)
-	scene.call("_reset_fold_capture_validation", false)
-	for _window in range(3):
-		scene.call("_record_fold_validation_window")
+	scene.call("_reset_fold_capture_validation", true)
+	scene.call("_refresh_fold")
+	scene.call("_attempt_fold_pulse_capture", "bad_alias")
 	_check(not scene.fold_candidate_ready, "a half-period alias with a double-looking peak never completes")
-	_check(scene.fold_stable_windows == 0, "wrong period leaves no false stable-window credit")
+	_check(scene.fold_capture_count == 0 and scene.fold_capture_feedback_kind == "blocked", "wrong period leaves no false pulse-capture credit")
 
 	model.trial_period_ms = model.true_period_ms
 	model.trial_dm = model.true_dm
 	model.trial_phase = model.true_phase
-	model.set_integration(model.required_integration_s)
-	scene.call("_reset_fold_capture_validation", false)
+	scene.call("_reset_fold_capture_validation", true)
+	for _capture in range(2):
+		scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+		scene.call("_attempt_fold_pulse_capture", "pre_trim")
 	scene.fold_monitor_phase_residual = 0.036
-	scene.fold_stable_windows = 2
 	scene.call("_apply_fold_adjust_step", "phase", -1.0)
 	scene.call("_apply_fold_adjust_step", "phase", -1.0)
 	_check(absf(scene.fold_monitor_phase_residual) <= scene.FOLD_MONITOR_TRIM_TOLERANCE, "a small phase trim clears the live clock drift")
-	_check(scene.fold_stable_windows >= 1, "a recovery trim preserves evidence instead of clearing all progress")
+	_check(scene.fold_capture_count >= 1, "a recovery trim preserves capture evidence instead of clearing all progress")
 
-	scene.call("_reset_fold_capture_validation", false)
-	scene.fold_monitor_trim_completed = true
-	for _window in range(3):
-		scene.call("_record_fold_validation_window")
-	_check(scene.fold_candidate_ready, "the correct period → DM → phase → stable-window flow completes")
+	scene.call("_reset_fold_capture_validation", true)
+	for _capture in range(3):
+		scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+		scene.call("_attempt_fold_pulse_capture", "direct")
+	_check(scene.fold_candidate_ready, "the correct period → DM → phase → three active captures flow completes")
 
 	var packet: Dictionary = model.science_product(32, 10)
 	var report: Dictionary = packet.get("report", {})
@@ -104,14 +104,12 @@ func _initialize() -> void:
 	model.trial_period_ms = model.true_period_ms
 	model.trial_dm = model.true_dm
 	model.trial_phase = model.true_phase
-	model.set_integration(model.required_integration_s)
-	scene.call("_reset_fold_capture_validation", false)
-	scene.fold_monitor_trim_completed = true
-	for _window in range(3):
-		scene.call("_record_fold_validation_window")
-	scene.call("_confirm_fold")
+	scene.call("_reset_fold_capture_validation", true)
+	for _capture in range(3):
+		scene.fold_capture_gate_phase = scene.call("_fold_capture_target_phase")
+		scene.call("_attempt_fold_pulse_capture", "direct")
 	await create_timer(0.05).timeout
-	_check(bool(scene.fold_lock_sequence_running) and scene.fold_confirm_button.disabled, "lock freeze replaces the confirmation control before the prediction handoff")
+	_check(bool(scene.fold_lock_sequence_running) and scene.fold_action_button.disabled, "third capture replaces the control with the lock freeze before prediction handoff")
 	await create_timer(0.72).timeout
 	_check(bool(scene.prediction_running), "confirmed pulse uses a bounded lock sequence before the next-arrival proof")
 

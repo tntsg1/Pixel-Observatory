@@ -17,6 +17,23 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-29 - FAST Active Pulse Capture
+
+**Playable confirmation:** FAST stage 4 no longer asks the observer to hold a
+receiver key or wait for passive stability windows. After period, DM and phase
+alignment, a visible phase gate sweeps the folded two-cycle profile. The player
+short-presses Space or the matching capture button three times as the recovered
+primary pulse crosses the gate; each capture freezes the trace briefly, grows
+SNR and the folded profile, records a terminal packet, and the third capture
+immediately starts the existing pulse-lock handoff.
+
+**Recovery and access:** Early and late taps show signed millisecond guidance
+without erasing progress. Key repeat, long presses and focus-loss cannot create
+extra or stuck captures. The Settings panel includes an optional wider capture
+window, while retaining all three deliberate captures. The same measured
+period, DM, pulse width, SNR, confidence, sky position and source model flow
+unchanged into the lock, report and saved FAST archive.
+
 ## 2026-07-29 - FAST Pulsar Recovery Rework
 
 **Discovery loop:** FAST's fourth observation stage is now a continuous radio
