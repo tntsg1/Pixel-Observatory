@@ -32,7 +32,7 @@ assert.ok(
 );
 
 assert.ok(
-  landingSource.includes('account.js?v=20260729-modal-dismissal'),
+  landingSource.includes('account.js?v=20260729-registration-fix'),
   "landing page cache-busts the corrected account behavior",
 );
 assert.ok(
@@ -40,7 +40,7 @@ assert.ok(
   "landing page cache-busts the corrected community behavior",
 );
 assert.ok(
-  loaderPatchSource.includes('const SHELL_VERSION = "20260729-game-shell-v3";'),
+  loaderPatchSource.includes('const SHELL_VERSION = "20260729-game-shell-v4";'),
   "game shell cache-busts the corrected account behavior",
 );
 

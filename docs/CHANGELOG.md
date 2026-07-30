@@ -17,6 +17,14 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-29 - Account Registration Reliability
+
+- Fixed production account creation after a completed Turnstile challenge. The
+  verification path now passes the Worker environment when deriving the client
+  address instead of throwing before password hashing and account storage.
+- Added a JSON API error boundary so unexpected Worker failures show a useful
+  retry message instead of an unreadable Cloudflare HTML response.
+
 ## 2026-07-29 - Deliberate Community and Account Dismissal
 
 **Safer modal tasks:** Clicking the dimmed area around Community, sign-in or
