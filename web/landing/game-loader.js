@@ -779,7 +779,10 @@
     const messageButton = event.target.closest("[data-message]");
     if (messageButton) {
       document.dispatchEvent(new CustomEvent("po:open-inbox", {
-        detail: { username: String(messageButton.dataset.message || "") },
+        detail: {
+          username: String(messageButton.dataset.message || ""),
+          direct: true,
+        },
       }));
     }
   });

@@ -25,6 +25,15 @@ concrete implementation details.
 - Added a JSON API error boundary so unexpected Worker failures show a useful
   retry message instead of an unreadable Cloudflare HTML response.
 
+## 2026-07-29 - Direct In-Game Friend Conversations
+
+- The message action beside an in-game friend now opens that friend's existing
+  private conversation immediately instead of routing through the generic new
+  message form.
+- Friends without prior messages open in a fixed-recipient empty thread; the
+  first message creates the conversation in place while failures preserve the
+  draft.
+
 ## 2026-07-29 - Deliberate Community and Account Dismissal
 
 **Safer modal tasks:** Clicking the dimmed area around Community, sign-in or

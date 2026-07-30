@@ -5,6 +5,7 @@ import vm from "node:vm";
 const root = new URL("../", import.meta.url);
 const messagingSource = fs.readFileSync(new URL("../web/landing/messaging.js", import.meta.url), "utf8");
 const socialSource = fs.readFileSync(new URL("../web/landing/social.js", import.meta.url), "utf8");
+const gameLoaderSource = fs.readFileSync(new URL("../web/landing/game-loader.js", import.meta.url), "utf8");
 const inboxSource = fs.readFileSync(new URL("../web/landing/inbox.js", import.meta.url), "utf8");
 const workerSource = fs.readFileSync(new URL("../cloudflare/worker.mjs", import.meta.url), "utf8");
 
@@ -98,6 +99,11 @@ assert.equal(liveUpdates, 2, "an open conversation receives a new server message
 
 assert.ok(inboxSource.includes("const messaging = window.POMessaging"), "Inbox uses the shared messaging controller");
 assert.ok(!inboxSource.includes("setInterval(() => {\n      pollOpenInbox"), "Inbox no longer owns a duplicate message polling loop");
+assert.ok(gameLoaderSource.includes("direct: true"), "in-game friend message actions explicitly request a direct conversation");
+assert.ok(inboxSource.includes("openDirectConversation(state.directUsername)"), "in-game friend routes open the requested conversation directly");
+assert.ok(inboxSource.includes("messaging.findDirectConversation(username, state.conversations)"), "existing friend conversations are reused");
+assert.ok(inboxSource.includes("renderDirectStart(username)"), "friends without history see an empty direct thread instead of the generic compose screen");
+assert.ok(!inboxSource.includes("render().then(() => {\n      if (state.composeUsername) renderCompose();"), "the old unconditional compose routing is removed");
 assert.ok(socialSource.includes("data-message-friend"), "friend cards expose the in-place message action");
 assert.ok(socialSource.includes("friend-chat-drawer"), "community contains the in-place chat drawer");
 assert.ok(socialSource.includes("catch (error) {\n        status.textContent = error.message;"), "send failures stay inline without clearing the draft");

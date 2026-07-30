@@ -11,6 +11,7 @@
     closeTimer: null,
     glassFrame: null,
     composeUsername: "",
+    directUsername: "",
   };
   const isZh = () => document.documentElement.dataset.lang === "zh";
   const t = (en, zh) => isZh() ? zh : en;
@@ -83,14 +84,18 @@
   }
   function open(detail = {}) {
     const requestedUsername = String(detail?.username || "").trim();
-    state.composeUsername = /^[a-zA-Z0-9_.-]{3,24}$/.test(requestedUsername) ? requestedUsername : "";
+    const validUsername = /^[a-zA-Z0-9_.-]{3,24}$/.test(requestedUsername) ? requestedUsername : "";
+    state.directUsername = detail?.direct === true ? validUsername : "";
+    state.composeUsername = state.directUsername ? "" : validUsername;
+    if (state.directUsername) state.activeId = null;
     clearTimeout(state.closeTimer);
     modal.classList.remove("po-inbox-closing");
     modal.hidden = false;
     document.getElementById("inbox-open")?.setAttribute("aria-expanded", "true");
     document.body.style.overflow = "hidden";
-    render().then(() => {
-      if (state.composeUsername) renderCompose();
+    render().then(async () => {
+      if (state.directUsername && state.user) await openDirectConversation(state.directUsername);
+      else if (state.composeUsername) renderCompose();
     }).catch(showError);
   }
   function close() {
@@ -200,7 +205,71 @@
       }
     };
   }
-  async function openConversation(id) {
+  function bindReplyComposer(thread, sendMessage, focusReply = false) {
+    const form = thread.querySelector(".po-reply");
+    const replyInput = form.querySelector("textarea");
+    const sendButton = form.querySelector(".po-send");
+    bindGlassPointer(sendButton, "--send-glass-x", "--send-glass-y");
+    const resizeReply = () => {
+      replyInput.style.height = "auto";
+      replyInput.style.height = `${Math.min(replyInput.scrollHeight, 124)}px`;
+    };
+    replyInput.addEventListener("input", resizeReply);
+    replyInput.addEventListener("keydown", event => {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+        event.preventDefault();
+        event.currentTarget.form.requestSubmit();
+      }
+    });
+    form.onsubmit = async event => {
+      event.preventDefault();
+      const body = new FormData(event.currentTarget).get("body");
+      const submit = event.currentTarget.querySelector(".po-send");
+      submit.classList.remove("is-sent", "is-error");
+      submit.classList.add("is-sending");
+      submit.disabled = true;
+      try {
+        const conversationId = await sendMessage(body);
+        submit.classList.remove("is-sending");
+        submit.classList.add("is-sent");
+        await new Promise(resolve => setTimeout(resolve, 220));
+        await openConversation(conversationId, true);
+      } catch (error) {
+        submit.classList.remove("is-sending");
+        submit.classList.add("is-error");
+        event.currentTarget.querySelector(".po-inbox-status").textContent = error.message;
+        setTimeout(() => submit.classList.remove("is-error"), 420);
+      } finally {
+        submit.disabled = false;
+      }
+    };
+    if (focusReply) requestAnimationFrame(() => replyInput.focus({ preventScroll: true }));
+  }
+
+  function renderDirectStart(username) {
+    state.activeId = null;
+    const thread = document.getElementById("po-thread");
+    thread.hidden = false;
+    thread.classList.add("is-open");
+    thread.innerHTML = `<header class="po-thread-head"><button class="po-secondary po-inbox-mobile-back" type="button">&larr;</button>
+      <h3>${esc(username)}</h3><p>${t("Private text conversation","\u7eaf\u6587\u5b57\u79c1\u4fe1")}</p></header>
+      <div class="po-messages"><div class="po-thread-empty">${t("No messages yet. Start the conversation here.","\u8fd8\u6ca1\u6709\u6d88\u606f\uff0c\u4ece\u8fd9\u91cc\u5f00\u59cb\u5bf9\u8bdd\u3002")}</div></div>
+      <form class="po-reply"><textarea name="body" maxlength="4000" rows="1" required placeholder="${t("Message","\u8f93\u5165\u6d88\u606f")}"></textarea>
+        <button class="po-send" type="submit" aria-label="${t("Send message","\u53d1\u9001\u6d88\u606f")}">${t("Send","\u53d1\u9001")}</button><p class="po-inbox-status" role="status"></p></form>`;
+    thread.querySelector(".po-inbox-mobile-back").onclick = () => { thread.classList.remove("is-open"); };
+    bindReplyComposer(thread, async body => {
+      const data = await messaging.startDirect(username, body);
+      return data.conversationId;
+    }, true);
+  }
+
+  async function openDirectConversation(username) {
+    const existing = messaging.findDirectConversation(username, state.conversations);
+    if (existing) await openConversation(existing.id, true);
+    else renderDirectStart(username);
+  }
+
+  async function openConversation(id, focusReply = false) {
     state.activeUnsubscribe?.();
     state.activeUnsubscribe = null;
     state.activeId = id;
@@ -221,43 +290,10 @@
     const messages = document.getElementById("po-messages");
     state.activeSignature = messaging.conversationSignature(data);
     messages.scrollTop = messages.scrollHeight;
-    const replyInput = thread.querySelector(".po-reply textarea");
-    const sendButton = thread.querySelector(".po-send");
-    bindGlassPointer(sendButton, "--send-glass-x", "--send-glass-y");
-    const resizeReply = () => {
-      replyInput.style.height = "auto";
-      replyInput.style.height = `${Math.min(replyInput.scrollHeight, 124)}px`;
-    };
-    replyInput.addEventListener("input", resizeReply);
-    replyInput.addEventListener("keydown", event => {
-      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
-        event.preventDefault();
-        event.currentTarget.form.requestSubmit();
-      }
-    });
-    thread.querySelector("form").onsubmit = async event => {
-      event.preventDefault();
-      const form = new FormData(event.currentTarget);
-      const submit = event.currentTarget.querySelector(".po-send");
-      submit.classList.remove("is-sent", "is-error");
-      submit.classList.add("is-sending");
-      submit.disabled = true;
-      try {
-        await messaging.send(id, form.get("body"));
-        submit.classList.remove("is-sending");
-        submit.classList.add("is-sent");
-        await new Promise(resolve => setTimeout(resolve, 320));
-        await openConversation(id);
-        await loadConversations(false);
-      } catch (error) {
-        submit.classList.remove("is-sending");
-        submit.classList.add("is-error");
-        event.currentTarget.querySelector(".po-inbox-status").textContent = error.message;
-        setTimeout(() => submit.classList.remove("is-error"), 420);
-      } finally {
-        submit.disabled = false;
-      }
-    };
+    bindReplyComposer(thread, async body => {
+      await messaging.send(id, body);
+      return id;
+    }, focusReply);
     await messaging.markRead(id);
     await loadConversations(false);
     state.activeUnsubscribe = messaging.watchConversation(id, renderActiveConversationUpdate);
