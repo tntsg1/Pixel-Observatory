@@ -10,6 +10,52 @@ const QUALITY_COLORS := {
 
 const QUALITY_ZH := {"Excellent": "优秀", "Good": "良好", "Fair": "尚可", "Poor": "较差", "Failed": "失败"}
 
+
+class RadioArchiveThumbnail extends Control:
+	var spectrum: Array = []
+	var folded_profile: Array = []
+
+	func configure(product: Dictionary) -> void:
+		spectrum = (product.get("corrected_spectrum", product.get("clean_spectrum", [])) as Array).duplicate(true)
+		folded_profile = (product.get("folded_two_cycles", []) as Array).duplicate(true)
+		queue_redraw()
+
+	func _draw() -> void:
+		var bounds := Rect2(Vector2.ZERO, size)
+		draw_rect(bounds, Color("07111a"), true)
+		draw_rect(bounds, Color(0.30, 0.72, 0.78, 0.62), false, 1.0)
+		var waterfall := Rect2(Vector2(8, 20), Vector2(size.x - 16.0, maxf(24.0, size.y * 0.52)))
+		var profile_rect := Rect2(Vector2(8, waterfall.end.y + 14.0), Vector2(size.x - 16.0, maxf(20.0, size.y - waterfall.end.y - 22.0)))
+		draw_string(get_theme_default_font(), Vector2(8, 13), GameManager.text("DEDISPERSED SPECTRUM", "去色散动态谱"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Color(0.56, 0.88, 0.92))
+		var row_count := spectrum.size()
+		if row_count > 0:
+			for row_index in range(row_count):
+				var row := spectrum[row_index] as Array
+				if row.is_empty():
+					continue
+				for column_index in range(row.size()):
+					var strength := clampf(float(row[column_index]), 0.0, 1.0)
+					var cell := Rect2(
+						waterfall.position + Vector2(float(column_index) / float(row.size()) * waterfall.size.x, float(row_index) / float(row_count) * waterfall.size.y),
+						Vector2(waterfall.size.x / float(row.size()) + 0.7, waterfall.size.y / float(row_count) + 0.7)
+					)
+					draw_rect(cell, Color(0.13 + strength * 0.64, 0.22 + strength * 0.68, 0.27 + strength * 0.62, 0.32 + strength * 0.68), true)
+		else:
+			draw_string(get_theme_default_font(), waterfall.get_center() + Vector2(-30, 3), "NO DATA", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 9, Color(0.55, 0.62, 0.70))
+		draw_rect(profile_rect, Color(0.08, 0.16, 0.20, 0.78), true)
+		draw_line(Vector2(profile_rect.position.x, profile_rect.get_center().y), Vector2(profile_rect.end.x, profile_rect.get_center().y), Color(0.56, 0.72, 0.76, 0.30), 1.0)
+		draw_string(get_theme_default_font(), Vector2(profile_rect.position.x, profile_rect.position.y - 4), GameManager.text("FOLDED DOUBLE PEAK", "折叠双峰轮廓"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Color(0.90, 0.76, 0.42))
+		if folded_profile.size() >= 2:
+			var points := PackedVector2Array()
+			for index in range(folded_profile.size()):
+				var value := clampf(float(folded_profile[index]), 0.0, 1.0)
+				points.append(Vector2(
+					profile_rect.position.x + float(index) / float(folded_profile.size() - 1) * profile_rect.size.x,
+					profile_rect.end.y - value * profile_rect.size.y * 0.86 - 2.0
+				))
+			draw_polyline(points, Color(0.76, 1.0, 0.72), 1.4, true)
+
+
 var _scroll: ScrollContainer
 var _entry_list: VBoxContainer
 
@@ -93,6 +139,8 @@ func _populate() -> void:
 func _build_entry_card(index: int, entry: Dictionary) -> Control:
 	if str(entry.get("entry_kind", "")) == "telescope_heritage":
 		return _build_heritage_card(index, entry)
+	if str(entry.get("observation_mode", "")) == "radio" and not (entry.get("radio_observation", {}) as Dictionary).is_empty():
+		return _build_radio_archive_card(index, entry, entry.get("radio_observation", {}) as Dictionary)
 	var quality := str(entry.get("observation_quality", "Good"))
 	var accent: Color = QUALITY_COLORS.get(quality, Color(0.56, 0.66, 0.76))
 	var maya := _entry_text(entry, "maya", "")
@@ -232,8 +280,47 @@ func _build_heritage_card(index: int, entry: Dictionary) -> Control:
 	return card
 
 
+func _build_radio_archive_card(index: int, entry: Dictionary, observation: Dictionary) -> Control:
+	var product: Dictionary = observation.get("radio_data_product", entry.get("radio_data_product", {})) as Dictionary
+	var report: Dictionary = product.get("report", {}) as Dictionary
+	var sky: Dictionary = observation.get("sky_position", report.get("sky_position", entry.get("sky_position", {}))) as Dictionary
+	var target_en := str(entry.get("target_name_en", entry.get("object_name_en", observation.get("radio_target_name", report.get("target_name", entry.get("target_id", "FAST target"))))))
+	var target_zh := str(entry.get("target_name_zh", entry.get("object_name_zh", observation.get("radio_target_name", report.get("target_name", entry.get("target_id", "FAST 目标"))))))
+	var period := float(observation.get("pulse_period_ms", report.get("trial_period_ms", entry.get("pulse_period_ms", 0.0))))
+	var dm := float(observation.get("dispersion_measure", report.get("trial_dm", entry.get("dispersion_measure", 0.0))))
+	var width := float(observation.get("pulse_width_ms", product.get("pulse_width_ms", entry.get("pulse_width_ms", 0.0))))
+	var snr := float(observation.get("snr", product.get("snr", entry.get("snr", 0.0))))
+	var confidence := float(observation.get("confidence", product.get("confidence", entry.get("confidence", 0.0))))
+	var candidate := str(observation.get("candidate_model", report.get("candidate_model", entry.get("candidate_model", "PULSAR"))))
+	var utc := str(entry.get("observation_utc", ""))
+	if utc == "":
+		var observed_at := float(observation.get("observed_at_unix", entry.get("observed_at_unix", 0.0)))
+		utc = Time.get_datetime_string_from_unix_time(observed_at, true) + "Z" if observed_at > 0.0 else "UTC recorded with report"
+	var card := Panel.new()
+	card.custom_minimum_size = Vector2(938, 236)
+	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	card.add_theme_stylebox_override("panel", _style(Color(0.030, 0.058, 0.074, 0.98), Color(0.34, 0.82, 0.78, 0.88), 2))
+	card.add_child(_label("#%02d   %s" % [index, GameManager.text(target_en, target_zh)], Vector2(18, 12), Vector2(510, 28), 20, Color(0.88, 0.96, 0.84)))
+	card.add_child(_label(GameManager.text("FAST SIGNAL ARCHIVE", "FAST 信号档案"), Vector2(570, 15), Vector2(338, 20), 13, Color(0.46, 0.88, 0.86), HORIZONTAL_ALIGNMENT_RIGHT))
+	card.add_child(_label("%s · %s" % [candidate, str(sky.get("label", ""))], Vector2(20, 44), Vector2(548, 20), 12, Color(0.94, 0.78, 0.46)))
+	_add_record_line(card, GameManager.text("Timing", "计时"), GameManager.text("P %.3f ms | DM %.2f pc/cm³ | Width %.2f ms", "周期 %.3f ms | DM %.2f pc/cm³ | 脉宽 %.2f ms") % [period, dm, width], 70, Color(0.60, 0.88, 0.94))
+	_add_record_line(card, GameManager.text("Recovered pulse", "恢复脉冲"), GameManager.text("SNR %.1f | Confidence %.0f%% | seven bands aligned", "信噪比 %.1f | 置信度 %.0f%% | 七条频段已对齐") % [snr, confidence * 100.0], 96, Color(0.70, 0.96, 0.72))
+	_add_record_line(card, GameManager.text("Sky position", "天区位置"), str(sky.get("label", GameManager.text("recorded with the timing packet", "已写入计时数据包"))), 122, Color(0.94, 0.78, 0.48))
+	_add_record_line(card, "UTC", utc, 148, Color(0.66, 0.76, 0.86))
+	var thumbnail := RadioArchiveThumbnail.new()
+	thumbnail.name = "RadioArchiveThumbnail"
+	thumbnail.position = Vector2(590, 46)
+	thumbnail.size = Vector2(318, 164)
+	thumbnail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	thumbnail.configure(product)
+	card.add_child(thumbnail)
+	return card
+
+
 func _build_remote_observation_card(index: int, entry: Dictionary) -> Control:
 	var instrument_kind := str(entry.get("instrument_kind", "space"))
+	if instrument_kind == "radio" and not (entry.get("radio_data_product", {}) as Dictionary).is_empty():
+		return _build_radio_archive_card(index, entry, entry.get("radio_observation", entry) as Dictionary)
 	var quality := str(entry.get("quality", "Good"))
 	var accent := Color(0.30, 0.82, 0.76) if instrument_kind == "space" else Color(0.56, 0.78, 0.92)
 	var card := Panel.new()

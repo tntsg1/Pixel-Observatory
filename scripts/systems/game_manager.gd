@@ -1745,6 +1745,20 @@ func record_remote_free_observation(kind: String, observation: Dictionary) -> Di
 			int(now.get("year", 0)), int(now.get("month", 0)), int(now.get("day", 0)),
 			int(now.get("hour", 0)), int(now.get("minute", 0)), int(now.get("second", 0))],
 	}
+	# A remote radio run is a measurement, not just a generic completion badge.
+	# Keep the one authoritative product (spectra, folded curve and measured
+	# report) so the Learning Journal can reconstruct its thumbnail and exact
+	# values without inventing a second set of results.
+	if kind == "radio":
+		record["radio_observation"] = observation.duplicate(true)
+		record["radio_data_product"] = (observation.get("radio_data_product", {}) as Dictionary).duplicate(true)
+		record["pulse_period_ms"] = float(observation.get("pulse_period_ms", 0.0))
+		record["dispersion_measure"] = float(observation.get("dispersion_measure", 0.0))
+		record["pulse_width_ms"] = float(observation.get("pulse_width_ms", 0.0))
+		record["confidence"] = float(observation.get("confidence", 0.0))
+		record["candidate_model"] = str(observation.get("candidate_model", ""))
+		record["sky_position"] = (observation.get("sky_position", {}) as Dictionary).duplicate(true)
+		record["observed_at_unix"] = float(observation.get("observed_at_unix", Time.get_unix_time_from_system()))
 	progress["remote_observation_archive"].append(record)
 	save()
 	return {"recorded": true, "record": record}
@@ -3492,7 +3506,11 @@ func _add_journal_entry(object_id: String, observation: Dictionary) -> void:
 		"process_en": " | ".join(process_en),
 		"process_zh": " | ".join(process_zh),
 		"maya_en": str(recap.get("en", "")),
-		"maya_zh": str(recap.get("zh", ""))
+		"maya_zh": str(recap.get("zh", "")),
+		# Campaign FAST reports share the exact packet as free-observation cards.
+		# Retaining it in the main journal makes the recovered spectrum and fold
+		# profile reviewable after graduation as well.
+		"radio_observation": observation.duplicate(true) if str(observation.get("observation_mode", "")) == "radio" else {}
 	})
 	if not progress["observed_objects"].has(object_id):
 		progress["observed_objects"].append(object_id)

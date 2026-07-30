@@ -256,8 +256,8 @@ func _test_scene(gm: Node) -> void:
 		scene.call("_record_fold_validation_window")
 	_check(bool(scene.get("fold_candidate_ready")), "5. three coherent fold windows unlock candidate confirmation")
 	scene.call("_confirm_fold")
-	await process_frame
-	_check(bool(scene.get("prediction_running")), "5. valid fold opens the next-pulse prediction instead of auto-completing")
+	await create_timer(0.72).timeout
+	_check(bool(scene.get("prediction_running")), "5. valid fold plays its bounded pulse-lock sequence before the next-pulse prediction")
 	var integration_before_miss := m.integration_s
 	scene.call("_resolve_prediction_window")
 	await process_frame
@@ -282,6 +282,17 @@ func _test_scene(gm: Node) -> void:
 	scene.call("_submit")
 	await create_timer(0.45).timeout
 	_check(gm_completed(gm), "5. Submit Report completes the mission")
+	var journal_entries: Array = gm.progress.get("journal_entries", [])
+	var latest_journal: Dictionary = journal_entries.back() as Dictionary if not journal_entries.is_empty() else {}
+	var radio_archive: Dictionary = latest_journal.get("radio_observation", {}) as Dictionary
+	var radio_packet: Dictionary = radio_archive.get("radio_data_product", {}) as Dictionary
+	var archive_report: Dictionary = radio_packet.get("report", {}) as Dictionary
+	_check(
+		not radio_packet.is_empty()
+		and is_equal_approx(float(archive_report.get("trial_period_ms", 0.0)), float(radio_archive.get("pulse_period_ms", 0.0)))
+		and is_equal_approx(float(archive_report.get("trial_dm", 0.0)), float(radio_archive.get("dispersion_measure", 0.0))),
+		"5. campaign journal preserves the exact recovered radio packet for review"
+	)
 	scene.queue_free()
 	await process_frame
 	var audio := root.get_node_or_null("/root/AudioManager")

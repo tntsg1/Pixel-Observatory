@@ -17,9 +17,11 @@ func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT_DIR))
 
 	await _capture_state("01_initial_noise.png", "initial")
-	await _capture_state("02_dm_near_alignment.png", "dm_near")
-	await _capture_state("03_half_period_false_solution.png", "half_period")
-	await _capture_state("04_three_window_candidate_lock.png", "locked")
+	await _capture_state("02_period_search_ridge.png", "period_search")
+	await _capture_state("03_dm_converging.png", "dm_converging")
+	await _capture_state("04_double_peak_forming.png", "double_peak")
+	await _capture_state("05_pulse_lock.png", "locked")
+	await _capture_state("06_report_handoff.png", "report")
 
 	print("FAST PULSE CAPTURE SCREENSHOTS %s" % ("PASS" if failures == 0 else "FAIL (%d)" % failures))
 	quit(0 if failures == 0 else 1)
@@ -37,14 +39,19 @@ func _capture_state(file_name: String, state: String) -> void:
 			model.trial_period_ms = model.true_period_ms * 1.035
 			model.trial_phase = fposmod(model.true_phase + 0.31, 1.0)
 			model.set_integration(model.required_integration_s * 0.12)
-		"dm_near":
-			model.trial_dm = model.true_dm + 0.85
-			model.trial_period_ms = model.true_period_ms * 1.012
+		"period_search":
+			model.trial_dm = model.true_dm + 8.0
+			model.trial_period_ms = model.true_period_ms * 0.979
+			model.trial_phase = fposmod(model.true_phase + 0.19, 1.0)
+			model.set_integration(model.required_integration_s * 0.22)
+		"dm_converging":
+			model.trial_dm = model.true_dm + 3.8
+			model.trial_period_ms = model.true_period_ms
 			model.trial_phase = fposmod(model.true_phase + 0.08, 1.0)
 			model.set_integration(model.required_integration_s * 0.42)
-		"half_period":
+		"double_peak":
 			model.trial_dm = model.true_dm
-			model.trial_period_ms = model.true_period_ms * 0.5
+			model.trial_period_ms = model.true_period_ms
 			model.trial_phase = model.true_phase
 			model.set_integration(model.required_integration_s * 0.72)
 		"locked":
@@ -52,14 +59,27 @@ func _capture_state(file_name: String, state: String) -> void:
 			model.trial_period_ms = model.true_period_ms
 			model.trial_phase = model.true_phase
 			model.set_integration(model.required_integration_s)
+		"report":
+			model.trial_dm = model.true_dm
+			model.trial_period_ms = model.true_period_ms
+			model.trial_phase = model.true_phase
+			model.set_integration(model.required_integration_s)
+			scene.set("stage", 4)
 
 	scene.call("_rebuild")
 	if state == "locked":
 		scene.call("_reset_fold_capture_validation", false)
+		scene.fold_monitor_trim_completed = true
 		for _window in range(3):
 			scene.call("_record_fold_validation_window")
-		scene.call("_refresh_fold")
-	await _settle()
+		scene.call("_confirm_fold")
+		# Capture the actual 0.20 s lock freeze instead of faking its flash. This
+		# keeps the evidence image tied to the same terminal packet players see.
+		await create_timer(0.10).timeout
+	elif state == "report":
+		scene.call("_finish_report_analysis")
+	if state != "locked":
+		await _settle()
 	_save(file_name)
 	scene.queue_free()
 	current_scene = null
