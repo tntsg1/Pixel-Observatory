@@ -77,11 +77,11 @@ func _test_capture_desk() -> void:
 
 	var model: RadioSignalModel = scene.model
 	var fold_guidance: Array[Dictionary] = scene.call("_tutorial_steps_for_stage")
-	_check(fold_guidance.size() >= 5, "fold tutorial teaches DM, period, phase, integration and confirmation progressively without a passive overview page")
-	_check(str(fold_guidance[0].get("wait", "")) == "fold_dm_adjust", "the first fold tutorial screen immediately requires DM alignment")
-	_check(str(fold_guidance[1].get("wait", "")) == "fold_period_adjust", "the second fold step requires period stabilization")
+	_check(fold_guidance.size() >= 5, "fold tutorial teaches period, DM, phase, integration and confirmation progressively without a passive overview page")
+	_check(str(fold_guidance[0].get("wait", "")) == "fold_period_adjust", "the first fold tutorial screen starts with period searching")
+	_check(str(fold_guidance[1].get("wait", "")) == "fold_dm_adjust", "the second fold step requires dispersion alignment")
 	_check(str(fold_guidance[2].get("wait", "")) == "fold_phase_adjust", "phase gate has its own visible guided action")
-	_check(fold_guidance[0].get("target") == scene.fold_adjust_panel, "DM guidance points at the explicit adjustment console")
+	_check(fold_guidance[0].get("target") == scene.fold_adjust_panel, "period-search guidance points at the explicit adjustment console")
 	scene.call("_refresh_fold")
 	_check(scene.fold_action_button.disabled, "receiver hold stays disabled until DM, period and phase are physically aligned")
 	scene.tutorial_active = true
@@ -90,30 +90,30 @@ func _test_capture_desk() -> void:
 	_check(scene.status_label.text == "GUIDED STEP MUST REMAIN VISIBLE", "live fold refresh does not overwrite the active tutorial instruction")
 	scene.tutorial_active = false
 
-	_check(scene.scope.mouse_filter == Control.MOUSE_FILTER_IGNORE, "science plots are display-only and expose no hidden drag zones")
+	_check(scene.scope.mouse_filter == Control.MOUSE_FILTER_STOP, "science plot accepts explicit direct-manipulation drags")
 	_check(scene.fold_adjust_minus_button != null and scene.fold_adjust_plus_button != null, "capture desk exposes two large holdable adjustment keys")
-	_check(str(scene.call("_current_fold_adjust_parameter")) == "dm", "capture desk initially exposes only dispersion correction")
-	var dm_before := model.trial_dm
-	var offsets_before: Array = model.subband_offsets(7)
-	scene.call("_apply_fold_adjust_step", "dm", 1.0)
-	_check(model.trial_dm > dm_before, "holding the visible plus control changes the active scientific parameter")
-	_check(scene.fold_control_response_serial == 1, "a DM press starts one immediate visual response")
+	_check(str(scene.call("_current_fold_adjust_parameter")) == "period", "capture desk initially exposes only period searching")
+	var period_before := model.trial_period_ms
+	var profile_before: Array = scene.call("_fold_display_profile")
+	scene.call("_apply_fold_adjust_step", "period", 1.0)
+	_check(model.trial_period_ms > period_before, "holding the visible plus control changes the active scientific parameter")
+	_check(scene.fold_control_response_serial == 1, "a period press starts one immediate visual response")
 	_check(scene.fold_control_response_progress > 0.0 and scene.fold_control_response_progress < 1.0,
 		"the first rendered frame starts inside the response instead of waiting on a timer")
-	var offsets_visible: Array = scene.call("_fold_display_offsets")
-	var offsets_after: Array = model.subband_offsets(7)
-	_check(not is_equal_approx(float(offsets_visible[0]), float(offsets_before[0])),
-		"the first rendered frame already moves the sub-band trace")
-	_check(not is_equal_approx(float(offsets_visible[0]), float(offsets_after[0])),
-		"the data trace settles continuously instead of jumping to its final position")
+	var profile_visible: Array = scene.call("_fold_display_profile")
+	var profile_after: Array = model.folded_profile_for_window(120, scene.fold_validation_window_index)
+	_check(scene.fold_control_response_parameter == "period" and profile_visible.size() == profile_before.size(),
+		"the first rendered frame binds the period response to the folded trace")
+	_check(not is_equal_approx(float(profile_visible[0]), float(profile_after[0])) or scene.fold_control_response_progress < 1.0,
+		"the period trace settles continuously instead of jumping to its final position")
 	scene.call("_advance_fold_control_response", 0.2)
 	_check(is_equal_approx(scene.fold_control_response_progress, 1.0),
 		"the local receiver response settles within 140 ms")
-	var dm_after_first_step := model.trial_dm
+	var period_after_first_step := model.trial_period_ms
 	scene.call("_start_fold_adjust", 1.0)
 	scene.call("_process_fold_adjust_controls", 0.2)
 	scene.call("_stop_fold_button_adjust")
-	_check(model.trial_dm > dm_after_first_step, "holding a visible adjustment key repeats without waiting for release")
+	_check(model.trial_period_ms > period_after_first_step, "holding a visible adjustment key repeats without waiting for release")
 	_check(is_zero_approx(scene.fold_adjust_direction), "releasing the adjustment key stops continuous calibration immediately")
 
 	model.azimuth = model.true_azimuth

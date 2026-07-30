@@ -17,6 +17,27 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-07-29 - FAST Pulsar Recovery Rework
+
+**Discovery loop:** FAST's fourth observation stage is now a continuous radio
+analysis sequence rather than a short series of +/- adjustments. Observers
+scan a correlation belt for a repeating clock, drag seven sub-band tracks into
+dispersion alignment, rotate a phase-folding ring and monitor a brief clock
+drift correction while a two-peak pulse profile emerges from noise. Each
+control changes its linked trace, correlation, peak shape or SNR immediately;
+an incorrect alias cannot complete the observation and a small correction no
+longer discards all prior progress.
+
+**Scientific handoff:** The successful lock freezes the recovered pulse,
+prints measured period, DM, pulse width, SNR, confidence, sky position and
+candidate model, then carries that same measurement packet into the report and
+saved radio-observation archive. The journal now reconstructs a compact
+dedispersed-spectrum and folded-double-peak thumbnail from that saved packet,
+for both campaign and free-observation records. FAST's onboarding now explains
+that this is a radio timing observation, not a visible-light photograph. The
+data-only motion respects the project's reduced-motion option and uses the
+existing licensed/original FAST cues without adding music.
+
 ## 2026-07-29 - Observatory Reliability and Remote Instrument Update
 
 **Progress and language:** Starting a campaign now preserves the language

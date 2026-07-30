@@ -18,6 +18,8 @@ class_name RadioSignalModel
 # ---- target profile ----
 var target_id := "pulsar_b0329"
 var target_kind := "pulsar"          # pulsar | frb | hydrogen | galaxy | solar | unknown
+var target_display_name := "PSR B0329+54"
+var candidate_model := "PSR B0329"
 var true_azimuth := 145.0
 var true_altitude := 52.0
 var true_period_ms := 714.0          # pulse period (pulsars only)
@@ -64,6 +66,8 @@ var trial_period_ms := 500.0
 var trial_dm := 0.0
 var true_phase := 0.5
 var trial_phase := 0.5
+var pulse_component_separation := 0.072
+var pulse_secondary_strength := 0.62
 var integration_s := 0.0
 var required_integration_s := 180.0
 var report_snr_threshold := 8.0
@@ -79,6 +83,9 @@ var classifications := {}            # index -> "rfi" | "source"
 func configure(profile: Dictionary) -> void:
 	target_id = str(profile.get("target_id", target_id))
 	target_kind = str(profile.get("kind", target_kind))
+	target_display_name = str(profile.get("target_name", target_id.to_upper().replace("_", " ")))
+	var inferred_candidate := target_id.to_upper().replace("PULSAR_", "PSR ").replace("_", " ")
+	candidate_model = str(profile.get("candidate_model", inferred_candidate))
 	true_azimuth = wrapf(float(profile.get("azimuth", true_azimuth)), 0.0, 360.0)
 	# FAST can illuminate a 300 m paraboloid only inside its 40 degree
 	# zenith-angle envelope. Clamp legacy profiles here so an old save cannot
@@ -131,6 +138,8 @@ func configure(profile: Dictionary) -> void:
 	trial_period_ms = float(profile.get("start_period_ms", 500.0))
 	trial_dm = float(profile.get("start_dm", 0.0))
 	true_phase = fposmod(float(profile.get("pulse_phase", 0.5)), 1.0)
+	pulse_component_separation = clampf(float(profile.get("pulse_component_separation", 0.072)), 0.025, 0.16)
+	pulse_secondary_strength = clampf(float(profile.get("pulse_secondary_strength", 0.62)), 0.25, 0.90)
 	# Start with a modest, readable phase residual unless a level explicitly
 	# supplies its own. This makes the arrival gate an actual operation rather
 	# than opening already solved.
@@ -447,6 +456,47 @@ func phase_match() -> float:
 	return clampf(1.0 - wrapped_error / 0.28, 0.0, 1.0)
 
 
+func period_search_min_ms() -> float:
+	return true_period_ms * 0.42
+
+
+func period_search_max_ms() -> float:
+	return true_period_ms * 2.08
+
+
+func period_search_normalized() -> float:
+	return clampf(
+		(trial_period_ms - period_search_min_ms()) / maxf(period_search_max_ms() - period_search_min_ms(), 0.001),
+		0.0,
+		1.0
+	)
+
+
+func set_trial_period_from_search_normalized(normalized: float) -> void:
+	trial_period_ms = lerpf(period_search_min_ms(), period_search_max_ms(), clampf(normalized, 0.0, 1.0))
+
+
+func period_correlation_at(period_ms: float) -> float:
+	# The correlation belt is derived from the same timing model that validates
+	# the fold. The fundamental is the strongest repeat; half/double aliases are
+	# intentionally plausible but visibly weaker so a player has to judge drift.
+	var scale := maxf(true_period_ms, 0.001)
+	var fundamental := exp(-pow((period_ms - true_period_ms) / (scale * 0.030), 2.0))
+	var half_alias := 0.42 * exp(-pow((period_ms - true_period_ms * 0.5) / (scale * 0.026), 2.0))
+	var double_alias := 0.34 * exp(-pow((period_ms - true_period_ms * 2.0) / (scale * 0.052), 2.0))
+	var baseline := 0.07 + 0.035 * sin(period_ms * 0.071) + 0.020 * sin(period_ms * 0.017)
+	return clampf(baseline + fundamental + half_alias + double_alias, 0.0, 1.0)
+
+
+func period_correlation_curve(sample_count: int) -> Array:
+	var samples: Array = []
+	var safe_count := maxi(sample_count, 2)
+	for index in range(safe_count):
+		var normalized := float(index) / float(safe_count - 1)
+		samples.append(period_correlation_at(lerpf(period_search_min_ms(), period_search_max_ms(), normalized)))
+	return samples
+
+
 func period_solution_state() -> String:
 	if target_kind != "pulsar":
 		return "fundamental"
@@ -512,7 +562,10 @@ func folded_profile_for_window(bins: int, window_index: int) -> Array:
 	var width := lerpf(0.5, 0.045, sharp)         # phase width of the pulse
 	var amp := clampf(fold_snr() / 20.0, 0.05, 1.0)
 	var solution := period_solution_state()
-	var split := (1.0 - period_match()) * 0.23
+	# A real folded pulsar profile can have two emission components. The pair is
+	# subtle in raw noise, then becomes the player's visible discovery once the
+	# period, DM and phase agree. Aliases remain much wider/farther apart.
+	var split := pulse_component_separation
 	if solution == "half_period":
 		# A half-period alias can look deceptively convincing: two narrow peaks
 		# appear per trial cycle instead of one stable fundamental pulse.
@@ -537,7 +590,7 @@ func folded_profile_for_window(bins: int, window_index: int) -> Array:
 		var dphi_b := delta_b / width
 		var v := amp * exp(-dphi_a * dphi_a)
 		if split > 0.015 or solution in ["half_period", "double_period"]:
-			var alias_gain := 0.84 if solution == "half_period" else (0.62 if solution == "double_period" else 0.72)
+			var alias_gain := 0.84 if solution == "half_period" else (0.62 if solution == "double_period" else pulse_secondary_strength)
 			v += amp * alias_gain * exp(-dphi_b * dphi_b)
 		if solution == "double_period" and window_index % 2 == 1:
 			v *= 0.62
@@ -574,6 +627,27 @@ func pulse_width_ms() -> float:
 
 func timing_stability() -> float:
 	return clampf(0.55 + 0.4 * period_match() * dm_match() + 0.05 * classification_score(), 0.0, 1.0)
+
+
+func confidence_score() -> float:
+	return clampf(
+		pointing_quality() * 0.18
+		+ tuning_quality() * 0.17
+		+ classification_score() * 0.20
+		+ period_match() * 0.18
+		+ dm_match() * 0.14
+		+ clampf(fold_snr() / maxf(report_snr_threshold * 1.6, 1.0), 0.0, 1.0) * 0.13,
+		0.0,
+		1.0
+	)
+
+
+func sky_position() -> Dictionary:
+	return {
+		"azimuth_deg": true_azimuth,
+		"altitude_deg": true_altitude,
+		"label": "AZ %.1f°  ALT %.1f°" % [true_azimuth, true_altitude],
+	}
 
 
 func pointing_quality() -> float:
@@ -666,16 +740,7 @@ func science_product(time_bins := 72, frequency_bins := 24) -> Dictionary:
 	var report_data := report()
 	var measured_period := maxf(float(report_data.get("trial_period_ms", trial_period_ms)), 0.001)
 	var width_ms := pulse_width_ms()
-	var confidence := clampf(
-		pointing_quality() * 0.18
-		+ tuning_quality() * 0.17
-		+ classification_score() * 0.20
-		+ period_match() * 0.18
-		+ dm_match() * 0.14
-		+ clampf(fold_snr() / maxf(report_snr_threshold * 1.6, 1.0), 0.0, 1.0) * 0.13,
-		0.0,
-		1.0
-	)
+	var confidence := confidence_score()
 	var rfi_marks: Array = []
 	for peak_index in range(rfi_peaks.size()):
 		var peak: Dictionary = rfi_peaks[peak_index]
@@ -714,6 +779,10 @@ func science_product(time_bins := 72, frequency_bins := 24) -> Dictionary:
 		"residual_rfi_count": residual_rfi_count(),
 		"period_error_ms": absf(trial_period_ms - true_period_ms),
 		"dm_residual": absf(trial_dm - true_dm),
+		"target_name": target_display_name,
+		"candidate_model": candidate_model,
+		"sky_position": sky_position(),
+		"observed_at_unix": Time.get_unix_time_from_system(),
 		"report": report_data,
 	}
 
@@ -734,8 +803,8 @@ func report() -> Dictionary:
 	return {
 		"target_id": target_id,
 		"kind": target_kind,
-		"pulse_period_ms": true_period_ms if period_match() > 0.6 else trial_period_ms,
-		"dispersion_measure": true_dm if dm_match() > 0.6 else trial_dm,
+		"pulse_period_ms": trial_period_ms,
+		"dispersion_measure": trial_dm,
 		"snr": snr,
 		"pulse_width_ms": pulse_width_ms(),
 		"timing_stability": timing_stability(),
@@ -752,6 +821,10 @@ func report() -> Dictionary:
 		"trial_dm": trial_dm,
 		"trial_phase": trial_phase,
 		"phase_match": phase_match(),
+		"confidence": confidence_score(),
+		"target_name": target_display_name,
+		"candidate_model": candidate_model,
+		"sky_position": sky_position(),
 		"challenge": challenge,
 		"result_en": narrative_result_en,
 		"result_zh": narrative_result_zh,
