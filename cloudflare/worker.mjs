@@ -267,7 +267,7 @@ async function verifyTurnstile(env, request, token) {
 	const body = new FormData();
 	body.append("secret", env.TURNSTILE_SECRET);
 	body.append("response", token);
-	body.append("remoteip", clientAddress(request));
+	body.append("remoteip", clientAddress(request, env));
 	const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
 		method: "POST",
 		body,
@@ -1579,7 +1579,22 @@ export default {
 			const counter = env.VISITOR_COUNTER.get(env.VISITOR_COUNTER.idFromName("global"));
 			return counter.fetch(request);
 		}
-		if (url.pathname.startsWith("/api/")) return withIsolationHeaders(await handleApi(request, env, url));
+		if (url.pathname.startsWith("/api/")) {
+			try {
+				return withIsolationHeaders(await handleApi(request, env, url));
+			} catch (error) {
+				console.error("Unhandled API error", {
+					path: url.pathname,
+					method: request.method,
+					name: error instanceof Error ? error.name : "UnknownError",
+				});
+				return withIsolationHeaders(apiError(
+					"The observatory could not complete that request. Please try again.",
+					500,
+					"internal_error",
+				));
+			}
+		}
 
 		const largeGameFiles = {
 			"/index.pck": { key: "index.pck", contentType: "application/octet-stream" },

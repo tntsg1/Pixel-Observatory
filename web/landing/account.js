@@ -58,9 +58,15 @@
   document.addEventListener("keydown", event=>{ if(event.key==="Escape") document.querySelectorAll(".po-modal:not([hidden])").forEach(close); });
 
   async function api(path, options={}){
-    const response=await fetch(path,{credentials:"same-origin",...options,headers:{"content-type":"application/json",...(options.headers||{})}});
-    const data=await response.json().catch(()=>({message:"The observatory returned an unreadable response."}));
-    if(!response.ok) throw new Error(data.message||"Request failed.");
+    let response;
+    try{
+      response=await fetch(path,{credentials:"same-origin",...options,headers:{"content-type":"application/json",...(options.headers||{})}});
+    }catch(_){
+      throw new Error(t("Could not reach the observatory. Check your connection and try again.","\u65e0\u6cd5\u8fde\u63a5\u5929\u6587\u53f0\uff0c\u8bf7\u68c0\u67e5\u7f51\u7edc\u540e\u91cd\u8bd5\u3002"));
+    }
+    const data=await response.json().catch(()=>null);
+    if(!data||typeof data!=="object") throw new Error(t("The observatory service was interrupted. Please try again.","\u5929\u6587\u53f0\u670d\u52a1\u6682\u65f6\u4e2d\u65ad\uff0c\u8bf7\u91cd\u8bd5\u3002"));
+    if(!response.ok) throw new Error(data.message||t("The request could not be completed. Please try again.","\u8bf7\u6c42\u672a\u80fd\u5b8c\u6210\uff0c\u8bf7\u91cd\u8bd5\u3002"));
     return data;
   }
   async function turnstile(container){
