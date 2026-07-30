@@ -13,13 +13,16 @@ for (const marker of [
 	'data-pixel-observatory-game-shell="v2"',
 	"pixel-observatory-loader-critical",
 	'class="observatory-loader"',
+	'class="loader-loading-word"',
+	"<span>LOADING</span>",
+	'<small lang="zh-Hans">在加载中</small>',
 	'../game-loader.css?v=',
 	'../game-loader.js?v=',
 	'../account.js?v=',
 	'../messaging.js?v=',
 	'../inbox.js?v=',
 ]) assert.ok(html.includes(marker), `Missing required custom game-shell marker: ${marker}`);
-for (const defaultMarker of ["background-color: #242424", 'id="status-splash"']) {
+for (const defaultMarker of ["background-color: #242424", 'id="status-splash"', 'class="loader-aperture"', 'class="loader-brand-mark"']) {
 	assert.ok(!html.includes(defaultMarker), `Default Godot splash marker leaked into game shell: ${defaultMarker}`);
 }
 for (const file of requireRuntime ? ["index.js", "index.wasm", "index.pck"] : ["index.js"]) await access(join(gameDir, file));

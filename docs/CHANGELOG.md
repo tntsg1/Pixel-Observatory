@@ -25,6 +25,13 @@ concrete implementation details.
 - Added a JSON API error boundary so unexpected Worker failures show a useful
   retry message instead of an unreadable Cloudflare HTML response.
 
+## 2026-07-29 - Unmistakable Loading State
+
+- Replaced the ambiguous central aperture/icon treatment with a large bilingual
+  `LOADING / 在加载中` status and retained live percentage and phase details.
+- Removed the decorative brand icon from the loading surface so players can
+  immediately distinguish startup progress from an account or profile screen.
+
 ## 2026-07-29 - Direct In-Game Friend Conversations
 
 - The message action beside an in-game friend now opens that friend's existing
