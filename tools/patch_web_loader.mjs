@@ -94,10 +94,12 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	}
 	const before = html;
 	const safeBuildSha = String(buildSha).replace(/[^a-zA-Z0-9._-]/g, "") || "local";
-	html = html.replace(
-		/<html([^>]*)>/i,
-		`<html$1 data-pixel-observatory-game-shell="v2" data-pixel-observatory-build="${safeBuildSha}">`,
-	);
+	html = html.replace(/<html([^>]*)>/i, (_match, attributes) => {
+		const cleanAttributes = attributes
+			.replace(/\sdata-pixel-observatory-game-shell="[^"]*"/gi, "")
+			.replace(/\sdata-pixel-observatory-build="[^"]*"/gi, "");
+		return `<html${cleanAttributes} data-pixel-observatory-game-shell="v2" data-pixel-observatory-build="${safeBuildSha}">`;
+	});
 	html = html.replace(/<style>[\s\S]*?<\/style>/i, BASE_SHELL_CSS);
 	if (!html.includes("pixel-observatory-loader-critical")) {
 		html = html.replace("</head>", `${CRITICAL_SHELL_CSS}\n\t</head>`);
