@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { patchWebLoader } from "./patch_web_loader.mjs";
 
 const [builder, patcher, cloudflareBuilder, workflow, diagnostic, exportPresets, gameLoader, gameLoaderCss, account] = await Promise.all([
 	readFile(new URL("./build_web_shell.mjs", import.meta.url), "utf8"),
@@ -32,6 +35,21 @@ assert.match(workflow, /verify_web_game_shell\.mjs/, "CI asserts the final custo
 assert.doesNotMatch(diagnostic, /build\/web\/game\/index\.html/, "The diagnostic export may not overwrite the public shell.");
 for (const forbiddenExportPath of [".mailbox-test-users.json", ".mail-*.cookie", ".npm-cache-admin/**", "artifacts/**", "web/**", "tools/**"]) {
 	assert.ok(exportPresets.includes(forbiddenExportPath), `Web PCK must exclude ${forbiddenExportPath}.`);
+}
+
+const temporaryDirectory = await mkdtemp(join(tmpdir(), "pixel-web-shell-contract-"));
+const temporaryIndex = join(temporaryDirectory, "index.html");
+try {
+	await writeFile(temporaryIndex, '<!doctype html><html lang="en"><head><style>body{}</style></head><body><div id="status"><div id="status-notice"></div></div></body></html>');
+	await patchWebLoader(temporaryIndex, { buildSha: "first-build" });
+	await patchWebLoader(temporaryIndex, { buildSha: "second-build" });
+	const patchedTwice = await readFile(temporaryIndex, "utf8");
+	const openingHtmlTag = patchedTwice.match(/<html[^>]*>/i)?.[0] || "";
+	assert.equal((openingHtmlTag.match(/data-pixel-observatory-game-shell=/g) || []).length, 1, "repatching keeps one shell marker");
+	assert.equal((openingHtmlTag.match(/data-pixel-observatory-build=/g) || []).length, 1, "repatching keeps one build marker");
+	assert.match(patchedTwice, /data-pixel-observatory-build="second-build"/, "repatching updates the build marker");
+} finally {
+	await rm(temporaryDirectory, { recursive: true, force: true });
 }
 
 console.log("PASS web shell contract: staged export, custom loader marker, Cloudflare package, and CI assertion");
