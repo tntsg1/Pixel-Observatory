@@ -158,6 +158,76 @@ export class VisitorCounter {
 	}
 }
 
+function parseSingleByteRange(value, size) {
+	if (!value) return null;
+	const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+	if (!match || (!match[1] && !match[2])) return { invalid: true };
+
+	if (!match[1]) {
+		const suffix = Number(match[2]);
+		if (!Number.isSafeInteger(suffix) || suffix <= 0) return { invalid: true };
+		const length = Math.min(suffix, size);
+		return { offset: size - length, length };
+	}
+
+	const start = Number(match[1]);
+	const requestedEnd = match[2] ? Number(match[2]) : size - 1;
+	if (!Number.isSafeInteger(start)
+		|| !Number.isSafeInteger(requestedEnd)
+		|| start < 0
+		|| start >= size
+		|| requestedEnd < start) {
+		return { invalid: true };
+	}
+	const end = Math.min(requestedEnd, size - 1);
+	return { offset: start, length: end - start + 1 };
+}
+
+export async function serveLargeGameAsset(request, bucket, largeFile) {
+	if (request.method !== "GET" && request.method !== "HEAD") {
+		return new Response("Method Not Allowed", {
+			status: 405,
+			headers: { Allow: "GET, HEAD" },
+		});
+	}
+
+	const metadata = await bucket.head(largeFile.key);
+	if (!metadata) return new Response("Game data is unavailable.", { status: 404 });
+
+	const headers = new Headers();
+	metadata.writeHttpMetadata(headers);
+	headers.set("Content-Type", largeFile.contentType);
+	headers.set("ETag", metadata.httpEtag);
+	headers.set("Accept-Ranges", "bytes");
+	// Keep the large runtime reusable while requiring a cheap ETag check after a release.
+	headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+
+	if (request.headers.get("If-None-Match") === metadata.httpEtag && !request.headers.has("Range")) {
+		return new Response(null, { status: 304, headers });
+	}
+
+	const range = parseSingleByteRange(request.headers.get("Range"), metadata.size);
+	if (range?.invalid) {
+		headers.set("Content-Range", `bytes */${metadata.size}`);
+		return new Response(null, { status: 416, headers });
+	}
+
+	if (range) {
+		headers.set("Content-Range", `bytes ${range.offset}-${range.offset + range.length - 1}/${metadata.size}`);
+		headers.set("Content-Length", String(range.length));
+		if (request.method === "HEAD") return new Response(null, { status: 206, headers });
+		const asset = await bucket.get(largeFile.key, { range });
+		if (!asset?.body) return new Response("Game data is unavailable.", { status: 404 });
+		return new Response(asset.body, { status: 206, headers });
+	}
+
+	headers.set("Content-Length", String(metadata.size));
+	if (request.method === "HEAD") return new Response(null, { headers });
+	const asset = await bucket.get(largeFile.key);
+	if (!asset?.body) return new Response("Game data is unavailable.", { status: 404 });
+	return new Response(asset.body, { headers });
+}
+
 function bytesToBase64(bytes) {
 	let binary = "";
 	for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -1605,16 +1675,11 @@ export default {
 			"/game/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
 		};
 		if (Object.hasOwn(largeGameFiles, url.pathname)) {
-			const largeFile = largeGameFiles[url.pathname];
-			const asset = await env.GAME_ASSETS.get(largeFile.key);
-			if (!asset) return new Response("Game data is unavailable.", { status: 404 });
-			const headers = new Headers();
-			asset.writeHttpMetadata(headers);
-			headers.set("Content-Type", largeFile.contentType);
-			headers.set("Content-Length", String(asset.size));
-			headers.set("ETag", asset.httpEtag);
-			headers.set("Cache-Control", "no-cache");
-			return withIsolationHeaders(new Response(asset.body, { headers }));
+			return withIsolationHeaders(await serveLargeGameAsset(
+				request,
+				env.GAME_ASSETS,
+				largeGameFiles[url.pathname],
+			));
 		}
 		const response = await env.ASSETS.fetch(request);
 		if (url.pathname === "/game" || url.pathname === "/game/" || url.pathname === "/game/index.html") {
