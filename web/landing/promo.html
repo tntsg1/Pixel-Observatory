@@ -2113,6 +2113,15 @@
   /* ---------- language ---------- */
   var TITLES = {zh:'\u661f\u5149\u5929\u6587\u53f0', en:'Starlight Observatory'};
   var btnZh = document.getElementById('langZh'), btnEn = document.getElementById('langEn');
+  function updateGameLinks(l){
+    document.querySelectorAll('a[href^="game/"]').forEach(function(link){
+      try{
+        var url = new URL(link.getAttribute('href'), location.href);
+        url.searchParams.set('lang', l);
+        link.setAttribute('href', url.pathname.replace(/^\//, '') + url.search + url.hash);
+      }catch(e){}
+    });
+  }
   function setLang(l, remember){
     root.setAttribute('data-lang', l);
     root.setAttribute('lang', l === 'zh' ? 'zh-CN' : 'en');
@@ -2122,6 +2131,7 @@
     });
     btnZh.setAttribute('aria-pressed', String(l === 'zh'));
     btnEn.setAttribute('aria-pressed', String(l === 'en'));
+    updateGameLinks(l);
     if(remember){ try{ localStorage.setItem('so-lang', l); }catch(e){} }
     document.dispatchEvent(new CustomEvent('po:language-changed', {detail:{lang:l}}));
   }
