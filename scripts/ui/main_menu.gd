@@ -326,6 +326,21 @@ func _on_settings() -> void:
 	)
 	settings_panel.add_child(sfx)
 
+	var music := CheckButton.new()
+	music.name = "MusicToggle"
+	music.text = GameManager.text("Background music", "背景音乐")
+	music.position = Vector2(28, 310)
+	music.size = Vector2(364, 36)
+	music.button_pressed = AudioManager.music_enabled
+	music.toggled.connect(func(enabled: bool) -> void:
+		AudioManager.set_music_enabled(enabled)
+		_show_feedback(GameManager.text(
+			"Background music enabled." if enabled else "Background music muted.",
+			"背景音乐已开启。" if enabled else "背景音乐已静音。"
+		))
+	)
+	settings_panel.add_child(music)
+
 	var wide_capture := CheckButton.new()
 	wide_capture.name = "WidePulseCaptureWindowToggle"
 	wide_capture.text = GameManager.text("Wide pulse-capture window", "宽松脉冲捕获窗口")
@@ -333,7 +348,7 @@ func _on_settings() -> void:
 		"Widens the FAST phase gate. You still actively capture all three arrivals.",
 		"放宽 FAST 相位捕获门；仍需主动捕获三次到达。"
 	)
-	wide_capture.position = Vector2(28, 310)
+	wide_capture.position = Vector2(28, 350)
 	wide_capture.size = Vector2(364, 36)
 	wide_capture.button_pressed = GameManager.uses_wide_pulse_capture_window()
 	wide_capture.toggled.connect(func(enabled: bool) -> void:
@@ -347,7 +362,7 @@ func _on_settings() -> void:
 		"Mission objectives remain available.\nReview lessons in the journal at any time.",
 		"任务目标始终可见。\n学习内容可随时在档案中回顾。"
 	)
-	help_note.position = Vector2(28, 350)
+	help_note.position = Vector2(28, 390)
 	help_note.size = Vector2(364, 50)
 	help_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	help_note.clip_text = true

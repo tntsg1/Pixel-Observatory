@@ -33,7 +33,11 @@ func _initialize() -> void:
 	var category: String = audio._music_category_for_scene(
 		"res://scenes/radio_observation.tscn"
 	)
-	_check(category == audio.SILENT_MUSIC_CATEGORY, "the shared FAST route is explicitly silent")
+	_check(category == "remote", "the shared FAST route uses an approved replacement score")
+	_check(
+		str(audio.MUSIC_PATHS["remote"]).ends_with("remote_observatory.ogg"),
+		"FAST uses the complete original remote-observatory score"
+	)
 	_check(not audio.MUSIC_PATHS.has("giant"), "no remote BGM path remains in MUSIC_PATHS")
 	_check(
 		not FileAccess.file_exists(RETIRED_REMOTE_BGM)
@@ -62,21 +66,20 @@ func _initialize() -> void:
 
 	audio.music_enabled = true
 	audio._stop_music(true)
-	audio.play_music(str(audio.MUSIC_PATHS["lobby"]))
+	audio.play_music(str(audio.MUSIC_PATHS["remote"]))
 	await create_timer(0.25).timeout
 	_check(
 		audio._active_music_player != null and audio._active_music_player.playing,
-		"fixture begins with approved lobby music"
+		"fixture begins with approved replacement music"
 	)
-	audio._enforce_music_policy("")
-	audio._fade_music_to_silence()
+	audio._enforce_music_policy(str(audio.MUSIC_PATHS["remote"]))
 	await create_timer(audio.MUSIC_FADE_SECONDS + 0.15).timeout
 	var runtime_state: Dictionary = audio.music_runtime_state()
 	print("FAST RIGHTS AUDIT RUNTIME: %s" % JSON.stringify(runtime_state))
 	_check(
-		str(runtime_state.get("current_path", "")).is_empty()
-			and str(runtime_state.get("active_stream_path", "")).is_empty(),
-		"FAST policy leaves no current or active music path"
+		str(runtime_state.get("current_path", "")) == str(audio.MUSIC_PATHS["remote"])
+			and str(runtime_state.get("active_stream_path", "")) == str(audio.MUSIC_PATHS["remote"]),
+		"FAST policy keeps only the approved replacement music path"
 	)
 
 	audio._stop_music(true)
