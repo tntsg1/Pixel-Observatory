@@ -732,6 +732,7 @@ body {
     0
   );
   transition: transform 120ms linear;
+  will-change: transform;
 }
 
 .loader-title {
@@ -765,6 +766,8 @@ body {
   font-size: clamp(58px, 7.4vw, 104px);
   font-weight: 780;
   letter-spacing: -.045em;
+  animation: loader-word-breathe 3.2s ease-in-out infinite;
+  will-change: opacity, filter;
 }
 
 .loader-loading-word > small {
@@ -804,6 +807,7 @@ body {
   border-radius: 50%;
   transform: translate(-50%, -50%);
   opacity: .82;
+  will-change: transform;
 }
 
 .loader-reticle::before,
@@ -815,14 +819,25 @@ body {
 
 .loader-reticle::before {
   inset: 44px;
-  border: 1px dashed rgba(119, 202, 231, .3);
+  border: 1px solid rgba(119, 202, 231, .18);
+  background: conic-gradient(
+    from 18deg,
+    transparent 0 58%,
+    rgba(119, 202, 231, .08) 63%,
+    rgba(151, 224, 246, .7) 68%,
+    transparent 73% 100%
+  );
+  -webkit-mask: radial-gradient(circle, transparent 0 92%, #000 93% 100%);
+  mask: radial-gradient(circle, transparent 0 92%, #000 93% 100%);
   animation: loader-orbit 16s linear infinite;
+  will-change: transform;
 }
 
 .loader-reticle::after {
   inset: 108px;
   border: 1px solid rgba(227, 178, 79, .38);
   box-shadow: 0 0 30px rgba(227, 178, 79, .08);
+  animation: loader-core-breathe 2.8s ease-in-out infinite;
 }
 
 .loader-axis {
@@ -843,11 +858,27 @@ body {
   position: absolute;
   left: 50%;
   top: 43%;
-  width: 170px;
-  height: 1px;
+  width: 184px;
+  height: 2px;
   transform-origin: left center;
-  background: linear-gradient(90deg, rgba(118, 201, 231, .72), transparent);
-  animation: loader-scan 5s linear infinite;
+  background: linear-gradient(90deg, rgba(118, 201, 231, .12), rgba(139, 219, 245, .78) 62%, transparent);
+  filter: drop-shadow(0 0 6px rgba(112, 208, 241, .42));
+  animation: loader-scan 4.8s linear infinite;
+  will-change: transform;
+}
+
+.loader-scan::after {
+  content: "";
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  width: 8px;
+  height: 8px;
+  border: 1px solid rgba(225, 247, 255, .92);
+  border-radius: 50%;
+  background: #8edcf5;
+  box-shadow: 0 0 8px rgba(120, 217, 248, .9), 0 0 22px rgba(120, 217, 248, .46);
+  transform: translateY(-50%);
 }
 
 .loader-node {
@@ -858,6 +889,8 @@ body {
   border-radius: 50%;
   background: #86d4ed;
   box-shadow: 0 0 12px rgba(118, 201, 231, .72);
+  animation: loader-node-ping 2.4s ease-in-out infinite;
+  will-change: transform, opacity;
 }
 
 .loader-node.one {
@@ -868,11 +901,13 @@ body {
 .loader-node.two {
   left: calc(50% + 158px);
   top: calc(43% + 48px);
+  animation-delay: -.8s;
 }
 
 .loader-node.three {
   left: calc(50% + 40px);
   top: calc(43% - 176px);
+  animation-delay: -1.6s;
 }
 
 .loader-ticks {
@@ -882,11 +917,21 @@ body {
   width: 332px;
   height: 332px;
   border-radius: 50%;
-  background: repeating-conic-gradient(from 0deg, rgba(192, 228, 242, .72) 0 .35deg, transparent .35deg 6deg);
+  background:
+    conic-gradient(
+      from 31deg,
+      transparent 0 7%,
+      rgba(229, 187, 99, .88) 7.2% 8%,
+      transparent 8.3% 61%,
+      rgba(142, 218, 244, .76) 61.2% 62.1%,
+      transparent 62.4% 100%
+    ),
+    repeating-conic-gradient(from 0deg, rgba(192, 228, 242, .62) 0 .35deg, transparent .35deg 6deg);
   mask: radial-gradient(circle, transparent 65%, #000 66% 68%, transparent 69%);
   transform: translate(-50%, -50%);
   opacity: .34;
   animation: loader-orbit-reverse 26s linear infinite;
+  will-change: transform;
 }
 
 .loader-console {
@@ -1043,6 +1088,21 @@ body {
   }
 }
 
+@keyframes loader-word-breathe {
+  0%, 100% { opacity: .92; filter: drop-shadow(0 0 0 rgba(132, 213, 241, 0)); }
+  50% { opacity: 1; filter: drop-shadow(0 0 13px rgba(132, 213, 241, .16)); }
+}
+
+@keyframes loader-core-breathe {
+  0%, 100% { opacity: .52; transform: scale(.96); }
+  50% { opacity: 1; transform: scale(1.035); }
+}
+
+@keyframes loader-node-ping {
+  0%, 100% { opacity: .48; transform: scale(.72); }
+  48% { opacity: 1; transform: scale(1.35); }
+}
+
 @keyframes loader-orbit {
   to {
     transform: rotate(360deg);
@@ -1179,13 +1239,14 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .loader-link-state::before,
   .loader-reticle::before,
   .loader-scan,
-  .loader-ticks,
-  .loader-caustic {
-    animation: none;
-  }
+  .loader-ticks { animation: none; }
+  .loader-link-state::before,
+  .loader-reticle::after,
+  .loader-node,
+  .loader-loading-word > span,
+  .loader-caustic { animation-duration: 5.5s; }
 }
 
 .game-rank-celebration {

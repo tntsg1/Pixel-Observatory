@@ -40,7 +40,7 @@ assert.ok(
   "landing page cache-busts the corrected community behavior",
 );
 assert.ok(
-  loaderPatchSource.includes('const SHELL_VERSION = "20260729-game-shell-v4";'),
+  loaderPatchSource.includes('const SHELL_VERSION = "20260804-loader-motion-v2";'),
   "game shell cache-busts the corrected account behavior",
 );
 
