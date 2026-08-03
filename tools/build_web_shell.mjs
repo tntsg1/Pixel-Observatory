@@ -42,6 +42,17 @@ for (const runtimeFile of ["index.pck", "index.wasm", "index.side.wasm"]) {
 	);
 }
 
+// Godot resolves AudioWorklet modules relative to config.executable. Since the
+// executable is versioned above, keep the tiny worklet scripts beside it too.
+// Retain the root copies for compatibility with cached pre-versioned shells.
+for (const workletFile of ["index.audio.position.worklet.js", "index.audio.worklet.js"]) {
+	const source = join(gameDir, workletFile);
+	await access(source).then(
+		() => cp(source, join(runtimeDir, workletFile)),
+		() => {},
+	);
+}
+
 await cp(landingDir, outputDir, { recursive: true, force: true });
 await cp(join(landingDir, "promo.html"), join(outputDir, "index.html"));
 await rm(stagingDir, { recursive: true, force: true });

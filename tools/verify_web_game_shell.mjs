@@ -29,7 +29,12 @@ await access(join(gameDir, "index.js"));
 if (requireRuntime) {
 	const build = html.match(/data-pixel-observatory-build="([a-zA-Z0-9._-]+)"/)?.[1];
 	assert.ok(build, "Game shell must expose its immutable runtime build id.");
-	for (const file of ["index.wasm", "index.pck"]) await access(join(gameDir, "runtime", build, file));
+	for (const file of [
+		"index.wasm",
+		"index.pck",
+		"index.audio.position.worklet.js",
+		"index.audio.worklet.js",
+	]) await access(join(gameDir, "runtime", build, file));
 }
 if (!requireRuntime) {
 	const findPackedFiles = async (dir, prefix = "") => {
