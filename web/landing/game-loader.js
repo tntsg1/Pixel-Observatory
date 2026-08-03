@@ -1,6 +1,20 @@
 (() => {
   "use strict";
 
+  const languageStorageKey = "so-lang";
+  const normalizeLanguage = value => /^zh(?:\b|-|_)/i.test(String(value || "")) ? "zh" : String(value || "").toLowerCase() === "en" ? "en" : "";
+  const queryLanguage = normalizeLanguage(new URLSearchParams(location.search).get("lang"));
+  let storedLanguage = "";
+  try { storedLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)); } catch (_) {}
+  const language = queryLanguage || storedLanguage || normalizeLanguage(navigator.language) || "en";
+  try { localStorage.setItem(languageStorageKey, language); } catch (_) {}
+  document.documentElement.dataset.lang = language;
+  document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
+  window.POLanguage = Object.freeze({
+    current: () => language,
+    storageKey: languageStorageKey,
+  });
+
   const overlay = document.getElementById("status");
   const progress = document.getElementById("status-progress");
   const phase = document.getElementById("loader-phase");
@@ -14,7 +28,7 @@
   if (!overlay || !progress || !phase || !percent) return;
   const context = canvas?.getContext("2d");
   const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const zh = /^zh\b/i.test(navigator.language || "");
+  const zh = language === "zh";
   const copy = zh ? {
     brand: "像素观测站",
     link: "浏览器观测链路已建立",
@@ -56,7 +70,6 @@
     opticalWaiting: "Awaiting calibration", opticalReady: "Optical path verified",
     catalogueWaiting: "Loading coordinates", catalogueReady: "Star positions indexed",
   };
-  document.documentElement.dataset.lang = zh ? "zh" : "en";
   const setText = (id, value) => {
     const node = document.getElementById(id);
     if (node) node.textContent = value;
@@ -493,8 +506,7 @@
 (() => {
   "use strict";
 
-  const zh = /^zh\b/i.test(navigator.language || "");
-  document.documentElement.dataset.lang = zh ? "zh" : "en";
+  const zh = window.POLanguage?.current() === "zh";
   const t = (en, cn) => zh ? cn : en;
   const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",

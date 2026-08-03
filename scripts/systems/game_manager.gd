@@ -183,6 +183,10 @@ func _ready() -> void:
 	progress = SaveManager.load_progress(default_progress())
 	_normalize_progress()
 	language_mode = _normalized_language_mode(str(progress.get("language_mode", "en")))
+	var website_language := _website_language_mode()
+	if not website_language.is_empty():
+		language_mode = website_language
+		progress["language_mode"] = website_language
 	_unlock_parts_for_current_level()
 	save()
 	set_process_unhandled_input(true)
@@ -669,6 +673,7 @@ func cycle_language() -> void:
 	else:
 		language_mode = "en"
 	save()
+	_sync_website_language()
 	language_changed.emit()
 	_publish_web_context("")
 
@@ -700,6 +705,24 @@ func _normalized_language_mode(mode: String) -> String:
 	if mode == "zh":
 		return "zh"
 	return "en"
+
+
+func _website_language_mode() -> String:
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return ""
+	var value: Variant = JavaScriptBridge.eval("(()=>{try{return localStorage.getItem('so-lang')||''}catch(_){return ''}})()", true)
+	var mode := str(value).to_lower()
+	if mode == "zh" or mode == "en":
+		return mode
+	return ""
+
+
+func _sync_website_language() -> void:
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return
+	var mode := _normalized_language_mode(language_mode)
+	var script := "(()=>{try{localStorage.setItem('so-lang','%s')}catch(_){}const u=new URL(location.href);u.searchParams.set('lang','%s');history.replaceState(history.state,'',u);document.documentElement.dataset.lang='%s';document.documentElement.lang='%s';document.dispatchEvent(new CustomEvent('po:language-changed',{detail:{lang:'%s'}}));})()" % [mode, mode, mode, "zh-CN" if mode == "zh" else "en", mode]
+	JavaScriptBridge.eval(script, true)
 
 
 func current_level() -> Dictionary:
