@@ -33,6 +33,8 @@ assert.match(gameLoaderCss, /html\.game-social-compact-open \.game-compact-contr
 assert.match(account, /document\.addEventListener\("click",event=>/, "Late-created game shell controls must use shared delegated account handlers.");
 assert.match(account, /event\.target\.closest\("#feedback-open"\)/, "The game feedback control opens the existing privacy-scoped form.");
 assert.match(cloudflareBuilder, /R2-only/, "Cloudflare packaging keeps large runtime binaries outside static assets.");
+assert.match(builder, /index\.audio\.position\.worklet\.js/, "the versioned runtime includes Godot's position worklet");
+assert.match(builder, /index\.audio\.worklet\.js/, "the versioned runtime includes Godot's audio worklet");
 assert.match(workflow, /build\/web\/\.godot-export\/index\.html/, "CI exports to staging, not the game homepage.");
 assert.match(workflow, /verify_web_game_shell\.mjs/, "CI asserts the final custom shell.");
 assert.doesNotMatch(diagnostic, /build\/web\/game\/index\.html/, "The diagnostic export may not overwrite the public shell.");
