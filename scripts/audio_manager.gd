@@ -6,7 +6,7 @@ const MUSIC_OUTPUT_ENABLED := true
 var sfx_enabled: bool = true
 var music_enabled: bool = true
 var sfx_volume_db := -7.0
-var music_volume_db := -22.0
+var music_volume_db := -16.0
 var _players: Array[AudioStreamPlayer] = []
 var _loop_event_players: Dictionary = {}
 var _loop_event_fade_tweens: Dictionary = {}
@@ -25,6 +25,7 @@ var _current_ambient_path := ""
 
 const CONFIG_PATH := "user://audio.cfg"
 const SFX_PREFERENCE_VERSION := 1
+const MUSIC_PREFERENCE_VERSION := 1
 const EVENT_COOLDOWN := 0.08
 const MUSIC_FADE_SECONDS := 2.2
 const AMBIENCE_FADE_SECONDS := 1.2
@@ -46,7 +47,8 @@ const RETIRED_AMBIENCE_UIDS := {
 const MUSIC_PATHS := {
 	"lobby": "res://assets/audio/music/lobby.ogg",
 	"assembly": "res://assets/audio/music/telescope_assembly.ogg",
-	"outdoor": "res://assets/audio/music/outdoor_stargazing.mp3"
+	"outdoor": "res://assets/audio/music/outdoor_stargazing.ogg",
+	"remote": "res://assets/audio/music/remote_observatory.ogg"
 }
 const EVENT_PATHS := {
 	"ui_confirm": ["res://assets/audio/sfx/ui_click_mechanical.ogg"],
@@ -160,9 +162,10 @@ func _load_settings() -> void:
 	# Treat that legacy preference as unset, while preserving choices made after this release.
 	var saved_sfx_version := int(config.get_value("audio", "sfx_preference_version", 0))
 	sfx_enabled = bool(config.get_value("audio", "sfx_enabled", true)) if saved_sfx_version >= SFX_PREFERENCE_VERSION else true
-	music_enabled = bool(config.get_value("audio", "music_enabled", true))
+	var saved_music_version := int(config.get_value("audio", "music_preference_version", 0))
+	music_enabled = bool(config.get_value("audio", "music_enabled", true)) if saved_music_version >= MUSIC_PREFERENCE_VERSION else true
 	sfx_volume_db = float(config.get_value("audio", "sfx_volume_db", -7.0))
-	music_volume_db = float(config.get_value("audio", "music_volume_db", -22.0))
+	music_volume_db = float(config.get_value("audio", "music_volume_db", -16.0)) if saved_music_version >= MUSIC_PREFERENCE_VERSION else -16.0
 
 
 func _save_settings() -> void:
@@ -170,6 +173,7 @@ func _save_settings() -> void:
 	config.set_value("audio", "sfx_enabled", sfx_enabled)
 	config.set_value("audio", "sfx_preference_version", SFX_PREFERENCE_VERSION)
 	config.set_value("audio", "music_enabled", music_enabled)
+	config.set_value("audio", "music_preference_version", MUSIC_PREFERENCE_VERSION)
 	config.set_value("audio", "sfx_volume_db", sfx_volume_db)
 	config.set_value("audio", "music_volume_db", music_volume_db)
 	config.save(CONFIG_PATH)
@@ -363,6 +367,8 @@ func play_music(path: String) -> void:
 		return
 	if stream is AudioStreamMP3:
 		(stream as AudioStreamMP3).loop = true
+	elif stream is AudioStreamOggVorbis:
+		(stream as AudioStreamOggVorbis).loop = true
 
 	var next_player := _music_players[0]
 	if next_player == _active_music_player:
@@ -493,11 +499,11 @@ func _music_category_for_scene(scene_path: String) -> String:
 	if file_name in ["telescope_assembly", "advanced_assembly", "optical_tube_assembly", "telescope_types", "collimation"]:
 		return "assembly"
 	if file_name == "telescope_view":
-		return SILENT_MUSIC_CATEGORY
+		return "outdoor"
 	if file_name in ["sky_observation", "world_map", "constellation_observation"]:
 		return "outdoor"
 	if file_name in ["space_observation", "radio_observation", "multi_observation"]:
-		return SILENT_MUSIC_CATEGORY
+		return "remote"
 	# Story and learning overlays retain the music of the scene they came from.
 	return ""
 

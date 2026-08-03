@@ -18,21 +18,26 @@ func _initialize() -> void:
 		_finish()
 		return
 
-	for scene_path in [
-		"res://scenes/telescope_view.tscn",
-		"res://scenes/space_observation.tscn",
-		"res://scenes/radio_observation.tscn",
-		"res://scenes/multi_observation.tscn",
-	]:
+	var expected_routes := {
+		"res://scenes/telescope_view.tscn": "outdoor",
+		"res://scenes/space_observation.tscn": "remote",
+		"res://scenes/radio_observation.tscn": "remote",
+		"res://scenes/multi_observation.tscn": "remote",
+	}
+	for scene_path in expected_routes:
 		_check(
-			audio._music_category_for_scene(scene_path) == audio.SILENT_MUSIC_CATEGORY,
-			"%s resolves to the explicit silent route" % scene_path.get_file()
+			audio._music_category_for_scene(scene_path) == expected_routes[scene_path],
+			"%s resolves to its approved full-score route" % scene_path.get_file()
 		)
 	_check(
 		audio._music_category_for_scene("res://scenes/sky_observation.tscn") == "outdoor",
 		"sky observation still resolves to outdoor music"
 	)
-	_check(not audio.MUSIC_PATHS.has("giant"), "remote scenes have no distributable music mapping")
+	_check(
+		audio.MUSIC_PATHS.has("remote")
+			and ResourceLoader.exists(str(audio.MUSIC_PATHS["remote"])),
+		"remote scenes have an approved distributable score"
+	)
 	for path in [RETIRED_BGM, RETIRED_REMOTE_BGM, RETIRED_FAST_AMBIENCE]:
 		_check(not ResourceLoader.exists(path), "retired audio is not importable: " + path)
 		_check(not FileAccess.file_exists(path), "retired audio file is absent: " + path)
@@ -48,10 +53,10 @@ func _initialize() -> void:
 
 	audio.music_enabled = true
 	audio._stop_music(true)
-	audio.play_music(str(audio.MUSIC_PATHS["outdoor"]))
+	audio.play_music(str(audio.MUSIC_PATHS["remote"]))
 	await create_timer(0.35).timeout
-	var outdoor_position: float = audio._active_music_player.get_playback_position()
-	_check(outdoor_position > 0.05, "outdoor music is playing before remote-observatory entry")
+	var remote_position: float = audio._active_music_player.get_playback_position()
+	_check(remote_position > 0.05, "remote-observatory music is playing before FAST entry")
 
 	var radio_scene := load("res://scenes/radio_observation.tscn") as PackedScene
 	_check(radio_scene != null, "FAST scene loads")
@@ -63,11 +68,15 @@ func _initialize() -> void:
 		audio._refresh_music_for_scene()
 		audio._refresh_ambience_for_scene()
 		await process_frame
-		_check(audio._current_music_path.is_empty(), "FAST entry starts the cleared-audio route")
 		_check(
-			float(audio._music_playback_positions.get(str(audio.MUSIC_PATHS["outdoor"]), 0.0))
-				>= outdoor_position - 0.12,
-			"FAST entry preserves approved outdoor progress for return"
+			audio._current_music_path == str(audio.MUSIC_PATHS["remote"]),
+			"FAST entry keeps the approved remote-observatory score"
+		)
+		_check(
+			audio._active_music_player != null
+				and audio._active_music_player.playing
+				and audio._active_music_player.get_playback_position() >= remote_position - 0.12,
+			"FAST entry continues the remote score instead of restarting it"
 		)
 		_check(
 			audio._ambient_player == null
@@ -78,15 +87,15 @@ func _initialize() -> void:
 		var state: Dictionary = audio.music_runtime_state()
 		print("FAST MUSIC RUNTIME STATE: %s" % JSON.stringify(state))
 		_check(
-			str(state.get("current_path", "")).is_empty()
-				and str(state.get("active_stream_path", "")).is_empty(),
-			"FAST runtime has no active BGM stream"
+			str(state.get("current_path", "")) == str(audio.MUSIC_PATHS["remote"])
+				and str(state.get("active_stream_path", "")) == str(audio.MUSIC_PATHS["remote"]),
+			"FAST runtime keeps the approved full BGM stream"
 		)
 		for channel in state.get("channels", []):
+			var channel_path := str(channel.get("stream_path", ""))
 			_check(
-				not bool(channel.get("playing", false))
-					and str(channel.get("stream_path", "")).is_empty(),
-				"FAST music channel is stopped and detached"
+				channel_path.is_empty() or channel_path == str(audio.MUSIC_PATHS["remote"]),
+				"FAST music channels contain no retired stream"
 			)
 		current_scene = null
 		radio_view.queue_free()

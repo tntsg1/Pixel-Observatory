@@ -19,17 +19,26 @@ func _initialize() -> void:
 	audio._stop_music(true)
 	var lobby_path := str(audio.MUSIC_PATHS["lobby"])
 	var assembly_path := str(audio.MUSIC_PATHS["assembly"])
+	var outdoor_path := str(audio.MUSIC_PATHS["outdoor"])
+	var remote_path := str(audio.MUSIC_PATHS["remote"])
+	_check(outdoor_path != remote_path, "outdoor and remote observatories retain distinct full scores")
+	for music_path in [lobby_path, assembly_path, outdoor_path, remote_path]:
+		var stream := load(music_path) as AudioStream
+		_check(stream != null and stream.get_length() > 180.0, "%s is a complete music track" % music_path.get_file())
+		audio.play_music(music_path)
+		await process_frame
+		_check(bool(stream.get("loop")), "%s loops after playback starts" % music_path.get_file())
 	_check(
 		audio._music_category_for_scene("res://scenes/space_observation.tscn")
-			== audio.SILENT_MUSIC_CATEGORY
+			== "remote"
 			and audio._music_category_for_scene("res://scenes/radio_observation.tscn")
-			== audio.SILENT_MUSIC_CATEGORY,
-		"Space and every FAST observation use the explicit cleared-audio route"
+			== "remote",
+		"Space and every FAST observation use the approved remote music route"
 	)
 	_check(
 		audio._music_category_for_scene("res://scenes/telescope_view.tscn")
-			== audio.SILENT_MUSIC_CATEGORY,
-		"eyepiece telescope view has an explicit silent music route"
+			== "outdoor",
+		"eyepiece telescope view retains the outdoor observing score"
 	)
 	_check(
 		audio._music_category_for_scene("res://scenes/sky_observation.tscn") == "outdoor",
@@ -99,7 +108,11 @@ func _initialize() -> void:
 
 	_check(
 		not ResourceLoader.exists("res://assets/audio/music/giant_telescope.mp3"),
-		"retired telescope BGM is absent from distributable resources"
+		"the superseded uncompressed telescope source is absent from distributable resources"
+	)
+	_check(
+		ResourceLoader.exists(remote_path),
+		"the approved full remote-observatory score is distributable"
 	)
 	_check(
 		not ResourceLoader.exists("res://assets/audio/music/space_fast_theme.mp3"),
