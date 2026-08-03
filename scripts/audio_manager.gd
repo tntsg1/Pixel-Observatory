@@ -44,8 +44,8 @@ const RETIRED_AMBIENCE_UIDS := {
 	"uid://c7hv8ifvlw2uf": true,
 }
 const MUSIC_PATHS := {
-	"lobby": "res://assets/audio/music/lobby.mp3",
-	"assembly": "res://assets/audio/music/telescope_assembly.mp3",
+	"lobby": "res://assets/audio/music/lobby.ogg",
+	"assembly": "res://assets/audio/music/telescope_assembly.ogg",
 	"outdoor": "res://assets/audio/music/outdoor_stargazing.mp3"
 }
 const EVENT_PATHS := {

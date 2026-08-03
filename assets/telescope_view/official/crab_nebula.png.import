@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://df1wq1wirj53v"
+uid="uid://bcsxrk5g7b53k"
 path="res://.godot/imported/crab_nebula.png-bdf6367f25ee6e8c65876ac433dc7526.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/crab_nebula.png-bdf6367f25ee6e8c65876ac433dc7
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.82
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

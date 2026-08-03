@@ -56,7 +56,7 @@ const STATUS_MARKUP = `
 			<div id="status-notice"></div>
 		</div>`;
 
-const SHELL_VERSION = "20260803-language-handoff";
+const SHELL_VERSION = "20260803-runtime-cache-v1";
 const ASSETS = {
 	loaderCss: `../game-loader.css?v=${SHELL_VERSION}`,
 	loaderJs: `../game-loader.js?v=${SHELL_VERSION}`,
@@ -65,6 +65,7 @@ const ASSETS = {
 	inboxCss: `../inbox.css?v=${SHELL_VERSION}`,
 	messagingJs: `../messaging.js?v=${SHELL_VERSION}`,
 	inboxJs: `../inbox.js?v=${SHELL_VERSION}`,
+	runtimeCacheJs: `../game-runtime-cache.js?v=${SHELL_VERSION}`,
 };
 
 function escapeRegExp(value) {
@@ -87,6 +88,16 @@ function upsertScript(html, src) {
 		: html.replace("</body>", `\t\t<script src="${src}"></script>\n\t</body>`);
 }
 
+function upsertEarlyScript(html, src) {
+	const base = src.split("?")[0];
+	const matcher = new RegExp(`\\s*<script src="${escapeRegExp(base)}(?:\\?[^\"]*)?"><\\/script>`);
+	html = html.replace(matcher, "");
+	const engineScript = /(\s*<script src="index\.js"><\/script>)/;
+	return engineScript.test(html)
+		? html.replace(engineScript, `\n\t\t<script src="${src}"></script>$1`)
+		: html.replace("</head>", `\t\t<script src="${src}"></script>\n\t</head>`);
+}
+
 export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	let html = await readFile(indexPath, "utf8");
 	if (!html.includes("</head>") || !html.includes("</body>")) {
@@ -94,6 +105,7 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	}
 	const before = html;
 	const safeBuildSha = String(buildSha).replace(/[^a-zA-Z0-9._-]/g, "") || "local";
+	const runtimeBase = `runtime/${safeBuildSha}/index`;
 	html = html.replace(/<html([^>]*)>/i, (_match, attributes) => {
 		const cleanAttributes = attributes
 			.replace(/\sdata-pixel-observatory-game-shell="[^"]*"/gi, "")
@@ -114,9 +126,25 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	html = upsertScript(html, ASSETS.accountJs);
 	html = upsertScript(html, ASSETS.messagingJs);
 	html = upsertScript(html, ASSETS.inboxJs);
+	html = upsertEarlyScript(html, ASSETS.runtimeCacheJs);
 	html = upsertScript(html, ASSETS.loaderJs);
 
-	if (!html.includes("class=\"observatory-loader\"") || html.includes("id=\"status-splash\"")) {
+	html = html.replace(/const GODOT_CONFIG = (\{[^\n]+\});/, (_match, serialized) => {
+		const config = JSON.parse(serialized);
+		const originalPackSize = config.fileSizes?.[`${config.executable}.pck`];
+		const originalWasmSize = config.fileSizes?.[`${config.executable}.wasm`];
+		config.executable = runtimeBase;
+		config.mainPack = `${runtimeBase}.pck`;
+		config.fileSizes = {
+			[`${runtimeBase}.pck`]: originalPackSize,
+			[`${runtimeBase}.wasm`]: originalWasmSize,
+		};
+		return `const GODOT_CONFIG = ${JSON.stringify(config)};`;
+	});
+
+	if (!html.includes("class=\"observatory-loader\"")
+		|| !html.includes(`\"executable\":\"${runtimeBase}\"`)
+		|| html.includes("id=\"status-splash\"")) {
 		throw new Error(`Could not replace Godot loading surface in ${indexPath}`);
 	}
 	await writeFile(indexPath, html);

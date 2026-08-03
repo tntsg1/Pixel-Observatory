@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { serveLargeGameAsset } from "../cloudflare/worker.mjs";
+import { resolveLargeGameAsset, serveLargeGameAsset } from "../cloudflare/worker.mjs";
 
 const bytes = new TextEncoder().encode("0123456789");
 const metadata = {
@@ -48,11 +48,23 @@ const head = await serveLargeGameAsset(new Request("https://example.com/game/ind
 }), bucket, file);
 assert.equal(head.status, 200);
 assert.equal(head.headers.get("content-length"), "10");
+assert.equal(head.headers.get("cache-control"), "public, max-age=31536000, immutable");
+assert.equal(head.headers.get("cloudflare-cdn-cache-control"), "public, s-maxage=31536000");
 assert.equal(await head.text(), "");
 
 const cached = await serveLargeGameAsset(new Request("https://example.com/game/index.pck", {
 	headers: { "If-None-Match": '"test-etag"' },
 }), bucket, file);
 assert.equal(cached.status, 304);
+
+assert.deepEqual(resolveLargeGameAsset("/game/runtime/cf93a2c/index.pck"), {
+	key: "runtime/cf93a2c/index.pck",
+	contentType: "application/octet-stream",
+});
+assert.deepEqual(resolveLargeGameAsset("/game/runtime/cf93a2c/index.wasm"), {
+	key: "runtime/cf93a2c/index.wasm",
+	contentType: "application/wasm",
+});
+assert.equal(resolveLargeGameAsset("/game/runtime/../../secret/index.pck"), null);
 
 console.log("Large game asset range delivery: PASS");

@@ -2,7 +2,7 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bg5xfr8ocneu"
+uid="uid://b4pgwqffvsqyw"
 path="res://.godot/imported/moon_terminator.png-920f40dcd2aabf9d13d24aeea9717dd9.ctex"
 metadata={
 "vram_texture": false
@@ -15,9 +15,9 @@ dest_files=["res://.godot/imported/moon_terminator.png-920f40dcd2aabf9d13d24aeea
 
 [params]
 
-compress/mode=0
+compress/mode=1
 compress/high_quality=false
-compress/lossy_quality=0.7
+compress/lossy_quality=0.82
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1

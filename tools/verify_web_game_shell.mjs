@@ -25,7 +25,12 @@ for (const marker of [
 for (const defaultMarker of ["background-color: #242424", 'id="status-splash"', 'class="loader-aperture"', 'class="loader-brand-mark"']) {
 	assert.ok(!html.includes(defaultMarker), `Default Godot splash marker leaked into game shell: ${defaultMarker}`);
 }
-for (const file of requireRuntime ? ["index.js", "index.wasm", "index.pck"] : ["index.js"]) await access(join(gameDir, file));
+await access(join(gameDir, "index.js"));
+if (requireRuntime) {
+	const build = html.match(/data-pixel-observatory-build="([a-zA-Z0-9._-]+)"/)?.[1];
+	assert.ok(build, "Game shell must expose its immutable runtime build id.");
+	for (const file of ["index.wasm", "index.pck"]) await access(join(gameDir, "runtime", build, file));
+}
 if (!requireRuntime) {
 	const findPackedFiles = async (dir, prefix = "") => {
 		const rows = await readdir(join(dir, prefix), { withFileTypes: true });

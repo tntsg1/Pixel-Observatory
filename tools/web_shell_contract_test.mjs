@@ -43,7 +43,7 @@ for (const forbiddenExportPath of [".mailbox-test-users.json", ".mail-*.cookie",
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "pixel-web-shell-contract-"));
 const temporaryIndex = join(temporaryDirectory, "index.html");
 try {
-	await writeFile(temporaryIndex, '<!doctype html><html lang="en"><head><style>body{}</style></head><body><div id="status"><div id="status-notice"></div></div></body></html>');
+	await writeFile(temporaryIndex, '<!doctype html><html lang="en"><head><style>body{}</style></head><body><div id="status"><div id="status-notice"></div></div><script>const GODOT_CONFIG = {"executable":"index","fileSizes":{"index.pck":10,"index.wasm":20}};</script></body></html>');
 	await patchWebLoader(temporaryIndex, { buildSha: "first-build" });
 	await patchWebLoader(temporaryIndex, { buildSha: "second-build" });
 	const patchedTwice = await readFile(temporaryIndex, "utf8");
@@ -51,6 +51,8 @@ try {
 	assert.equal((openingHtmlTag.match(/data-pixel-observatory-game-shell=/g) || []).length, 1, "repatching keeps one shell marker");
 	assert.equal((openingHtmlTag.match(/data-pixel-observatory-build=/g) || []).length, 1, "repatching keeps one build marker");
 	assert.match(patchedTwice, /data-pixel-observatory-build="second-build"/, "repatching updates the build marker");
+	assert.match(patchedTwice, /"executable":"runtime\/second-build\/index"/, "runtime files are content-versioned by build");
+	assert.match(patchedTwice, /"mainPack":"runtime\/second-build\/index\.pck"/, "the main pack follows the versioned runtime path");
 } finally {
 	await rm(temporaryDirectory, { recursive: true, force: true });
 }
