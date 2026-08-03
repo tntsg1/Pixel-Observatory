@@ -199,8 +199,10 @@ export async function serveLargeGameAsset(request, bucket, largeFile) {
 	headers.set("Content-Type", largeFile.contentType);
 	headers.set("ETag", metadata.httpEtag);
 	headers.set("Accept-Ranges", "bytes");
-	// Keep the large runtime reusable while requiring a cheap ETag check after a release.
-	headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+	// Runtime URLs include the immutable build id. Once fetched, the same bytes
+	// can be reused by the browser, service worker, and Cloudflare edge cache.
+	headers.set("Cache-Control", "public, max-age=31536000, immutable");
+	headers.set("Cloudflare-CDN-Cache-Control", "public, s-maxage=31536000");
 
 	if (request.headers.get("If-None-Match") === metadata.httpEtag && !request.headers.has("Range")) {
 		return new Response(null, { status: 304, headers });
@@ -226,6 +228,25 @@ export async function serveLargeGameAsset(request, bucket, largeFile) {
 	const asset = await bucket.get(largeFile.key);
 	if (!asset?.body) return new Response("Game data is unavailable.", { status: 404 });
 	return new Response(asset.body, { headers });
+}
+
+export function resolveLargeGameAsset(pathname) {
+	const currentFiles = {
+		"/index.pck": { key: "index.pck", contentType: "application/octet-stream" },
+		"/index.wasm": { key: "index.wasm", contentType: "application/wasm" },
+		"/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
+		"/game/index.pck": { key: "index.pck", contentType: "application/octet-stream" },
+		"/game/index.wasm": { key: "index.wasm", contentType: "application/wasm" },
+		"/game/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
+	};
+	if (Object.hasOwn(currentFiles, pathname)) return currentFiles[pathname];
+
+	const match = /^\/game\/runtime\/([a-zA-Z0-9._-]+)\/(index\.(?:pck|wasm)|index\.side\.wasm)$/.exec(pathname);
+	if (!match) return null;
+	return {
+		key: `runtime/${match[1]}/${match[2]}`,
+		contentType: match[2].endsWith(".pck") ? "application/octet-stream" : "application/wasm",
+	};
 }
 
 function bytesToBase64(bytes) {
@@ -1643,7 +1664,7 @@ function withIsolationHeaders(response) {
 }
 
 export default {
-	async fetch(request, env) {
+	async fetch(request, env, context) {
 		const url = new URL(request.url);
 		if (url.pathname === "/api/visits") {
 			const counter = env.VISITOR_COUNTER.get(env.VISITOR_COUNTER.idFromName("global"));
@@ -1666,20 +1687,22 @@ export default {
 			}
 		}
 
-		const largeGameFiles = {
-			"/index.pck": { key: "index.pck", contentType: "application/octet-stream" },
-			"/index.wasm": { key: "index.wasm", contentType: "application/wasm" },
-			"/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
-			"/game/index.pck": { key: "index.pck", contentType: "application/octet-stream" },
-			"/game/index.wasm": { key: "index.wasm", contentType: "application/wasm" },
-			"/game/index.side.wasm": { key: "index.side.wasm", contentType: "application/wasm" },
-		};
-		if (Object.hasOwn(largeGameFiles, url.pathname)) {
-			return withIsolationHeaders(await serveLargeGameAsset(
+		const largeGameFile = resolveLargeGameAsset(url.pathname);
+		if (largeGameFile) {
+			const cacheable = request.method === "GET" && !request.headers.has("Range");
+			if (cacheable && typeof caches !== "undefined") {
+				const cached = await caches.default.match(request);
+				if (cached) return withIsolationHeaders(cached);
+			}
+			const response = withIsolationHeaders(await serveLargeGameAsset(
 				request,
 				env.GAME_ASSETS,
-				largeGameFiles[url.pathname],
+				largeGameFile,
 			));
+			if (cacheable && response.ok && response.status === 200 && typeof caches !== "undefined") {
+				context.waitUntil(caches.default.put(request, response.clone()));
+			}
+			return response;
 		}
 		const response = await env.ASSETS.fetch(request);
 		if (url.pathname === "/game" || url.pathname === "/game/" || url.pathname === "/game/index.html") {

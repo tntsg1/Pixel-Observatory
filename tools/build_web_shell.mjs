@@ -1,4 +1,4 @@
-import { cp, mkdir, readFile, readdir, rm } from "node:fs/promises";
+import { access, cp, mkdir, readFile, readdir, rename, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { patchWebLoader } from "./patch_web_loader.mjs";
@@ -31,7 +31,18 @@ const gameIndex = join(gameDir, "index.html");
 await cp(join(stagingDir, "index.html"), gameIndex);
 await patchWebLoader(gameIndex, { buildSha });
 
+const safeBuildSha = buildSha.replace(/[^a-zA-Z0-9._-]/g, "-");
+const runtimeDir = join(gameDir, "runtime", safeBuildSha);
+await mkdir(runtimeDir, { recursive: true });
+for (const runtimeFile of ["index.pck", "index.wasm", "index.side.wasm"]) {
+	const source = join(gameDir, runtimeFile);
+	await access(source).then(
+		() => rename(source, join(runtimeDir, runtimeFile)),
+		() => {},
+	);
+}
+
 await cp(landingDir, outputDir, { recursive: true, force: true });
 await cp(join(landingDir, "promo.html"), join(outputDir, "index.html"));
 await rm(stagingDir, { recursive: true, force: true });
-console.log(`Published custom game shell at ${gameIndex}; Godot runtime assets remain at ${gameDir}; build=${buildSha}`);
+console.log(`Published custom game shell at ${gameIndex}; immutable runtime=${runtimeDir}; build=${safeBuildSha}`);
