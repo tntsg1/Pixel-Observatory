@@ -23,6 +23,6 @@ const saveIndex = manager.indexOf("_unlock_parts_for_current_level()")
 assert.ok(readIndex >= 0 && readIndex < saveIndex, "Godot applies the website language before normal startup saves progress");
 assert.match(manager, /localStorage\.getItem\('so-lang'\)/, "Godot Web reads the shared website language");
 assert.match(manager, /func _sync_website_language\(\)/, "in-game language changes sync back to the surrounding website");
-assert.match(patcher, /20260803-runtime-cache-v1/, "game shell URLs invalidate cached pre-runtime-cache code");
+assert.match(patcher, /20260804-loader-motion-v2/, "game shell URLs invalidate cached pre-motion-fix code");
 
 console.log("Web language handoff contract passed.");
