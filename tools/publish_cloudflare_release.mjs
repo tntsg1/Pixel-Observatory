@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const webDir = resolve(process.argv[2] || "build/web");
 const publicDir = resolve(process.argv[3] || "build/cloudflare-public");
@@ -9,12 +9,13 @@ const build = html.match(/data-pixel-observatory-build="([a-zA-Z0-9._-]+)"/)?.[1
 if (!build) throw new Error("The game shell does not contain a safe build id.");
 
 function run(command, args) {
-	const executable = process.platform === "win32" && command === "npx" ? "npx.cmd" : command;
-	const result = spawnSync(executable, args, {
-		stdio: "inherit",
-		// Windows launches .cmd shims through cmd.exe; direct spawn returns EINVAL.
-		shell: process.platform === "win32",
-	});
+	let executable = command;
+	let commandArgs = args;
+	if (process.platform === "win32" && command === "npx") {
+		executable = process.execPath;
+		commandArgs = [join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js"), ...args];
+	}
+	const result = spawnSync(executable, commandArgs, { stdio: "inherit", shell: false });
 	if (result.error) throw result.error;
 	if (result.status !== 0) process.exit(result.status ?? 1);
 }
