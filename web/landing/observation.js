@@ -7,6 +7,27 @@
   const id = decodeURIComponent(location.pathname.split("/").filter(Boolean).at(-1) || "");
   let shareData = null;
 
+  async function copyText(value) {
+    if (navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (_error) {
+        // Some browsers deny clipboard access even on a secure page.
+      }
+    }
+    const input = document.createElement("textarea");
+    input.value = value;
+    input.setAttribute("readonly", "");
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    const copied = document.execCommand("copy");
+    input.remove();
+    return copied;
+  }
+
   function renderSky() {
     if (!canvas || !context) return;
     const ratio = Math.min(devicePixelRatio || 1, 2);
@@ -60,12 +81,20 @@
       </section>
     </article>`;
     document.getElementById("copy-observation").onclick = async event => {
-      await navigator.clipboard.writeText(location.href);
-      event.currentTarget.textContent = zh ? "已复制" : "Copied";
+      const button = event.currentTarget;
+      const copied = await copyText(location.href);
+      button.textContent = copied ? (zh ? "已复制" : "Copied") : (zh ? "请手动复制" : "Copy manually");
     };
     document.getElementById("share-observation").onclick = async () => {
-      if (navigator.share) await navigator.share({title: document.title, text: observation.discovery, url: location.href});
-      else await navigator.clipboard.writeText(location.href);
+      if (navigator.share) {
+        try {
+          await navigator.share({title: document.title, text: observation.discovery, url: location.href});
+          return;
+        } catch (error) {
+          if (error?.name === "AbortError") return;
+        }
+      }
+      await copyText(location.href);
     };
   }
 
