@@ -521,6 +521,44 @@ async function handleSaveGet(request, env) {
 	});
 }
 
+const MONOTONIC_SAVE_ARRAYS = [
+	"owned_optical_telescope_families",
+	"completed_levels",
+	"unlocked_parts",
+	"observed_objects",
+	"badges",
+	"journal_entries",
+	"remote_observation_archive",
+	"remote_free_intro_seen",
+	"completed_concept_cards",
+	"seen_teaching_steps",
+	"seen_concept_briefs",
+	"seen_story_events",
+	"unlocked_equipment_stages",
+];
+
+function progressScore(progress = {}) {
+	const size = key => Array.isArray(progress[key]) ? progress[key].length : 0;
+	return Number(progress.current_level || 1) * 100_000
+		+ size("completed_levels") * 1_000
+		+ (size("observed_objects") + size("journal_entries") + size("unlocked_parts")) * 100
+		+ Number(progress.credits || 0)
+		+ (progress.program_completed ? 10_000_000 : 0);
+}
+
+function preservesMonotonicProgress(incoming = {}, current = {}) {
+	if (Number(incoming.current_level || 1) < Number(current.current_level || 1)) return false;
+	if (Number(incoming.credits || 0) < Number(current.credits || 0)) return false;
+	if (current.program_completed && !incoming.program_completed) return false;
+	for (const key of MONOTONIC_SAVE_ARRAYS) {
+		const incomingValues = new Set((Array.isArray(incoming[key]) ? incoming[key] : []).map(value => JSON.stringify(value)));
+		for (const value of Array.isArray(current[key]) ? current[key] : []) {
+			if (!incomingValues.has(JSON.stringify(value))) return false;
+		}
+	}
+	return true;
+}
+
 async function handleSavePut(request, env) {
 	const user = await sessionForRequest(env, request);
 	if (!user) return apiError("Sign in to use cloud saves.", 401, "unauthorized");
@@ -534,10 +572,31 @@ async function handleSavePut(request, env) {
 	if (!body.progress || typeof body.progress !== "object" || Array.isArray(body.progress)) return apiError("Invalid save data.", 400, "invalid_save");
 	const progressJson = JSON.stringify(body.progress);
 	if (new TextEncoder().encode(progressJson).length > MAX_SAVE_BYTES) return apiError("The save is too large.", 413, "invalid_save");
-	const existing = await env.DB.prepare("SELECT version FROM cloud_saves WHERE user_id = ?").bind(user.id).first();
+	const existing = await env.DB.prepare("SELECT version, progress_json FROM cloud_saves WHERE user_id = ?").bind(user.id).first();
 	const currentVersion = Number(existing?.version || 0);
 	const baseVersion = Number(body.baseVersion || 0);
 	if (existing && baseVersion !== currentVersion) return json({ ok: false, error: "version_conflict", currentVersion }, 409);
+	if (existing) {
+		let currentProgress = {};
+		try {
+			currentProgress = JSON.parse(existing.progress_json || "{}");
+		} catch {
+			currentProgress = {};
+		}
+		const incomingRevision = Number(body.progress.save_revision || 0);
+		const currentRevision = Number(currentProgress.save_revision || 0);
+		const isRegressive = progressScore(body.progress) < progressScore(currentProgress)
+			|| incomingRevision < currentRevision
+			|| !preservesMonotonicProgress(body.progress, currentProgress);
+		if (isRegressive) {
+			return json({
+				ok: false,
+				error: "stale_progress",
+				currentVersion,
+				message: "The cloud archive is newer. Download and merge it before uploading.",
+			}, 409);
+		}
+	}
 	const version = currentVersion + 1;
 	const now = Math.floor(Date.now() / 1000);
 	await env.DB.prepare(

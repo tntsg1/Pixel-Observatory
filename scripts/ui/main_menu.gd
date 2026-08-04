@@ -50,6 +50,8 @@ func _ready() -> void:
 		cloud_sync.progress_availability_resolved.connect(_on_cloud_progress_availability_resolved)
 	if cloud_sync != null and cloud_sync.has_signal("session_changed"):
 		cloud_sync.session_changed.connect(_on_cloud_session_changed)
+	if cloud_sync != null and cloud_sync.has_signal("sync_status_changed"):
+		cloud_sync.sync_status_changed.connect(_on_cloud_sync_status_changed)
 	_continue_available = _should_show_continue()
 	_build()
 	InteractionFeedback.page_enter(self)
@@ -634,3 +636,14 @@ func _on_cloud_session_changed(_user: Dictionary) -> void:
 	# action until its cloud archive has resolved, then rebuild from that state.
 	_continue_available = _should_show_continue()
 	_build()
+
+
+func _on_cloud_sync_status_changed(status: String, _detail: String) -> void:
+	var messages := {
+		"local_saved": GameManager.text("Saved locally just now", "刚刚已保存"),
+		"saved": GameManager.text("Saved just now", "刚刚已保存"),
+		"syncing": GameManager.text("Syncing", "正在同步"),
+		"offline": GameManager.text("Saved offline", "离线保存"),
+		"merge_required": GameManager.text("Local progress is ready to merge from your account panel.", "游客进度等待在账号面板中一键合并。"),
+	}
+	_show_feedback(str(messages.get(status, "")))

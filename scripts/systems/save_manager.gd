@@ -2,6 +2,9 @@ extends Node
 
 const SAVE_PATH := "user://savegame.json"
 const SAVE_INITIALIZED_KEY := "save_initialized"
+const SAVE_REVISION_KEY := "save_revision"
+const SAVE_UPDATED_AT_KEY := "save_updated_at"
+const ARCHIVE_METADATA_KEYS := [SAVE_REVISION_KEY, SAVE_UPDATED_AT_KEY, "cloud_synced_revision", "cloud_owner_id"]
 
 
 func has_save() -> bool:
@@ -60,16 +63,23 @@ func load_progress(default_progress: Dictionary) -> Dictionary:
 	return _merge_defaults(default_progress, parsed)
 
 
-func save_progress(progress: Dictionary, queue_cloud: bool = true) -> void:
+func save_progress(progress: Dictionary, queue_cloud: bool = true, touch_metadata: bool = true) -> void:
+	var previous := load_raw_progress()
+	if touch_metadata:
+		_update_archive_metadata(progress, previous)
 	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
 	if file == null:
 		push_warning("Could not write savegame.")
 		return
 	file.store_string(JSON.stringify(progress, "\t"))
+	file.close()
 	if queue_cloud:
 		var cloud_sync := get_node_or_null("/root/CloudSyncManager")
-		if cloud_sync != null and cloud_sync.has_method("queue_upload"):
-			cloud_sync.call_deferred("queue_upload", progress.duplicate(true))
+		if cloud_sync != null:
+			if cloud_sync.has_method("notify_local_saved"):
+				cloud_sync.call("notify_local_saved", progress.duplicate(true))
+			if cloud_sync.has_method("queue_upload"):
+				cloud_sync.call_deferred("queue_upload", progress.duplicate(true))
 
 
 func reset_progress(default_progress: Dictionary) -> Dictionary:
@@ -88,3 +98,23 @@ func _merge_defaults(default_value: Variant, saved_value: Variant) -> Variant:
 				merged[key] = saved_value[key]
 		return merged
 	return saved_value
+
+
+func _update_archive_metadata(progress: Dictionary, previous: Dictionary) -> void:
+	var current_revision := maxi(int(progress.get(SAVE_REVISION_KEY, 0)), int(previous.get(SAVE_REVISION_KEY, 0)))
+	if _archive_content(progress) != _archive_content(previous):
+		progress[SAVE_REVISION_KEY] = current_revision + 1
+		progress[SAVE_UPDATED_AT_KEY] = int(Time.get_unix_time_from_system())
+	else:
+		progress[SAVE_REVISION_KEY] = current_revision
+		progress[SAVE_UPDATED_AT_KEY] = maxi(
+			int(progress.get(SAVE_UPDATED_AT_KEY, 0)),
+			int(previous.get(SAVE_UPDATED_AT_KEY, 0))
+		)
+
+
+func _archive_content(progress: Dictionary) -> Dictionary:
+	var content := progress.duplicate(true)
+	for key in ARCHIVE_METADATA_KEYS:
+		content.erase(key)
+	return content
