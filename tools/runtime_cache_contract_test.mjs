@@ -26,11 +26,13 @@ assert.match(core, /new Response\(bytes\.slice\(\), \{ status: 200/, "browser Ca
 assert.match(core, /headers: \{ Range: "bytes=0-0" \}/, "metadata falls back to a one-byte range probe when HEAD length is hidden");
 assert.match(core, /cachedPrefix/, "an interrupted download resumes from its first missing range");
 assert.match(core, /rate, eta:/, "runtime progress exposes real transfer speed and ETA");
-assert.match(patcher, /runtime-resume-v3/, "the loader shell version advances when transfer telemetry changes");
+assert.match(patcher, /incremental-packs-v1/, "the loader shell version advances for independent resource packs");
 const loader = await readFile(new URL("../web/landing/game-loader.js", import.meta.url), "utf8");
 assert.match(loader, /formatBytes\(Math\.max\(0, total - value\)\)/, "the loader exposes the actual remaining download size");
 assert.match(core, /async pull\(controller\)/, "runtime chunks respect browser backpressure and can stop after an interrupted read");
-assert.match(core, /match\[1\] !== build/, "old runtime builds are pruned after an upgrade");
+assert.match(core, /runtimeMatch\[1\] !== build/, "old runtime builds are pruned after an upgrade");
+assert.match(core, /RESOURCE_PACK_PATH/, "stable resource packs share the resumable cache implementation");
+assert.match(core, /currentPacks\[packMatch\[1\]\] !== packMatch\[2\]/, "only obsolete resource-pack versions are pruned");
 assert.match(cloudflare, /max-age=31536000, immutable/, "versioned runtime files are immutable in browsers");
 assert.match(cloudflare, /caches\.default\.match\(request\)/, "Cloudflare edge cache is checked before R2");
 assert.match(cloudflare, /caches\.default\.put\(request, response\.clone\(\)\)/, "R2 responses populate the edge cache");

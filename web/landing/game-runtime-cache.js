@@ -35,7 +35,9 @@
         try { await navigator.storage.persist(); } catch (_) {}
       }
       const worker = registration.active || registration.waiting || registration.installing;
-      worker?.postMessage({ type: "pixel-observatory-runtime", build });
+      const packs = Object.fromEntries((window.PIXEL_OBSERVATORY_RESOURCE_PACKS || [])
+        .map(pack => [String(pack.id || ""), String(pack.version || "")]));
+      worker?.postMessage({ type: "pixel-observatory-runtime", build, packs });
     })
     .catch(error => console.warn("Runtime cache registration failed", error));
 })();

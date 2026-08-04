@@ -7,14 +7,15 @@
   const CACHE_NAME = "pixel-observatory-runtime-v2";
   const LEGACY_CACHE_NAME = "pixel-observatory-runtime-v1";
   const CHUNK_BYTES = 2 * 1024 * 1024;
-  const RUNTIME_PATH = /^\/game\/runtime\/([a-zA-Z0-9._-]+)\/index\.(?:pck|wasm)$/;
+  const MAIN_RUNTIME_PATH = /^\/game\/runtime\/([a-zA-Z0-9._-]+)\/index\.(?:pck|wasm)$/;
+  const RESOURCE_PACK_PATH = /^\/game\/resource-packs\/([a-z0-9-]+)\/([a-f0-9]{20})\.pck$/;
   const CACHE_KEY = "__po_runtime_cache";
 
   function matchesRuntime(request) {
     const url = new URL(request.url);
     return request.method === "GET"
       && url.origin === self.location.origin
-      && RUNTIME_PATH.test(url.pathname)
+      && (MAIN_RUNTIME_PATH.test(url.pathname) || RESOURCE_PACK_PATH.test(url.pathname))
       && !request.headers.has("Range");
   }
 
@@ -228,12 +229,16 @@
     });
   }
 
-  async function prune(build) {
+  async function prune(build, currentPacks = {}) {
     const cache = await caches.open(CACHE_NAME);
     const keys = await cache.keys();
     await Promise.all(keys.map(request => {
-      const match = new URL(request.url).pathname.match(RUNTIME_PATH);
-      return match && match[1] !== build ? cache.delete(request) : Promise.resolve(false);
+      const pathname = new URL(request.url).pathname;
+      const runtimeMatch = pathname.match(MAIN_RUNTIME_PATH);
+      if (runtimeMatch && runtimeMatch[1] !== build) return cache.delete(request);
+		const packMatch = pathname.match(RESOURCE_PACK_PATH);
+		if (packMatch && currentPacks[packMatch[1]] !== packMatch[2]) return cache.delete(request);
+		return Promise.resolve(false);
     }));
   }
 
