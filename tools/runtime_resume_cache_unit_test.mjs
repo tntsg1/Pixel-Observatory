@@ -10,7 +10,10 @@ const cache = {
     const stored = entries.get(urlFor(request));
     return stored ? stored.clone() : undefined;
   },
-  async put(request, response) { entries.set(urlFor(request), response.clone()); },
+  async put(request, response) {
+    if (response.status === 206) throw new TypeError("Partial response (status code 206) is unsupported");
+    entries.set(urlFor(request), response.clone());
+  },
   async keys() { return [...entries.keys()].map(url => new Request(url)); },
   async delete(request) { return entries.delete(urlFor(request)); },
 };
@@ -47,6 +50,17 @@ try {
   const resumed = await self.PORuntimeCache.runtimeResponse(new Request(runtimeUrl), { fetcher });
   assert.equal((await resumed.arrayBuffer()).byteLength, total, "the resumed stream reconstructs the complete runtime");
   assert.deepEqual(requests, ["bytes=0-2097151", "bytes=2097152-4194303", "bytes=4194304-5242879"], "the second session starts from the first missing persisted range");
+
+  const fallbackUrl = "https://cache-test.invalid/game/runtime/fallback-build/index.wasm";
+  const fallbackRequests = [];
+  const fallbackFetcher = async request => {
+    fallbackRequests.push(`${request.method}:${request.headers.get("Range") || ""}`);
+    if (request.method === "HEAD") return new Response(null, { headers: { "Content-Type": "application/wasm" } });
+    return new Response(new Uint8Array([0]), { status: 206, headers: { "Content-Range": "bytes 0-0/4096", "Content-Length": "1", "Content-Type": "application/wasm" } });
+  };
+  const fallback = await self.PORuntimeCache.runtimeResponse(new Request(fallbackUrl), { fetcher: fallbackFetcher });
+  await fallback.body.cancel();
+  assert.deepEqual(fallbackRequests.slice(0, 2), ["HEAD:", "GET:bytes=0-0"], "a one-byte range probe supplies metadata when browser HEAD omits Content-Length");
   console.log("Runtime resume cache unit test: PASS");
 } finally {
   globalThis.self = saved.self;

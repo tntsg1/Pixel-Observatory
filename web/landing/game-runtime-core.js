@@ -9,7 +9,6 @@
   const CHUNK_BYTES = 2 * 1024 * 1024;
   const RUNTIME_PATH = /^\/game\/runtime\/([a-zA-Z0-9._-]+)\/index\.(?:pck|wasm)$/;
   const CACHE_KEY = "__po_runtime_cache";
-  const encoder = new TextEncoder();
 
   function matchesRuntime(request) {
     const url = new URL(request.url);
@@ -76,15 +75,26 @@
   async function fetchMeta(cache, url, fetcher) {
     const previous = await readMeta(cache, url);
     if (previous) return previous;
-    const response = await fetcher(new Request(url, { method: "HEAD", credentials: "same-origin" }));
-    if (!response.ok) throw new Error(`Runtime metadata request failed (${response.status}).`);
-    const total = byteLength(response);
+    const head = await fetcher(new Request(url, { method: "HEAD", credentials: "same-origin" }));
+    let total = head.ok ? byteLength(head) : 0;
+    let metadataResponse = head;
+    if (!total) {
+      const probe = await fetcher(new Request(url, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Range: "bytes=0-0" },
+      }));
+      const match = probe.headers.get("Content-Range")?.match(/^bytes 0-0\/(\d+)$/);
+      total = probe.status === 206 && match ? Number(match[1]) : 0;
+      metadataResponse = probe;
+      try { await probe.body?.cancel(); } catch (_) {}
+    }
     if (!total) throw new Error("Runtime metadata did not include a content length.");
     const meta = {
       total,
       chunkBytes: CHUNK_BYTES,
-      contentType: response.headers.get("Content-Type") || "application/octet-stream",
-      etag: response.headers.get("ETag") || "",
+      contentType: metadataResponse.headers.get("Content-Type") || head.headers.get("Content-Type") || "application/octet-stream",
+      etag: metadataResponse.headers.get("ETag") || head.headers.get("ETag") || "",
       savedAt: Date.now(),
     };
     await cache.put(keyFor(url, "meta"), new Response(JSON.stringify(meta), {
@@ -184,7 +194,10 @@
               report({ phase: prefix ? "resuming" : "downloading", loaded, total: meta.total, cachedBytes: prefix, rate, eta: rate > 0 ? Math.max(0, meta.total - loaded) / rate : 0 });
             });
             if (bytes.byteLength !== expected) throw new Error("Runtime range ended before the requested byte count.");
-            await cache.put(chunkKey, new Response(bytes.slice(), { status: 206, headers: { "Content-Type": meta.contentType, "Content-Length": String(expected), "Content-Range": contentRange(start, end, meta.total) } }));
+            // Cache Storage rejects partial (206) responses in Chromium. The
+            // cache key already identifies the byte range, so persist the
+            // completed chunk as a normal 200 response.
+            await cache.put(chunkKey, new Response(bytes.slice(), { status: 200, headers: { "Content-Type": meta.contentType, "Content-Length": String(expected), "X-PO-Content-Range": contentRange(start, end, meta.total) } }));
             completeBytes = end + 1;
             const elapsed = Math.max(.001, (performance.now() - networkStartedAt) / 1000);
             const rate = networkBytes / elapsed;
