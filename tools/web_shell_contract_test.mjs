@@ -26,6 +26,11 @@ assert.doesNotMatch(patcher, /class="loader-aperture"|class="loader-brand-mark"/
 assert.match(patcher, /messaging\.js/, "The game shell loads the existing messaging controller.");
 assert.match(gameLoader, /game-compact-controls/, "Narrow viewports must retain an on-demand social and feedback entry point.");
 assert.match(gameLoader, /po:open-inbox/, "The game rail must reuse the existing private-message drawer.");
+assert.match(gameLoader, /game-session-guest/, "Signed-out players see the cloud-progress account invitation.");
+assert.match(gameLoader, /game-friends-guest/, "Signed-out players see the friends and community invitation.");
+assert.match(gameLoader, /po:open-account/, "Guest feature controls open the shared sign-in or registration dialog.");
+assert.match(gameLoader, /document\.addEventListener\("po:session-changed"/, "The game rails refresh immediately after account state changes.");
+assert.match(account, /document\.addEventListener\("po:open-account"/, "The shared account dialog accepts delegated game-shell invitations.");
 assert.match(gameLoaderCss, /@media \(max-width: 1727px\)/, "16:9 desktop gutters must keep full rails when there is room.");
 assert.doesNotMatch(gameLoaderCss, /max-aspect-ratio:\s*16\/9/, "A 1920×1080 desktop must not collapse the two side rails.");
 assert.match(gameLoaderCss, /\.game-compact-actions\[hidden\]\s*\{\s*display: none !important;/, "Collapsed social controls must not leave focusable action buttons visible.");

@@ -141,6 +141,101 @@ body {
   box-shadow: 0 22px 58px rgba(0,0,0,.35), inset 0 1px rgba(255,255,255,.09);
 }
 
+.game-guest-panel {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  padding: 18px;
+}
+.game-guest-panel[hidden] { display: none !important; }
+.game-guest-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(112deg, transparent 22%, rgba(218,244,255,.08) 48%, transparent 72%);
+  background-size: 240% 100%;
+  background-position: 120% 0;
+  transition: background-position .8s cubic-bezier(.16,1,.3,1);
+}
+.game-guest-panel:hover::before { background-position: -40% 0; }
+.game-guest-kicker {
+  color: #82cce8;
+  font: 750 9px/1.2 var(--mono);
+  letter-spacing: .08em;
+}
+.game-guest-panel h2 {
+  margin: 1px 0 0;
+  color: #f3f8fb;
+  font: 720 18px/1.15 var(--sans);
+  letter-spacing: 0;
+}
+.game-guest-panel > p {
+  margin: 0 0 3px;
+  color: #9eb1be;
+  font: 500 11px/1.5 var(--sans);
+}
+.game-guest-feature {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0,1fr) 14px;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-height: 52px;
+  padding: 8px 9px;
+  border: 1px solid rgba(172,220,239,.19);
+  border-top-color: rgba(225,245,252,.3);
+  border-radius: 13px;
+  color: #eaf6fb;
+  text-align: left;
+  background: rgba(22,47,67,.34);
+  box-shadow: inset 0 1px rgba(255,255,255,.06);
+  cursor: pointer;
+  transition: transform .28s cubic-bezier(.16,1,.3,1), border-color .2s ease, background .2s ease, box-shadow .28s ease;
+}
+.game-guest-feature:hover {
+  transform: translateY(-2px);
+  border-color: rgba(140,217,246,.47);
+  background: rgba(31,67,91,.52);
+  box-shadow: 0 12px 28px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.1);
+}
+.game-guest-feature:active { transform: scale(.975); transition-duration: 80ms; }
+.game-guest-feature:focus-visible,
+.game-guest-actions button:focus-visible { outline: 3px solid rgba(113,211,246,.3); outline-offset: 2px; }
+.game-guest-feature > i {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #a8e4f8;
+  background: rgba(89,181,215,.13);
+  font: 500 16px/1 var(--sans);
+  font-style: normal;
+}
+.game-guest-feature > span { min-width: 0; display: grid; gap: 3px; }
+.game-guest-feature strong { color: #edf8fc; font: 680 11px/1.15 var(--sans); }
+.game-guest-feature small { overflow: hidden; color: #839aa9; font: 500 9px/1.2 var(--sans); text-overflow: ellipsis; white-space: nowrap; }
+.game-guest-feature > b { color: #78c9e7; font: 400 20px/1 var(--sans); }
+.game-guest-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 2px; }
+.game-guest-actions button {
+  min-height: 38px;
+  border: 1px solid rgba(177,224,242,.28);
+  border-radius: 11px;
+  color: #eaf7fb;
+  background: rgba(14,31,47,.66);
+  box-shadow: inset 0 1px rgba(255,255,255,.08);
+  font: 700 10px/1 var(--sans);
+  cursor: pointer;
+  transition: transform .18s cubic-bezier(.2,.8,.2,1), background .18s ease, border-color .18s ease;
+}
+.game-guest-actions button:first-child { color: #07131c; border-color: rgba(179,230,248,.7); background: #8dd7ef; }
+.game-guest-actions button:hover { transform: translateY(-1px); border-color: rgba(188,232,248,.56); }
+.game-guest-actions button:active { transform: scale(.97); }
+.game-guest-note { display: flex; align-items: center; gap: 7px; color: #7f96a5; font: 500 9px/1.35 var(--sans); }
+.game-guest-note span { color: #6fdba3; font-size: 8px; text-shadow: 0 0 10px rgba(91,221,157,.6); }
+
 .game-session-panel { padding: 20px 18px 18px; }
 .game-rail-kicker,
 .game-friends-head span {
@@ -588,7 +683,10 @@ body {
   .game-nudge-button,
   .game-message-button,
   .game-feedback-button,
-  .game-feedback-button::before { transition-duration: .01ms !important; }
+  .game-feedback-button::before,
+  .game-guest-panel::before,
+  .game-guest-feature,
+  .game-guest-actions button { transition-duration: .01ms !important; }
   .game-session-orbit,
   .game-friends-pulse::after,
   .game-pet-avatar,

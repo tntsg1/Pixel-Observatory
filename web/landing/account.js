@@ -227,6 +227,11 @@
       open(feedbackModal);
     }
   });
+  document.addEventListener("po:open-account",event=>{
+    const mode=event.detail?.mode==="register"?"register":"login";
+    renderAccount(mode);
+    open(accountModal);
+  });
   ["pointerdown","pointerup","click","wheel","keydown","keyup"].forEach(type=>{
     feedbackModal.addEventListener(type,event=>event.stopPropagation());
   });
