@@ -23,6 +23,7 @@
   const loaded = document.getElementById("loader-loaded");
   const optical = document.getElementById("loader-optical");
   const catalogue = document.getElementById("loader-catalogue");
+  const network = document.getElementById("loader-network");
   const notice = document.getElementById("status-notice");
   const canvas = document.getElementById("loader-stars");
   if (!overlay || !progress || !phase || !percent) return;
@@ -49,6 +50,14 @@
     ],
     opticalWaiting: "等待校准", opticalReady: "光路已校验",
     catalogueWaiting: "正在加载坐标", catalogueReady: "星位已索引",
+    network: "\u7f51\u7edc\u94fe\u8def",
+    runtimePhases: {
+      downloading: "\u6b63\u5728\u4e0b\u8f7d\u6e38\u620f\u6570\u636e",
+      resuming: "\u6b63\u5728\u7ee7\u7eed\u5df2\u4fdd\u5b58\u7684\u4e0b\u8f7d",
+      cached: "\u6b63\u5728\u6253\u5f00\u672c\u5730\u6e38\u620f\u7f13\u5b58",
+      ready: "\u6b63\u5728\u51c6\u5907\u5df2\u4e0b\u8f7d\u7684\u8fd0\u884c\u73af\u5883",
+      interrupted: "\u8fde\u63a5\u5df2\u6682\u505c\uff0c\u5df2\u5b8c\u6210\u7684\u90e8\u5206\u4e0d\u4f1a\u4e22\u5931",
+    },
   } : {
     brand: "Pixel Observatory",
     link: "Browser observatory link established",
@@ -59,6 +68,7 @@
     archive: "Data archive",
     optics: "Optical bench",
     catalogue: "Sky catalogue",
+    network: "Network link",
     preparing: "Preparing stream",
     phases: [
       {until: .12, label: "Opening observatory archive"},
@@ -69,6 +79,13 @@
     ],
     opticalWaiting: "Awaiting calibration", opticalReady: "Optical path verified",
     catalogueWaiting: "Loading coordinates", catalogueReady: "Star positions indexed",
+    runtimePhases: {
+      downloading: "Downloading game data",
+      resuming: "Resuming saved download",
+      cached: "Opening local game cache",
+      ready: "Preparing downloaded runtime",
+      interrupted: "Connection paused — completed data is saved",
+    },
   };
   const setText = (id, value) => {
     const node = document.getElementById(id);
@@ -83,6 +100,7 @@
   setText("loader-data-label", copy.archive);
   setText("loader-optical-label", copy.optics);
   setText("loader-catalogue-label", copy.catalogue);
+  setText("loader-network-label", copy.network);
 
   const phases = copy.phases;
   let lastPercent = -1;
@@ -90,6 +108,9 @@
   let dust = [];
   let constellation = [];
   let pointerFrame = 0;
+  const runtimeTransfers = new Map();
+  let runtimeTransfer = null;
+  let runtimeDirty = false;
 
   function formatBytes(value) {
     const bytes = Number(value) || 0;
@@ -97,8 +118,78 @@
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   }
 
+  function formatRate(value) {
+    const bytes = Number(value) || 0;
+    if (bytes <= 0) return "--";
+    return `${formatBytes(bytes)}/s`;
+  }
+
+  function formatDuration(value) {
+    const seconds = Math.max(0, Math.round(Number(value) || 0));
+    if (!seconds) return "--";
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return minutes >= 60 ? `${Math.floor(minutes / 60)}h ${minutes % 60}m` : `${minutes}m ${remainder}s`;
+  }
+
+  function renderRuntimeTransfer() {
+    if (!runtimeTransfer) return false;
+    const total = Number(runtimeTransfer.total) || 0;
+    const value = Math.min(total, Math.max(0, Number(runtimeTransfer.loaded) || 0));
+    if (!total) return false;
+    const ratio = value / total;
+    const nextPercent = Math.round(ratio * 100);
+    percent.textContent = `${nextPercent}%`;
+    if (orbitalPercent) orbitalPercent.textContent = `${nextPercent}%`;
+    phase.textContent = copy.runtimePhases[runtimeTransfer.phase] || copy.preparing;
+    if (loaded) loaded.textContent = `${formatBytes(value)} / ${formatBytes(total)}`;
+    if (network) {
+      if (runtimeTransfer.phase === "cached") network.textContent = zh ? "\u672c\u5730\u7f13\u5b58\u5df2\u547d\u4e2d" : "Local cache hit";
+      else if (runtimeTransfer.phase === "interrupted") network.textContent = zh ? "\u5df2\u6682\u505c\uff0c\u4e0b\u6b21\u4ece\u5df2\u4fdd\u5b58\u90e8\u5206\u7ee7\u7eed" : "Paused — completed ranges are saved";
+      else {
+        const rate = formatRate(runtimeTransfer.rate);
+        const eta = runtimeTransfer.eta > 0 ? `${zh ? "\u5269\u4f59" : "ETA"} ${formatDuration(runtimeTransfer.eta)}` : "";
+        network.textContent = [rate, eta].filter(Boolean).join(" · ") || (zh ? "\u6b63\u5728\u6d4b\u91cf\u901f\u5ea6" : "Measuring transfer");
+      }
+    }
+    if (optical) optical.textContent = ratio > .43 ? copy.opticalReady : copy.opticalWaiting;
+    if (catalogue) catalogue.textContent = ratio > .72 ? copy.catalogueReady : copy.catalogueWaiting;
+    return true;
+  }
+
+  function recordRuntimeTransfer(detail) {
+    if (!detail?.asset) return;
+    runtimeTransfers.set(detail.asset, detail);
+    const transfers = [...runtimeTransfers.values()].filter(item => Number(item.total) > 0);
+    if (!transfers.length) return;
+    const total = transfers.reduce((sum, item) => sum + Number(item.total || 0), 0);
+    const loaded = transfers.reduce((sum, item) => sum + Math.min(Number(item.total || 0), Math.max(0, Number(item.loaded || 0))), 0);
+    const cachedBytes = transfers.reduce((sum, item) => sum + Math.min(Number(item.total || 0), Math.max(0, Number(item.cachedBytes || 0))), 0);
+    const rate = transfers.reduce((sum, item) => sum + Math.max(0, Number(item.rate || 0)), 0);
+    const active = transfers.filter(item => !["cached", "ready", "interrupted"].includes(item.phase));
+    const phase = transfers.some(item => item.phase === "interrupted") ? "interrupted"
+      : active.some(item => item.phase === "downloading") ? "downloading"
+        : active.some(item => item.phase === "resuming") ? "resuming"
+          : transfers.some(item => item.phase === "ready") ? "ready" : "cached";
+    runtimeTransfer = { phase, total, loaded, cachedBytes, rate, eta: rate > 0 ? Math.max(0, total - loaded) / rate : 0 };
+    runtimeDirty = true;
+  }
+
+  addEventListener("po:runtime-progress", event => recordRuntimeTransfer(event.detail));
+  navigator.serviceWorker?.addEventListener("message", event => {
+    if (event.data?.source !== "pixel-observatory-runtime") return;
+    recordRuntimeTransfer(event.data);
+  });
+
   function update() {
     if (!overlay.isConnected) return;
+    if (runtimeTransfer && (runtimeDirty || runtimeTransfer.phase !== "ready")) {
+      runtimeDirty = false;
+      renderRuntimeTransfer();
+      requestAnimationFrame(update);
+      return;
+    }
     const max = Number(progress.max) || 0;
     const value = Number(progress.value) || 0;
     const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
