@@ -17,6 +17,14 @@ concrete implementation details.
 - The public Web build is updated only after source changes are exported and
   deployed by the workflow.
 
+## 2026-08-03 - Smoother Eight-Direction Observatory Character
+
+- Replaced the lobby player's four-direction, three-step presentation with the
+  project owner's six-frame animations for all eight movement directions.
+- Preserved the supplied pixels and transparency through a lossless runtime
+  atlas, retained nearest-neighbour sampling and kept collision anchored only
+  to the character's feet.
+
 ## 2026-07-29 - Account Registration Reliability
 
 - Fixed production account creation after a completed Turnstile challenge. The

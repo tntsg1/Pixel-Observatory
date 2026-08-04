@@ -635,7 +635,10 @@ func set_observatory_spawn(spawn_id: String) -> void:
 func remember_observatory_pose(position: Vector2, facing: String) -> void:
 	if not is_finite(position.x) or not is_finite(position.y):
 		return
-	var safe_facing := facing if facing in ["up", "down", "left", "right"] else "down"
+	var safe_facing := facing if facing in [
+		"up", "up_right", "right", "down_right",
+		"down", "down_left", "left", "up_left",
+	] else "down"
 	observatory_return_pose = {
 		"valid": true,
 		"position": position,

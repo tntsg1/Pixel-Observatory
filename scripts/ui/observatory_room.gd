@@ -11,18 +11,20 @@ const PLAYER_SIZE := Vector2(16, 8)
 const PLAYER_SPEED := 220.0
 const INTERACT_DISTANCE := 56.0
 const BG_TEXTURE: Texture2D = preload("res://assets/reference/observatory_room_hall_1024.png")
-const PLAYER_TEXTURE: Texture2D = preload("res://assets/characters/player_observer_4dir_clean.png")
+const PLAYER_TEXTURE: Texture2D = preload("res://assets/characters/player_observer_smooth_8dir.png")
 const ASSEMBLY_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_occluders/assembly_table_clean.png")
 const COMPUTER_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_furniture/remote_instrument_desk_official.png")
 const COMPUTER_VISUAL_RECT := Rect2(764, 520, 172, 172.0 * 210.0 / 274.0)
-const PLAYER_FRAME_SIZE := Vector2(96, 128)
-# Uniform scale only — the old 44x62 display size squashed the 96x128 frame.
-const PLAYER_DISPLAY_HEIGHT := 72.0
+const PLAYER_FRAME_SIZE := Vector2(64, 96)
+# The supplied frames keep their original pixels. A single uniform scale makes
+# their visible 77 px character match the previous ~66 px in-room height.
+const PLAYER_DISPLAY_HEIGHT := 82.0
 const PLAYER_DISPLAY_SCALE := PLAYER_DISPLAY_HEIGHT / PLAYER_FRAME_SIZE.y
 const PLAYER_DISPLAY_SIZE := PLAYER_FRAME_SIZE * PLAYER_DISPLAY_SCALE
-# Feet row inside the 128px frame (content ends ~y120, below is padding).
-const PLAYER_FOOT_Y := 120.0
-const PLAYER_ANIM_FPS := 8.0
+# Feet row inside the cropped 96px frame; collision remains foot-anchored.
+const PLAYER_FOOT_Y := 89.0
+const PLAYER_ANIM_FPS := 5.0
+const PLAYER_WALK_LAST_FRAME := 5
 
 const NAVY := Color(0.025, 0.040, 0.075, 0.92)
 const NAVY_SOFT := Color(0.050, 0.075, 0.120, 0.82)
@@ -1000,19 +1002,35 @@ func _player_rect_is_on_walkable_floor(rect: Rect2) -> bool:
 
 
 func _facing_from_direction(direction: Vector2) -> String:
-	if absf(direction.x) > absf(direction.y):
+	var horizontal := absf(direction.x)
+	var vertical := absf(direction.y)
+	# Eight 45-degree sectors give keyboard diagonals their authored frames while
+	# keeping small analogue-stick drift on a cardinal direction.
+	if horizontal < vertical * 0.41421356:
+		return "down" if direction.y > 0.0 else "up"
+	if vertical < horizontal * 0.41421356:
 		return "right" if direction.x > 0.0 else "left"
-	return "down" if direction.y > 0.0 else "up"
+	if direction.y > 0.0:
+		return "down_right" if direction.x > 0.0 else "down_left"
+	return "up_right" if direction.x > 0.0 else "up_left"
 
 
 func _facing_vector(facing: String) -> Vector2:
 	match facing:
 		"up":
 			return Vector2.UP
+		"up_left":
+			return Vector2(-1.0, -1.0).normalized()
+		"up_right":
+			return Vector2(1.0, -1.0).normalized()
 		"left":
 			return Vector2.LEFT
 		"right":
 			return Vector2.RIGHT
+		"down_left":
+			return Vector2(-1.0, 1.0).normalized()
+		"down_right":
+			return Vector2(1.0, 1.0).normalized()
 		_:
 			return Vector2.DOWN
 
@@ -1025,33 +1043,41 @@ func _update_player_animation(delta: float) -> void:
 		player_anim_time = 0.0
 		_set_player_animation_frame(player_facing, player_anim_frame)
 		return
+	if player_anim_frame == 0:
+		player_anim_frame = 1
 	player_anim_time += delta
 	var frame_duration := 1.0 / PLAYER_ANIM_FPS
 	if player_anim_time >= frame_duration:
+		var step_count := int(floor(player_anim_time / frame_duration))
 		player_anim_time = fmod(player_anim_time, frame_duration)
-		player_anim_frame += 1
-		if player_anim_frame > 3:
-			player_anim_frame = 1
-	if player_anim_frame == 0:
-		player_anim_frame = 1
+		player_anim_frame = ((player_anim_frame - 1 + step_count) % PLAYER_WALK_LAST_FRAME) + 1
 	_set_player_animation_frame(player_facing, player_anim_frame)
 
 
 func _set_player_animation_frame(facing: String, frame: int) -> void:
 	if player_atlas == null:
 		return
-	var row := 3
+	var row := 0
 	match facing:
-		"up":
-			row = 3
-		"left":
+		"down_right":
 			row = 1
 		"right":
 			row = 2
+		"up_right":
+			row = 3
+		"up":
+			row = 4
+		"up_left":
+			row = 5
+		"left":
+			row = 6
+		"down_left":
+			row = 7
 		_:
 			row = 0
+	var safe_frame := clampi(frame, 0, PLAYER_WALK_LAST_FRAME)
 	player_atlas.region = Rect2(
-		float(frame) * PLAYER_FRAME_SIZE.x,
+		float(safe_frame) * PLAYER_FRAME_SIZE.x,
 		float(row) * PLAYER_FRAME_SIZE.y,
 		PLAYER_FRAME_SIZE.x,
 		PLAYER_FRAME_SIZE.y
