@@ -19,6 +19,10 @@
       ? { hour: "2-digit", minute: "2-digit" }
       : { month: "short", day: "numeric" }).format(date);
   };
+  const renderBody = value => escapeHtml(value).replace(
+    /(https:\/\/pixelobservatorygame\.com\/observation\/OBS-[A-Z0-9]{8,40})/g,
+    '<a class="po-observation-link" href="$1" target="_blank" rel="noopener">$1</a>',
+  );
 
   function createMessagingController(options = {}) {
     const fetchImpl = options.fetch || window.fetch.bind(window);
@@ -102,7 +106,7 @@
         const mine = message.sender_user_id === data.currentUserId;
         return `<article class="po-message ${mine ? "mine" : ""} ${escapeHtml(message.message_kind)}" style="--message-index:${index}">
           <div class="po-message-meta"><strong>${escapeHtml(message.sender_label)}</strong><time>${escapeHtml(when(message.created_at))}</time></div>
-          <div class="po-message-body">${escapeHtml(message.body)}</div>
+          <div class="po-message-body">${renderBody(message.body)}</div>
         </article>`;
       }).join("");
     }
