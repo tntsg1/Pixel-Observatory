@@ -704,6 +704,8 @@ func _publish_web_context(scene_key: String) -> void:
 		"scene": resolved_scene,
 		"level": int(progress.get("current_level", 1)),
 		"language": language_mode,
+		"assembly_family": assembly_family(),
+		"observation_mode": current_observation_mode(),
 	}
 	JavaScriptBridge.eval("window.dispatchEvent(new CustomEvent('observatory:game-context',{detail:" + JSON.stringify(payload) + "}));", true)
 

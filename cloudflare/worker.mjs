@@ -18,6 +18,25 @@ const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
 const PLAYTIME_LEASE_STALE_SECONDS = 75;
 const PERMANENT_MUTE_UNTIL = 4_102_444_800;
 const ADMIN_PROFILE_THEMES = new Set(["command-gold", "aurora-glass", "deep-space"]);
+const OBSERVATORY_ACTIVITIES = new Set([
+	"menu",
+	"observatory",
+	"parts",
+	"assembling_refractor",
+	"assembling_newtonian",
+	"assembling_dobsonian",
+	"assembling_cassegrain",
+	"assembling_space",
+	"assembling_fast",
+	"collimating",
+	"observing_optical",
+	"observing_fast",
+	"observing_infrared",
+	"mapping_constellations",
+	"choosing_site",
+	"studying",
+	"graduation",
+]);
 const THANK_YOU_MODEL = "@cf/zai-org/glm-4.7-flash";
 const OBSERVER_RANKS = [
 	{ id: "first-light", name: "First Light", minSeconds: 0 },
@@ -1118,6 +1137,7 @@ function socialProfile(row, viewerId = "") {
 		playSeconds: Number(row.play_seconds || 0),
 		rank,
 		online: Number(row.last_active_at || 0) >= Math.floor(Date.now() / 1000) - ONLINE_WINDOW_SECONDS,
+		activityKey: activityForProfile(row),
 		isSelf: row.id === viewerId,
 		friendship: row.friendship_status || null,
 	};
@@ -1132,11 +1152,20 @@ function socialProfile(row, viewerId = "") {
 	return result;
 }
 
+function activityForProfile(row) {
+	const now = Math.floor(Date.now() / 1000);
+	const online = Number(row?.last_active_at || 0) >= now - ONLINE_WINDOW_SECONDS;
+	const fresh = Number(row?.activity_updated_at || 0) >= now - ONLINE_WINDOW_SECONDS;
+	const key = String(row?.activity_key || "observatory");
+	return online && fresh && OBSERVATORY_ACTIVITIES.has(key) ? key : "observatory";
+}
+
 async function selectProfile(env, userId, viewerId = "", viewerRole = "") {
 	await ensureProfile(env, userId);
 	return env.DB.prepare(
 		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
 		   ? = 'admin' AS viewer_is_admin, user_moderation.muted_until,
 		   user_moderation.reason AS moderation_reason,
 		   (SELECT status FROM friendships
@@ -1287,17 +1316,28 @@ async function handlePresence(request, env, countPlaytime = false) {
 			event,
 		});
 	}
+	let body = {};
+	try {
+		body = await readJson(request, 2_000);
+	} catch {
+		return apiError("Invalid observatory presence.", 400, "invalid_presence");
+	}
+	const activityKey = String(body.activityKey || "observatory");
+	if (!OBSERVATORY_ACTIVITIES.has(activityKey)) {
+		return apiError("Unknown observatory activity.", 400, "invalid_activity");
+	}
 	await env.DB.prepare(
-		"UPDATE user_profiles SET last_active_at = ?, updated_at = ? WHERE user_id = ?",
-	).bind(now, now, user.id).run();
-	return json({ ok: true, online: true });
+		"UPDATE user_profiles SET last_active_at = ?, activity_key = ?, activity_updated_at = ?, updated_at = ? WHERE user_id = ?",
+	).bind(now, activityKey, now, now, user.id).run();
+	return json({ ok: true, online: true, activityKey });
 }
 
 async function handleLeaderboard(request, env) {
 	const viewer = await sessionForRequest(env, request);
 	const result = await env.DB.prepare(
 		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
-		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_profiles.activity_key, user_profiles.activity_updated_at
 		 FROM user_profiles JOIN users ON users.id = user_profiles.user_id
 		 ORDER BY user_profiles.play_seconds DESC, users.created_at ASC LIMIT 100`,
 	).all();
@@ -1314,7 +1354,8 @@ async function handleFriendsGet(request, env) {
 	const result = await env.DB.prepare(
 		`SELECT friendships.id AS friendship_id, friendships.status, friendships.requester_id,
 		   users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
-		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_profiles.activity_key, user_profiles.activity_updated_at
 		 FROM friendships
 		 JOIN users ON users.id = CASE WHEN friendships.requester_id = ? THEN friendships.addressee_id ELSE friendships.requester_id END
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
@@ -1345,7 +1386,8 @@ async function handleObserverSearch(request, env, url) {
 		`SELECT friendships.id AS friendship_id, friendships.status AS friendship_status,
 		   friendships.requester_id, users.id, users.username, users.role,
 		   user_profiles.bio, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_profiles.activity_key, user_profiles.activity_updated_at
 		 FROM users
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
 		 LEFT JOIN friendships ON friendships.pair_key =
@@ -1434,7 +1476,8 @@ async function handleFriendSignalsGet(request, env) {
 	if (!user) return apiError("Sign in to receive friend signals.", 401, "unauthorized");
 	const result = await env.DB.prepare(
 		`SELECT friend_signals.id, friend_signals.kind, friend_signals.created_at,
-		   users.username, user_profiles.avatar_id
+		   users.username, user_profiles.avatar_id, user_profiles.last_active_at,
+		   user_profiles.activity_key, user_profiles.activity_updated_at
 		 FROM friend_signals
 		 JOIN users ON users.id = friend_signals.sender_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
@@ -1447,7 +1490,11 @@ async function handleFriendSignalsGet(request, env) {
 			id: row.id,
 			kind: row.kind,
 			createdAt: Number(row.created_at),
-			sender: { username: row.username, avatarId: Number(row.avatar_id || 1) },
+			sender: {
+				username: row.username,
+				avatarId: Number(row.avatar_id || 1),
+				activityKey: activityForProfile(row),
+			},
 		})),
 	});
 }
@@ -1468,7 +1515,7 @@ async function handleFriendSignalCreate(request, env) {
 	}
 	const usernameKey = String(body.username || "").trim().toLowerCase();
 	const kind = String(body.kind || "");
-	if (!["poke", "come_online"].includes(kind)) return apiError("Unknown friend signal.", 400, "invalid_signal");
+	if (!["poke", "come_online", "invite_observe"].includes(kind)) return apiError("Unknown friend signal.", 400, "invalid_signal");
 	const target = await env.DB.prepare("SELECT id, username FROM users WHERE username_key = ?").bind(usernameKey).first();
 	if (!target) return apiError("That observer could not be found.", 404, "not_found");
 	const pairKey = [user.id, target.id].sort().join(":");
