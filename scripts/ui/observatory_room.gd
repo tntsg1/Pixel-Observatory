@@ -23,8 +23,14 @@ const PLAYER_DISPLAY_SCALE := PLAYER_DISPLAY_HEIGHT / PLAYER_FRAME_SIZE.y
 const PLAYER_DISPLAY_SIZE := PLAYER_FRAME_SIZE * PLAYER_DISPLAY_SCALE
 # Feet row inside the cropped 96px frame; collision remains foot-anchored.
 const PLAYER_FOOT_Y := 89.0
-const PLAYER_ANIM_FPS := 5.0
 const PLAYER_WALK_LAST_FRAME := 5
+# One complete five-frame gait contains two footfalls. Advancing it by distance
+# (rather than wall-clock time) keeps the feet planted at every input frame rate,
+# on diagonals, and if the movement speed changes later. At 220 px/s this is a
+# 0.418 s cycle / 11.96 authored frames per second: roughly 46 px per step for
+# the 66 px-tall in-room character, avoiding both skating and frantic shuffling.
+const PLAYER_WALK_CYCLE_DISTANCE := 92.0
+const PLAYER_ANIM_FRAME_DISTANCE := PLAYER_WALK_CYCLE_DISTANCE / PLAYER_WALK_LAST_FRAME
 
 const NAVY := Color(0.025, 0.040, 0.075, 0.92)
 const NAVY_SOFT := Color(0.050, 0.075, 0.120, 0.82)
@@ -205,7 +211,7 @@ var interact_key_was_down := false
 var mission_key_was_down := false
 var player_facing := "down"
 var player_anim_frame := 0
-var player_anim_time := 0.0
+var player_anim_distance := 0.0
 var player_is_moving := false
 var room_transition_active := false
 var room_guidance_suspended := false
@@ -935,24 +941,29 @@ func _move_player(delta: float) -> void:
 		direction = TouchInput.move_vector()
 	if direction == Vector2.ZERO:
 		player_is_moving = false
-		_update_player_animation(delta)
+		_update_player_animation(0.0)
 		return
 
 	direction = direction.normalized()
-	player_is_moving = true
 	player_facing = _facing_from_direction(direction)
-	_update_player_animation(delta)
 
 	var next_pos := player_pos + direction * PLAYER_SPEED * delta
 	next_pos.x = clampf(next_pos.x, ROOM_RECT.position.x + PLAYER_SIZE.x * 0.5, ROOM_RECT.end.x - PLAYER_SIZE.x * 0.5)
 	next_pos.y = clampf(next_pos.y, ROOM_RECT.position.y + PLAYER_SIZE.y, ROOM_RECT.end.y)
 	var next_rect := _player_collision_rect_for(next_pos)
 	if not _player_rect_is_on_walkable_floor(next_rect):
+		player_is_moving = false
+		_update_player_animation(0.0)
 		return
 	for obstacle in obstacles:
 		if next_rect.intersects(obstacle):
+			player_is_moving = false
+			_update_player_animation(0.0)
 			return
+	var travelled_distance := player_pos.distance_to(next_pos)
+	player_is_moving = travelled_distance > 0.0
 	_set_player_position(next_pos)
+	_update_player_animation(travelled_distance)
 
 
 func _set_player_position(pos: Vector2) -> void:
@@ -1035,21 +1046,20 @@ func _facing_vector(facing: String) -> Vector2:
 			return Vector2.DOWN
 
 
-func _update_player_animation(delta: float) -> void:
+func _update_player_animation(travelled_distance: float) -> void:
 	if player_atlas == null:
 		return
 	if not player_is_moving:
 		player_anim_frame = 0
-		player_anim_time = 0.0
+		player_anim_distance = 0.0
 		_set_player_animation_frame(player_facing, player_anim_frame)
 		return
 	if player_anim_frame == 0:
 		player_anim_frame = 1
-	player_anim_time += delta
-	var frame_duration := 1.0 / PLAYER_ANIM_FPS
-	if player_anim_time >= frame_duration:
-		var step_count := int(floor(player_anim_time / frame_duration))
-		player_anim_time = fmod(player_anim_time, frame_duration)
+	player_anim_distance += maxf(travelled_distance, 0.0)
+	if player_anim_distance >= PLAYER_ANIM_FRAME_DISTANCE:
+		var step_count := int(floor(player_anim_distance / PLAYER_ANIM_FRAME_DISTANCE))
+		player_anim_distance = fmod(player_anim_distance, PLAYER_ANIM_FRAME_DISTANCE)
 		player_anim_frame = ((player_anim_frame - 1 + step_count) % PLAYER_WALK_LAST_FRAME) + 1
 	_set_player_animation_frame(player_facing, player_anim_frame)
 
