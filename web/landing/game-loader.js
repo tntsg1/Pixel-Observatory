@@ -613,8 +613,35 @@
     refreshInFlight: false,
     lastFriendsRefresh: 0,
     clockTimer: 0,
+    presenceTimer: 0,
+    currentActivity: "observatory",
     cooldowns: new Map(),
   };
+
+  const activityCopy = {
+    menu: ["At the main menu", "\u5728\u4e3b\u83dc\u5355"],
+    observatory: ["At the observatory", "\u5728\u5929\u6587\u53f0"],
+    parts: ["Reviewing telescope parts", "\u67e5\u770b\u671b\u8fdc\u955c\u96f6\u4ef6"],
+    assembling_refractor: ["Assembling a refractor", "\u6b63\u5728\u7ec4\u88c5\u6298\u5c04\u671b\u8fdc\u955c"],
+    assembling_newtonian: ["Assembling a Newtonian", "\u6b63\u5728\u7ec4\u88c5\u725b\u987f\u671b\u8fdc\u955c"],
+    assembling_dobsonian: ["Assembling a Dobsonian", "\u6b63\u5728\u7ec4\u88c5\u591a\u5e03\u68ee\u671b\u8fdc\u955c"],
+    assembling_cassegrain: ["Assembling a Cassegrain", "\u6b63\u5728\u7ec4\u88c5\u5361\u585e\u683c\u6797\u671b\u8fdc\u955c"],
+    assembling_space: ["Preparing the infrared observatory", "\u6b63\u5728\u90e8\u7f72\u7ea2\u5916\u5929\u6587\u53f0"],
+    assembling_fast: ["Preparing FAST", "\u6b63\u5728\u51c6\u5907 FAST"],
+    collimating: ["Collimating the optics", "\u6b63\u5728\u51c6\u76f4\u5149\u8def"],
+    observing_optical: ["Observing through a telescope", "\u6b63\u5728\u5149\u5b66\u89c2\u6d4b"],
+    observing_fast: ["Observing with FAST", "\u6b63\u5728\u89c2\u6d4b FAST"],
+    observing_infrared: ["Running infrared observations", "\u6b63\u5728\u8fdb\u884c\u7ea2\u5916\u89c2\u6d4b"],
+    mapping_constellations: ["Mapping constellations", "\u6b63\u5728\u7ed8\u5236\u661f\u5ea7"],
+    choosing_site: ["Choosing an observing site", "\u6b63\u5728\u9009\u62e9\u89c2\u6d4b\u5730"],
+    studying: ["Reading the field journal", "\u6b63\u5728\u9605\u8bfb\u89c2\u6d4b\u65e5\u5fd7"],
+    graduation: ["At the graduation ceremony", "\u6b63\u5728\u53c2\u52a0\u6bd5\u4e1a\u5178\u793c"],
+  };
+
+  function activityLabel(key) {
+    const copy = activityCopy[String(key || "observatory")] || activityCopy.observatory;
+    return zh ? copy[1] : copy[0];
+  }
 
   document.body.insertAdjacentHTML("beforeend", `
     <section class="game-social-rail game-session-rail" id="game-session-rail" hidden aria-label="${t("Current observing session", "当前观测班次")}">
@@ -625,6 +652,7 @@
         <button class="game-guest-feature" type="button" data-auth-feature="cloud" data-auth-mode="register"><i aria-hidden="true">\u2601</i><span><strong>${t("Cloud progress", "\u4e91\u7aef\u5b58\u6863")}</strong><small>${t("Continue on another browser", "\u5728\u5176\u4ed6\u6d4f\u89c8\u5668\u7ee7\u7eed\u6e38\u73a9")}</small></span><b aria-hidden="true">\u203a</b></button>
         <button class="game-guest-feature" type="button" data-auth-feature="rank" data-auth-mode="register"><i aria-hidden="true">\u25ce</i><span><strong>${t("Observer rank", "\u89c2\u6d4b\u8005\u6bb5\u4f4d")}</strong><small>${t("Record playtime and achievements", "\u8bb0\u5f55\u65f6\u957f\u4e0e\u6210\u5c31")}</small></span><b aria-hidden="true">\u203a</b></button>
         <div class="game-guest-actions"><button type="button" data-auth-mode="register">${t("Create account", "\u6ce8\u518c\u8d26\u53f7")}</button><button type="button" data-auth-mode="login">${t("Sign in", "\u767b\u5f55")}</button></div>
+        <small class="game-cloud-save-status" aria-live="polite"></small>
       </div>
       <div class="game-glass-panel game-session-panel" id="game-session-member">
         <div class="game-rail-kicker">${t("MY OBSERVING SHIFT", "我的观测班次")}</div>
@@ -634,12 +662,20 @@
         </div>
         <div class="game-session-orbit" aria-hidden="true"><i></i><b></b></div>
         <div class="game-session-time" id="game-session-time">00:00:00</div>
-        <span class="game-session-caption">${t("THIS SESSION", "本次在线")}</span>
+        <span class="game-session-caption">${t("VALID PLAYTIME THIS SESSION", "本次有效游玩时长")}</span>
         <div class="game-session-stats">
           <div><span>${t("Total time", "累计时长")}</span><strong id="game-total-time">0h 00m</strong></div>
           <div><span>${t("Observer rank", "观测段位")}</span><strong id="game-rank-name">First Light</strong></div>
         </div>
+        <div class="game-rank-progress" aria-label="${t("Progress to next observer rank", "\u4e0b\u4e00\u89c2\u6d4b\u6bb5\u4f4d\u8fdb\u5ea6")}">
+          <span><i id="game-rank-progress-fill"></i></span>
+          <small id="game-rank-next"></small>
+        </div>
+        <div class="game-cloud-sync" id="game-cloud-sync" data-status="checking">
+          <i aria-hidden="true"></i><span><strong>${t("Cloud archive", "\u4e91\u7aef\u6863\u6848")}</strong><small id="game-cloud-sync-copy">${t("Checking connection...", "\u6b63\u5728\u68c0\u67e5\u8fde\u63a5\u2026")}</small></span>
+        </div>
         <small class="game-playtime-sync" id="game-playtime-sync" aria-live="polite"></small>
+        <small class="game-cloud-save-status" aria-live="polite"></small>
       </div>
     </section>
     <aside class="game-social-rail game-friends-rail" id="game-friends-rail" hidden aria-label="${t("Friends at the observatory", "天文台好友")}">
@@ -752,12 +788,34 @@
     document.getElementById("game-session-time").textContent = formatClock(state.effectiveSessionSeconds);
   }
 
+  function renderCloudSaveStatus(detail = {}) {
+    const status = String(detail.status || "local_saved");
+    const labels = {
+      local_saved: t("Saved locally just now", "刚刚已保存"),
+      saved: t("Saved just now", "刚刚已保存"),
+      syncing: t("Syncing", "正在同步"),
+      offline: t("Saved offline", "离线保存"),
+      merge_required: t("Local progress is ready to merge", "游客进度等待一键合并"),
+    };
+    document.querySelectorAll(".game-cloud-save-status").forEach(node => {
+      node.dataset.status = status;
+      node.textContent = labels[status] || labels.local_saved;
+    });
+  }
+
   function renderSelf() {
     if (!state.profile) return;
     document.getElementById("game-self-name").textContent = state.profile.username;
     document.getElementById("game-self-avatar").style.cssText = avatarStyle(state.profile.avatarId);
     document.getElementById("game-total-time").textContent = formatTotal(state.totalSeconds);
     document.getElementById("game-rank-name").textContent = state.profile.rank?.name || "First Light";
+    const rank = state.profile.rank || {};
+    const progress = Math.max(0, Math.min(1, Number(rank.progress || 0)));
+    const percent = Math.round(progress * 100);
+    document.getElementById("game-rank-progress-fill").style.width = `${percent}%`;
+    document.getElementById("game-rank-next").textContent = rank.next
+      ? t(`${percent}% to ${rank.next.name}`, `\u8ddd ${rank.next.name} \u8fd8\u6709 ${100 - percent}%`)
+      : t("Highest observer rank reached", "\u5df2\u8fbe\u6700\u9ad8\u89c2\u6d4b\u6bb5\u4f4d");
   }
 
   function petMarkup(friend) {
@@ -782,11 +840,30 @@
     </article>`;
   }
 
+  function activePetMarkup(friend) {
+    const name = escapeHtml(friend.username);
+    const activity = escapeHtml(activityLabel(friend.activityKey));
+    const rank = escapeHtml(friend.rank?.name || t("Observer", "\u89c2\u6d4b\u5458"));
+    return `<article class="game-friend-pet" data-friend="${name}">
+      <div class="game-pet-stage">
+        <span class="game-pet-avatar" style="${avatarStyle(friend.avatarId)}" role="img" aria-label="${name}"></span>
+        <i class="game-pet-shadow" aria-hidden="true"></i>
+        <span class="game-pet-online" aria-label="${t("Online", "\u5728\u7ebf")}"></span>
+      </div>
+      <div class="game-pet-copy"><strong>${name}</strong><span class="game-pet-activity"><i aria-hidden="true"></i>${activity}</span><small>${rank}</small></div>
+      <div class="game-pet-actions">
+        <button class="game-message-button" type="button" data-message="${name}">${t("Message", "\u79c1\u4fe1")}</button>
+        <button class="game-signal-button" type="button" data-signal="poke" data-username="${name}">${t("Poke", "\u6233\u4e00\u4e0b")}</button>
+        <button class="game-invite-button" type="button" data-signal="invite_observe" data-username="${name}">${t("Invite", "\u9080\u8bf7\u89c2\u6d4b")}</button>
+      </div>
+    </article>`;
+  }
+
   function renderFriends() {
     const online = state.friends.filter(friend => friend.online);
     const offline = state.friends.filter(friend => !friend.online);
     onlinePets.innerHTML = online.length
-      ? online.map(petMarkup).join("")
+      ? online.map(activePetMarkup).join("")
       : `<div class="game-no-friends"><i aria-hidden="true"></i><span>${t("The observatory is quiet.", "天文台现在很安静。")}</span></div>`;
     offlineList.innerHTML = offline.length
       ? offline.map(offlineMarkup).join("")
@@ -825,10 +902,29 @@
     }, 5200);
   }
 
+  function showSignalToast(signal) {
+    const username = String(signal.sender?.username || t("A friend", "\u4e00\u4f4d\u597d\u53cb"));
+    const safeName = escapeHtml(username);
+    const isInvite = signal.kind === "invite_observe";
+    const message = signal.kind === "come_online"
+      ? t(`${safeName} is waiting for you at the observatory.`, `${safeName} \u6b63\u5728\u5929\u6587\u53f0\u7b49\u4f60\u4e0a\u7ebf\u3002`)
+      : isInvite
+        ? t(`${safeName} invited you to observe together.`, `${safeName} \u9080\u8bf7\u4f60\u4e00\u8d77\u89c2\u6d4b\u3002`)
+        : t(`${safeName} tapped on your observatory window.`, `${safeName} \u6233\u4e86\u6233\u4f60\u7684\u5929\u6587\u53f0\u8237\u7a97\u3002`);
+    toast.innerHTML = `<span class="game-toast-avatar" style="${avatarStyle(signal.sender?.avatarId)}"></span><p>${message}</p>${isInvite ? `<button type="button" data-toast-reply="${safeName}">${t("Reply", "\u56de\u590d")}</button>` : ""}`;
+    toast.hidden = false;
+    requestAnimationFrame(() => toast.classList.add("is-visible"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.classList.remove("is-visible");
+      setTimeout(() => { toast.hidden = true; }, 350);
+    }, 6200);
+  }
+
   async function receiveSignals() {
     const data = await api("/api/social/signals");
     for (const signal of data.signals || []) {
-      showToast(signal);
+      showSignalToast(signal);
       await api(`/api/social/signals/${encodeURIComponent(signal.id)}`, {
         method: "PATCH",
         body: "{}",
@@ -882,11 +978,75 @@
     }, 2600);
   }
 
+  async function sendFriendSignal(button) {
+    const username = String(button.dataset.username || "");
+    const kind = String(button.dataset.signal || "");
+    const key = `${kind}:${username}`;
+    if (Number(state.cooldowns.get(key) || 0) > Date.now()) return;
+    button.disabled = true;
+    const original = button.textContent;
+    try {
+      await api("/api/social/signals", {
+        method: "POST",
+        body: JSON.stringify({ username, kind }),
+      });
+      state.cooldowns.set(key, Date.now() + 120_000);
+      button.closest(".game-friend-pet")?.classList.add("is-poked");
+      setTimeout(() => button.closest(".game-friend-pet")?.classList.remove("is-poked"), 700);
+      button.textContent = kind === "poke"
+        ? t("Sent", "\u5df2\u6233\u5230")
+        : kind === "invite_observe" ? t("Invited", "\u5df2\u9080\u8bf7") : t("Called", "\u5df2\u50ac\u4e0a\u7ebf");
+      signalStatus.textContent = kind === "poke"
+        ? t(`A tiny signal is on its way to ${username}.`, `\u4e00\u675f\u5c0f\u4fe1\u53f7\u5df2\u7ecf\u98de\u5411 ${username}\u3002`)
+        : kind === "invite_observe"
+          ? t(`${username} can now join your observing shift.`, `${username} \u5df2\u6536\u5230\u4f60\u7684\u5171\u540c\u89c2\u6d4b\u9080\u8bf7\u3002`)
+          : t(`${username} will see your nudge next time they arrive.`, `${username} \u4e0a\u7ebf\u65f6\u4f1a\u770b\u5230\u4f60\u7684\u63d0\u9192\u3002`);
+    } catch (error) {
+      signalStatus.textContent = error.message;
+      button.textContent = original;
+      button.disabled = false;
+      return;
+    }
+    setTimeout(() => {
+      button.textContent = original;
+      button.disabled = false;
+      signalStatus.textContent = "";
+    }, 2600);
+  }
+
+  async function updatePresence() {
+    if (!state.user) return;
+    await api("/api/social/presence", {
+      method: "POST",
+      body: JSON.stringify({ activityKey: state.currentActivity }),
+    });
+  }
+
+  function setCloudStatus(status, detail = "") {
+    const panel = document.getElementById("game-cloud-sync");
+    const copy = document.getElementById("game-cloud-sync-copy");
+    if (!panel || !copy) return;
+    const aliases = { saved: "synced", local_saved: "queued", merge_required: "queued" };
+    const candidate = aliases[status] || status;
+    const normalized = ["synced", "syncing", "queued", "offline", "error"].includes(candidate) ? candidate : "checking";
+    panel.dataset.status = normalized;
+    const defaults = {
+      synced: t("Cloud archive up to date", "\u4e91\u7aef\u6863\u6848\u5df2\u662f\u6700\u65b0"),
+      syncing: t("Synchronising progress...", "\u6b63\u5728\u540c\u6b65\u8fdb\u5ea6\u2026"),
+      queued: t("Saved locally, waiting for network", "\u5df2\u4fdd\u5b58\u5728\u672c\u5730\uff0c\u7b49\u5f85\u7f51\u7edc"),
+      offline: t("Offline - progress remains local", "\u5f53\u524d\u79bb\u7ebf\uff0c\u8fdb\u5ea6\u4fdd\u7559\u5728\u672c\u5730"),
+      error: t("Cloud sync needs attention", "\u4e91\u7aef\u540c\u6b65\u9700\u8981\u68c0\u67e5"),
+      checking: t("Checking connection...", "\u6b63\u5728\u68c0\u67e5\u8fde\u63a5\u2026"),
+    };
+    copy.textContent = String(detail || defaults[normalized]);
+  }
+
   async function init() {
     try {
       const session = await api("/api/auth/session");
       clearInterval(state.refreshTimer);
       clearInterval(state.clockTimer);
+      clearInterval(state.presenceTimer);
       if (!session.user) {
         state.user = null;
         state.profile = null;
@@ -903,6 +1063,7 @@
       state.totalSeconds = Number(state.profile.playSeconds || 0);
       renderSelf();
       showSocialSurface(true);
+      await updatePresence().catch(() => {});
       tickClock();
       state.clockTimer = setInterval(tickClock, 1000);
       // Presence is an active-game signal, not something that waits for a
@@ -911,6 +1072,9 @@
       state.refreshTimer = setInterval(() => {
         if (!document.hidden) refreshFriends().catch(() => {});
       }, 8_000);
+      state.presenceTimer = setInterval(() => {
+        if (!document.hidden) updatePresence().catch(() => {});
+      }, 45_000);
     } catch (_) {
       // The game stays fully playable when the optional social layer is unavailable.
     }
@@ -932,7 +1096,7 @@
       return;
     }
     const button = event.target.closest("[data-signal]");
-    if (button) sendSignal(button);
+    if (button) sendFriendSignal(button);
     const messageButton = event.target.closest("[data-message]");
     if (messageButton) {
       document.dispatchEvent(new CustomEvent("po:open-inbox", {
@@ -942,6 +1106,14 @@
         },
       }));
     }
+  });
+  toast.addEventListener("click", event => {
+    const reply = event.target.closest("[data-toast-reply]");
+    if (!reply) return;
+    document.dispatchEvent(new CustomEvent("po:open-inbox", {
+      detail: { username: String(reply.dataset.toastReply || ""), direct: true },
+    }));
+    toast.classList.remove("is-visible");
   });
   compactToggle?.addEventListener("click", () => {
     if (document.documentElement.classList.contains("game-social-compact-open")) closeCompactView();
@@ -975,6 +1147,29 @@
     state.effectiveSessionSeconds = Math.max(0, Number(event.detail?.sessionSeconds || 0));
     tickClock();
   });
+  addEventListener("observatory:cloud-sync", event => {
+    setCloudStatus(String(event.detail?.status || "checking"), String(event.detail?.detail || ""));
+  });
+  addEventListener("observatory:game-context", event => {
+    const context = event.detail || {};
+    const scene = String(context.scene || "").toLowerCase();
+    const family = String(context.assembly_family || "").toLowerCase();
+    const mode = String(context.observation_mode || "").toLowerCase();
+    let activity = "observatory";
+    if (scene.includes("main_menu")) activity = "menu";
+    else if (scene.includes("parts")) activity = "parts";
+    else if (scene.includes("assembly")) activity = `assembling_${family || "refractor"}`;
+    else if (scene.includes("collimation")) activity = "collimating";
+    else if (scene.includes("fast") || mode.includes("fast") || mode.includes("radio")) activity = "observing_fast";
+    else if (scene.includes("space") || mode.includes("infrared")) activity = "observing_infrared";
+    else if (scene.includes("constellation")) activity = "mapping_constellations";
+    else if (scene.includes("location") || scene.includes("site")) activity = "choosing_site";
+    else if (scene.includes("journal") || scene.includes("learning")) activity = "studying";
+    else if (scene.includes("graduation")) activity = "graduation";
+    else if (scene.includes("observation") || scene.includes("sky")) activity = "observing_optical";
+    state.currentActivity = activityCopy[activity] ? activity : "observatory";
+    updatePresence().then(refreshFriends).catch(() => {});
+  });
   addEventListener("observatory:playtime-sync", event => {
     const status = String(event.detail?.status || "");
     const node = document.getElementById("game-playtime-sync");
@@ -986,18 +1181,24 @@
         ? t("Counted in another active tab", "正在另一活动标签页中计时")
         : "";
   });
+  addEventListener("observatory:cloud-save-status", event => renderCloudSaveStatus(event.detail || {}));
   addEventListener("visibilitychange", () => {
     if (!document.hidden && state.user) {
       refreshFriends().catch(() => {});
+      updatePresence().catch(() => {});
       dispatchEvent(new Event("observatory:request-heartbeat"));
     }
   });
   addEventListener("focus", () => {
-    if (state.user) refreshFriends().catch(() => {});
+    if (state.user) {
+      updatePresence().catch(() => {});
+      refreshFriends().catch(() => {});
+    }
   });
   document.addEventListener("po:session-changed", () => {
     closeCompactView();
     init();
   });
+  renderCloudSaveStatus(window.__pixelObservatoryCloudSave || { status: "local_saved" });
   init();
 })();

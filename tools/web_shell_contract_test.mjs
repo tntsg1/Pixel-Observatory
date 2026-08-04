@@ -26,6 +26,12 @@ assert.doesNotMatch(patcher, /class="loader-aperture"|class="loader-brand-mark"/
 assert.match(patcher, /messaging\.js/, "The game shell loads the existing messaging controller.");
 assert.match(gameLoader, /game-compact-controls/, "Narrow viewports must retain an on-demand social and feedback entry point.");
 assert.match(gameLoader, /po:open-inbox/, "The game rail must reuse the existing private-message drawer.");
+assert.match(gameLoader, /invite_observe/, "Online friends can invite one another to observe without leaving the game.");
+assert.match(gameLoader, /\/api\/social\/presence/, "The game rail publishes the player's current observatory activity.");
+assert.match(gameLoader, /observatory:game-context/, "The game rail translates live Godot scene context into friend activity.");
+assert.match(gameLoader, /game-rank-progress-fill/, "The current shift shows progress toward the next observer rank.");
+assert.match(gameLoader, /observatory:cloud-sync/, "The current shift listens for authoritative cloud archive status.");
+assert.match(gameLoader, /VALID PLAYTIME THIS SESSION/, "The clock explicitly identifies effective playtime rather than wall-clock time.");
 assert.match(gameLoader, /game-session-guest/, "Signed-out players see the cloud-progress account invitation.");
 assert.match(gameLoader, /game-friends-guest/, "Signed-out players see the friends and community invitation.");
 assert.match(gameLoader, /po:open-account/, "Guest feature controls open the shared sign-in or registration dialog.");

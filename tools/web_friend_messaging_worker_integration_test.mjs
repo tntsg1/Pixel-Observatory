@@ -68,6 +68,23 @@ const accountB = await register("msgib", 12);
 const outsider = await register("msgic", 13);
 const friendshipId = await becomeFriends(accountA, accountB);
 
+const { data: presenceA } = await api("/api/social/presence", {
+	method: "POST",
+	body: JSON.stringify({ activityKey: "observing_fast" }),
+}, accountA.cookie);
+assert.equal(presenceA.activityKey, "observing_fast");
+const { data: friendsB } = await api("/api/social/friends", {}, accountB.cookie);
+const visibleAccountA = friendsB.friends.find(friend => friend.username === accountA.username);
+assert.ok(visibleAccountA, "The accepted friend must appear in the observing rail.");
+assert.equal(visibleAccountA.online, true);
+assert.equal(visibleAccountA.activityKey, "observing_fast", "A friend's current observing activity must cross the API boundary.");
+
+const invalidPresence = await api("/api/social/presence", {
+	method: "POST",
+	body: JSON.stringify({ activityKey: "invented_activity" }),
+}, accountA.cookie, 400);
+assert.equal(invalidPresence.data.error, "invalid_activity");
+
 const { data: poke } = await api("/api/social/signals", {
 	method: "POST",
 	body: JSON.stringify({ username: accountB.username, kind: "poke" }),
@@ -83,6 +100,16 @@ const { data: nudge } = await api("/api/social/signals", {
 assert.equal(nudge.kind, "come_online");
 const { data: signalsA } = await api("/api/social/signals", {}, accountA.cookie);
 assert.equal(signalsA.signals.some(signal => signal.kind === "come_online" && signal.sender?.username === accountB.username), true);
+
+const { data: invite } = await api("/api/social/signals", {
+	method: "POST",
+	body: JSON.stringify({ username: accountB.username, kind: "invite_observe" }),
+}, accountA.cookie, 201);
+assert.equal(invite.kind, "invite_observe");
+const { data: invitedSignalsB } = await api("/api/social/signals", {}, accountB.cookie);
+const observingInvite = invitedSignalsB.signals.find(signal => signal.kind === "invite_observe" && signal.sender?.username === accountA.username);
+assert.ok(observingInvite, "An observing invitation must reach the friend without leaving the game.");
+assert.equal(observingInvite.sender.activityKey, "observing_fast");
 
 const deniedOutsider = await api("/api/messages/conversations", {
 	method: "POST",
@@ -147,6 +174,8 @@ console.log(JSON.stringify({
 	existingConversationVisibleToRecipient: true,
 	pokeDelivered: true,
 	nudgeDelivered: true,
+	observingActivityVisible: visibleAccountA.activityKey,
+	observingInviteDelivered: true,
 	outsiderDenied: deniedOutsider.data.error,
 	sendAfterUnfriendDenied: deniedAfterRemoval.data.error,
 	historyRetained: true,

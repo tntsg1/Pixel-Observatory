@@ -37,14 +37,16 @@ async page => {
     }
     if (path === "/api/social/friends") {
       return fulfill(route, { ok: true, friends: [
-        { username: "FriendOne", online: true, avatarId: 1, rank: { name: "Signal Keeper" } },
-        { username: "NewFriend", online: true, avatarId: 2, rank: { name: "First Light" } },
+        { username: "FriendOne", online: true, avatarId: 1, activityKey: "observing_fast", rank: { name: "Signal Keeper" } },
+        { username: "NewFriend", online: true, avatarId: 2, activityKey: "assembling_dobsonian", rank: { name: "First Light" } },
       ], incoming: [], outgoing: [] });
     }
     if (path === "/api/social/profile") {
-      return fulfill(route, { ok: true, profile: { username: "ObserverA", avatarId: 1, playSeconds: 60, rank: { name: "First Light" } } });
+      return fulfill(route, { ok: true, profile: { username: "ObserverA", avatarId: 1, playSeconds: 3660, rank: { name: "Observer Apprentice", progress: .4, next: { name: "Stellar Recorder" } } } });
     }
-    if (path === "/api/social/signals") return fulfill(route, { ok: true, signals: [] });
+    if (path === "/api/social/signals" && method === "GET") return fulfill(route, { ok: true, signals: [] });
+    if (path === "/api/social/signals" && method === "POST") return fulfill(route, { ok: true, kind: JSON.parse(request.postData() || "{}").kind }, 201);
+    if (path === "/api/social/presence") return fulfill(route, { ok: true, online: true, activityKey: JSON.parse(request.postData() || "{}").activityKey || "observatory" });
     if (path === "/api/messages/conversations" && method === "GET") {
       return fulfill(route, { ok: true, conversations: createdDirect ? [existing, created] : [existing] });
     }
@@ -84,6 +86,24 @@ async page => {
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.waitForSelector('#game-friends-rail:not([hidden]) [data-message="FriendOne"]');
   await page.evaluate(() => { document.getElementById("status").style.display = "none"; });
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent("observatory:playtime-local", { detail: { sessionSeconds: 540 } }));
+    window.dispatchEvent(new CustomEvent("observatory:cloud-sync", { detail: { status: "synced", detail: "Cloud archive up to date" } }));
+  });
+  const railState = await page.evaluate(() => ({
+    activity: document.querySelector('[data-friend="FriendOne"] .game-pet-activity')?.textContent?.trim(),
+    validTime: document.querySelector("#game-session-time")?.textContent?.trim(),
+    cloud: document.querySelector("#game-cloud-sync-copy")?.textContent?.trim(),
+    cloudStatus: document.querySelector("#game-cloud-sync")?.dataset.status,
+    rankProgress: document.querySelector("#game-rank-progress-fill")?.style.width,
+    inviteVisible: Boolean(document.querySelector('[data-friend="FriendOne"] [data-signal="invite_observe"]')),
+  }));
+  if (railState.activity !== "Observing with FAST" || railState.validTime !== "00:09:00" || railState.cloudStatus !== "synced" || railState.rankProgress !== "40%" || !railState.inviteVisible) {
+    throw new Error(`Game social rail is incomplete: ${JSON.stringify(railState)}`);
+  }
+  await page.locator('[data-friend="FriendOne"] [data-signal="poke"]').click();
+  await page.locator('[data-friend="FriendOne"] [data-signal="invite_observe"]').click();
+  await page.screenshot({ path: "output/playwright/game_social_activity_desktop.png", fullPage: true });
 
   await page.locator('#game-friends-rail [data-message="FriendOne"]').click();
   await page.waitForSelector('#po-inbox-modal:not([hidden]) .po-reply textarea');
@@ -124,5 +144,9 @@ async page => {
 
   const createCall = calls.find(call => call.path === "/api/messages/conversations" && call.method === "POST");
   if (!createCall) throw new Error("First direct message did not create the conversation.");
-  return JSON.stringify({ existingState, emptyState, createdDirect, createBody: JSON.parse(createCall.body) });
+  const signals = calls.filter(call => call.path === "/api/social/signals" && call.method === "POST").map(call => JSON.parse(call.body));
+  if (!signals.some(item => item.kind === "poke") || !signals.some(item => item.kind === "invite_observe")) {
+    throw new Error(`Friend actions did not reach the API: ${JSON.stringify(signals)}`);
+  }
+  return JSON.stringify({ railState, signals, existingState, emptyState, createdDirect, createBody: JSON.parse(createCall.body) });
 }
