@@ -17,6 +17,8 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+WebResourcePackLoader="*res://scripts/systems/web_resource_pack_loader.gd"
+
 SaveManager="*res://scripts/systems/save_manager.gd"
 MissionManager="*res://scripts/systems/mission_manager.gd"
 TeachingFlowManager="*res://scripts/systems/teaching_flow_manager.gd"

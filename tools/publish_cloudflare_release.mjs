@@ -31,5 +31,19 @@ for (const [name, type] of [["index.pck", "application/octet-stream"], ["index.w
 	]);
 }
 
+const packRoot = resolve(webDir, "game", "resource-packs");
+const packManifest = JSON.parse(await readFile(resolve(packRoot, "manifest.json"), "utf8"));
+for (const pack of packManifest.packs || []) {
+	const source = resolve(packRoot, pack.id, `${pack.version}.pck`);
+	run("npx", [
+		"wrangler", "r2", "object", "put",
+		`pixel-observatory-game-assets/resource-packs/${pack.id}/${pack.version}.pck`,
+		"--file", source,
+		"--content-type", "application/octet-stream",
+		"--cache-control", "public, max-age=31536000, immutable",
+		"--remote",
+	]);
+}
+
 run("npx", ["wrangler", "deploy", "--assets", publicDir]);
-console.log(`Published immutable browser runtime ${build}.`);
+console.log(`Published immutable browser runtime ${build} with ${packManifest.packs?.length || 0} independent resource packs.`);

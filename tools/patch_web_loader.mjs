@@ -57,7 +57,7 @@ const STATUS_MARKUP = `
 			<div id="status-notice"></div>
 		</div>`;
 
-const SHELL_VERSION = "20260804-runtime-resume-v3";
+const SHELL_VERSION = "20260804-incremental-packs-v1";
 const ASSETS = {
 	loaderCss: `../game-loader.css?v=${SHELL_VERSION}`,
 	loaderJs: `../game-loader.js?v=${SHELL_VERSION}`,
@@ -110,6 +110,18 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	const before = html;
 	const safeBuildSha = String(buildSha).replace(/[^a-zA-Z0-9._-]/g, "") || "local";
 	const runtimeBase = `runtime/${safeBuildSha}/index`;
+	const manifestPath = new URL("./resource-packs/manifest.json", pathToFileURL(indexPath));
+	const resourcePackManifest = JSON.parse(await readFile(manifestPath, "utf8"));
+	if (resourcePackManifest.schema !== 1 || !Array.isArray(resourcePackManifest.packs) || !resourcePackManifest.packs.length) {
+		throw new Error(`Invalid incremental resource-pack manifest beside ${indexPath}`);
+	}
+	const browserPacks = resourcePackManifest.packs.map(pack => ({
+		id: String(pack.id),
+		version: String(pack.version),
+		size: Number(pack.size),
+		url: String(pack.url),
+		mountPath: String(pack.mountPath),
+	}));
 	html = html.replace(/<html([^>]*)>/i, (_match, attributes) => {
 		const cleanAttributes = attributes
 			.replace(/\sdata-pixel-observatory-game-shell="[^"]*"/gi, "")
@@ -148,9 +160,19 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 		};
 		return `const GODOT_CONFIG = ${JSON.stringify(config)};`;
 	});
+	html = html.replace(
+		/const engine = new Engine\(GODOT_CONFIG\);/,
+		`window.PIXEL_OBSERVATORY_RESOURCE_PACKS = ${JSON.stringify(browserPacks)};\n`
+		+ "const PIXEL_OBSERVATORY_RESOURCE_PACKS = window.PIXEL_OBSERVATORY_RESOURCE_PACKS;\n"
+		+ "const engine = new Engine(GODOT_CONFIG);\n"
+		+ "const startIncrementalGame = engine.startGame.bind(engine);\n"
+		+ "engine.startGame = override => Promise.all(PIXEL_OBSERVATORY_RESOURCE_PACKS.map(pack => "
+		+ "engine.preloadFile(pack.url, pack.mountPath))).then(() => startIncrementalGame(override));",
+	);
 
 	if (!html.includes("class=\"observatory-loader\"")
 		|| !html.includes(`\"executable\":\"${runtimeBase}\"`)
+		|| !html.includes("PIXEL_OBSERVATORY_RESOURCE_PACKS")
 		|| html.includes("id=\"status-splash\"")) {
 		throw new Error(`Could not replace Godot loading surface in ${indexPath}`);
 	}

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile, readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -8,6 +8,10 @@ const outputDir = resolve(outputPath);
 const gameDir = join(outputDir, "game");
 const gameIndex = join(gameDir, "index.html");
 const html = await readFile(gameIndex, "utf8");
+const packRoot = join(gameDir, "resource-packs");
+const packManifest = JSON.parse(await readFile(join(packRoot, "manifest.json"), "utf8"));
+assert.equal(packManifest.schema, 1, "Incremental resource-pack manifest schema must be supported.");
+assert.deepEqual(packManifest.packs.map(pack => pack.id).sort(), ["astronomy-media", "audio", "star-catalog"]);
 
 for (const marker of [
 	'data-pixel-observatory-game-shell="v2"',
@@ -21,7 +25,12 @@ for (const marker of [
 	'../account.js?v=',
 	'../messaging.js?v=',
 	'../inbox.js?v=',
+	"PIXEL_OBSERVATORY_RESOURCE_PACKS",
 ]) assert.ok(html.includes(marker), `Missing required custom game-shell marker: ${marker}`);
+for (const pack of packManifest.packs) {
+	assert.ok(html.includes(pack.version), `Game shell does not preload ${pack.id} version ${pack.version}.`);
+	assert.ok(html.includes(pack.mountPath), `Game shell does not expose ${pack.id} at ${pack.mountPath}.`);
+}
 for (const defaultMarker of ["background-color: #242424", 'id="status-splash"', 'class="loader-aperture"', 'class="loader-brand-mark"']) {
 	assert.ok(!html.includes(defaultMarker), `Default Godot splash marker leaked into game shell: ${defaultMarker}`);
 }
@@ -35,6 +44,10 @@ if (requireRuntime) {
 		"index.audio.position.worklet.js",
 		"index.audio.worklet.js",
 	]) await access(join(gameDir, "runtime", build, file));
+	for (const pack of packManifest.packs) {
+		const packed = join(packRoot, pack.id, `${pack.version}.pck`);
+		assert.equal((await stat(packed)).size, pack.size, `${pack.id} manifest size must match its PCK.`);
+	}
 }
 if (!requireRuntime) {
 	const findPackedFiles = async (dir, prefix = "") => {

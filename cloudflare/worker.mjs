@@ -264,10 +264,17 @@ export function resolveLargeGameAsset(pathname) {
 	if (Object.hasOwn(currentFiles, pathname)) return currentFiles[pathname];
 
 	const match = /^\/game\/runtime\/([a-zA-Z0-9._-]+)\/(index\.(?:pck|wasm)|index\.side\.wasm)$/.exec(pathname);
-	if (!match) return null;
+	if (match) {
+		return {
+			key: `runtime/${match[1]}/${match[2]}`,
+			contentType: match[2].endsWith(".pck") ? "application/octet-stream" : "application/wasm",
+		};
+	}
+	const pack = /^\/game\/resource-packs\/([a-z0-9-]+)\/([a-f0-9]{20})\.pck$/.exec(pathname);
+	if (!pack) return null;
 	return {
-		key: `runtime/${match[1]}/${match[2]}`,
-		contentType: match[2].endsWith(".pck") ? "application/octet-stream" : "application/wasm",
+		key: `resource-packs/${pack[1]}/${pack[2]}.pck`,
+		contentType: "application/octet-stream",
 	};
 }
 
