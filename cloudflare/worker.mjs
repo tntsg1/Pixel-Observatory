@@ -13,6 +13,9 @@ const MAX_FEEDBACK_BYTES = 8_000;
 const MAX_MESSAGE_BYTES = 8_000;
 const MAX_MESSAGE_LENGTH = 4_000;
 const MAX_COMMUNITY_BODY = 3_000;
+const MAX_OBSERVATION_SHARE_BYTES = 24_000;
+const OBSERVATION_SHARE_ID_PATTERN = /^OBS-[A-Z0-9]{8,40}$/;
+const PUBLIC_SITE_ORIGIN = "https://pixelobservatorygame.com";
 const ONLINE_WINDOW_SECONDS = 120;
 const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
 const PLAYTIME_LEASE_STALE_SECONDS = 75;
@@ -781,6 +784,118 @@ async function handleAdminModerationUpdate(request, env, targetUserId) {
 
 function normalizeMessageBody(value) {
 	return String(value || "").replace(/\r\n/g, "\n").trim();
+}
+
+function shareText(value, maximum = 160) {
+	return String(value || "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, maximum);
+}
+
+export function normalizeObservationSharePayload(value = {}) {
+	const object = value?.object && typeof value.object === "object" ? value.object : {};
+	const equipment = value?.equipment && typeof value.equipment === "object" ? value.equipment : {};
+	const quality = value?.quality && typeof value.quality === "object" ? value.quality : {};
+	const metrics = quality?.metrics && typeof quality.metrics === "object" ? quality.metrics : {};
+	const parameters = Array.isArray(value?.parameters) ? value.parameters.slice(0, 10) : [];
+	const normalized = {
+		schemaVersion: 1,
+		locale: value?.locale === "zh" ? "zh" : "en",
+		object: {
+			id: shareText(object.id, 80),
+			name: shareText(object.name, 120),
+			type: shareText(object.type, 120),
+		},
+		telescopeFamily: shareText(value?.telescopeFamily, 64),
+		telescopeName: shareText(value?.telescopeName, 120),
+		equipment: {
+			primary: shareText(equipment.primary, 180),
+			secondary: shareText(equipment.secondary, 180),
+			detail: shareText(equipment.detail, 240),
+		},
+		parameters: parameters.map(parameter => ({
+			label: shareText(parameter?.label, 80),
+			value: shareText(parameter?.value, 120),
+		})).filter(parameter => parameter.label && parameter.value),
+		quality: {
+			grade: shareText(quality.grade, 32),
+			clarity: Math.max(0, Math.min(100, Number(metrics.clarity) || 0)),
+			contrast: Math.max(0, Math.min(100, Number(metrics.contrast) || 0)),
+			detail: Math.max(0, Math.min(100, Number(metrics.detail) || 0)),
+		},
+		discovery: shareText(value?.discovery, 420),
+		missionLevel: Math.max(0, Math.min(999, Math.floor(Number(value?.missionLevel) || 0))),
+	};
+	if (!normalized.object.id || !normalized.object.name || !normalized.object.type
+		|| !normalized.telescopeFamily || !normalized.telescopeName
+		|| !normalized.quality.grade || !normalized.discovery) return null;
+	return normalized;
+}
+
+async function handleObservationShareCreate(request, env) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to publish an observation result.", 401, "unauthorized");
+	if (!(await rateLimit(env, request, `observation-share-${user.id}`, 30, 3600))) {
+		return apiError("Too many observation links were created. Please pause for a moment.", 429, "rate_limited");
+	}
+	let body;
+	try {
+		body = await readJson(request, MAX_OBSERVATION_SHARE_BYTES);
+	} catch {
+		return apiError("That observation result is too large or invalid.", 413, "invalid_observation");
+	}
+	const payload = normalizeObservationSharePayload(body);
+	if (!payload) return apiError("The observation result is incomplete.", 400, "invalid_observation");
+	const id = `OBS-${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
+	const now = Date.now();
+	await env.DB.prepare(
+		`INSERT INTO observation_shares
+		 (id, owner_user_id, owner_username, object_id, object_name, telescope_family, quality, payload_json, created_at, expires_at, revoked_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0)`,
+	).bind(
+		id, user.id, user.username, payload.object.id, payload.object.name,
+		payload.telescopeFamily, payload.quality.grade, JSON.stringify(payload), now,
+	).run();
+	return json({ ok: true, id, url: `${PUBLIC_SITE_ORIGIN}/observation/${id}` }, 201);
+}
+
+async function handleObservationShareGet(request, env, shareId) {
+	if (!OBSERVATION_SHARE_ID_PATTERN.test(shareId)) return apiError("Observation result not found.", 404, "not_found");
+	const now = Date.now();
+	const row = await env.DB.prepare(
+		`SELECT id, owner_username, payload_json, created_at
+		 FROM observation_shares
+		 WHERE id = ? AND revoked_at = 0 AND (expires_at = 0 OR expires_at > ?)`,
+	).bind(shareId, now).first();
+	if (!row) return apiError("Observation result not found.", 404, "not_found");
+	let payload;
+	try { payload = JSON.parse(row.payload_json); } catch { return apiError("Observation result is unavailable.", 500, "invalid_record"); }
+	return json({ ok: true, id: row.id, observer: row.owner_username, createdAt: row.created_at, observation: payload }, 200, {
+		"Cache-Control": "public, max-age=60, stale-while-revalidate=300",
+	});
+}
+
+async function handleObservationShareSend(request, env, shareId) {
+	const user = await sessionForRequest(env, request);
+	if (!user) return apiError("Sign in to send an observation result.", 401, "unauthorized");
+	const share = await env.DB.prepare(
+		"SELECT id, object_name, quality FROM observation_shares WHERE id = ? AND owner_user_id = ? AND revoked_at = 0",
+	).bind(shareId, user.id).first();
+	if (!share) return apiError("Observation result not found.", 404, "not_found");
+	let body;
+	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid recipient."); }
+	const username = shareText(body.username, 24);
+	if (!USERNAME_PATTERN.test(username)) return apiError("Choose a friend to receive this result.", 400, "invalid_recipient");
+	const language = body.language === "zh" ? "zh" : "en";
+	const message = language === "zh"
+		? `我刚完成了 ${share.object_name} 的观测（${share.quality}）：${PUBLIC_SITE_ORIGIN}/observation/${share.id}`
+		: `I just completed an observation of ${share.object_name} (${share.quality}): ${PUBLIC_SITE_ORIGIN}/observation/${share.id}`;
+	const headers = new Headers(request.headers);
+	headers.delete("content-length");
+	const directRequest = new Request(request.url, {
+		method: "POST",
+		headers,
+		body: JSON.stringify({ username, body: message }),
+	});
+	return handleDirectConversationPost(directRequest, env);
 }
 
 function fallbackThankYouLetter(username, feedback, language) {
@@ -1704,6 +1819,15 @@ async function handleApi(request, env, url) {
 	}
 	if (url.pathname === "/api/cloud-save" && request.method === "GET") return handleSaveGet(request, env);
 	if (url.pathname === "/api/cloud-save" && request.method === "PUT") return handleSavePut(request, env);
+	if (url.pathname === "/api/observation-shares" && request.method === "POST") return handleObservationShareCreate(request, env);
+	const observationShareSendMatch = url.pathname.match(/^\/api\/observation-shares\/([^/]+)\/send$/);
+	if (observationShareSendMatch && request.method === "POST") {
+		return handleObservationShareSend(request, env, decodeURIComponent(observationShareSendMatch[1]));
+	}
+	const observationShareMatch = url.pathname.match(/^\/api\/observation-shares\/([^/]+)$/);
+	if (observationShareMatch && request.method === "GET") {
+		return handleObservationShareGet(request, env, decodeURIComponent(observationShareMatch[1]));
+	}
 	if (url.pathname === "/api/feedback" && request.method === "POST") return handleFeedbackPost(request, env);
 	if (url.pathname === "/api/social/profile" && request.method === "GET") return handleSocialProfileGet(request, env, url);
 	if (url.pathname === "/api/social/profile" && request.method === "PATCH") return handleSocialProfilePatch(request, env);
@@ -1810,7 +1934,11 @@ export default {
 			}
 			return response;
 		}
-		const response = await env.ASSETS.fetch(request);
+		const observationPageMatch = url.pathname.match(/^\/observation\/OBS-[A-Z0-9]{8,40}\/?$/);
+		const assetRequest = observationPageMatch
+			? new Request(new URL("/observation", url), request)
+			: request;
+		const response = await env.ASSETS.fetch(assetRequest);
 		if (url.pathname === "/game" || url.pathname === "/game/" || url.pathname === "/game/index.html") {
 			const headers = new Headers(response.headers);
 			headers.set("Cache-Control", "no-store, max-age=0");

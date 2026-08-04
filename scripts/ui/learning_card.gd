@@ -25,6 +25,7 @@ const MISSION_CREDIT := "res://assets/mission_complete/credit_coin_64_clean.png"
 const FAST_OBSERVATION_MEDIA_PATH := "res://data/fast_observation_media.json"
 
 var _fast_observation_media_cache: Dictionary = {}
+var _current_share_payload: Dictionary = {}
 
 
 class FastCompletionPlot extends Control:
@@ -360,6 +361,7 @@ func _build_mission_complete(data: Dictionary) -> void:
 	var level: Dictionary = data.get("level", {})
 	var observation: Dictionary = data.get("observation", {})
 	var concept: Dictionary = data.get("concept_card", {})
+	_current_share_payload = _observation_share_payload(data)
 	if _is_fast_completion(level, observation):
 		_build_fast_mission_complete(data)
 		return
@@ -388,6 +390,8 @@ func _build_mission_complete(data: Dictionary) -> void:
 		_build_next_mission_route()
 
 	_build_completion_navigation(level)
+	_build_share_result_button()
+	_emit_share_payload("observatory:observation-complete")
 
 
 func _is_fast_completion(level: Dictionary, observation: Dictionary) -> bool:
@@ -545,6 +549,135 @@ func _build_fast_mission_complete(data: Dictionary) -> void:
 	else:
 		_build_next_mission_route()
 	_build_completion_navigation(level)
+	_build_share_result_button()
+	_emit_share_payload("observatory:observation-complete")
+
+
+func _build_share_result_button() -> void:
+	if not OS.has_feature("web"):
+		return
+	var share_button := _mission_button(
+		GameManager.text("Share Result", "分享成果"),
+		Vector2(842, 22), Vector2(154, 40), Color(0.06, 0.26, 0.28)
+	)
+	share_button.name = "ShareObservationResultButton"
+	share_button.pressed.connect(func() -> void:
+		InteractionFeedback.success(share_button, "")
+		_emit_share_payload("observatory:open-observation-share")
+	)
+
+
+func _emit_share_payload(event_name: String) -> void:
+	if _current_share_payload.is_empty() or not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return
+	JavaScriptBridge.eval(
+		"window.dispatchEvent(new CustomEvent('%s',{detail:%s}));" % [event_name, JSON.stringify(_current_share_payload)],
+		true
+	)
+
+
+func _observation_share_payload(data: Dictionary) -> Dictionary:
+	var obj: Dictionary = data.get("object", {})
+	var level: Dictionary = data.get("level", {})
+	var observation: Dictionary = data.get("observation", {})
+	var stats: Dictionary = data.get("stats", {})
+	var family := str(level.get("telescope_family", GameManager.progress.get("selected_telescope_family", "refractor")))
+	var mode := str(observation.get("observation_mode", level.get("observation_mode", "telescope")))
+	var telescope_name := _share_telescope_name(family, mode)
+	var equipment := _share_equipment(family, mode, observation)
+	var parameters := _share_parameters(family, mode, observation, stats)
+	var discovery := _operation_chain_summary(obj, level, observation, data)[2]
+	if family == "space_segmented":
+		discovery = str(observation.get("science_finding", discovery))
+	var clarity := _share_score(observation.get("effective_clarity", observation.get("clarity", stats.get("clarity_score", 0.0))))
+	var contrast := _share_score(observation.get("effective_contrast", observation.get("contrast", stats.get("contrast_score", 0.0))))
+	var detail := _share_score(observation.get("effective_detail", observation.get("detail", stats.get("stability_score", 0.0))))
+	return {
+		"locale": GameManager.language_mode,
+		"object": {
+			"id": str(obj.get("id", "unknown")),
+			"name": _dict_inline(obj, "name"),
+			"type": _target_subtitle(obj),
+		},
+		"telescopeFamily": family if family != "" else mode,
+		"telescopeName": telescope_name,
+		"equipment": equipment,
+		"parameters": parameters,
+		"quality": {
+			"grade": str(observation.get("quality", "Good")),
+			"metrics": {"clarity": clarity, "contrast": contrast, "detail": detail},
+		},
+		"discovery": discovery,
+		"missionLevel": int(level.get("level_number", 0)),
+	}
+
+
+func _share_score(value: Variant) -> float:
+	var score := float(value)
+	if score > 0.0 and score <= 1.0:
+		score *= 100.0
+	return clampf(score, 0.0, 100.0)
+
+
+func _share_telescope_name(family: String, mode: String) -> String:
+	if family == "space_segmented" or mode == "space_infrared":
+		return GameManager.text("Space Infrared Observatory", "太空红外天文台")
+	if family == "fast_radio" or mode == "radio":
+		return GameManager.text("FAST 500 m Radio Telescope", "FAST 500 米射电望远镜")
+	var names := {
+		"refractor": ["Refracting Telescope", "折射式望远镜"],
+		"newtonian": ["Newtonian Reflector", "牛顿反射式望远镜"],
+		"dobsonian": ["Dobsonian Telescope", "多布森望远镜"],
+		"cassegrain": ["Cassegrain Telescope", "卡塞格林望远镜"],
+	}
+	var pair: Array = names.get(family, ["Optical Telescope", "光学望远镜"])
+	return GameManager.text(str(pair[0]), str(pair[1]))
+
+
+func _share_equipment(family: String, mode: String, observation: Dictionary) -> Dictionary:
+	if family == "space_segmented" or mode == "space_infrared":
+		return {
+			"primary": str(observation.get("instrument", "NIRCam")),
+			"secondary": GameManager.text("Filter: %s" % str(observation.get("filter", "infrared")), "滤镜：%s" % str(observation.get("filter", "infrared"))),
+			"detail": GameManager.text("Segmented infrared optics", "分段式红外光学系统"),
+		}
+	if family == "fast_radio" or mode == "radio":
+		return {
+			"primary": GameManager.text("Suspended feed cabin", "悬吊馈源舱"),
+			"secondary": GameManager.text("Cryogenic radio receiver", "低温射电接收机"),
+			"detail": GameManager.text("500 m aperture synthesis", "500 米口径合成"),
+		}
+	var objective := GameManager.get_part(GameManager.equipped_part_id("objective"))
+	var eyepiece := GameManager.get_part(GameManager.equipped_part_id("eyepiece"))
+	var mount := GameManager.get_part(GameManager.equipped_part_id("mount"))
+	return {
+		"primary": GameManager.dict_text(objective, "name") if not objective.is_empty() else GameManager.text("Optical tube", "光学镜筒"),
+		"secondary": GameManager.dict_text(eyepiece, "name") if not eyepiece.is_empty() else GameManager.text("Eyepiece", "目镜"),
+		"detail": GameManager.dict_text(mount, "name") if not mount.is_empty() else GameManager.text("Manual mount", "手动支架"),
+	}
+
+
+func _share_parameters(family: String, mode: String, observation: Dictionary, stats: Dictionary) -> Array:
+	var rows: Array = []
+	if family == "space_segmented" or mode == "space_infrared":
+		rows.append({"label": GameManager.text("Exposure", "曝光"), "value": "%.0f s" % float(observation.get("exposure", 0.0))})
+		rows.append({"label": GameManager.text("Signal / noise", "信噪比"), "value": "%.1f" % float(observation.get("snr", 0.0))})
+		rows.append({"label": GameManager.text("Instrument", "仪器"), "value": str(observation.get("instrument", "NIRCam"))})
+		rows.append({"label": GameManager.text("Filter", "滤镜"), "value": str(observation.get("filter", "infrared"))})
+		return rows
+	if family == "fast_radio" or mode == "radio":
+		rows.append({"label": GameManager.text("Period", "周期"), "value": "%.3f ms" % float(observation.get("pulse_period_ms", 0.0))})
+		rows.append({"label": "DM", "value": "%.2f pc/cm³" % float(observation.get("dispersion_measure", 0.0))})
+		rows.append({"label": GameManager.text("Signal / noise", "信噪比"), "value": "%.1f" % float(observation.get("snr", 0.0))})
+		rows.append({"label": GameManager.text("Integration", "积分时长"), "value": "%.0f s" % float(observation.get("integration_s", 0.0))})
+		return rows
+	var objective := GameManager.get_part(GameManager.equipped_part_id("objective"))
+	var eyepiece := GameManager.get_part(GameManager.equipped_part_id("eyepiece"))
+	rows.append({"label": GameManager.text("Magnification", "放大倍率"), "value": "%.1f×" % float(stats.get("magnification", 0.0))})
+	rows.append({"label": GameManager.text("Aperture", "口径"), "value": "%d mm" % int(objective.get("aperture_mm", 0))})
+	rows.append({"label": GameManager.text("Focal length", "物镜焦距"), "value": "%d mm" % int(objective.get("focal_length_mm", 0))})
+	rows.append({"label": GameManager.text("Eyepiece", "目镜焦距"), "value": "%d mm" % int(eyepiece.get("focal_length_mm", 0))})
+	return rows
 
 
 func _fast_source_identity(obj: Dictionary, kind: String) -> Dictionary:
