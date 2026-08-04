@@ -19,6 +19,8 @@ concrete implementation details.
 
 ## 2026-08-03 - Smoother Eight-Direction Observatory Character
 
+- Matched the supplied two-footfall gait to the 220 px/s lobby movement by advancing frames from actual distance travelled (92 px per cycle), so diagonals, low frame rates, and blocked movement no longer skate or run in place.
+
 - Replaced the lobby player's four-direction, three-step presentation with the
   project owner's six-frame animations for all eight movement directions.
 - Preserved the supplied pixels and transparency through a lossless runtime

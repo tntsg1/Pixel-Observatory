@@ -58,7 +58,7 @@ func _initialize() -> void:
 	_check(player.texture_filter == CanvasItem.TEXTURE_FILTER_NEAREST, "pixel sampling remains nearest-neighbour")
 	_check(is_equal_approx(player.scale.x, player.scale.y), "player keeps uniform aspect ratio")
 	_check_directions()
-	_check_animation_loop()
+	_check_distance_matched_animation()
 	_check_foot_anchor()
 	_check_pose_round_trip(game_manager)
 	_finish()
@@ -83,22 +83,31 @@ func _check_directions() -> void:
 	_check(drift_direction == "up", "small analogue drift stays on the cardinal frame")
 
 
-func _check_animation_loop() -> void:
+func _check_distance_matched_animation() -> void:
 	room.set("player_facing", "down_right")
 	room.set("player_is_moving", true)
 	room.set("player_anim_frame", 1)
-	room.set("player_anim_time", 0.0)
+	room.set("player_anim_distance", 0.0)
 	var observed: Array[int] = []
 	for _step in range(5):
-		room.call("_update_player_animation", 0.21)
+		room.call("_update_player_animation", 18.5)
 		observed.append(int(room.get("player_anim_frame")))
-	_check(observed == [2, 3, 4, 5, 1], "walk animation uses all five motion frames and loops cleanly")
+	_check(observed == [2, 3, 4, 5, 1], "92 px of travel uses all five motion frames and loops cleanly")
 	room.set("player_anim_frame", 1)
-	room.set("player_anim_time", 0.0)
-	room.call("_update_player_animation", 0.61)
+	room.set("player_anim_distance", 0.0)
+	room.call("_update_player_animation", 55.3)
 	_check(int(room.get("player_anim_frame")) == 4, "animation catches up after a slow frame instead of visibly stalling")
+	room.set("player_anim_frame", 1)
+	room.set("player_anim_distance", 0.0)
+	room.call("_update_player_animation", 22.0)
+	_check(int(room.get("player_anim_frame")) == 2, "one 100 ms movement step at 220 px/s advances exactly one authored frame")
+	var constants: Dictionary = room.get_script().get_script_constant_map()
+	var cycle_distance: float = float(constants.get("PLAYER_WALK_CYCLE_DISTANCE", 0.0))
+	var movement_speed: float = float(constants.get("PLAYER_SPEED", 1.0))
+	var cycle_seconds := cycle_distance / movement_speed
+	_check(cycle_seconds > 0.40 and cycle_seconds < 0.43, "gait cadence is derived from movement speed (0.418 s per two-footfall cycle)")
 	room.set("player_is_moving", false)
-	room.call("_update_player_animation", 0.21)
+	room.call("_update_player_animation", 0.0)
 	_check(int(room.get("player_anim_frame")) == 0, "idle returns to the authored rest frame")
 	_check(atlas.region.position.x == 0.0, "idle displays frame zero")
 
