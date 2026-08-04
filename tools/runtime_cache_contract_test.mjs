@@ -22,6 +22,8 @@ assert.match(worker, /runtimeResponse/, "repeat visits stream cached ranges befo
 assert.match(core, /CHUNK_BYTES = 2 \* 1024 \* 1024/, "runtime assets are committed in bounded cache chunks");
 assert.match(core, /headers: \{ Range:/, "missing chunks request an exact byte range");
 assert.match(core, /await cache\.put\(chunkKey/, "every completed chunk is persisted before being delivered to Godot");
+assert.match(core, /new Response\(bytes\.slice\(\), \{ status: 200/, "browser Cache Storage receives cacheable 200 chunk responses");
+assert.match(core, /headers: \{ Range: "bytes=0-0" \}/, "metadata falls back to a one-byte range probe when HEAD length is hidden");
 assert.match(core, /cachedPrefix/, "an interrupted download resumes from its first missing range");
 assert.match(core, /rate, eta:/, "runtime progress exposes real transfer speed and ETA");
 assert.match(core, /async pull\(controller\)/, "runtime chunks respect browser backpressure and can stop after an interrupted read");
