@@ -45,6 +45,9 @@ const STATUS_MARKUP = `
 						<span id="loader-percent">0%</span>
 					</div>
 					<progress id="status-progress" aria-label="Game loading progress"></progress>
+					<div class="loader-progress-rail" aria-hidden="true">
+						<span class="loader-progress-fill" id="loader-progress-fill"><i></i></span>
+					</div>
 					<div class="loader-progress-meta"><span id="loader-stream">Live package stream</span><span id="loader-open">Keep this tab open</span></div>
 					<div class="loader-systems" aria-live="polite">
 						<div class="loader-system"><span id="loader-data-label">Data archive</span><strong id="loader-loaded">Preparing stream</strong></div>
@@ -57,7 +60,7 @@ const STATUS_MARKUP = `
 			<div id="status-notice"></div>
 		</div>`;
 
-const SHELL_VERSION = "20260804-incremental-packs-v1";
+const SHELL_VERSION = "20260804-loader-stability-v3";
 const ASSETS = {
 	loaderCss: `../game-loader.css?v=${SHELL_VERSION}`,
 	loaderJs: `../game-loader.js?v=${SHELL_VERSION}`,
@@ -148,10 +151,23 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	html = upsertEarlyScript(html, ASSETS.runtimeCacheJs);
 	html = upsertScript(html, ASSETS.loaderJs);
 
+	// Rebuilding an already-patched shell must first collapse the previous
+	// incremental preload wrapper. Otherwise the browser receives duplicate
+	// const declarations and the loading UI stops updating before first paint.
+	html = html
+		.replace(/window\.PIXEL_OBSERVATORY_RESOURCE_PACKS = [^\n]*;\s*/g, "")
+		.replace(/const PIXEL_OBSERVATORY_RESOURCE_PACKS = window\.PIXEL_OBSERVATORY_RESOURCE_PACKS;\s*/g, "")
+		.replace(
+			/const startIncrementalGame = engine\.startGame\.bind\(engine\);\s*engine\.startGame = override => Promise\.all\(PIXEL_OBSERVATORY_RESOURCE_PACKS\.map\(pack => engine\.preloadFile\(pack\.url, pack\.mountPath\)\)\)\.then\(\(\) => startIncrementalGame\(override\)\);\s*/g,
+			"",
+		);
+
 	html = html.replace(/const GODOT_CONFIG = (\{[^\n]+\});/, (_match, serialized) => {
 		const config = JSON.parse(serialized);
-		const originalPackSize = config.fileSizes?.[`${config.executable}.pck`];
-		const originalWasmSize = config.fileSizes?.[`${config.executable}.wasm`];
+		const previousExecutable = config.executable;
+		const originalPackSize = config.fileSizes?.[`${previousExecutable}.pck`]
+			?? config.fileSizes?.[config.mainPack];
+		const originalWasmSize = config.fileSizes?.[`${previousExecutable}.wasm`];
 		config.executable = runtimeBase;
 		config.mainPack = `${runtimeBase}.pck`;
 		config.fileSizes = {
