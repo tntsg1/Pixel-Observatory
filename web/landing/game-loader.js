@@ -146,11 +146,12 @@
     if (loaded) loaded.textContent = `${formatBytes(value)} / ${formatBytes(total)}`;
     if (network) {
       if (runtimeTransfer.phase === "cached") network.textContent = zh ? "\u672c\u5730\u7f13\u5b58\u5df2\u547d\u4e2d" : "Local cache hit";
-      else if (runtimeTransfer.phase === "interrupted") network.textContent = zh ? "\u5df2\u6682\u505c\uff0c\u4e0b\u6b21\u4ece\u5df2\u4fdd\u5b58\u90e8\u5206\u7ee7\u7eed" : "Paused — completed ranges are saved";
+      else if (runtimeTransfer.phase === "interrupted") network.textContent = zh ? "\u5df2\u6682\u505c\uff0c\u4e0b\u6b21\u4ece\u5df2\u4fdd\u5b58\u90e8\u5206\u7ee7\u7eed" : "Paused; completed ranges are saved";
       else {
         const rate = formatRate(runtimeTransfer.rate);
+        const remaining = `${zh ? "\u5269\u4f59" : "Remaining"} ${formatBytes(Math.max(0, total - value))}`;
         const eta = runtimeTransfer.eta > 0 ? `${zh ? "\u5269\u4f59" : "ETA"} ${formatDuration(runtimeTransfer.eta)}` : "";
-        network.textContent = [rate, eta].filter(Boolean).join(" · ") || (zh ? "\u6b63\u5728\u6d4b\u91cf\u901f\u5ea6" : "Measuring transfer");
+        network.textContent = [rate, remaining, eta].filter(Boolean).join(" \u00b7 ") || (zh ? "\u6b63\u5728\u6d4b\u91cf\u901f\u5ea6" : "Measuring transfer");
       }
     }
     if (optical) optical.textContent = ratio > .43 ? copy.opticalReady : copy.opticalWaiting;
