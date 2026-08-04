@@ -49,7 +49,7 @@ jobs:
       - name: Export browser build
         run: |
           node tools/prepare_web_export.mjs
-          mkdir -p build/web
+          mkdir -p build/web/.godot-export
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . --import
           ./Godot_v4.7-stable_linux.x86_64 --headless --path . \
             --script res://tools/fast_music_rights_audit_test.gd
