@@ -50,13 +50,14 @@ const STATUS_MARKUP = `
 						<div class="loader-system"><span id="loader-data-label">Data archive</span><strong id="loader-loaded">Preparing stream</strong></div>
 						<div class="loader-system"><span id="loader-optical-label">Optical bench</span><strong id="loader-optical">Awaiting calibration</strong></div>
 						<div class="loader-system"><span id="loader-catalogue-label">Sky catalogue</span><strong id="loader-catalogue">Loading coordinates</strong></div>
+						<div class="loader-system"><span id="loader-network-label">Network link</span><strong id="loader-network">Measuring transfer</strong></div>
 					</div>
 				</footer>
 			</div>
 			<div id="status-notice"></div>
 		</div>`;
 
-const SHELL_VERSION = "20260804-loader-motion-v2";
+const SHELL_VERSION = "20260804-runtime-resume-v1";
 const ASSETS = {
 	loaderCss: `../game-loader.css?v=${SHELL_VERSION}`,
 	loaderJs: `../game-loader.js?v=${SHELL_VERSION}`,
@@ -66,6 +67,7 @@ const ASSETS = {
 	messagingJs: `../messaging.js?v=${SHELL_VERSION}`,
 	inboxJs: `../inbox.js?v=${SHELL_VERSION}`,
 	runtimeCacheJs: `../game-runtime-cache.js?v=${SHELL_VERSION}`,
+	runtimeCoreJs: `../game-runtime-core.js?v=${SHELL_VERSION}`,
 };
 
 function escapeRegExp(value) {
@@ -126,6 +128,7 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	html = upsertScript(html, ASSETS.accountJs);
 	html = upsertScript(html, ASSETS.messagingJs);
 	html = upsertScript(html, ASSETS.inboxJs);
+	html = upsertEarlyScript(html, ASSETS.runtimeCoreJs);
 	html = upsertEarlyScript(html, ASSETS.runtimeCacheJs);
 	html = upsertScript(html, ASSETS.loaderJs);
 

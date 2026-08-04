@@ -1117,7 +1117,7 @@ body {
 
 .loader-systems {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 0;
   margin-top: 17px;
   border-top: 1px solid rgba(181, 207, 226, .13);

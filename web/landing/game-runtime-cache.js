@@ -2,26 +2,26 @@
   "use strict";
 
   const build = document.documentElement.dataset.pixelObservatoryBuild || "unknown";
-  const cacheName = "pixel-observatory-runtime-v1";
-  const runtimePath = /^\/game\/runtime\/[a-zA-Z0-9._-]+\/index\.(?:pck|wasm)$/;
+  const runtime = window.PORuntimeCache;
+  if (!runtime) {
+    console.warn("Runtime resume cache core did not load.");
+    return;
+  }
+
+  const emitProgress = detail => {
+    window.dispatchEvent(new CustomEvent("po:runtime-progress", { detail }));
+  };
 
   // The service worker cannot control the document that first installs it.
-  // Cache the initial Godot fetches here so the very next visit is already warm.
+  // Intercepting fetch here gives that first launch the same resumable ranges
+  // as later launches. Finished chunks are persisted before they reach Godot.
   if ("caches" in window && !window.__pixelObservatoryRuntimeFetchInstalled) {
     window.__pixelObservatoryRuntimeFetchInstalled = true;
     const nativeFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
       const request = new Request(input, init);
-      const url = new URL(request.url);
-      if (request.method !== "GET" || url.origin !== location.origin || !runtimePath.test(url.pathname)) {
-        return nativeFetch(input, init);
-      }
-      const cache = await caches.open(cacheName);
-      const cached = await cache.match(request);
-      if (cached) return cached;
-      const response = await nativeFetch(request);
-      if (response.ok) cache.put(request, response.clone()).catch(() => {});
-      return response;
+      if (!runtime.matchesRuntime(request)) return nativeFetch(input, init);
+      return runtime.runtimeResponse(request, { fetcher: nativeFetch, onProgress: emitProgress });
     };
   }
 
