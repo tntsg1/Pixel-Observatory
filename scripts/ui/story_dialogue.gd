@@ -11,7 +11,8 @@ const NAME_COLOR := Color(0.98, 0.82, 0.50)
 const TEXT_COLOR := Color(0.94, 0.94, 0.90)
 const MUTED := Color(0.66, 0.74, 0.84)
 
-const PLAYER_PORTRAIT := "res://assets/characters/player_portrait.png"
+const PLAYER_PORTRAIT_ATLAS: Texture2D = preload("res://assets/characters/player_observer_smooth_8dir.png")
+const PLAYER_PORTRAIT_REGION := Rect2(0, 0, 64, 96)
 const MAYA_PORTRAIT_POSITION := Vector2(-24, -2)
 const PLAYER_PORTRAIT_POSITION := Vector2(-24, -18)
 
@@ -222,6 +223,7 @@ func _show_line() -> void:
 	var portrait_id := str(line.get("portrait", "maya")).to_lower()
 	if portrait_id == "maya" or speaker.to_lower() == "maya":
 		portrait_rect.position = MAYA_PORTRAIT_POSITION
+		portrait_rect.set_meta("player_source_path", "")
 		var pose := MayaPortrait.story_pose(
 			line,
 			StoryManager.active_event_id,
@@ -229,15 +231,16 @@ func _show_line() -> void:
 			StoryManager.active_lines.size()
 		)
 		MayaPortrait.apply_to(portrait_rect, pose)
-	elif portrait_id in ["player", "you"] and ResourceLoader.exists(PLAYER_PORTRAIT):
+	elif portrait_id in ["player", "you"]:
 		portrait_rect.position = PLAYER_PORTRAIT_POSITION
 		portrait_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 		portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-		portrait_rect.texture = load(PLAYER_PORTRAIT)
+		portrait_rect.texture = _player_portrait_texture()
 		portrait_rect.visible = true
 		portrait_rect.set_meta("maya_pose", "")
 		portrait_rect.set_meta("maya_source_path", "")
+		portrait_rect.set_meta("player_source_path", PLAYER_PORTRAIT_ATLAS.resource_path)
 	else:
 		portrait_rect.visible = false
 	if line_index >= StoryManager.active_lines.size() - 1:
@@ -246,6 +249,16 @@ func _show_line() -> void:
 		next_button.text = GameManager.text("Next", "继续").replace("\n", " · ")
 	_update_line_image(line)
 	_update_context_panel()
+
+
+func _player_portrait_texture() -> AtlasTexture:
+	# The dialogue portrait and lobby character deliberately share one source.
+	# The first cell is the authored front-facing rest pose; AtlasTexture keeps
+	# the crop lossless and avoids maintaining a second, easily stale avatar PNG.
+	var texture := AtlasTexture.new()
+	texture.atlas = PLAYER_PORTRAIT_ATLAS
+	texture.region = PLAYER_PORTRAIT_REGION
+	return texture
 
 
 func _update_context_panel() -> void:

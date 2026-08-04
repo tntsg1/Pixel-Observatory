@@ -7,6 +7,14 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - Dialogue Portrait Matches the Protagonist
+
+- Replaced the retired blocky player headshot in story dialogue with a lossless
+  crop of the current eight-direction protagonist atlas, keeping the lobby and
+  narrative representation visually consistent.
+- Added an automated source/region/filtering contract and a rendered 1024x768
+  acceptance capture for the player-authored intro line.
+
 ## How To Read This Log
 
 - The early `v0.x` and `v1.x` labels are historical development milestones.
