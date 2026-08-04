@@ -17,6 +17,7 @@ assets/learning_media/heritage/naked_eye_observation_scene.png -filter -diff -me
 assets/main_menu/main_menu_bg_zh_1024.png -filter -diff -merge -text
 assets/main_menu/main_menu_bg_zh_source.png -filter -diff -merge -text
 assets/reference/observatory_furniture/remote_instrument_desk_official.png -filter -diff -merge -text
+assets/characters/player_observer_smooth_8dir.png -filter -diff -merge -text
 assets/fonts/*.ttf -filter -diff -merge -text
 assets/audio/music/*.mp3 -filter -diff -merge -text
 
