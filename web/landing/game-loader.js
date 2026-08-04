@@ -526,7 +526,15 @@
 
   document.body.insertAdjacentHTML("beforeend", `
     <section class="game-social-rail game-session-rail" id="game-session-rail" hidden aria-label="${t("Current observing session", "当前观测班次")}">
-      <div class="game-glass-panel game-session-panel">
+      <div class="game-glass-panel game-guest-panel" id="game-session-guest" hidden>
+        <span class="game-guest-kicker">${t("OBSERVER ARCHIVE", "\u89c2\u6d4b\u8005\u6863\u6848")}</span>
+        <h2>${t("Keep what you discover.", "\u8ba9\u6bcf\u6b21\u53d1\u73b0\u90fd\u7559\u4e0b\u6765\u3002")}</h2>
+        <p>${t("Create a free observer account to save progress across devices and turn observing time into rank.", "\u521b\u5efa\u514d\u8d39\u89c2\u6d4b\u8005\u8d26\u53f7\uff0c\u8de8\u8bbe\u5907\u4fdd\u5b58\u8fdb\u5ea6\uff0c\u5e76\u5c06\u89c2\u6d4b\u65f6\u957f\u7d2f\u79ef\u4e3a\u6bb5\u4f4d\u3002")}</p>
+        <button class="game-guest-feature" type="button" data-auth-feature="cloud" data-auth-mode="register"><i aria-hidden="true">\u2601</i><span><strong>${t("Cloud progress", "\u4e91\u7aef\u5b58\u6863")}</strong><small>${t("Continue on another browser", "\u5728\u5176\u4ed6\u6d4f\u89c8\u5668\u7ee7\u7eed\u6e38\u73a9")}</small></span><b aria-hidden="true">\u203a</b></button>
+        <button class="game-guest-feature" type="button" data-auth-feature="rank" data-auth-mode="register"><i aria-hidden="true">\u25ce</i><span><strong>${t("Observer rank", "\u89c2\u6d4b\u8005\u6bb5\u4f4d")}</strong><small>${t("Record playtime and achievements", "\u8bb0\u5f55\u65f6\u957f\u4e0e\u6210\u5c31")}</small></span><b aria-hidden="true">\u203a</b></button>
+        <div class="game-guest-actions"><button type="button" data-auth-mode="register">${t("Create account", "\u6ce8\u518c\u8d26\u53f7")}</button><button type="button" data-auth-mode="login">${t("Sign in", "\u767b\u5f55")}</button></div>
+      </div>
+      <div class="game-glass-panel game-session-panel" id="game-session-member">
         <div class="game-rail-kicker">${t("MY OBSERVING SHIFT", "我的观测班次")}</div>
         <div class="game-session-identity">
           <span class="game-side-avatar" id="game-self-avatar" aria-hidden="true"></span>
@@ -543,7 +551,15 @@
       </div>
     </section>
     <aside class="game-social-rail game-friends-rail" id="game-friends-rail" hidden aria-label="${t("Friends at the observatory", "天文台好友")}">
-      <div class="game-glass-panel game-friends-panel">
+      <div class="game-glass-panel game-guest-panel" id="game-friends-guest" hidden>
+        <span class="game-guest-kicker">${t("OBSERVER NETWORK", "\u89c2\u6d4b\u8005\u7f51\u7edc")}</span>
+        <h2>${t("The observatory is better together.", "\u5929\u6587\u53f0\u6709\u540c\u4f34\u65f6\u66f4\u6709\u8da3\u3002")}</h2>
+        <p>${t("Sign in to see who is online, send private messages, and join the community ranking.", "\u767b\u5f55\u540e\u67e5\u770b\u5728\u7ebf\u597d\u53cb\u3001\u53d1\u9001\u79c1\u4fe1\uff0c\u5e76\u52a0\u5165\u793e\u533a\u6392\u884c\u699c\u3002")}</p>
+        <button class="game-guest-feature" type="button" data-auth-feature="friends" data-auth-mode="login"><i aria-hidden="true">\u2726</i><span><strong>${t("Friends online", "\u5728\u7ebf\u597d\u53cb")}</strong><small>${t("Message, poke, and invite", "\u79c1\u4fe1\u3001\u620f\u4e00\u4e0b\u4e0e\u50ac\u4e0a\u7ebf")}</small></span><b aria-hidden="true">\u203a</b></button>
+        <button class="game-guest-feature" type="button" data-auth-feature="community" data-auth-mode="login"><i aria-hidden="true">\u2261</i><span><strong>${t("Community and ranking", "\u793e\u533a\u4e0e\u6392\u884c\u699c")}</strong><small>${t("Meet other observers", "\u8ba4\u8bc6\u5176\u4ed6\u89c2\u6d4b\u8005")}</small></span><b aria-hidden="true">\u203a</b></button>
+        <div class="game-guest-note"><span aria-hidden="true">\u25cf</span>${t("Your game remains playable without an account.", "\u4e0d\u6ce8\u518c\u4e5f\u53ef\u4ee5\u6b63\u5e38\u6e38\u73a9\u3002")}</div>
+      </div>
+      <div class="game-glass-panel game-friends-panel" id="game-friends-member">
         <header class="game-friends-head">
           <div><span>${t("OBSERVATORY LINKS", "天文台连接")}</span><strong>${t("Friends nearby", "附近好友")}</strong></div>
           <i class="game-friends-pulse" aria-hidden="true"></i>
@@ -568,6 +584,7 @@
     <section class="game-compact-controls" id="game-compact-controls" hidden aria-label="${t("Observatory tools", "观测站工具")}">
       <button class="game-compact-toggle" id="game-compact-toggle" type="button" aria-expanded="false"><span aria-hidden="true">⌁</span>${t("Observatory link", "观测站连接")}</button>
       <div class="game-compact-actions" id="game-compact-actions" hidden>
+        <button type="button" data-compact-account data-auth-mode="register">${t("Account", "\u8d26\u53f7")}</button>
         <button type="button" data-compact-view="session">${t("My shift", "我的班次")}</button>
         <button type="button" data-compact-view="friends">${t("Friends", "好友")}</button>
         <button type="button" data-compact-feedback>${t("Report", "反馈")}</button>
@@ -577,6 +594,10 @@
 
   const sessionRail = document.getElementById("game-session-rail");
   const friendsRail = document.getElementById("game-friends-rail");
+  const sessionGuest = document.getElementById("game-session-guest");
+  const friendsGuest = document.getElementById("game-friends-guest");
+  const sessionMember = document.getElementById("game-session-member");
+  const friendsMember = document.getElementById("game-friends-member");
   const onlinePets = document.getElementById("game-online-pets");
   const offlineList = document.getElementById("game-offline-list");
   const offlineToggle = document.getElementById("game-offline-toggle");
@@ -587,6 +608,24 @@
   const compactToggle = document.getElementById("game-compact-toggle");
   const compactActions = document.getElementById("game-compact-actions");
   let toastTimer = 0;
+
+  function openAccount(mode = "login", feature = "account") {
+    document.dispatchEvent(new CustomEvent("po:open-account", {
+      detail: { mode: mode === "register" ? "register" : "login", feature },
+    }));
+  }
+
+  function showSocialSurface(authenticated) {
+    sessionGuest.hidden = authenticated;
+    friendsGuest.hidden = authenticated;
+    sessionMember.hidden = !authenticated;
+    friendsMember.hidden = !authenticated;
+    sessionRail.hidden = false;
+    friendsRail.hidden = false;
+    compactControls.hidden = false;
+    document.documentElement.classList.add("game-social-enabled");
+    document.documentElement.classList.toggle("game-social-guest", !authenticated);
+  }
 
   function avatarStyle(id) {
     const index = Math.max(0, Math.min(7, Number(id || 1) - 1));
@@ -754,7 +793,15 @@
   async function init() {
     try {
       const session = await api("/api/auth/session");
-      if (!session.user) return;
+      clearInterval(state.refreshTimer);
+      clearInterval(state.clockTimer);
+      if (!session.user) {
+        state.user = null;
+        state.profile = null;
+        state.friends = [];
+        showSocialSurface(false);
+        return;
+      }
       state.user = session.user;
       const [profileData] = await Promise.all([
         api(`/api/social/profile?username=${encodeURIComponent(session.user.username)}`),
@@ -763,10 +810,7 @@
       state.profile = profileData.profile;
       state.totalSeconds = Number(state.profile.playSeconds || 0);
       renderSelf();
-      sessionRail.hidden = false;
-      friendsRail.hidden = false;
-      compactControls.hidden = false;
-      document.documentElement.classList.add("game-social-enabled");
+      showSocialSurface(true);
       tickClock();
       state.clockTimer = setInterval(tickClock, 1000);
       // Presence is an active-game signal, not something that waits for a
@@ -785,7 +829,16 @@
     offlineToggle.setAttribute("aria-expanded", String(!expanded));
     offlineList.hidden = expanded;
   });
+  sessionRail.addEventListener("click", event => {
+    const button = event.target.closest("[data-auth-mode]");
+    if (button) openAccount(button.dataset.authMode, button.dataset.authFeature);
+  });
   friendsRail.addEventListener("click", event => {
+    const authButton = event.target.closest("[data-auth-mode]");
+    if (authButton) {
+      openAccount(authButton.dataset.authMode, authButton.dataset.authFeature);
+      return;
+    }
     const button = event.target.closest("[data-signal]");
     if (button) sendSignal(button);
     const messageButton = event.target.closest("[data-message]");
@@ -803,6 +856,12 @@
     else setCompactView("session");
   });
   compactActions?.addEventListener("click", event => {
+    const accountButton = event.target.closest("[data-compact-account]");
+    if (accountButton) {
+      closeCompactView();
+      openAccount(accountButton.dataset.authMode, "account");
+      return;
+    }
     const view = event.target.closest("[data-compact-view]")?.dataset.compactView;
     if (view) setCompactView(view);
     if (event.target.closest("[data-compact-feedback]")) {
@@ -843,6 +902,10 @@
   });
   addEventListener("focus", () => {
     if (state.user) refreshFriends().catch(() => {});
+  });
+  document.addEventListener("po:session-changed", () => {
+    closeCompactView();
+    init();
   });
   init();
 })();
