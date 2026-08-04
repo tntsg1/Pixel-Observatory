@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { patchWebLoader } from "./patch_web_loader.mjs";
@@ -56,16 +56,31 @@ for (const forbiddenExportPath of [".mailbox-test-users.json", ".mail-*.cookie",
 const temporaryDirectory = await mkdtemp(join(tmpdir(), "pixel-web-shell-contract-"));
 const temporaryIndex = join(temporaryDirectory, "index.html");
 try {
-	await writeFile(temporaryIndex, '<!doctype html><html lang="en"><head><style>body{}</style></head><body><div id="status"><div id="status-notice"></div></div><script>const GODOT_CONFIG = {"executable":"index","fileSizes":{"index.pck":10,"index.wasm":20}};</script></body></html>');
+	await mkdir(join(temporaryDirectory, "resource-packs"), { recursive: true });
+	await writeFile(join(temporaryDirectory, "resource-packs", "manifest.json"), JSON.stringify({
+		schema: 1,
+		packs: [{
+			id: "test-pack",
+			version: "0123456789abcdef0123",
+			size: 1,
+			url: "resource-packs/test-pack/0123456789abcdef0123.pck",
+			mountPath: "/resource-packs/test-pack.pck",
+		}],
+	}));
+	await writeFile(temporaryIndex, '<!doctype html><html lang="en"><head><style>body{}</style></head><body><div id="status"><div id="status-notice"></div></div><script>const GODOT_CONFIG = {"executable":"index","fileSizes":{"index.pck":10,"index.wasm":20}}; const engine = new Engine(GODOT_CONFIG);</script></body></html>');
 	await patchWebLoader(temporaryIndex, { buildSha: "first-build" });
 	await patchWebLoader(temporaryIndex, { buildSha: "second-build" });
 	const patchedTwice = await readFile(temporaryIndex, "utf8");
 	const openingHtmlTag = patchedTwice.match(/<html[^>]*>/i)?.[0] || "";
 	assert.equal((openingHtmlTag.match(/data-pixel-observatory-game-shell=/g) || []).length, 1, "repatching keeps one shell marker");
 	assert.equal((openingHtmlTag.match(/data-pixel-observatory-build=/g) || []).length, 1, "repatching keeps one build marker");
+	assert.equal((patchedTwice.match(/const PIXEL_OBSERVATORY_RESOURCE_PACKS/g) || []).length, 1, "repatching keeps one resource-pack declaration");
+	assert.equal((patchedTwice.match(/const startIncrementalGame/g) || []).length, 1, "repatching keeps one incremental start wrapper");
 	assert.match(patchedTwice, /data-pixel-observatory-build="second-build"/, "repatching updates the build marker");
 	assert.match(patchedTwice, /"executable":"runtime\/second-build\/index"/, "runtime files are content-versioned by build");
 	assert.match(patchedTwice, /"mainPack":"runtime\/second-build\/index\.pck"/, "the main pack follows the versioned runtime path");
+	assert.match(patchedTwice, /"runtime\/second-build\/index\.pck":10/, "repatching preserves the PCK size contract");
+	assert.match(patchedTwice, /"runtime\/second-build\/index\.wasm":20/, "repatching preserves the WASM size contract");
 } finally {
 	await rm(temporaryDirectory, { recursive: true, force: true });
 }

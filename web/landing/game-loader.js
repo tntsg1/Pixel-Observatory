@@ -17,6 +17,7 @@
 
   const overlay = document.getElementById("status");
   const progress = document.getElementById("status-progress");
+  const progressFill = document.getElementById("loader-progress-fill");
   const phase = document.getElementById("loader-phase");
   const percent = document.getElementById("loader-percent");
   const orbitalPercent = document.getElementById("loader-orbital-percent");
@@ -112,6 +113,12 @@
   let runtimeTransfer = null;
   let runtimeDirty = false;
 
+  function setVisualProgress(value) {
+    if (!progressFill) return;
+    const ratio = Math.min(1, Math.max(0, Number(value) || 0));
+    progressFill.style.transform = `scaleX(${ratio.toFixed(5)})`;
+  }
+
   function formatBytes(value) {
     const bytes = Number(value) || 0;
     if (bytes < 1024 * 1024) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
@@ -139,6 +146,7 @@
     const value = Math.min(total, Math.max(0, Number(runtimeTransfer.loaded) || 0));
     if (!total) return false;
     const ratio = value / total;
+    setVisualProgress(ratio);
     const nextPercent = Math.round(ratio * 100);
     percent.textContent = `${nextPercent}%`;
     if (orbitalPercent) orbitalPercent.textContent = `${nextPercent}%`;
@@ -194,6 +202,7 @@
     const max = Number(progress.max) || 0;
     const value = Number(progress.value) || 0;
     const ratio = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+    setVisualProgress(ratio);
     const nextPercent = Math.round(ratio * 100);
 
     if (nextPercent !== lastPercent) {
@@ -263,7 +272,7 @@
     }
 
     for (const star of stars) {
-      const alpha = reducedMotion ? star.alpha : star.alpha * (.64 + Math.sin(now * star.speed + star.pulse) * .36);
+      const alpha = reducedMotion ? star.alpha : star.alpha * (.88 + Math.sin(now * star.speed + star.pulse) * .12);
       const color = star.warmth > .86 ? "239, 202, 142" : star.warmth < .18 ? "151, 216, 240" : "210, 230, 239";
       context.beginPath();
       context.fillStyle = `rgba(${color}, ${Math.max(.04, alpha)})`;

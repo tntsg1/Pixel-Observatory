@@ -26,7 +26,7 @@ assert.match(core, /new Response\(bytes\.slice\(\), \{ status: 200/, "browser Ca
 assert.match(core, /headers: \{ Range: "bytes=0-0" \}/, "metadata falls back to a one-byte range probe when HEAD length is hidden");
 assert.match(core, /cachedPrefix/, "an interrupted download resumes from its first missing range");
 assert.match(core, /rate, eta:/, "runtime progress exposes real transfer speed and ETA");
-assert.match(patcher, /incremental-packs-v1/, "the loader shell version advances for independent resource packs");
+assert.match(patcher, /loader-stability-v3/, "the loader shell version advances for stable loading motion and resource packs");
 const loader = await readFile(new URL("../web/landing/game-loader.js", import.meta.url), "utf8");
 assert.match(loader, /formatBytes\(Math\.max\(0, total - value\)\)/, "the loader exposes the actual remaining download size");
 assert.match(core, /async pull\(controller\)/, "runtime chunks respect browser backpressure and can stop after an interrupted read");

@@ -36,11 +36,11 @@ assert.ok(
   "landing page cache-busts the corrected account behavior",
 );
 assert.ok(
-  landingSource.includes('social.js?v=20260729-modal-dismissal'),
+  landingSource.includes('social.js?v=20260804-leaderboard-scale'),
   "landing page cache-busts the corrected community behavior",
 );
 assert.ok(
-  loaderPatchSource.includes('const SHELL_VERSION = "20260804-loader-motion-v2";'),
+  loaderPatchSource.includes('const SHELL_VERSION = "20260804-loader-stability-v3";'),
   "game shell cache-busts the corrected account behavior",
 );
 
