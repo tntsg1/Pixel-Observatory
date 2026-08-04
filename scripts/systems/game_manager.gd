@@ -441,6 +441,10 @@ func focus_control_installed() -> bool:
 func default_progress() -> Dictionary:
 	return {
 		"campaign_version": CAMPAIGN_VERSION,
+		"save_revision": 0,
+		"save_updated_at": 0,
+		"cloud_synced_revision": 0,
+		"cloud_owner_id": "",
 		# This stays false for the bootstrap archive written before the player
 		# begins a campaign. new_game() flips it so the menu can distinguish a
 		# resumable L1 game from an empty/default save file.

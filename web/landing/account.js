@@ -1,6 +1,33 @@
 (() => {
   "use strict";
-  const state = { user:null, config:null, widgetId:null, feedbackFrame:0 };
+const state = {
+    user:null,
+    config:null,
+    widgetId:null,
+    feedbackFrame:0,
+    cloudSave:window.__pixelObservatoryCloudSave||{status:"local_saved"},
+};
+
+window.pixelObservatoryCloudRequest = async request => {
+	let status = 0;
+	let responseText = "";
+	try {
+		const options = {
+			method: request?.method || "GET",
+			headers: { Accept: "application/json", "Content-Type": "application/json" },
+			credentials: "same-origin",
+		};
+		if (options.method !== "GET" && request?.body) options.body = request.body;
+		const response = await fetch(request?.path || "/api/auth/session", options);
+		status = response.status;
+		responseText = await response.text();
+	} catch (error) {
+		responseText = JSON.stringify({ error: "network_error", detail: String(error) });
+	}
+	if (typeof window.pixelObservatoryCloudResponse === "function") {
+		window.pixelObservatoryCloudResponse(request?.operation || "", status, responseText);
+	}
+};
   const closeTimers = new WeakMap();
   const gameContext = { scene:"", level:"", language:"" };
   const isZh = () => document.documentElement.dataset.lang === "zh";
@@ -116,21 +143,67 @@
     if(label) label.textContent=state.user?.username||t("Account","账号");
   }
 
+  function notifyGameSessionChanged(){
+    document.dispatchEvent(new CustomEvent("po:session-changed"));
+    if(typeof window.pixelObservatorySessionChanged==="function") window.pixelObservatorySessionChanged();
+  }
+
+  function cloudSaveMarkup(){
+    const cloud=state.cloudSave||{};
+    const status=String(cloud.status||"saved");
+    if(status==="merge_required"||cloud.mergeRequired){
+      const guestLevel=Math.max(1,Number(cloud.guestLevel||1));
+      const cloudLevel=Math.max(1,Number(cloud.cloudLevel||1));
+      return `<section class="po-save-merge" aria-live="polite">
+        <span class="po-save-orbit" aria-hidden="true"><i></i></span>
+        <div><strong>${t("Local progress found","发现游客进度")}</strong>
+        <p>${t(`This browser reached Level ${guestLevel}. Merge it with the cloud archive${cloud.hasCloudSave?` at Level ${cloudLevel}`:""} without losing either record.`,`这台浏览器已到达第 ${guestLevel} 关。一键合并后，本地与云端的关卡、解锁和观测记录都会保留。`)}</p></div>
+        <button class="po-primary po-merge-save" id="po-merge-save" type="button">${t("Merge progress","一键合并进度")}</button>
+        ${cloud.hasCloudSave?`<button class="po-text-action" id="po-keep-cloud-save" type="button">${t("Keep cloud archive instead","改用云端存档")}</button>`:""}
+      </section>`;
+    }
+    const labels={
+      local_saved:t("Saved locally just now","刚刚已保存"),
+      saved:t("Saved just now","刚刚已保存"),
+      syncing:t("Syncing","正在同步"),
+      offline:t("Saved offline","离线保存"),
+    };
+    const label=labels[status]||labels.saved;
+    return `<div class="po-sync" data-status="${esc(status)}" aria-live="polite"><i aria-hidden="true"></i><span>${label}</span></div>`;
+  }
+
+  function bindCloudSaveActions(){
+    const merge=document.getElementById("po-merge-save");
+    if(merge) merge.onclick=()=>{
+      if(typeof window.pixelObservatoryMergeGuestSave!=="function") return;
+      merge.disabled=true;
+      merge.textContent=t("Merging...","正在合并…");
+      window.pixelObservatoryMergeGuestSave();
+    };
+    const keep=document.getElementById("po-keep-cloud-save");
+    if(keep) keep.onclick=()=>{
+      if(typeof window.pixelObservatoryUseCloudSave!=="function") return;
+      keep.disabled=true;
+      window.pixelObservatoryUseCloudSave();
+    };
+  }
+
   function renderAccount(mode="login"){
     if(state.user){
       accountContent.innerHTML=`<h2>${t("Observer account","观测员账号")}</h2>
         <p class="po-lead">${t("Your field record can follow you between browsers.","你的观测记录可以在不同浏览器之间同步。")}</p>
         <div class="po-user-panel"><div class="po-user-name">${esc(state.user.username)}</div>
-        <div class="po-sync">${t("Cloud archive connected. The game synchronises after sign-in and whenever progress is saved.","云端档案已连接。登录后以及游戏保存进度时会自动同步。")}</div>
+        ${cloudSaveMarkup()}
         <button class="po-secondary" id="po-open-profile" type="button">${t("Open observer profile","打开个人主页")}</button>
         <button class="po-secondary" id="po-open-friends" type="button">${t("Friends and online status","好友与在线状态")}</button>
         ${state.user.role==="admin"?'<a class="po-secondary" href="admin/" style="display:grid;place-items:center;text-decoration:none">Open feedback console</a>':""}
         <button class="po-secondary" id="po-change-password" type="button">${t("Change password","修改密码")}</button>
         <button class="po-secondary" id="po-logout" type="button">${t("Sign out","退出登录")}</button></div>`;
       document.getElementById("po-change-password").onclick=renderPasswordChange;
+      bindCloudSaveActions();
       document.getElementById("po-open-profile").onclick=()=>{close(accountModal);document.dispatchEvent(new CustomEvent("po:open-social",{detail:{tab:"profile"}}));};
       document.getElementById("po-open-friends").onclick=()=>{close(accountModal);document.dispatchEvent(new CustomEvent("po:open-social",{detail:{tab:"friends"}}));};
-      document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; updateNav(); document.dispatchEvent(new CustomEvent("po:session-changed")); renderAccount(); };
+      document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; updateNav(); notifyGameSessionChanged(); renderAccount(); };
       return;
     }
     accountContent.innerHTML=`<h2>${t("Observer account","观测员账号")}</h2>
@@ -152,7 +225,7 @@
       status.textContent=""; submit.disabled=true;
       try{
         const data=await api(`/api/auth/${mode}`,{method:"POST",body:JSON.stringify({username:form.get("username"),password:form.get("password"),website:form.get("website"),turnstileToken:mode==="register"?challengeToken():undefined})});
-        state.user=data.user; updateNav(); document.dispatchEvent(new CustomEvent("po:session-changed")); renderAccount();
+        state.user=data.user; updateNav(); notifyGameSessionChanged(); renderAccount();
       }catch(error){ status.textContent=error.message; if(mode==="register"&&state.widgetId!==null) window.turnstile?.reset(state.widgetId); }
       finally{ submit.disabled=false; }
     };
@@ -231,6 +304,10 @@
     const mode=event.detail?.mode==="register"?"register":"login";
     renderAccount(mode);
     open(accountModal);
+  });
+  addEventListener("observatory:cloud-save-status",event=>{
+    state.cloudSave=event.detail||{status:"offline"};
+    if(state.user&&!accountModal.hidden) renderAccount();
   });
   ["pointerdown","pointerup","click","wheel","keydown","keyup"].forEach(type=>{
     feedbackModal.addEventListener(type,event=>event.stopPropagation());
