@@ -844,11 +844,19 @@
       main.innerHTML = `<div class="social-empty">${t("The first observing session will begin the ranking.", "完成第一次观测后，排行榜就会在这里出现。")}</div>`;
       return;
     }
+    const leaderSeconds = Math.max(1, ...data.entries.map(entry => Math.max(0, Number(entry.playSeconds) || 0)));
+    const leaderboardShare = entry => {
+      const seconds = Math.max(0, Number(entry.playSeconds) || 0);
+      return seconds > 0 ? Math.max(2, Math.min(100, Math.round((seconds / leaderSeconds) * 100))) : 0;
+    };
+    const leaderboardLabel = entry => isZh()
+      ? `有效时长 ${formatDuration(entry.playSeconds)}；榜首 ${formatDuration(leaderSeconds)}`
+      : `${formatDuration(entry.playSeconds)} effective time; leader ${formatDuration(leaderSeconds)}`;
     main.innerHTML = `<section class="social-card leaderboard">${data.entries.map(entry => `
       <button class="leader-row ${entry.isSelf ? "is-self" : ""}" type="button" data-profile="${esc(entry.username)}">
         <span class="leader-position">#${entry.position}</span>${avatar(entry, "small")}
         <span><span class="leader-name">${esc(entry.username)}${entry.role === "admin" ? ` <b class="leader-admin-mark">${t("DIRECTOR", "台长")}</b>` : ""}</span><br><span class="leader-rank">${esc(rankName(entry.rank))}${entry.online ? ` · ${t("Online", "在线")}` : ""}</span></span>
-        <span class="social-progress"><span style="width:${Math.round((entry.rank.progress || 0) * 100)}%"></span></span>
+        <span class="social-progress" aria-label="${esc(leaderboardLabel(entry))}" title="${esc(leaderboardLabel(entry))}"><span style="width:${leaderboardShare(entry)}%"></span></span>
         <span class="leader-time">${formatDuration(entry.playSeconds)}</span>
       </button>`).join("")}</section>`;
     main.querySelectorAll("[data-profile]").forEach(button => button.onclick = () => render("profile", button.dataset.profile));
