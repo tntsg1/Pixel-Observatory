@@ -7,6 +7,7 @@ const editorPluginsPattern =
 const featurePattern =
   /(config\/features=PackedStringArray\([^\r\n]*?)"Forward Plus"([^\r\n]*\))/;
 const renderingPattern = /(\[rendering\]\s*\r?\n)/;
+const debugAutoloadPattern = /^_mcp_game_helper="\*res:\/\/addons\/godot_ai\/runtime\/game_helper\.gd"\r?\n/m;
 
 if (!editorPluginsPattern.test(project)) {
   throw new Error("Could not locate the editor_plugins block in project.godot");
@@ -18,6 +19,7 @@ if (!featurePattern.test(project) || !renderingPattern.test(project)) {
 await writeFile(
   projectPath,
   project
+    .replace(debugAutoloadPattern, "")
     .replace(editorPluginsPattern, "$1PackedStringArray()")
     .replace(featurePattern, '$1"GL Compatibility"$2')
     .replace(
