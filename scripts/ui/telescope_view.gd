@@ -178,17 +178,22 @@ void fragment() {
 	float sigma = mix(0.012, 0.14, pow(optical_error, 0.72));
 	vec2 centered = UV - vec2(0.5);
 	float profile = exp(-dot(centered, centered) / max(2.0 * sigma * sigma, 0.0001));
+	float source_core = smoothstep(0.18, 0.82, sharp.a);
+	float horizontal_spike = exp(-abs(centered.y) / 0.006) * exp(-abs(centered.x) / 0.095);
+	float vertical_spike = exp(-abs(centered.x) / 0.006) * exp(-abs(centered.y) / 0.095);
+	float diffraction = max(profile, (horizontal_spike + vertical_spike) * 0.16);
 	// A strictly energy-normalized stellar PSF becomes imperceptible on an
 	// SDR game display long before the player reaches focus. Keep a continuous
 	// perceptual peak for bright guide stars while still reducing brightness
 	// and spreading the footprint as focus error grows.
 	float energy_peak = mix(1.0, 0.58, pow(optical_error, 0.78));
-	vec3 star_color = max(source_tint.rgb, vec3(0.70, 0.76, 0.88));
-	// Some catalog star masters contain a very small, deliberately dim core.
-	// Always retain an analytical diffraction core so the selected white star
-	// cannot disappear between two chromatic images while the knob is moving.
-	vec4 analytical_core = vec4(star_color * brightness, profile * 0.94);
-	vec4 sharp_response = mix(sharp * brightness, analytical_core, 0.78);
+	// Preserve the catalog hue. A per-channel minimum turned an orange giant
+	// into a pink star by lifting blue much more than red. The source image is
+	// used only to locate its compact core; its baked low-alpha halo is omitted
+	// so no circular texture boundary can appear in the eyepiece.
+	vec3 star_color = source_tint.rgb;
+	vec4 analytical_core = vec4(star_color * brightness, max(diffraction * 0.94, source_core));
+	vec4 sharp_response = analytical_core;
 	vec4 spread = vec4(star_color * brightness, profile * energy_peak);
 	float spread_mix = smoothstep(0.015, 0.34, optical_error);
 	// TextureRect input COLOR can already contain source alpha. Multiplying
