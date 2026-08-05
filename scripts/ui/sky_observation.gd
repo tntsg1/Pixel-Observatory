@@ -294,6 +294,10 @@ var alt_readout: Label
 var guidance_banner: Label
 var guidance_banner_bg: ColorRect
 var controls_help: Label
+var guidance_utility_root: Control
+var guidance_strip_toggle: Button
+var guidance_strip_tween: Tween
+var guidance_strip_collapsed := false
 var scope_reticle_layer: Control
 var optical_mode_transition: OpticalModeTransition
 var mode_transition_tween: Tween
@@ -1716,12 +1720,10 @@ func _sync_calibration_utility_strip() -> void:
 	# The regular navigation strip and the calibration strip occupy the same
 	# frame-safe area. Only one may be visible, so no debug/help layer can sit
 	# above the calibration controls.
-	if guidance_banner_bg != null:
-		guidance_banner_bg.visible = not calibration_active
-	if guidance_banner != null:
-		guidance_banner.visible = not calibration_active
-	if controls_help != null:
-		controls_help.visible = not calibration_active
+	if guidance_utility_root != null:
+		guidance_utility_root.visible = not calibration_active
+	if guidance_strip_toggle != null:
+		guidance_strip_toggle.visible = not calibration_active
 	if view_mode_caption != null:
 		view_mode_caption.visible = not calibration_active
 
@@ -1979,10 +1981,19 @@ func _build_view_layer() -> void:
 	# Keeping this layer in screen space preserves the full horizon and leaves
 	# celestial hit testing constrained to VIEW_RECT.
 	var utility_y := VIEW_RECT.position.y + VIEW_RECT.size.y + 1.0
-	guidance_banner_bg = _rect(self, Vector2(VIEW_RECT.position.x, utility_y), Vector2(VIEW_RECT.size.x, 74), Color(0.01, 0.02, 0.035, 0.94))
-	guidance_banner_bg.z_index = Z_GUIDANCE
-	guidance_banner = _label(self, "", Vector2(VIEW_RECT.position.x + 12, utility_y + 2), Vector2(VIEW_RECT.size.x - 24, 29), 14, Color(1.0, 0.85, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
-	guidance_banner.z_index = Z_GUIDANCE + 1
+	guidance_utility_root = Control.new()
+	guidance_utility_root.name = "SkyGuidanceUtilityStrip"
+	guidance_utility_root.position = Vector2(VIEW_RECT.position.x, utility_y)
+	guidance_utility_root.size = Vector2(VIEW_RECT.size.x, 74)
+	guidance_utility_root.clip_contents = true
+	guidance_utility_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	guidance_utility_root.z_index = Z_GUIDANCE
+	add_child(guidance_utility_root)
+
+	guidance_banner_bg = _rect(guidance_utility_root, Vector2.ZERO, Vector2(VIEW_RECT.size.x, 74), Color(0.01, 0.02, 0.035, 0.94))
+	guidance_banner_bg.z_index = 0
+	guidance_banner = _label(guidance_utility_root, "", Vector2(12, 2), Vector2(VIEW_RECT.size.x - 24, 29), 14, Color(1.0, 0.85, 0.45), HORIZONTAL_ALIGNMENT_CENTER)
+	guidance_banner.z_index = 1
 	guidance_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	guidance_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	guidance_banner.max_lines_visible = 2
@@ -1995,17 +2006,38 @@ func _build_view_layer() -> void:
 		"A/D：向西/向东   W/S：抬高/降低   Shift：加速   1/2/3：视野"
 	)
 	controls_help = _label(
-		self,
+		guidance_utility_root,
 		controls_text,
-		Vector2(VIEW_RECT.position.x + 12, utility_y + 30),
+		Vector2(12, 30),
 		Vector2(VIEW_RECT.size.x - 24, 22),
 		12,
 		Color(0.70, 0.74, 0.79),
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
-	controls_help.z_index = Z_GUIDANCE + 1
+	controls_help.z_index = 1
 	controls_help.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	controls_help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	guidance_strip_toggle = Button.new()
+	guidance_strip_toggle.name = "SkyGuidanceStripToggle"
+	guidance_strip_toggle.position = Vector2(VIEW_RECT.end.x - 38, utility_y + 52)
+	guidance_strip_toggle.size = Vector2(30, 20)
+	guidance_strip_toggle.focus_mode = Control.FOCUS_ALL
+	guidance_strip_toggle.add_theme_font_size_override("font_size", 11)
+	guidance_strip_toggle.add_theme_color_override("font_color", GOLD)
+	guidance_strip_toggle.add_theme_color_override("font_hover_color", Color.WHITE)
+	guidance_strip_toggle.z_index = Z_GUIDANCE + 3
+	for state in ["normal", "hover", "pressed", "focus"]:
+		var toggle_style := StyleBoxFlat.new()
+		toggle_style.bg_color = Color(0.015, 0.035, 0.06, 0.94) if state == "normal" else Color(0.08, 0.16, 0.22, 0.98)
+		toggle_style.border_color = Color(GOLD.r, GOLD.g, GOLD.b, 0.62 if state == "normal" else 0.96)
+		toggle_style.set_border_width_all(1)
+		toggle_style.set_corner_radius_all(3)
+		guidance_strip_toggle.add_theme_stylebox_override(state, toggle_style)
+	guidance_strip_toggle.pressed.connect(_toggle_guidance_strip)
+	InteractionFeedback.bind_button(guidance_strip_toggle)
+	add_child(guidance_strip_toggle)
+	_apply_guidance_strip_state(false)
 
 
 
@@ -2053,6 +2085,7 @@ func _build_mode_buttons() -> void:
 	_rect(self, MODE_BUTTONS_OVERLAY_RECT.position, MODE_BUTTONS_OVERLAY_RECT.size, PANEL_COVER)
 
 	view_mode_caption = _label(self, "", Vector2(VIEW_RECT.position.x + 200, VIEW_RECT.position.y + VIEW_RECT.size.y + 53), Vector2(230, 18), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	view_mode_caption.z_index = Z_GUIDANCE + 2
 	var icon_paths := {
 		"naked_eye": OBS_UI_DIR + "mode_eye_icon.png",
 		"finder": OBS_UI_DIR + "mode_finder_icon.png",
@@ -2111,6 +2144,38 @@ func _update_mode_buttons() -> void:
 		var captions := {"naked_eye": GameManager.text("EYE VIEW", "肉眼视野"), "finder": GameManager.text("FINDER VIEW", "寻星镜视野"), "telescope": GameManager.text("SCOPE VIEW", "望远镜视野")}
 		view_mode_caption.text = "·  %s  ·" % str(captions.get(view_mode, "VIEW"))
 	_update_reticle_asset()
+
+
+func _toggle_guidance_strip() -> void:
+	guidance_strip_collapsed = not guidance_strip_collapsed
+	_apply_guidance_strip_state(true)
+
+
+func _apply_guidance_strip_state(animate: bool) -> void:
+	if guidance_utility_root == null or guidance_strip_toggle == null:
+		return
+	var utility_y := VIEW_RECT.position.y + VIEW_RECT.size.y + 1.0
+	var target_y := utility_y + 52.0 if guidance_strip_collapsed else utility_y
+	var target_height := 22.0 if guidance_strip_collapsed else 74.0
+	var target_alpha := 0.0 if guidance_strip_collapsed else 1.0
+	guidance_strip_toggle.text = "▲" if guidance_strip_collapsed else "▼"
+	guidance_strip_toggle.tooltip_text = GameManager.text(
+		"Expand observing guidance" if guidance_strip_collapsed else "Collapse observing guidance",
+		"展开观测提示" if guidance_strip_collapsed else "收起观测提示"
+	)
+	if guidance_strip_tween != null and guidance_strip_tween.is_valid():
+		guidance_strip_tween.kill()
+	if not animate or InteractionFeedback.is_reduced_motion():
+		guidance_utility_root.position.y = target_y
+		guidance_utility_root.size.y = target_height
+		guidance_banner.modulate.a = target_alpha
+		controls_help.modulate.a = target_alpha
+		return
+	guidance_strip_tween = create_tween().bind_node(guidance_utility_root).set_parallel(true)
+	guidance_strip_tween.tween_property(guidance_utility_root, "position:y", target_y, 0.24).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	guidance_strip_tween.tween_property(guidance_utility_root, "size:y", target_height, 0.24).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+	guidance_strip_tween.tween_property(guidance_banner, "modulate:a", target_alpha, 0.14).set_trans(Tween.TRANS_SINE)
+	guidance_strip_tween.tween_property(controls_help, "modulate:a", target_alpha, 0.14).set_trans(Tween.TRANS_SINE)
 
 
 func _build_scope_reticle_overlay() -> void:
@@ -4350,6 +4415,11 @@ func _clear_built_ui() -> void:
 	guidance_banner = null
 	guidance_banner_bg = null
 	controls_help = null
+	guidance_utility_root = null
+	guidance_strip_toggle = null
+	if guidance_strip_tween != null and guidance_strip_tween.is_valid():
+		guidance_strip_tween.kill()
+	guidance_strip_tween = null
 	scope_reticle_layer = null
 	optical_mode_transition = null
 	reticle_transition_ghost = null
