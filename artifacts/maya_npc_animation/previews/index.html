@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>玛雅 NPC 动画预览</title>
+  <style>
+    :root { color-scheme: dark; font-family: system-ui, sans-serif; background: #050c16; color: #edf5ff; }
+    body { margin: 0; padding: 32px; }
+    main { max-width: 1280px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    h2 { margin: 36px 0 14px; color: #e6b54c; font-size: 18px; }
+    p { color: #93a7bd; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    figure { margin: 0; overflow: hidden; border: 1px solid #263b52; border-radius: 8px; background: #07101c; }
+    img { display: block; width: 100%; aspect-ratio: 1; object-fit: contain; image-rendering: pixelated; }
+    figcaption { padding: 10px 12px; border-top: 1px solid #263b52; color: #c9d8e7; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>玛雅 NPC 动画预览</h1>
+  <p>全部预览为四帧循环；这里只用于动作审核，正式素材仍保留透明背景。</p>
+
+  <h2>四向行走</h2>
+  <section class="grid">
+    <figure><img src="walk_down.gif" alt="向下行走"><figcaption>向下行走</figcaption></figure>
+    <figure><img src="walk_left.gif" alt="向左行走"><figcaption>向左行走</figcaption></figure>
+    <figure><img src="walk_right.gif" alt="向右行走"><figcaption>向右行走</figcaption></figure>
+    <figure><img src="walk_up.gif" alt="向上行走"><figcaption>向上行走</figcaption></figure>
+  </section>
+
+  <h2>使用仪器</h2>
+  <section class="grid">
+    <figure><img src="instrument_assembly.gif" alt="组装望远镜"><figcaption>组装望远镜</figcaption></figure>
+    <figure><img src="instrument_telescope.gif" alt="中央望远镜观测"><figcaption>中央望远镜观测</figcaption></figure>
+    <figure><img src="instrument_console.gif" alt="操作控制台"><figcaption>操作控制台</figcaption></figure>
+    <figure><img src="instrument_journal.gif" alt="记录观测日志"><figcaption>记录观测日志</figcaption></figure>
+  </section>
+
+  <h2>与玩家协作</h2>
+  <section class="grid">
+    <figure><img src="coop_support_tube.gif" alt="扶住镜筒"><figcaption>扶住镜筒</figcaption></figure>
+    <figure><img src="coop_hand_over_part.gif" alt="递交零件"><figcaption>递交零件</figcaption></figure>
+    <figure><img src="coop_collimation.gif" alt="协助准直"><figcaption>协助准直</figcaption></figure>
+    <figure><img src="coop_success.gif" alt="确认观测成功"><figcaption>确认观测成功</figcaption></figure>
+  </section>
+</main>
+</body>
+</html>
