@@ -1,0 +1,2144 @@
+{
+  "_编辑说明": [
+    "这是大厅 NPC 玛雅的唯一台词文件。修改中文请改 *_zh 或 zh，修改英文请改 *_en 或 en。",
+    "states：任务期大厅气泡；ambient_lines：短气泡；postgraduate：毕业后工作、观测、事件、打断、茶歇和私人记忆；room_text：玛雅工作台与休息面板文字。",
+    "可以增加或删减 lines_en / lines_zh 数组中的句子，但请保留 JSON 标点、字段名以及 {target}、{instrument}、{night} 等占位符。",
+    "duration_min / duration_max 是基础秒数，游戏运行时统一乘以 10；不必手动再乘。"
+  ],
+  "states": {
+    "greeting": {
+      "icon": "!",
+      "status_en": "Noticed you",
+      "status_zh": "注意！",
+      "lines_en": [
+        "There you are, little stargazer~"
+      ],
+      "lines_zh": [
+        "你终于来啦，小观测员~"
+      ],
+      "action": "wave"
+    },
+    "guide": {
+      "icon": ">",
+      "status_en": "Leading the way",
+      "status_zh": "带路",
+      "lines_en": [
+        "This way—stay close to your senior~"
+      ],
+      "lines_zh": [
+        "这边呀，跟紧学姐~"
+      ],
+      "action": "beckon"
+    },
+    "route_lag": {
+      "icon": ">",
+      "status_en": "Calling you over",
+      "status_zh": "",
+      "lines_en": [
+        "Hey, over here~"
+      ],
+      "lines_zh": [
+        "喂，这边这边~"
+      ],
+      "action": "beckon"
+    },
+    "route_wrong_way": {
+      "icon": "!",
+      "status_en": "Noticed the detour",
+      "status_zh": "",
+      "lines_en": [
+        "Wrong way, stargazer! Over here~"
+      ],
+      "lines_zh": [
+        "走反啦，小观测员！这边~"
+      ],
+      "action": "beckon"
+    },
+    "route_stopped": {
+      "icon": "?",
+      "status_en": "Waiting",
+      "status_zh": "等",
+      "lines_en": [
+        "No rush, I'll wait for you"
+      ],
+      "lines_zh": [
+        "不急，我等你呀"
+      ],
+      "action": "beckon"
+    },
+    "route_almost": {
+      "icon": ">",
+      "status_en": "Just ahead",
+      "status_zh": "",
+      "lines_en": [
+        "Right ahead—see it?"
+      ],
+      "lines_zh": [
+        "就前面，看到没？"
+      ],
+      "action": "point"
+    },
+    "route_arrived": {
+      "icon": "*",
+      "status_en": "At the station",
+      "status_zh": "",
+      "lines_en": [
+        "We're here—this is the spot~"
+      ],
+      "lines_zh": [
+        "到啦，就是这儿~"
+      ],
+      "action": "point"
+    },
+    "point_device": {
+      "icon": "!",
+      "status_en": "Pointing it out",
+      "status_zh": "指",
+      "lines_en": [
+        "Hehe, look here!"
+      ],
+      "lines_zh": [
+        "哎嘿，看这里！"
+      ],
+      "action": "point"
+    },
+    "route_not_close": {
+      "icon": ">",
+      "status_en": "Waiting beside it",
+      "status_zh": "",
+      "lines_en": [
+        "Come a tiny bit closer"
+      ],
+      "lines_zh": [
+        "再靠近一点点呀"
+      ],
+      "action": "beckon"
+    },
+    "route_player_near": {
+      "icon": "*",
+      "status_en": "You found it",
+      "status_zh": "",
+      "lines_en": [
+        "Yes, right here!"
+      ],
+      "lines_zh": [
+        "对，就是这里！"
+      ],
+      "action": "nod"
+    },
+    "route_player_first": {
+      "icon": "!",
+      "status_en": "You got there first",
+      "status_zh": "",
+      "lines_en": [
+        "Whoa, you beat me here!"
+      ],
+      "lines_zh": [
+        "哇，你比我还快！"
+      ],
+      "action": "notice"
+    },
+    "inactive": {
+      "icon": "?",
+      "status_en": "Checking on you",
+      "status_zh": "看",
+      "lines_en": [
+        "Stargazer, are you spacing out?"
+      ],
+      "lines_zh": [
+        "小观测员在发呆吗？"
+      ],
+      "action": "think"
+    },
+    "guide_mission": {
+      "icon": ">",
+      "status_en": "Heading to the board",
+      "status_zh": "",
+      "lines_en": [
+        "Come on, let's see what tonight has for us~"
+      ],
+      "lines_zh": [
+        "走，看看今晚折腾什么~"
+      ],
+      "action": "beckon"
+    },
+    "arrive_mission": {
+      "icon": "!",
+      "status_en": "New task found",
+      "status_zh": "新任务！",
+      "lines_en": [
+        "New task—target first!"
+      ],
+      "lines_zh": [
+        "新任务来啦，先看目标！"
+      ],
+      "action": "notice"
+    },
+    "open_mission": {
+      "icon": "!",
+      "status_en": "Reading the target",
+      "status_zh": "看任务目标中",
+      "lines_en": [
+        "Remember the target before grabbing gear"
+      ],
+      "lines_zh": [
+        "先记目标，别急着拿设备"
+      ],
+      "action": "point"
+    },
+    "close_mission": {
+      "icon": ">",
+      "status_en": "Ready to go",
+      "status_zh": "准备出发！",
+      "lines_en": [
+        "Good—target remembered. Let's go~"
+      ],
+      "lines_zh": [
+        "好，目标记住了就出发~"
+      ],
+      "action": "beckon"
+    },
+    "repeat_mission": {
+      "icon": "?",
+      "status_en": "Noticed you reopened it",
+      "status_zh": "",
+      "lines_en": [
+        "Which part was unclear? We'll read it together"
+      ],
+      "lines_zh": [
+        "哪里没看懂？我陪你再看"
+      ],
+      "action": "think"
+    },
+    "guide_cabinet": {
+      "icon": ">",
+      "status_en": "Heading to the parts",
+      "status_zh": "",
+      "lines_en": [
+        "All the parts are over here~"
+      ],
+      "lines_zh": [
+        "零件都在这边，跟我来~"
+      ],
+      "action": "beckon"
+    },
+    "arrive_cabinet": {
+      "icon": "*",
+      "status_en": "Beside the parts",
+      "status_zh": "",
+      "lines_en": [
+        "Here, pick a set that feels right"
+      ],
+      "lines_zh": [
+        "来，挑一套顺手的呀"
+      ],
+      "action": "point"
+    },
+    "inspect_cabinet": {
+      "icon": "!",
+      "status_en": "Showing you the parts",
+      "status_zh": "",
+      "lines_en": [
+        "Start with these—ignore the scary full cabinet~"
+      ],
+      "lines_zh": [
+        "先看这些，别被一柜子吓到~"
+      ],
+      "action": "point"
+    },
+    "cabinet_missing": {
+      "icon": "?",
+      "status_en": "Counting the parts",
+      "status_zh": "正在清点零件",
+      "lines_en": [
+        "Wait, one is missing. I'll help you look"
+      ],
+      "lines_zh": [
+        "等等，还少一个，我陪你找"
+      ],
+      "action": "think"
+    },
+    "cabinet_advanced": {
+      "icon": "+",
+      "status_en": "Inspecting the equipment",
+      "status_zh": "在检查高级设备",
+      "lines_en": [
+        "This set is heavy—hold it steady"
+      ],
+      "lines_zh": [
+        "这套可不轻，拿稳啦"
+      ],
+      "action": "notice"
+    },
+    "guide_assembly": {
+      "icon": "+",
+      "status_en": "Heading to the bench",
+      "status_zh": "正走向组装台",
+      "lines_en": [
+        "New gear! To the workbench~"
+      ],
+      "lines_zh": [
+        "新设备！走，去工作台~"
+      ],
+      "action": "beckon"
+    },
+    "arrive_assembly": {
+      "icon": "+",
+      "status_en": "Eager to begin",
+      "status_zh": "已经等不及了",
+      "lines_en": [
+        "Come on, I cleared a spot for you"
+      ],
+      "lines_zh": [
+        "快来快来，我都腾好位置啦"
+      ],
+      "action": "notice"
+    },
+    "guide_telescope": {
+      "icon": ">",
+      "status_en": "Heading to the telescope",
+      "status_zh": "正走向望远镜",
+      "lines_en": [
+        "Come on. The conditions are good tonight~"
+      ],
+      "lines_zh": [
+        "走呀，今晚条件不错，别错过啦~"
+      ],
+      "action": "beckon"
+    },
+    "guide_door": {
+      "icon": ">",
+      "status_en": "Heading to the observing door",
+      "status_zh": "正走向观测室门口",
+      "lines_en": [
+        "Let's head out and check tonight's sky~"
+      ],
+      "lines_zh": [
+        "走，去外面看看今晚的天~"
+      ],
+      "action": "beckon"
+    },
+    "arrive_telescope": {
+      "icon": "*",
+      "status_en": "Beside the telescope",
+      "status_zh": "到了中央观测台",
+      "lines_en": [
+        "Here we are—don't jump to high power yet"
+      ],
+      "lines_zh": [
+        "就是这里，先别急着上高倍"
+      ],
+      "action": "point"
+    },
+    "arrive_door": {
+      "icon": "*",
+      "status_en": "At the observing door",
+      "status_zh": "到了观测室门口",
+      "lines_en": [
+        "We're here—check the weather before going out"
+      ],
+      "lines_zh": [
+        "到啦，出去前先看一眼天气"
+      ],
+      "action": "point"
+    },
+    "operate_telescope": {
+      "icon": "*",
+      "status_en": "Handing you the controls",
+      "status_zh": "把控制交给你",
+      "lines_en": [
+        "You take the controls; I'll stay nearby~"
+      ],
+      "lines_zh": [
+        "你来控，我在旁边看着~"
+      ],
+      "action": "nod"
+    },
+    "guide_journal": {
+      "icon": ">",
+      "status_en": "Heading to the logbook",
+      "status_zh": "正走向日志桌",
+      "lines_en": [
+        "Come on, let's log what you just saw"
+      ],
+      "lines_zh": [
+        "走，把刚才看到的记下来"
+      ],
+      "action": "beckon"
+    },
+    "arrive_journal": {
+      "icon": "#",
+      "status_en": "Opened the logbook",
+      "status_zh": "翻开了日志",
+      "lines_en": [
+        "Write here—start with what you're sure of"
+      ],
+      "lines_zh": [
+        "写这里，先记你最确定的"
+      ],
+      "action": "point"
+    },
+    "open_journal": {
+      "icon": "#",
+      "status_en": "New record found",
+      "status_zh": "找到了新记录",
+      "lines_en": [
+        "Found the page from just now—here~"
+      ],
+      "lines_zh": [
+        "找到刚才那页啦，给你~"
+      ],
+      "action": "notice"
+    },
+    "journal_saved": {
+      "icon": "OK",
+      "status_en": "The result is safely filed",
+      "status_zh": "观测成果已经入档",
+      "lines_en": [
+        "Filed—now we can compare it next time"
+      ],
+      "lines_zh": [
+        "收好啦，下次还能拿来对照"
+      ],
+      "action": "nod"
+    },
+    "knowledge_unlocked": {
+      "icon": "+",
+      "status_en": "The logbook gained a page",
+      "status_zh": "日志里多了一页",
+      "lines_en": [
+        "Hehe, another page in the logbook!"
+      ],
+      "lines_zh": [
+        "哎嘿，日志里又多一页！"
+      ],
+      "action": "notice"
+    },
+    "old_records": {
+      "icon": "#",
+      "status_en": "Browsing old records",
+      "status_zh": "正在翻旧记录",
+      "lines_en": [
+        "These are all yours—not bad, huh~"
+      ],
+      "lines_zh": [
+        "这些都是你留下的，挺厉害嘛~"
+      ],
+      "action": "think"
+    },
+    "journal_done": {
+      "icon": ">",
+      "status_en": "Ready for the next item",
+      "status_zh": "合上了日志",
+      "lines_en": [
+        "All right, closed! What's next?"
+      ],
+      "lines_zh": [
+        "好，合上啦！下一项？"
+      ],
+      "action": "nod"
+    },
+    "guide_computer": {
+      "icon": ">",
+      "status_en": "Heading to the new console",
+      "status_zh": "正走向新电脑",
+      "lines_en": [
+        "New terminal unlocked—let's see it!"
+      ],
+      "lines_zh": [
+        "新终端解锁啦，过去看看！"
+      ],
+      "action": "beckon"
+    },
+    "arrive_computer": {
+      "icon": "!",
+      "status_en": "Watching the remote link",
+      "status_zh": "正在查看远程信号",
+      "lines_en": [
+        "Look—the remote link is live!"
+      ],
+      "lines_zh": [
+        "快看，远程信号接上了！"
+      ],
+      "action": "notice"
+    },
+    "remote_plan": {
+      "icon": "~",
+      "status_en": "Checking the observing plan",
+      "status_zh": "正在看观测计划",
+      "lines_en": [
+        "Choose a target before moving the mirrors"
+      ],
+      "lines_zh": [
+        "先挑目标，别急着乱转镜面"
+      ],
+      "action": "point"
+    },
+    "remote_unsafe": {
+      "icon": "!",
+      "status_en": "Unsafe attitude spotted",
+      "status_zh": "发现姿态不安全",
+      "lines_en": [
+        "Wait! We can't turn it that way"
+      ],
+      "lines_zh": [
+        "等等！这个方向不能转"
+      ],
+      "action": "notice"
+    },
+    "remote_thermal": {
+      "icon": "OK",
+      "status_en": "The temperature is stable",
+      "status_zh": "热控已经稳定",
+      "lines_en": [
+        "Temperature is stable—we can continue"
+      ],
+      "lines_zh": [
+        "温度稳住啦，可以继续"
+      ],
+      "action": "nod"
+    },
+    "remote_guide": {
+      "icon": "+",
+      "status_en": "Fine guidance is beginning",
+      "status_zh": "导星开始了",
+      "lines_en": [
+        "Lock it first—don't let the target drift away"
+      ],
+      "lines_zh": [
+        "先锁住它，别让目标溜掉"
+      ],
+      "action": "point"
+    },
+    "remote_guide_near": {
+      "icon": "...",
+      "status_en": "The guide lock is nearly ready",
+      "status_zh": "导星快完成了",
+      "lines_en": [
+        "Easy—guiding is almost locked"
+      ],
+      "lines_zh": [
+        "别动别动，马上锁住啦"
+      ],
+      "action": "think"
+    },
+    "remote_exposure": {
+      "icon": "...",
+      "status_en": "The detector is collecting light",
+      "status_zh": "探测器正在收光",
+      "lines_en": [
+        "Shh, let the detector gather the light"
+      ],
+      "lines_zh": [
+        "嘘，让探测器慢慢收光"
+      ],
+      "action": "think"
+    },
+    "remote_exposure_done": {
+      "icon": "!",
+      "status_en": "The data has returned",
+      "status_zh": "远程数据回来了",
+      "lines_en": [
+        "Data's back! Don't close it yet~"
+      ],
+      "lines_zh": [
+        "数据回来啦！先别关~"
+      ],
+      "action": "notice"
+    },
+    "remote_filter": {
+      "icon": "+",
+      "status_en": "Checking the filter channels",
+      "status_zh": "正在看滤镜通道",
+      "lines_en": [
+        "These are false colors—pick a channel first"
+      ],
+      "lines_zh": [
+        "这些是假彩色，先挑通道呀"
+      ],
+      "action": "point"
+    },
+    "remote_composite": {
+      "icon": "*",
+      "status_en": "The hidden structure is visible",
+      "status_zh": "隐藏的结构显现出来了",
+      "lines_en": [
+        "Look! The hidden structure is showing"
+      ],
+      "lines_zh": [
+        "看！藏着的结构出来啦"
+      ],
+      "action": "notice"
+    },
+    "tutorial_complete": {
+      "icon": "*",
+      "status_en": "Checking your work",
+      "status_zh": "正在看你的成果",
+      "lines_en": [
+        "Got it? No pretending if you don't~"
+      ],
+      "lines_zh": [
+        "会了没？不会也不许装会哦~"
+      ],
+      "action": "nod"
+    },
+    "assembly_success": {
+      "icon": "OK",
+      "status_en": "The telescope is ready",
+      "status_zh": "望远镜已经就绪",
+      "lines_en": [
+        "The mount is steady and every lock is set"
+      ],
+      "lines_zh": [
+        "支架很稳，锁扣也都到位啦"
+      ],
+      "action": "nod"
+    },
+    "observation_success": {
+      "icon": "*",
+      "status_en": "You completed the observation",
+      "status_zh": "你独立完成了观测",
+      "lines_en": [
+        "The detail really came through—log it!"
+      ],
+      "lines_zh": [
+        "这次细节真出来了，快记！"
+      ],
+      "action": "nod"
+    },
+    "remote_success": {
+      "icon": "!",
+      "status_en": "The remote data has returned",
+      "status_zh": "远程数据回来了",
+      "lines_en": [
+        "We really caught the signal—save it first~"
+      ],
+      "lines_zh": [
+        "真的收到信号了！先存下来~"
+      ],
+      "action": "notice"
+    },
+    "final_lesson": {
+      "icon": "*",
+      "status_en": "Nothing left to teach",
+      "status_zh": "已经没什么能教了",
+      "lines_en": [
+        "I may really be out of lessons… your turn to lead me?"
+      ],
+      "lines_zh": [
+        "好像真没什么能教你了……换你带我？"
+      ],
+      "action": "nod"
+    },
+    "before_graduation": {
+      "icon": ">",
+      "status_en": "Taking you somewhere",
+      "status_zh": "要带你去一个地方",
+      "lines_en": [
+        "Little stargazer, come with me~"
+      ],
+      "lines_zh": [
+        "小观测员，跟我来一下~"
+      ],
+      "action": "beckon"
+    },
+    "telescope_ownership": {
+      "icon": "*",
+      "status_en": "The telescopes are now yours",
+      "status_zh": "这些望远镜现在属于你",
+      "lines_en": [
+        "These scopes are yours to look after now"
+      ],
+      "lines_zh": [
+        "以后这些镜子也归你照看啦"
+      ],
+      "action": "nod"
+    },
+    "graduation_complete": {
+      "icon": "*",
+      "status_en": "Welcoming a fellow observer",
+      "status_zh": "迎来了一位新观测员",
+      "lines_en": [
+        "Congratulations—no, I should call you Observer now!"
+      ],
+      "lines_zh": [
+        "恭喜呀——不对，该叫你观测员了！"
+      ],
+      "action": "wave"
+    },
+    "free_mode": {
+      "icon": "*",
+      "status_en": "The observatory is yours to explore",
+      "status_zh": "天文台已经向你开放",
+      "lines_en": [
+        "From now on, choose whatever you want to see~"
+      ],
+      "lines_zh": [
+        "以后想看什么，就自己挑呀~"
+      ],
+      "action": "point"
+    },
+    "graduated": {
+      "icon": "*",
+      "status_en": "Seen as a fellow observer",
+      "status_zh": "把你当作同行了",
+      "lines_en": [
+        "What should we see tonight? Your call~"
+      ],
+      "lines_zh": [
+        "今晚想看什么？我听你的~"
+      ],
+      "action": ""
+    },
+    "free_join": {
+      "icon": "*",
+      "status_en": "Making room for you",
+      "status_zh": "把位置让给你",
+      "lines_en": [
+        "You take it—I saved the spot for you"
+      ],
+      "lines_zh": [
+        "你来控吧，我给你留着位置呢"
+      ],
+      "action": ""
+    },
+    "free_near": {
+      "icon": "?",
+      "status_en": "Noticed you nearby",
+      "status_zh": "发现你站在旁边",
+      "lines_en": [
+        "You're here—want to look together?"
+      ],
+      "lines_zh": [
+        "来都来了，一起看会儿？"
+      ],
+      "action": ""
+    },
+    "free_leave": {
+      "icon": ">",
+      "status_en": "Watching you leave",
+      "status_zh": "目送你离开",
+      "lines_en": [
+        "Go on—see you in a bit~"
+      ],
+      "lines_zh": [
+        "去忙吧，待会儿见~"
+      ],
+      "action": ""
+    },
+    "free_return": {
+      "icon": "!",
+      "status_en": "Noticed you return",
+      "status_zh": "发现你回来了",
+      "lines_en": [
+        "You're finally back, little stargazer~"
+      ],
+      "lines_zh": [
+        "你终于回来啦，小观测员~"
+      ],
+      "action": ""
+    },
+    "free_idle": {
+      "icon": "...",
+      "status_en": "Thinking about tonight",
+      "status_zh": "在想今晚看什么",
+      "lines_en": [
+        "The sky's being nice to us tonight~"
+      ],
+      "lines_zh": [
+        "今晚的天挺给面子嘛~"
+      ],
+      "action": ""
+    },
+    "mission": {
+      "icon": "!",
+      "status_en": "Checking the task board",
+      "status_zh": "正在看任务板",
+      "lines_en": [
+        "Yep, this is the target"
+      ],
+      "lines_zh": [
+        "嗯，就是这个目标"
+      ],
+      "action": "point"
+    },
+    "cabinet": {
+      "icon": "?",
+      "status_en": "Counting the parts",
+      "status_zh": "正在清点零件",
+      "lines_en": [
+        "Huh… which piece is still missing?"
+      ],
+      "lines_zh": [
+        "奇怪，还少哪一件来着？"
+      ],
+      "action": "think"
+    },
+    "assembly": {
+      "icon": "+",
+      "status_en": "Inspecting the bench",
+      "status_zh": "正在检查组装台",
+      "lines_en": [
+        "This set is heavy… where did I put my tool?"
+      ],
+      "lines_zh": [
+        "这套真沉，我工具又放哪了？"
+      ],
+      "action": "point"
+    },
+    "telescope": {
+      "icon": "*",
+      "status_en": "Choosing a target",
+      "status_zh": "正在挑选目标",
+      "lines_en": [
+        "What do you want to see tonight?"
+      ],
+      "lines_zh": [
+        "今晚想看什么呀？"
+      ],
+      "action": "point"
+    },
+    "journal": {
+      "icon": "#",
+      "status_en": "Browsing the logbook",
+      "status_zh": "正在翻阅日志",
+      "lines_en": [
+        "Hehe, these are all your records"
+      ],
+      "lines_zh": [
+        "哎嘿，这些可都是你的记录"
+      ],
+      "action": "think"
+    },
+    "computer": {
+      "icon": "~",
+      "status_en": "Watching the signal",
+      "status_zh": "正在查看信号",
+      "lines_en": [
+        "The link is live—don't keep it waiting"
+      ],
+      "lines_zh": [
+        "信号接上啦，别让它等太久"
+      ],
+      "action": "notice"
+    },
+    "idle": {
+      "icon": "...",
+      "status_en": "Thinking",
+      "status_zh": "正在想事情",
+      "lines_en": [
+        "What should we see tonight… any ideas?"
+      ],
+      "lines_zh": [
+        "今晚看什么好呢……你有主意吗？"
+      ],
+      "action": "think"
+    }
+  },
+  "ambient_lines": {
+    "greeting": {
+      "en": "There you are~",
+      "zh": "你终于来啦~"
+    },
+    "guide": {
+      "en": "This way—stay close~",
+      "zh": "这边呀，跟紧我~"
+    },
+    "route_arrived": {
+      "en": "We're here—this is it~",
+      "zh": "到啦，就是这儿~"
+    },
+    "arrive": {
+      "en": "We're here—this is it~",
+      "zh": "到啦，就是这儿~"
+    },
+    "route_player_near": {
+      "en": "Yep, right here!",
+      "zh": "对，就是这里！"
+    },
+    "route_player_first": {
+      "en": "Whoa, you beat me here!",
+      "zh": "哇，你比我还快！"
+    },
+    "route_lag": {
+      "en": "Hey, over here~",
+      "zh": "喂，这边这边~"
+    },
+    "route_wrong_way": {
+      "en": "Wrong way—over here~",
+      "zh": "走反啦，这边~"
+    },
+    "route_stopped": {
+      "en": "No rush, I'll wait",
+      "zh": "不急，我等你呀"
+    },
+    "route_almost": {
+      "en": "Right ahead",
+      "zh": "就前面啦"
+    },
+    "route_not_close": {
+      "en": "A tiny bit closer",
+      "zh": "再靠近一点点"
+    },
+    "inactive": {
+      "en": "Spacing out?",
+      "zh": "在发呆吗？"
+    },
+    "mission": {
+      "en": "Target first",
+      "zh": "先看看今晚的目标"
+    },
+    "open_mission": {
+      "en": "Target first",
+      "zh": "先看看今晚的目标"
+    },
+    "repeat_mission": {
+      "en": "Which part was unclear?",
+      "zh": "哪里没看懂？"
+    },
+    "close_mission": {
+      "en": "Come on, let's go~",
+      "zh": "走，出发~"
+    },
+    "inspect_cabinet": {
+      "en": "Start with these",
+      "zh": "先从这几件看起"
+    },
+    "cabinet_missing": {
+      "en": "Wait, one is missing",
+      "zh": "等等，还少一个"
+    },
+    "cabinet_advanced": {
+      "en": "This set is heavy",
+      "zh": "这套可不轻哦"
+    },
+    "assembly": {
+      "en": "Let's build it together~",
+      "zh": "一起装吧~"
+    },
+    "operate_telescope": {
+      "en": "Hehe, look!",
+      "zh": "哎嘿，快看！"
+    },
+    "journal": {
+      "en": "Log it before it fades~",
+      "zh": "快记下来~"
+    },
+    "open_journal": {
+      "en": "Let's check our notes",
+      "zh": "翻翻我们的记录"
+    },
+    "computer": {
+      "en": "The link is live",
+      "zh": "信号接上啦"
+    },
+    "remote_plan": {
+      "en": "Choose a target first",
+      "zh": "先挑目标呀"
+    },
+    "assembly_success": {
+      "en": "Nice and steady~",
+      "zh": "装得很稳嘛~"
+    },
+    "tutorial_complete": {
+      "en": "Got it?",
+      "zh": "会了没？"
+    },
+    "observation_success": {
+      "en": "The detail came through!",
+      "zh": "细节真出来了！"
+    },
+    "remote_success": {
+      "en": "Signal received!",
+      "zh": "信号收到啦！"
+    },
+    "journal_saved": {
+      "en": "Filed in the log~",
+      "zh": "收进日志啦~"
+    },
+    "free_idle": {
+      "en": "Nice sky tonight~",
+      "zh": "今晚的天挺给面子~"
+    },
+    "free_near": {
+      "en": "Want to look together?",
+      "zh": "一起看会儿？"
+    },
+    "free_join": {
+      "en": "Saved you a spot",
+      "zh": "位置给你留着呢"
+    },
+    "free_return": {
+      "en": "You're finally back~",
+      "zh": "你终于回来啦~"
+    },
+    "free_leave": {
+      "en": "See you in a bit~",
+      "zh": "待会儿见~"
+    },
+    "idle": {
+      "en": "What should we see tonight?",
+      "zh": "今晚看什么好呢？"
+    }
+  },
+  "postgraduate": {
+    "targets": [
+      "moon",
+      "jupiter",
+      "mars",
+      "vega",
+      "sirius",
+      "betelgeuse",
+      "orion_nebula",
+      "andromeda"
+    ],
+    "target_lines": {
+      "moon": {
+        "lines_en": [
+        "Watch the terminator. Crater shadows are clearest there",
+        "The Moon is bright. Lower the glare before chasing detail~"
+        ],
+        "lines_zh": [
+        "看明暗交界线，那一带的环形山阴影最清楚",
+        "月亮太亮时，先把亮度压下来再找细节~"
+        ]
+      },
+      "jupiter": {
+        "lines_en": [
+          "The two main bands are steady; now find the thin one between",
+          "That tiny point beside it is a moon—don't miss it"
+        ],
+        "lines_zh": [
+          "两条主云带很稳，再找中间那根细线",
+          "旁边那颗小亮点是卫星，别漏掉呀"
+        ]
+      },
+      "mars": {
+        "lines_en": [
+          "Mars really is that small; patience beats forcing more power",
+        "Wait for steadier air. The dark marking may show briefly"
+        ],
+        "lines_zh": [
+          "火星就这么小，耐心比硬加倍率管用",
+        "等视野稳定一点，暗斑可能只清楚几秒"
+        ]
+      },
+      "vega": {
+        "lines_en": [
+          "Vega should be a blue-white point; check its fringe",
+          "Don't make a star a disk; the smallest point is sharpest"
+        ],
+        "lines_zh": [
+          "织女星该是干净的蓝白点，顺便看看彩边",
+          "别把恒星拧成小圆饼，最小才是合焦"
+        ]
+      },
+      "sirius": {
+        "lines_en": [
+        "Sirius is so bright that poor seeing is easy to notice",
+          "Those colors come from our air, not from the star"
+        ],
+        "lines_zh": [
+        "天狼星很亮，视宁度一差就会闪得特别厉害",
+          "那些跳动的颜色是空气，不是它在变色哦"
+        ]
+      },
+      "betelgeuse": {
+        "lines_en": [
+          "Betelgeuse is warm orange—compare it with a blue-white star",
+          "It varies, yes, but not once every minute"
+        ],
+        "lines_zh": [
+          "参宿四暖橙暖橙的，和蓝白星比一下呀",
+          "它会变亮变暗，可没快到一分钟一次哦"
+        ]
+      },
+      "orion_nebula": {
+        "lines_en": [
+        "Use averted vision. The faint glow is easier to notice",
+        "A nebula has no hard edge, so do not force an outline"
+        ],
+        "lines_zh": [
+        "用余光看，旁边那层淡光会明显一点",
+        "星云边缘很淡，别硬找一条清楚的轮廓"
+        ]
+      },
+      "andromeda": {
+        "lines_en": [
+          "It's wider than our view; catch the bright core first",
+        "A bright background hides the outer glow. It is not focus"
+        ],
+        "lines_zh": [
+          "它比视野宽多啦，今晚先抓住明亮核心",
+        "背景太亮会淹掉外层辉光，不是对焦的问题"
+        ]
+      }
+    },
+    "instruments": [
+      {
+        "id": "refractor_80",
+        "name_en": "80 mm refractor",
+        "name_zh": "80 毫米折射镜"
+      },
+      {
+        "id": "newtonian_130",
+        "name_en": "130 mm Newtonian",
+        "name_zh": "130 毫米牛顿反射镜"
+      },
+      {
+        "id": "dobsonian_150",
+        "name_en": "150 mm Dobsonian",
+        "name_zh": "150 毫米多布森望远镜"
+      }
+    ],
+    "night_profiles": [
+      {
+        "id": "clear_stable",
+        "name_en": "Clear · steady air",
+        "name_zh": "晴朗 · 空气稳定",
+        "lines_en": [
+        "The seeing is steady tonight. Let's make good use of it~",
+        "Even the faint stars are barely flickering",
+          "Nights like this make every job feel easier"
+        ],
+        "lines_zh": [
+        "今晚视宁度很稳，别浪费啦~",
+        "连暗一点的星都没怎么闪",
+          "这种夜晚，干活都顺手好多"
+        ]
+      },
+      {
+        "id": "thin_clouds",
+        "name_en": "Thin cloud · clearing gaps",
+        "name_zh": "薄云 · 间歇放晴",
+        "lines_en": [
+          "Thin cloud is being annoying again; let it pass",
+          "That clear patch in the west is drifting our way",
+        "Wait. Focus is fine; that is just the cloud passing"
+        ],
+        "lines_zh": [
+          "薄云又来捣乱啦，等它走就好",
+          "西边那块晴空正慢慢挪过来",
+        "等等，对焦没问题，只是云刚好挡住了"
+        ]
+      },
+      {
+        "id": "restless_seeing",
+        "name_en": "Clear · restless seeing",
+        "name_zh": "晴朗 · 视宁度波动",
+        "lines_en": [
+        "The sky is clear, but the seeing keeps changing",
+        "Use lower power tonight. Going higher may only blur it",
+          "Wait for one quiet moment before judging"
+        ],
+        "lines_zh": [
+        "天是晴的，不过视宁度一直在变",
+        "今晚先用低一点的倍率，太高反而更糊",
+          "等画面安静一下，再下判断呀"
+        ]
+      },
+      {
+        "id": "cold_clear",
+        "name_en": "Cold · crystal clear",
+        "name_zh": "寒冷 · 通透晴空",
+        "lines_en": [
+          "The sky is lovely and my hands are freezing… fair trade",
+        "Let the tube cool fully before we start calibrating",
+        "The dome sounds especially loud on a cold night"
+        ],
+        "lines_zh": [
+          "天空很漂亮，手也很冷……算公平吧",
+        "先让镜筒凉透，再开始校准呀",
+        "天气一冷，穹顶转动的声音都更明显了"
+        ]
+      }
+    ],
+    "night_events": [
+      {
+        "id": "none",
+        "weight": 4
+      },
+      {
+        "id": "dew_control",
+        "weight": 2,
+        "name_en": "Dew-control night",
+        "name_zh": "镜片除露夜",
+        "eligible_night_ids": [
+          "thin_clouds",
+          "cold_clear"
+        ],
+        "active_phases": [
+          "assembling",
+          "observing",
+          "recording"
+        ],
+        "extra_assembly_step_en": "Fit the dew strap and route its cable",
+        "extra_assembly_step_zh": "安装除露带并整理供电线",
+        "lines_en": [
+          "Humidity's rising; we're not fogging up halfway",
+          "Touch the metal, not the glass—the tube is already dewing"
+        ],
+        "lines_zh": [
+          "湿度又往上爬啦，我可不想看一半起雾",
+          "摸金属，别碰玻璃呀，镜筒已经挂露水了"
+        ]
+      },
+      {
+        "id": "old_logbook",
+        "weight": 1,
+        "name_en": "An old logbook resurfaced",
+        "name_zh": "翻出一本旧观测日志",
+        "active_phases": [
+          "recording",
+          "reviewing",
+          "resting"
+        ],
+        "lines_en": [
+          "I found my first logbook. Wow, my writing was messy",
+          "I could barely see the image, but I sounded so certain"
+        ],
+        "lines_zh": [
+          "翻到我最早的日志了……这字也太潦草啦",
+          "那时候图都看不清，记录倒写得特别肯定"
+        ],
+        "rest_topic": {
+          "id": "old_logbook",
+          "label_en": "Is that your old logbook?",
+          "label_zh": "这是学姐以前的日志？",
+          "colleague_lines_en": [
+            "Yep. You may read it, but no laughing at my old handwriting~",
+            "First year: neat dates, bad sketches, and lots of mistakes"
+          ],
+          "colleague_lines_zh": [
+            "是呀，可以看，但不许笑我那时候的字~",
+            "一年级写的：日期很认真，草图很糟，错得也多"
+          ],
+          "familiar_lines_en": [
+            "Go ahead. I misidentified targets all the time back then",
+            "I called glare a detail here. I kept it as a reminder"
+          ],
+          "familiar_lines_zh": [
+            "给你看吧，我那时候也经常认错目标",
+            "这页把眩光当成细节了，我到现在还留着"
+          ],
+          "trusted_lines_en": [
+            "Look at the margin. I wrote that I wanted a shift partner",
+            "Keep this quiet; your senior wasn't always so composed"
+          ],
+          "trusted_lines_zh": [
+            "你看页角，我那时写过‘希望有人一起值夜’",
+            "替我保密呀，学姐也不是一直这么稳的"
+          ]
+        }
+      },
+      {
+        "id": "finder_recalibration",
+        "weight": 2,
+        "name_en": "Finder recalibration night",
+        "name_zh": "寻星镜重新标定夜",
+        "eligible_night_ids": [
+          "clear_stable",
+          "restless_seeing"
+        ],
+        "active_phases": [
+          "assembling",
+          "observing",
+          "reviewing"
+        ],
+        "extra_assembly_step_en": "Re-zero the finder on a reference star",
+        "extra_assembly_step_zh": "用基准星重新标定寻星镜",
+        "lines_en": [
+          "The finder drifted again; we'll zero it on a reference star",
+          "Trust the reference star more than those little marks"
+        ],
+        "lines_zh": [
+          "寻星镜又偏啦，今晚抓颗基准星归零",
+          "信基准星，别太信那几根刻线哦"
+        ]
+      },
+      {
+        "id": "meteor_watch",
+        "weight": 1,
+        "name_en": "Stray meteors tonight",
+        "name_zh": "今晚偶有流星",
+        "eligible_night_ids": [
+          "clear_stable",
+          "cold_clear"
+        ],
+        "active_phases": [
+          "observing",
+          "resting"
+        ],
+        "lines_en": [
+          "Another one! No instrument needed for that~",
+          "Bright streak overhead? Look up—the log can wait"
+        ],
+        "lines_zh": [
+          "又一颗！这个可不需要任何仪器~",
+          "穹顶有亮线就先抬头，记录晚一秒没关系"
+        ]
+      }
+    ],
+    "time_lines": {
+      "evening": {
+        "lines_en": [
+          "The night is still young, stargazer~",
+          "We still have a long stretch of darkness ahead"
+        ],
+        "lines_zh": [
+          "夜还早呢，小观测员~",
+          "前面还有好长一段黑夜呀"
+        ]
+      },
+      "midnight": {
+        "lines_en": [
+          "After midnight, even our footsteps sound loud in here",
+          "The late shift has started. Tell me if you get sleepy"
+        ],
+        "lines_zh": [
+          "过了半夜，连脚步声都听得特别清楚",
+          "后半夜开始啦，困了就告诉我"
+        ]
+      },
+      "predawn": {
+        "lines_en": [
+          "There's enough darkness left for one more~",
+          "The east will brighten soon—one last round?"
+        ],
+        "lines_zh": [
+          "还剩一点黑夜，够我们再看一个~",
+          "东边快亮啦，最后一轮？"
+        ]
+      }
+    },
+    "observation_return": {
+      "status_en": "Observed together: {target}",
+      "status_zh": "共同观测完成：{target}",
+      "excellent_lines_en": [
+        "That view was beautifully steady! You write the first line",
+        "I saw the detail you caught too!",
+        "Hold onto that view—come on, let's log it now~"
+      ],
+      "excellent_lines_zh": [
+        "刚才稳得真漂亮！第一行你来写",
+        "你抓到的细节，我也看见了！",
+        "这张先别忘，走，马上记下来~"
+      ],
+      "good_lines_en": [
+        "Nice! Which detail did you notice first?",
+        "This one's worth keeping—come compare notes~",
+      "Not perfect, but useful. I like records like that"
+      ],
+      "good_lines_zh": [
+        "不错呀，你最先看见的是哪个细节？",
+        "这次值得留，来和我对笔记~",
+      "不算完美，但很有用，我喜欢这种记录"
+      ],
+      "fair_lines_en": [
+        "Wait—don't blame the scope. Let's log the air first",
+      "The seeing was poor. That does not mean you did it wrong",
+      "This result still helps us narrow down the cause"
+      ],
+      "fair_lines_zh": [
+        "等等，先别怪望远镜，我们先记今晚的空气",
+      "今晚视宁度不好，不是你哪里做错了呀",
+      "这个结果也有用，至少能继续排查原因"
+      ],
+      "failed_lines_en": [
+        "Don't blame yourself. Tell me the last thing you saw",
+        "If we didn't see it, we won't fake it; we'll find out why",
+      "Write down what failed. That is still useful data"
+      ],
+      "failed_lines_zh": [
+        "先别怪自己啦，告诉我最后看见了什么",
+        "没看清就不装成功，我们一起找原因",
+      "把失败的情况记下来，它照样是有效记录"
+      ]
+    },
+    "return_reactions": {
+      "assembling": {
+        "same_lines_en": [
+          "Back? I'm still wrestling with this mount",
+          "Perfect timing. The balance is almost right"
+        ],
+        "same_lines_zh": [
+          "回来啦？我还在和这个支架较劲呢",
+          "回来得正好，配重马上就调平啦"
+        ],
+        "advanced_lines_en": [
+          "I finished another section while you were out—look",
+          "You're back! The tube is seated now"
+        ],
+        "advanced_lines_zh": [
+          "你不在时我又装好一段啦，快看",
+          "你回来啦！镜筒已经坐上去了"
+        ]
+      },
+      "observing": {
+        "same_lines_en": [
+          "Back? {target} is still in the view",
+          "Perfect timing—I kept the view for you~"
+        ],
+        "same_lines_zh": [
+          "回来啦？{target}还在视野里呢",
+          "来得正好，我一直替你留着视野~"
+        ],
+        "advanced_lines_en": [
+          "I brought the scope over; {target} is in view",
+          "You made it! I just found {target}"
+        ],
+        "advanced_lines_zh": [
+          "我把镜子搬来啦，{target}已经进视野",
+          "赶上啦！我刚找到{target}"
+        ]
+      },
+      "recording": {
+        "same_lines_en": [
+          "Back? I still remember the details clearly",
+          "Your usual spot is still open in the log"
+        ],
+        "same_lines_zh": [
+          "回来啦？刚才的细节我还记得很清楚",
+          "日志边上还给你留着老位置呢"
+        ],
+        "advanced_lines_en": [
+          "Observation done—now we log it while it's fresh",
+          "You're back; come fill in what you saw"
+        ],
+        "advanced_lines_zh": [
+          "观测做完啦，现在得趁热记下来",
+          "你回来啦，快来补你看到的那一栏"
+        ]
+      },
+      "reviewing": {
+        "same_lines_en": [
+          "Back? I found a small change in the data",
+          "Come look. This section does not match the last record~"
+        ],
+        "same_lines_zh": [
+          "回来啦？我在数据里发现一点变化",
+          "过来看看，这一段和上次记录对不上~"
+        ],
+        "advanced_lines_en": [
+          "The log is done, and I found a small pattern",
+          "Perfect timing. These two records do not match"
+        ],
+        "advanced_lines_zh": [
+          "记录写完啦，还发现了一个小规律",
+          "来得正好，这两份记录有点对不上"
+        ]
+      },
+      "resting": {
+        "same_lines_en": [
+          "Back already? The tea is still warm",
+          "Come sit—the next target isn't picked yet~"
+        ],
+        "same_lines_zh": [
+          "这么快就回来啦？茶还温着呢",
+          "来坐呀，下个目标还没选~"
+        ],
+        "advanced_lines_en": [
+          "That round is done; tea before the next one",
+          "You're back—sit with me while the tube cools?"
+        ],
+        "advanced_lines_zh": [
+          "这一轮做完啦，下一轮之前先喝茶",
+          "回来啦，镜筒降温时陪我坐会儿？"
+        ]
+      },
+      "familiar_lines_en": [
+        "Knew you'd circle back~",
+        "I've kept your spot open"
+      ],
+      "familiar_lines_zh": [
+        "就知道你还会绕回来~",
+        "你的位置一直给你留着呢"
+      ],
+      "trusted_lines_en": [
+        "You're back—I saved your part for you",
+        "Welcome back, my night-shift partner~"
+      ],
+      "trusted_lines_zh": [
+        "回来啦，你那一步我可没替你做",
+        "欢迎回来，我的值夜搭档~"
+      ]
+    },
+    "interruptions": {
+      "assembling": {
+        "second_lines_en": [
+          "Mm-hm, I'm here! Hold the tube for me?",
+          "Wait—this clamp still has my hand trapped"
+        ],
+        "second_lines_zh": [
+          "嗯嗯，我在！顺手帮我扶下镜筒？",
+          "等等，这卡箍还夹着我手呢"
+        ],
+        "repeated_lines_en": [
+          "Let me lock this first or it'll tip",
+          "Ten seconds—just this one screw!"
+        ],
+        "repeated_lines_zh": [
+          "等我先锁紧这里，不然它要歪啦",
+          "给我十秒，就这颗螺丝！"
+        ]
+      },
+      "observing": {
+        "second_lines_en": [
+          "Still here? Come on, the eyepiece is yours~",
+          "Easy—the view just settled"
+        ],
+        "second_lines_zh": [
+          "还在呀？来，目镜给你~",
+          "轻一点，画面刚刚安静下来"
+        ],
+        "repeated_lines_en": [
+          "Look first; questions after the eyepiece",
+          "Shh. Watch for a few more seconds before it blurs again"
+        ],
+        "repeated_lines_zh": [
+          "先看呀，问题离开目镜再说",
+          "嘘，再看几秒，画面可能又要糊了"
+        ]
+      },
+      "recording": {
+        "second_lines_en": [
+          "Tell me what you saw first; I'll add it",
+          "Wait, let me write this number down first"
+        ],
+        "second_lines_zh": [
+          "你先说看见什么，我给你记进去",
+          "等等，我先把这个数字记下来"
+        ],
+        "repeated_lines_en": [
+          "Let me finish this line, then I'm all ears",
+          "Don't distract me—I really will forget this number"
+        ],
+        "repeated_lines_zh": [
+          "让我写完这行，再好好听你说呀",
+          "先别闹，我真的会忘掉这个数啦"
+        ]
+      },
+      "reviewing": {
+        "second_lines_en": [
+          "Come closer—look at this curve with me",
+          "You brought a hypothesis? Then you may interrupt~"
+        ],
+        "second_lines_zh": [
+          "靠近点，一起看这条曲线呀",
+          "带着猜想来的？那准你打断~"
+        ],
+        "repeated_lines_en": [
+          "One more minute. I am almost sure this is a pattern",
+          "Hang on. This result does not match my first calculation"
+        ],
+        "repeated_lines_zh": [
+          "再等一分钟，我快确认这个规律了",
+          "稍等，这个结果和我刚才算的不一样"
+        ]
+      },
+      "resting": {
+        "second_lines_en": [
+          "You really know how to follow the smell of tea~",
+          "Sit down—watching while standing isn't resting"
+        ],
+        "second_lines_zh": [
+          "你倒很会闻着茶香过来嘛~",
+          "坐下呀，站着围观不算休息"
+        ],
+        "repeated_lines_en": [
+          "All right, I'm listening~",
+          "Fine—share five quiet minutes with me"
+        ],
+        "repeated_lines_zh": [
+          "好啦好啦，我在听~",
+          "行吧，陪我安静五分钟呀"
+        ]
+      }
+    },
+    "workbench_walkaway": {
+      "untouched_lines_en": [
+        "Just looking? Then your senior will keep working",
+        "It's fine—I can hold this step by myself~"
+      ],
+      "untouched_lines_zh": [
+        "只看看呀？那学姐先继续忙啦",
+        "没事，这一步我自己扶得住~"
+      ],
+      "partial_lines_en": [
+        "Nice start—I won't touch your adjustment",
+        "Go on; I'm saving the next step for you"
+      ],
+      "partial_lines_zh": [
+        "开头调得不错，我不碰你的参数",
+        "去忙吧，下一步还给你留着呢"
+      ],
+      "trusted_lines_en": [
+        "I'll keep going, but focus waits for you",
+        "Go on—I know you'll come back~"
+      ],
+      "trusted_lines_zh": [
+        "我先做着，合焦那步等你呀",
+        "去吧，反正我知道你会回来~"
+      ]
+    },
+    "private_memories": [
+      {
+        "id": "first_solo_night",
+        "required_stage": "familiar",
+        "requirements": {
+          "observations_joined": 1
+        },
+        "label_en": "Your first night here?",
+        "label_zh": "学姐第一次独自值夜？",
+        "lines_en": [
+          "My first solo night, I left every light on… embarrassing",
+          "By dawn I finally knew which noises belonged to the dome"
+        ],
+        "lines_zh": [
+          "第一次自己值夜，我把灯全开着……有点丢人",
+          "熬到天亮，我才分清哪些声音是穹顶发的"
+        ],
+        "echoes": {
+          "observing_lines_en": [
+            "I used to watch alone at this hour"
+          ],
+          "observing_lines_zh": [
+            "以前这个点，总是我一个人守着"
+          ],
+          "resting_lines_en": [
+            "I used to make only one cup on these shifts"
+          ],
+          "resting_lines_zh": [
+            "以前值夜，我都只泡自己那一杯"
+          ]
+        }
+      },
+      {
+        "id": "dome_spare_key",
+        "required_stage": "trusted",
+        "requirements": {
+          "observations_completed": 3,
+          "tea_breaks_shared": 2
+        },
+        "label_en": "Why is there a spare key?",
+        "label_zh": "抽屉里的备用钥匙？",
+        "lines_en": [
+          "It's for you. A night partner shouldn't wait outside for me",
+          "Keep it safe. I trust you with the gear and locking up"
+        ],
+        "lines_zh": [
+          "给你的呀，值夜搭档哪能在门外等我开门",
+          "收好哦，我信你照看仪器，也信你记得关灯"
+        ],
+        "echoes": {
+          "assembling_lines_en": [
+            "Looks like that spare key was worth it~"
+          ],
+          "assembling_lines_zh": [
+            "看来那把备用钥匙没白给嘛~"
+          ],
+          "resting_lines_en": [
+            "Key holders wash the cups tonight"
+          ],
+          "resting_lines_zh": [
+            "有钥匙的人，今晚负责洗杯子哦"
+          ]
+        }
+      },
+      {
+        "id": "next_year_roster",
+        "required_stage": "trusted",
+        "requirements": {
+          "observations_completed": 4,
+          "rest_conversations": 4
+        },
+        "label_en": "Is that next year's roster?",
+        "label_zh": "那是明年的值夜表？",
+        "lines_en": [
+          "It is next year's. I saved a second column before asking you",
+          "I put your name down first. You are still free to say no~"
+        ],
+        "lines_zh": [
+          "是明年的。我先留了第二栏，才想起还没问你",
+          "我先把你的名字写上了，不愿意也可以说哦~"
+        ],
+        "echoes": {
+          "reviewing_lines_en": [
+            "I want this one in next year's plan"
+          ],
+          "reviewing_lines_zh": [
+            "这一条，我想写进明年的计划里"
+          ],
+          "resting_lines_en": [
+            "Next year's roster already has your column"
+          ],
+          "resting_lines_zh": [
+            "明年的值夜表，已经有你那一栏啦"
+          ]
+        }
+      }
+    ],
+    "rest_chat": {
+      "title_en": "A quiet moment with Maya",
+      "title_zh": "和玛雅学姐安静坐一会儿",
+      "intro_en": "The tube is cooling and the kettle is warm. No tasks right now~",
+      "intro_zh": "镜筒在降温，水壶还温着。现在没有任务呀~",
+      "topics": [
+        {
+          "id": "tonight",
+          "label_en": "How is the night?",
+          "label_zh": "今晚的天空怎么样？",
+          "colleague_lines_en": [
+            "Tonight is {night}. The conditions are usable~",
+            "Not bad. Let's start with something bright"
+          ],
+          "colleague_lines_zh": [
+            "今晚是{night}，条件可以，能正常观测~",
+            "还不错呀，先从亮一点的目标开始吧"
+          ],
+          "familiar_lines_en": [
+            "You know nights like this now—what would you look at first?",
+            "Tonight is {night}; I bet I know which eyepiece you'll grab"
+          ],
+          "familiar_lines_zh": [
+            "这种夜你已经懂啦，你会先看什么？",
+            "今晚是{night}，我猜你会先拿那只目镜"
+          ],
+          "trusted_lines_en": [
+            "You check the conditions first now. That saves me a worry~",
+            "Tonight is {night}. Not ideal, so let's take it slowly"
+          ],
+          "trusted_lines_zh": [
+            "你现在进门会先看天气啦，我省心好多~",
+            "今晚是{night}，条件一般，我们慢慢看"
+          ]
+        },
+        {
+          "id": "why_stay",
+          "label_en": "Why do you stay so late?",
+          "label_zh": "学姐为什么总待到这么晚？",
+          "colleague_lines_en": [
+            "It is quieter after everyone leaves. Maintenance is easier",
+            "There is less noise at night, so faults are easier to trace"
+          ],
+          "colleague_lines_zh": [
+            "大家走后安静一点，检查仪器比较方便呀",
+            "晚上环境安静，排查起来方便一点"
+          ],
+          "familiar_lines_en": [
+            "At first it was just my shift. Then I got used to staying",
+            "You come by pretty often now, so it does not feel that late~"
+          ],
+          "familiar_lines_zh": [
+            "一开始只是轮到我值班，后来就待习惯了",
+            "而且你最近常来，我也没觉得有多晚~"
+          ],
+          "trusted_lines_en": [
+            "Sometimes I wait for data. Sometimes I wait for you~",
+            "Solo shifts get boring. It is much better with you here"
+          ],
+          "trusted_lines_zh": [
+            "有时候是在等数据，有时候是在等你呀~",
+            "一个人值夜挺无聊的，现在好多啦"
+          ]
+        },
+        {
+          "id": "tea",
+          "label_en": "Is there tea for me?",
+          "label_zh": "有我的茶吗？",
+          "colleague_lines_en": [
+            "The blue tin. One spoon is enough, or it gets too bitter",
+            "Of course. Hold the rim—the handle is hot"
+          ],
+          "colleague_lines_zh": [
+            "蓝色罐子泡的，只放一勺，不然会苦哦",
+            "当然有呀，小心杯把有点烫"
+          ],
+          "familiar_lines_en": [
+            "I heard the door and poured yours. I knew it was you~",
+            "The less bitter cup is yours. I remembered"
+          ],
+          "familiar_lines_zh": [
+            "听见门响就给你倒了，我知道是你嘛~",
+            "不那么苦的那杯是你的，我记得啦"
+          ],
+          "trusted_lines_en": [
+            "Your cup is in its usual place; you wash it this time",
+            "Already poured. Sit before it cools, night partner~"
+          ],
+          "trusted_lines_zh": [
+            "你的杯子在老位置，喝完归你洗哦",
+            "早倒好啦，凉之前坐下吧，值夜搭档~"
+          ]
+        }
+      ]
+    },
+    "phase_order": [
+      "assembling",
+      "observing",
+      "recording",
+      "reviewing",
+      "resting"
+    ],
+    "phases": {
+      "assembling": {
+        "destination": "assembly",
+        "icon": "",
+        "action": "assembly_work",
+        "duration_min": 24,
+        "duration_max": 38,
+        "status_en": "Assembling: {instrument}",
+        "status_zh": "正在组装：{instrument}",
+        "interaction_en": "See what Maya is building",
+        "interaction_zh": "看看玛雅在组装什么",
+        "steps_en": [
+          "Stabilize the mount",
+          "Seat and balance the optical tube",
+          "Align the finder for first light"
+        ],
+        "steps_zh": [
+          "稳固并锁紧支架",
+          "安装镜筒并调整配重",
+          "校准寻星镜准备初光"
+        ],
+        "lines_en": [
+        "The balance is almost right. Just a little more",
+        "Wait, this mount is not fully locked yet",
+          "It needs to be steady before we take it out",
+          "The finder needs one last adjustment",
+        "This tube is much heavier than it looks",
+          "Let's use a gentle eyepiece for first light",
+        "Almost done. I am checking every lock once more",
+        "It is quiet here, which is perfect for careful work"
+        ],
+        "lines_zh": [
+        "配重还差一点，我再调一下",
+        "等等，这个支架还没完全锁紧",
+          "拿去观测前，得先把它调稳呀",
+          "寻星镜还差最后一点校准",
+        "这镜筒比看起来沉多了",
+          "初光先用温和点的目镜哦",
+        "快好啦，我再检查一遍每个锁扣",
+        "这边安静，做这种细活正好"
+        ],
+        "familiar_lines_en": [
+          "You know the routine—check the finder for me?",
+          "With you across the bench, this goes much faster~"
+        ],
+        "familiar_lines_zh": [
+          "流程你熟啦，帮我瞄一眼寻星镜？",
+          "你站工作台另一边，真的快好多~"
+        ],
+        "trusted_lines_en": [
+          "You balance, I lock—same old teamwork~",
+          "Small screw case… yep, knew you'd grab the right one"
+        ],
+        "trusted_lines_zh": [
+          "你掌平衡，我锁紧，还是老分工~",
+          "小螺丝盒给我……嗯，就知道你拿得对"
+        ],
+        "action_loop": true,
+        "action_hold": false,
+        "action_speed_scale": 2.5
+      },
+      "observing": {
+        "destination": "telescope",
+        "icon": "",
+        "action": "point",
+        "duration_min": 42,
+        "duration_max": 68,
+        "status_en": "Observing: {target}",
+        "status_zh": "正在观测：{target}",
+        "interaction_en": "Observe {target} with Maya",
+        "interaction_zh": "和玛雅一起观测{target}",
+        "lines_en": [
+          "It's in view—want a look?",
+        "The view just steadied. Come here",
+          "I only meant to check focus, then couldn't look away",
+          "Eyepiece is yours; I want your judgment first",
+        "It is faint, but the image is stable",
+          "No rush—let your eyes settle",
+          "This is my favorite little part of the night",
+          "I kept the view for you~"
+        ],
+        "lines_zh": [
+          "已经进视野啦，想不想看？",
+        "视野刚稳定下来，快过来",
+          "本来只查焦点，结果舍不得挪开了",
+          "目镜给你，我想先听你的判断",
+        "有点暗，不过画面现在很稳",
+          "不急呀，先让眼睛慢慢适应",
+          "我最喜欢夜里这一小段",
+          "我替你把视野留住啦~"
+        ],
+        "familiar_lines_en": [
+          "Old rule: you say what you see first",
+          "I guessed you'd come, so I never moved the view~"
+        ],
+        "familiar_lines_zh": [
+          "老规矩，你先说看见什么，我再说",
+          "猜到你会来，所以一直没挪视野~"
+        ],
+        "trusted_lines_en": [
+        "I knew you would come, so I kept the eyepiece ready~",
+        "Look first. We can talk about it after"
+        ],
+        "trusted_lines_zh": [
+        "我就知道你会来，目镜一直给你留着呢~",
+        "先看吧，等下我们再慢慢说"
+        ],
+        "action_loop": false,
+        "action_hold": true,
+        "action_speed_scale": 1.35
+      },
+      "recording": {
+        "destination": "journal",
+        "icon": "",
+        "action": "think",
+        "duration_min": 24,
+        "duration_max": 40,
+        "status_en": "Recording: {target}",
+        "status_zh": "正在记录：{target}",
+        "interaction_en": "Read Maya's observing notes",
+        "interaction_zh": "看看玛雅的观测笔记",
+        "lines_en": [
+        "Before I forget, I am writing down the seeing",
+          "Its edge looked cleaner than last time",
+        "We should log it now, before the details fade",
+          "I left a note space for you",
+        "The small details are the easiest to forget",
+          "I'm comparing this with our last record",
+        "The sketch is messy, but I checked every number",
+        "Done. This observation is fully logged now"
+        ],
+        "lines_zh": [
+        "趁还记得，先把今晚的视宁度记下来",
+          "它的边缘比上次干净一点呀",
+        "观测完要及时记，不然细节很容易忘",
+          "旁边给你留了备注位哦",
+        "小细节最容易忘，得先写下来",
+          "我在对我们上次那份记录",
+        "草图是潦草了点，数字我都核过啦",
+        "好啦，这次观测记录补完整了"
+        ],
+        "familiar_lines_en": [
+          "Your usual spot is beside the sketch",
+        "I know your handwriting at a glance. That is a compliment~"
+        ],
+        "familiar_lines_zh": [
+          "草图旁边还是你的老位置呀",
+        "你的字我一眼就认出来了，这算夸奖吧~"
+        ],
+        "trusted_lines_en": [
+          "I left your column blank; some details should be yours",
+        "We have built up quite a stack of shared logs now"
+        ],
+        "trusted_lines_zh": [
+          "你那栏我空着，有些细节得你亲手写",
+        "我们一起写的记录已经攒了不少啦"
+        ],
+        "action_loop": false,
+        "action_hold": true,
+        "action_speed_scale": 1.35
+      },
+      "reviewing": {
+        "destination": "computer",
+        "icon": "",
+        "action": "notice",
+        "duration_min": 20,
+        "duration_max": 34,
+        "status_en": "Reviewing: {target}",
+        "status_zh": "正在复盘：{target}",
+        "interaction_en": "Compare the observation with Maya",
+        "interaction_zh": "和玛雅一起复盘观测",
+        "lines_en": [
+        "There is a small difference between the two records",
+        "Is that blur from focus, or from the seeing?",
+          "Your focus curve is much steadier now~",
+          "There's a pattern—give me one minute",
+        "Data that differs from the prediction is worth checking",
+        "This run has some error, so keep it for comparison",
+        "There is one more small change here",
+          "Come look—I think you'll spot it too"
+        ],
+        "lines_zh": [
+        "两次记录有一点差异，值得仔细看看",
+        "这点模糊来自对焦，还是视宁度？",
+          "你的对焦曲线稳多了嘛~",
+          "这里有规律，再给我一分钟",
+        "数据和预期不一样时，才更值得检查",
+        "这次有一点误差，正好留着做对比",
+        "这里还有一处小变化",
+          "过来看看，我觉得你也会发现"
+        ],
+        "familiar_lines_en": [
+          "Your eyepiece hunch was right—don't get smug~",
+          "We really do make a good night shift"
+        ],
+        "familiar_lines_zh": [
+          "你在目镜边的直觉是对的，先别得意~",
+          "我们俩还真挺适合一起值夜的"
+        ],
+        "trusted_lines_en": [
+          "I trust this anomaly after checking it with you",
+          "If we both saw it, it's worth another night"
+        ],
+        "trusted_lines_zh": [
+          "这条异常，和你再核一遍我才放心",
+          "如果我们都看见了，就值得再留一晚"
+        ],
+        "action_loop": false,
+        "action_hold": true,
+        "action_speed_scale": 1.35
+      },
+      "resting": {
+        "destination": "journal",
+        "icon": "",
+        "action": "think",
+        "duration_min": 18,
+        "duration_max": 32,
+        "status_en": "Taking a break · tea is still warm",
+        "status_zh": "短暂休息 · 热茶还温着",
+        "interaction_en": "Sit with Maya for a moment",
+        "interaction_zh": "陪玛雅坐一会儿",
+        "lines_en": [
+          "I'm resting my eyes—not sleeping",
+          "After midnight even the kettle sounds loud",
+          "Sit if you want; no reports for five minutes~",
+          "The first sip on a cold night is the best",
+          "Shh, don't tell anyone I hide the good tea here",
+          "The observatory changes when every machine goes quiet",
+        "Sitting down after the work feels pretty nice",
+          "One cup, then we pick the next target"
+        ],
+        "lines_zh": [
+          "只是在让眼睛休息，我可没睡哦",
+          "过了半夜，水壶都显得特别吵",
+          "想坐就坐，五分钟内不交报告~",
+          "冷夜的第一口热茶最好喝啦",
+          "嘘，别说我把好茶藏在这里了",
+          "机器都安静时，天文台会变个样",
+        "忙完坐一会儿，感觉还挺舒服的",
+          "喝完这杯，再挑下一个目标呀"
+        ],
+        "familiar_lines_en": [
+          "I poured extra; you always know when to appear",
+        "If you are not rushing off, sit with me for a bit"
+        ],
+        "familiar_lines_zh": [
+          "我多倒了一点，你总会挑时间出现嘛",
+        "不急着走的话，就陪我坐一会儿呀"
+        ],
+        "trusted_lines_en": [
+          "Your cup is in its usual place—yes, you have one now",
+          "No data for five minutes. Stay until the tea cools?"
+        ],
+        "trusted_lines_zh": [
+          "你的杯子在老位置——对，你有老位置啦",
+          "五分钟不谈数据，陪我坐到茶凉一点？"
+        ],
+        "action_loop": false,
+        "action_hold": true,
+        "action_speed_scale": 1.35
+      }
+    }
+  },
+  "room_text": {
+    "talk_to_maya": {
+      "en": "Talk to Maya",
+      "zh": "和玛雅说话"
+    },
+    "level_status": {
+      "en": "Level {level} · {title}",
+      "zh": "第 {level} 关 · {title}"
+    },
+    "next_prefix": {
+      "en": "Next: ",
+      "zh": "接下来："
+    },
+    "observation_filed": {
+      "en": "{target} · Filed",
+      "zh": "{target} · 已归档"
+    },
+    "observation_data_returned": {
+      "en": "{target} · Data returned",
+      "zh": "{target} · 数据已返回"
+    },
+    "observation_complete": {
+      "en": "{target} · Observation complete",
+      "zh": "{target} · 观测完成"
+    },
+    "companion_not_ready": {
+      "en": "Wait, this scope isn't ready yet. Meet me back at the bench~",
+      "zh": "等等，这台镜子还没准备好呀，回工作台找我~"
+    },
+    "workbench_title": {
+      "en": "MAYA'S WORKBENCH",
+      "zh": "玛雅学姐的工作台"
+    },
+    "workbench_subtitle": {
+      "en": "A real observing project in progress",
+      "zh": "她正在准备一项真正的观测计划"
+    },
+    "workbench_close": {
+      "en": "Let Maya continue",
+      "zh": "让玛雅继续忙"
+    },
+    "workbench_assist": {
+      "en": "Help with this step",
+      "zh": "帮学姐完成这一步"
+    },
+    "workbench_instrument": {
+      "en": "INSTRUMENT",
+      "zh": "正在组装"
+    },
+    "workbench_target": {
+      "en": "PLANNED TARGET",
+      "zh": "计划目标"
+    },
+    "workbench_night": {
+      "en": "TONIGHT",
+      "zh": "今晚夜况"
+    },
+    "workbench_progress": {
+      "en": "Assembly progress  {progress} / {total}",
+      "zh": "协作进度  {progress} / {total}"
+    },
+    "relationship_colleague": {
+      "en": "COLLEAGUES",
+      "zh": "同事"
+    },
+    "relationship_familiar": {
+      "en": "FAMILIAR PARTNERS",
+      "zh": "默契搭档"
+    },
+    "relationship_trusted": {
+      "en": "NIGHT-SHIFT PARTNERS",
+      "zh": "值夜搭档"
+    },
+    "shared_project": {
+      "en": "SHARED PROJECT {cycle} · {relationship}",
+      "zh": "共同项目 {cycle} · {relationship}"
+    },
+    "workbench_finish": {
+      "en": "Finish and take it to the pad",
+      "zh": "完成组装，带去观测台"
+    },
+    "assembly_complete": {
+      "en": "All built! I'll take the scope to the observing pad~",
+      "zh": "装好啦！我先把镜子搬去观测台~"
+    },
+    "rest_tonight": {
+      "en": "TONIGHT · {night}",
+      "zh": "今晚 · {night}"
+    },
+    "rest_prompt": {
+      "en": "(slides the warm cup over) What do you want to talk about?",
+      "zh": "（把温热的杯子推过来）想聊什么呀？"
+    },
+    "rest_close": {
+      "en": "Return to the night shift",
+      "zh": "回去继续值夜"
+    }
+  }
+}
