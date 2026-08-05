@@ -69,6 +69,7 @@ var target_low := false
 var target_alt_now := 0.0
 var map_target_id := ""
 var comfortable_altitude := 18.0
+var recommendation_rng := RandomNumberGenerator.new()
 
 var site_visibility: Dictionary = {}
 var scan_order: Array = []          # site ids sorted by distance from current
@@ -156,6 +157,7 @@ func _ready() -> void:
 	target_low = (not target_below) and target_alt_now < comfortable_altitude
 	# ALL site maths happens here, before a single frame of animation.
 	_compute_all_visibility(service)
+	recommendation_rng.randomize()
 	recommended = _recommend_site()
 	selected_id = str(recommended.get("site", {}).get("id", "")) if not recommended.is_empty() else ""
 	_build_scan_order()
@@ -202,25 +204,39 @@ func _compute_all_visibility(service: SkyPositionService) -> void:
 
 
 func _recommend_site() -> Dictionary:
-	var best: Dictionary = {}
-	var fallback: Dictionary = {}
-	var best_score := -INF
-	var fallback_score := -INF
+	var candidates := _available_site_candidates()
+	if candidates.is_empty():
+		return {}
+	return (candidates[recommendation_rng.randi_range(0, candidates.size() - 1)] as Dictionary).duplicate(true)
+
+
+func _available_site_candidates() -> Array:
+	# Relocation is a choice among every usable observatory, not a hidden
+	# optimization contest that repeatedly sends the player to one map edge.
+	# Prefer all comfortably high sites; only relax the altitude threshold when
+	# the target would otherwise have no destination at this UTC snapshot.
+	var comfortable: Array = []
+	var observable: Array = []
+	var horizon_fallback: Array = []
+	var current_id := str(current_site.get("id", ""))
 	for id_value in site_visibility.keys():
 		var candidate: Dictionary = site_visibility[id_value]
+		var site: Dictionary = candidate.get("site", {})
+		if site.is_empty() or str(site.get("id", id_value)) == current_id:
+			continue
 		var altitude := float(candidate.get("altitude", -90.0))
 		if altitude < 0.0:
 			continue
-		var site: Dictionary = candidate.get("site", {})
-		var seeing_score: float = float({"excellent": 3.0, "good": 2.0, "average": 1.0}.get(str(candidate.get("seeing", "average")), 1.0))
-		var score := altitude * 4.0 + (9.0 - float(site.get("bortle", 5))) * 6.0 + float(seeing_score) * 5.0 - float(candidate.get("cloud_cover", 0.25)) * 24.0
-		if score > fallback_score:
-			fallback_score = score
-			fallback = candidate.duplicate(true)
-		if altitude >= comfortable_altitude and score > best_score:
-			best_score = score
-			best = candidate.duplicate(true)
-	return best if not best.is_empty() else fallback
+		horizon_fallback.append(candidate)
+		if altitude >= minimum_altitude:
+			observable.append(candidate)
+		if altitude >= comfortable_altitude:
+			comfortable.append(candidate)
+	if not comfortable.is_empty():
+		return comfortable
+	if not observable.is_empty():
+		return observable
+	return horizon_fallback
 
 
 func _site_cloud_cover(site: Dictionary) -> float:
@@ -762,8 +778,8 @@ func _update_status_text() -> void:
 			var site: Dictionary = selected.get("site", {})
 			var target_object: Dictionary = GameManager.get_object(map_target_id)
 			t = GameManager.text(
-				"Recommended site: %s. %s will be %.1f° above the horizon.\nConfirm the site to travel there.",
-				"推荐观测点：%s。在这里，%s 高度角为 %.1f°。\n点击确认地点即可前往。") % [
+				"Available site selected: %s. %s will be %.1f° above the horizon.\nConfirm the site to travel there.",
+				"已从可用站点中选择：%s。在这里，%s 高度角为 %.1f°。\n点击确认地点即可前往。") % [
 				GameManager.dict_text(site, "name"),
 				GameManager.dict_text(target_object, "name"),
 				float(selected.get("altitude", 0.0))]

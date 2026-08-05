@@ -7,6 +7,15 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - Random Selection Across All Available Observatories
+
+- Replaced the world map's deterministic highest-score destination with a
+  uniform random choice across every non-current observatory where the target
+  is comfortably visible. If necessary, the same pool falls back to the
+  configured minimum altitude and then to any above-horizon site.
+- Removed the hidden preference that repeatedly favored observatories near the
+  map edges, while preserving manual site selection and safe altitude checks.
+
 ## 2026-08-04 - Crab Side-view and Latest-generation Auto Equip
 
 - Classified supernova remnants such as the Crab as extended diffuse targets,
