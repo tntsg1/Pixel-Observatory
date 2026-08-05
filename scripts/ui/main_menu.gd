@@ -215,6 +215,7 @@ func _on_continue() -> void:
 	if not _continue_available:
 		_show_feedback(GameManager.text("No save found yet.", "还没有存档。"))
 		return
+	GameManager.resume_saved_campaign()
 	GameManager.go("observatory")
 
 
