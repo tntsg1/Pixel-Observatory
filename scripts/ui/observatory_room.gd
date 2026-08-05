@@ -1,6 +1,7 @@
 extends Control
 
 const FurnitureAnimator = preload("res://scripts/ui/observatory_furniture_animator.gd")
+const MayaHallNPCScript = preload("res://scripts/ui/maya_hall_npc.gd")
 const W := 1024.0
 const H := 768.0
 const ROOM_RECT := Rect2(34, 100, 956, 578)
@@ -102,6 +103,13 @@ const OBSTACLE_RECTS := [
 	Rect2(499, 417, 24, 27),   # Central telescope pivot only
 ]
 
+# The round brass-and-blue observation platform is scenery the player may step
+# onto, but Maya's autonomous routes must go around it.  Without this dedicated
+# footprint her pathfinder only saw the 24x27 telescope pivot and marched her
+# straight across the painted platform.
+const MAYA_CENTRAL_PLATFORM_CENTER := Vector2(512, 445)
+const MAYA_CENTRAL_PLATFORM_RADII := Vector2(156, 116)
+
 const FURNITURE_OCCLUDER_SPECS := [
 	{
 		"id": "mission",
@@ -177,6 +185,9 @@ var mission_board_popup: Control
 var stats_terminal_popup: Control
 var stats_terminal_animating := false
 var unlock_popup: Control
+var maya_workbench_popup: Control
+var maya_rest_chat_popup: Control
+var maya_workbench_open_progress := 0
 var level_value_label: Label
 var credits_value_label: Label
 var telescope_status_label: Label
@@ -219,6 +230,10 @@ var pending_remote_console_scene := ""
 var pending_remote_console_kind := ""
 var furniture_interaction_active := false
 var arrival_furniture_id := ""
+var maya_npc: MayaHallNPC
+var maya_initial_return_state := ""
+var maya_initial_station_id := ""
+var maya_return_pose: Dictionary = {}
 
 
 func _ready() -> void:
@@ -245,7 +260,10 @@ func _ready() -> void:
 	elif GameManager.room_guidance_target != "":
 		active_guidance = "room_guidance"
 	var arrival_id := GameManager.take_observatory_spawn()
+	maya_initial_return_state = _maya_return_state(arrival_id)
+	maya_initial_station_id = arrival_id
 	var return_pose: Dictionary = GameManager.take_observatory_return_pose()
+	maya_return_pose = GameManager.take_maya_observatory_return_pose()
 	if bool(return_pose.get("valid", false)):
 		player_pos = return_pose.get("position", _spawn_position(arrival_id))
 		player_facing = str(return_pose.get("facing", "down"))
@@ -315,6 +333,12 @@ func _show_assembly_return_chain(arrival_id: String) -> void:
 
 
 func _process(delta: float) -> void:
+	if maya_npc != null:
+		maya_npc.set_room_blocked(
+			room_transition_active or unlock_popup != null or stats_terminal_popup != null
+			or mission_board_popup != null or maya_workbench_popup != null
+			or maya_rest_chat_popup != null or furniture_interaction_active
+		)
 	if room_transition_active:
 		_update_hud()
 		return
@@ -324,14 +348,33 @@ func _process(delta: float) -> void:
 	if stats_terminal_popup != null:
 		_update_hud()
 		return
+	if maya_workbench_popup != null:
+		_update_hud()
+		return
+	if maya_rest_chat_popup != null:
+		_update_hud()
+		return
 	_move_player(delta)
 	_poll_action_keys()
 	_update_nearby()
 	_update_hud()
+	_remember_maya_pose()
 
 
 func _input(event: InputEvent) -> void:
 	if room_transition_active:
+		return
+	if maya_workbench_popup != null:
+		if event is InputEventKey:
+			var workbench_key := event as InputEventKey
+			if workbench_key.pressed and not workbench_key.echo and workbench_key.keycode == KEY_ESCAPE:
+				_close_maya_workbench()
+		return
+	if maya_rest_chat_popup != null:
+		if event is InputEventKey:
+			var chat_key := event as InputEventKey
+			if chat_key.pressed and not chat_key.echo and chat_key.keycode == KEY_ESCAPE:
+				_close_maya_rest_chat()
 		return
 	if stats_terminal_popup != null:
 		if event is InputEventKey:
@@ -361,6 +404,10 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		if mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
+			if maya_npc != null and maya_npc.contains_screen_point(mouse_event.position):
+				_interact_with_maya()
+				get_viewport().set_input_as_handled()
+				return
 			_interact_at(mouse_event.position)
 
 
@@ -390,6 +437,7 @@ func _event_action_pressed(event: InputEvent, action_name: String) -> bool:
 
 func _build() -> void:
 	control_bar_manual_revision += 1
+	maya_npc = null
 	for child in get_children():
 		child.queue_free()
 	interactables.clear()
@@ -400,11 +448,104 @@ func _build() -> void:
 	_draw_furniture_animation_overlays()
 	_register_hitboxes()
 	_draw_player()
+	_draw_maya_npc()
 	_draw_furniture_occluders()
 	_draw_hud()
 	_set_player_position(player_pos)
 	_update_nearby()
 	_update_hud()
+
+
+func _draw_maya_npc() -> void:
+	maya_npc = MayaHallNPCScript.new() as MayaHallNPC
+	maya_npc.name = "MayaHallNPC"
+	add_child(maya_npc)
+	var start := Vector2(512, 292)
+	var initial_facing := "down"
+	if bool(maya_return_pose.get("valid", false)):
+		start = maya_return_pose.get("position", start)
+		initial_facing = str(maya_return_pose.get("facing", "down"))
+	elif maya_initial_return_state != "" and maya_initial_station_id in [
+		"cabinet", "door", "mission", "assembly", "telescope", "journal", "computer"
+	]:
+		start = _maya_destination_for(maya_initial_station_id)
+	maya_npc.setup(
+		start,
+		Callable(self, "_maya_position_is_walkable"),
+		Callable(self, "_maya_player_position"),
+		Callable(self, "_maya_destination_for"),
+		Callable(self, "_maya_route_target"),
+		maya_initial_return_state,
+		initial_facing,
+		Callable(self, "_maya_focus_for")
+	)
+	# A stale or malformed runtime pose must never place her inside furniture.
+	if not _maya_position_is_walkable(maya_npc.position):
+		maya_npc.position = _maya_destination_for(maya_initial_station_id) \
+			if maya_initial_station_id != "" else Vector2(512, 292)
+
+
+func _maya_position_is_walkable(pos: Vector2) -> bool:
+	var foot_rect := Rect2(pos - Vector2(8, 8), Vector2(16, 8))
+	if not _player_rect_is_on_walkable_floor(foot_rect):
+		return false
+	var platform_offset := pos - MAYA_CENTRAL_PLATFORM_CENTER
+	var normalized_platform_offset := Vector2(
+		platform_offset.x / MAYA_CENTRAL_PLATFORM_RADII.x,
+		platform_offset.y / MAYA_CENTRAL_PLATFORM_RADII.y
+	)
+	if normalized_platform_offset.length_squared() <= 1.0:
+		return false
+	for obstacle in obstacles:
+		if foot_rect.intersects(obstacle):
+			return false
+	return true
+
+
+func _maya_player_position() -> Vector2:
+	return player_pos
+
+
+func _maya_destination_for(destination_id: String) -> Vector2:
+	var destinations := {
+		"cabinet": Vector2(360, 326),
+		"door": Vector2(590, 310),
+		"mission": Vector2(665, 324),
+		# Use the middle of the clear aisle in front of the workbench.  The old
+		# left-side waypoint made Maya look detached from the telescope she was
+		# meant to be assembling.
+		"assembly": Vector2(852, 510),
+		# Observe from the clear right-hand aisle instead of standing on, or
+		# routing across, the central circular platform.
+		"telescope": Vector2(680, 496),
+		"journal": Vector2(322, 590),
+		"computer": Vector2(724, 620),
+	}
+	return destinations.get(destination_id, Vector2(600, 620))
+
+
+func _maya_focus_for(destination_id: String) -> Vector2:
+	var station_rect: Rect2 = INTERACTION_RECTS.get(destination_id, Rect2())
+	return station_rect.get_center() if station_rect.size != Vector2.ZERO \
+		else _maya_destination_for(destination_id)
+
+
+func _maya_route_target() -> String:
+	return GameManager.room_guidance_target
+
+
+func _maya_return_state(arrival_id: String) -> String:
+	if arrival_id == "assembly" and GameManager.telescope_is_ready():
+		return "assembly_success"
+	if arrival_id == "computer" and not GameManager.last_observation.is_empty():
+		return "remote_success"
+	if arrival_id == "journal" and not GameManager.last_observation.is_empty():
+		return "journal_saved"
+	if arrival_id in ["telescope", "door"] and not GameManager.last_observation.is_empty():
+		return "observation_success"
+	if bool(GameManager.progress.get("graduation_seen", false)):
+		return "graduated"
+	return ""
 
 
 func _draw_full_background() -> void:
@@ -629,12 +770,16 @@ func _register_interactable(id: String, display_name: String, hint: String, rect
 func _draw_player() -> void:
 	player_shadow = _rect(_player_shadow_position(), Vector2(26, 7), Color(0.0, 0.0, 0.0, 0.32))
 	player = Sprite2D.new()
+	player.name = "Player"
 	player_atlas = AtlasTexture.new()
 	player_atlas.atlas = PLAYER_TEXTURE
 	player.texture = player_atlas
 	player.position = _player_visual_position()
 	player.centered = true
 	player.scale = Vector2.ONE * PLAYER_DISPLAY_SCALE
+	# Both actors normally share z=1. Maya only brackets this layer while their
+	# sprites physically overlap, so furniture treats them consistently.
+	player.z_index = 1
 	player.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(player)
 	_set_player_animation_frame(player_facing, 0)
@@ -647,6 +792,9 @@ func _draw_furniture_occluders() -> void:
 		var rect: Rect2 = spec.get("rect", Rect2())
 		var occluder := Node2D.new()
 		occluder.name = "FurnitureOccluder_%s" % str(spec.get("id", "table"))
+		# These cutouts appear only while an actor is physically behind a prop, so
+		# they must remain above both character depth bands.
+		occluder.z_index = 3
 		occluder.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		occluder.visible = false
 		var cutout_texture := spec.get("texture") as Texture2D
@@ -686,19 +834,24 @@ func _draw_furniture_occluders() -> void:
 
 
 func _update_furniture_occlusion() -> void:
-	if player == null:
+	if player == null and maya_npc == null:
 		return
-	var visual_rect := Rect2(
-		_player_visual_position() - PLAYER_DISPLAY_SIZE * 0.5,
-		PLAYER_DISPLAY_SIZE
-	)
+	var visual_rect := Rect2()
+	if player != null:
+		visual_rect = Rect2(
+			_player_visual_position() - PLAYER_DISPLAY_SIZE * 0.5,
+			PLAYER_DISPLAY_SIZE
+		)
 	for data in furniture_occluders:
 		var occluder := data.get("node") as CanvasItem
 		if occluder == null:
 			continue
 		var furniture_rect: Rect2 = data.get("rect", Rect2())
-		var is_behind := player_pos.y <= float(data.get("front_y", furniture_rect.end.y))
-		occluder.visible = is_behind and visual_rect.intersects(furniture_rect)
+		var front_y := float(data.get("front_y", furniture_rect.end.y))
+		var player_behind := player != null and player_pos.y <= front_y \
+			and visual_rect.intersects(furniture_rect)
+		var maya_behind := maya_npc != null and maya_npc.is_behind_furniture(furniture_rect, front_y)
+		occluder.visible = player_behind or maya_behind
 
 
 func _draw_hud() -> void:
@@ -786,7 +939,9 @@ func _draw_hud_lower() -> void:
 	guidance_panel.position = Vector2(222, 76)
 	guidance_panel.size = Vector2(580, 170)
 	guidance_panel.add_theme_stylebox_override("panel", _style(Color(0.030, 0.045, 0.080, 0.96), BRASS, 3, 6))
-	guidance_panel.visible = InteractionFeedback.guidance_highlights_enabled()
+	# Maya now guides in-world with a compact thought bubble. Keep this legacy
+	# card as a data container for route copy, but never let it cover the room.
+	guidance_panel.visible = false
 	add_child(guidance_panel)
 	_corner_pins(guidance_panel)
 	guidance_maya_portrait = MayaPortrait.create(
@@ -981,7 +1136,19 @@ func _open_main_menu() -> void:
 	# exact foot position and facing instead of falling back to a furniture
 	# spawn when Continue returns to the observatory.
 	GameManager.remember_observatory_pose(player_pos, player_facing)
+	_remember_maya_pose()
 	GameManager.go("menu")
+
+
+func _remember_maya_pose() -> void:
+	if maya_npc == null:
+		return
+	maya_npc.remember_player_departure()
+	GameManager.remember_maya_observatory_pose(
+		maya_npc.position,
+		maya_npc.current_facing(),
+		maya_npc.current_destination_id()
+	)
 
 
 func _player_visual_position() -> Vector2:
@@ -1123,7 +1290,9 @@ func _update_nearby() -> void:
 	if mobile_overlay != null:
 		# Interact button mirrors the E key: enabled near an interactable
 		# and labeled with the object's name.
-		if nearby_id == "":
+		if nearby_id == "" and maya_npc != null and maya_npc.player_is_near():
+			mobile_overlay.set_action_enabled("interact", true, maya_npc.interaction_prompt())
+		elif nearby_id == "":
 			mobile_overlay.set_action_enabled("interact", false, GameManager.text("Interact", "互动"))
 		else:
 			mobile_overlay.set_action_enabled("interact", true, str(_get_interactable(nearby_id).get("name", "")))
@@ -1153,7 +1322,10 @@ func _update_hud() -> void:
 		telescope_status_label.add_theme_color_override("font_color", Color(0.48, 0.95, 0.36) if ready else Color(0.95, 0.72, 0.36))
 
 	if nearby_id == "":
-		focus_label.text = GameManager.text("Move around the observatory room", "在观测室里移动")
+		if maya_npc != null and maya_npc.player_is_near():
+			focus_label.text = "[E] " + maya_npc.interaction_prompt()
+		else:
+			focus_label.text = GameManager.text("Move around the observatory room", "在观测室里移动")
 		if _has_feedback_override():
 			InteractionFeedback.crossfade_text(feedback_label, feedback_override)
 		elif GameManager.room_guidance_target != "" and InteractionFeedback.guidance_highlights_enabled():
@@ -1185,14 +1357,287 @@ func _update_hud() -> void:
 func _interact_with_nearby() -> void:
 	if nearby_id != "":
 		_handle_interaction(nearby_id)
+	elif maya_npc != null and maya_npc.player_is_near():
+		_interact_with_maya()
 
 
 func _interact_at(pos: Vector2) -> void:
+	if maya_npc != null and maya_npc.contains_screen_point(pos):
+		_interact_with_maya()
+		return
 	for data in interactables:
 		var rect: Rect2 = data["rect"]
 		if rect.grow(12).has_point(pos):
 			_click_interactable(str(data["id"]))
 			return
+
+
+func _interact_with_maya() -> void:
+	if maya_npc == null:
+		return
+	var request := maya_npc.postgraduate_interaction_request()
+	maya_npc.respond_to_player()
+	if str(request.get("action", "")) == "open_workbench":
+		_open_maya_workbench()
+		return
+	if str(request.get("action", "")) == "rest_chat":
+		_open_maya_rest_chat()
+		return
+	if str(request.get("action", "")) != "join_observation":
+		return
+	var object_id := str(request.get("object_id", ""))
+	_remember_maya_pose()
+	var instrument := {
+		"id": str(request.get("instrument_id", "")),
+		"name_en": str(request.get("instrument_name_en", "")),
+		"name_zh": str(request.get("instrument_name_zh", "")),
+		"night_id": str(request.get("night_id", "clear_stable")),
+	}
+	if GameManager.go_to_maya_companion_observation(object_id, instrument, "telescope"):
+		maya_npc.remember_joined_observation()
+		return
+	_show_feedback(maya_npc.editable_text("companion_not_ready"), 4200)
+
+
+func _open_maya_workbench() -> void:
+	if maya_workbench_popup != null or maya_npc == null:
+		return
+	_suspend_room_guidance_for_modal()
+	maya_workbench_open_progress = int(maya_npc.postgraduate_work_snapshot().get("assembly_progress", 0))
+	maya_workbench_popup = Control.new()
+	maya_workbench_popup.name = "MayaCollaborativeWorkbench"
+	maya_workbench_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	maya_workbench_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	maya_workbench_popup.z_index = COMPUTER_MODAL_LAYER
+	add_child(maya_workbench_popup)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.005, 0.010, 0.022, 0.76)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	maya_workbench_popup.add_child(dim)
+
+	var panel := Panel.new()
+	panel.name = "MayaWorkbenchPanel"
+	panel.position = Vector2(190, 112)
+	panel.size = Vector2(644, 536)
+	panel.add_theme_stylebox_override("panel", _style(Color(0.020, 0.037, 0.064, 0.99), Color(0.47, 0.82, 0.98), 2, 8))
+	maya_workbench_popup.add_child(panel)
+	_board_label(panel, maya_npc.editable_text("workbench_title"), Vector2(28, 22), Vector2(588, 30), 20, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
+	_board_label(
+		panel,
+		maya_npc.editable_text("workbench_subtitle"),
+		Vector2(28, 54), Vector2(588, 22), 12, Color(0.58, 0.84, 0.96), HORIZONTAL_ALIGNMENT_CENTER
+	)
+	_rect_to(panel, Vector2(26, 86), Vector2(592, 1), Color(0.34, 0.58, 0.75, 0.72))
+	var content := Control.new()
+	content.name = "MayaWorkbenchContent"
+	content.position = Vector2(26, 98)
+	content.size = Vector2(592, 356)
+	panel.add_child(content)
+	var close := _board_button(
+		panel, maya_npc.editable_text("workbench_close"),
+		Vector2(34, 470), Vector2(220, 42), Color(0.08, 0.13, 0.20), Color(0.35, 0.55, 0.72)
+	)
+	close.name = "MayaWorkbenchCloseButton"
+	close.pressed.connect(_close_maya_workbench)
+	var assist := _board_button(
+		panel, maya_npc.editable_text("workbench_assist"),
+		Vector2(270, 470), Vector2(340, 42), Color(0.08, 0.24, 0.28), Color(0.42, 0.90, 0.88)
+	)
+	assist.name = "MayaWorkbenchAssistButton"
+	assist.pressed.connect(_assist_maya_at_workbench)
+	_refresh_maya_workbench()
+	InteractionFeedback.page_enter(maya_workbench_popup, Vector2(0, 8))
+
+
+func _refresh_maya_workbench() -> void:
+	if maya_workbench_popup == null or maya_npc == null:
+		return
+	var panel := maya_workbench_popup.find_child("MayaWorkbenchPanel", true, false) as Panel
+	var content := maya_workbench_popup.find_child("MayaWorkbenchContent", true, false) as Control
+	var assist := maya_workbench_popup.find_child("MayaWorkbenchAssistButton", true, false) as Button
+	if panel == null or content == null or assist == null:
+		return
+	for child in content.get_children():
+		child.queue_free()
+	var work := maya_npc.postgraduate_work_snapshot()
+	var chinese := GameManager.language_mode == "zh"
+	var instrument_name := str(work.get("instrument_name_zh" if chinese else "instrument_name_en", ""))
+	var target_name := str(work.get("target_name_zh" if chinese else "target_name_en", ""))
+	var night_name := str(work.get("night_name_zh" if chinese else "night_name_en", ""))
+	var event_name := str(work.get("event_name_zh" if chinese else "event_name_en", ""))
+	var night_display := night_name if event_name == "" else "%s · %s" % [night_name, event_name]
+	var progress := int(work.get("assembly_progress", 0))
+	var steps_value: Variant = work.get("assembly_steps_zh" if chinese else "assembly_steps_en", [])
+	var steps: Array = steps_value if steps_value is Array else []
+	_board_label(content, maya_npc.editable_text("workbench_instrument"), Vector2(8, 4), Vector2(130, 20), 11, Color(0.52, 0.82, 1.0))
+	_board_label(content, instrument_name, Vector2(138, 0), Vector2(438, 26), 17, WARM_TEXT)
+	_board_label(content, maya_npc.editable_text("workbench_target"), Vector2(8, 34), Vector2(130, 20), 11, Color(0.52, 0.82, 1.0))
+	_board_label(content, target_name, Vector2(138, 30), Vector2(438, 26), 17, Color(0.98, 0.84, 0.45))
+	_board_label(content, maya_npc.editable_text("workbench_night"), Vector2(8, 64), Vector2(130, 20), 11, Color(0.52, 0.82, 1.0))
+	_board_label(content, night_display, Vector2(138, 60), Vector2(438, 26), 15, Color(0.68, 0.91, 0.96))
+	var progress_text := maya_npc.editable_text("workbench_progress", {
+		"progress": progress,
+		"total": steps.size(),
+	})
+	_board_label(content, progress_text, Vector2(8, 94), Vector2(568, 24), 13, Color(0.64, 0.94, 0.86))
+	var assembly_row_height := 44.0 if steps.size() > 3 else 52.0
+	var assembly_row_step := 52.0 if steps.size() > 3 else 62.0
+	var assembly_row_start := 120.0 if steps.size() > 3 else 126.0
+	for index in range(steps.size()):
+		var complete := index < progress
+		var row := Panel.new()
+		row.position = Vector2(8, assembly_row_start + index * assembly_row_step)
+		row.size = Vector2(568, assembly_row_height)
+		row.add_theme_stylebox_override("panel", _style(
+			Color(0.04, 0.13, 0.13, 0.92) if complete else Color(0.035, 0.055, 0.085, 0.94),
+			Color(0.38, 0.88, 0.68) if complete else Color(0.25, 0.39, 0.55), 1, 5
+		))
+		content.add_child(row)
+		_board_label(row, "✓" if complete else str(index + 1), Vector2(12, 5), Vector2(38, 34), 18, Color(0.50, 1.0, 0.72) if complete else BRASS, HORIZONTAL_ALIGNMENT_CENTER)
+		_board_label(row, str(steps[index]), Vector2(62, 5), Vector2(488, 34), 14, WARM_TEXT)
+	var relationship_stage := str(work.get("relationship_stage", "colleague"))
+	var relationship_name := maya_npc.editable_text("relationship_colleague")
+	match relationship_stage:
+		"familiar":
+			relationship_name = maya_npc.editable_text("relationship_familiar")
+		"trusted":
+			relationship_name = maya_npc.editable_text("relationship_trusted")
+	var project_caption := maya_npc.editable_text("shared_project", {
+		"cycle": int(work.get("cycle", 1)),
+		"relationship": relationship_name,
+	})
+	_board_label(content, project_caption, Vector2(8, 320), Vector2(568, 24), 11, Color(0.52, 0.68, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
+	assist.disabled = progress >= steps.size() or str(work.get("phase", "")) != "assembling"
+	assist.text = maya_npc.editable_text("workbench_finish") \
+		if progress == steps.size() - 1 else maya_npc.editable_text("workbench_assist")
+
+
+func _assist_maya_at_workbench() -> void:
+	if maya_npc == null:
+		return
+	var result := maya_npc.assist_postgraduate_assembly()
+	if str(result.get("phase", "")) == "observing":
+		_close_maya_workbench(true)
+		_show_feedback(maya_npc.editable_text("assembly_complete"), 3600)
+		return
+	_refresh_maya_workbench()
+
+
+func _close_maya_workbench(completed: bool = false) -> void:
+	if maya_workbench_popup == null:
+		return
+	var close_progress := maya_workbench_open_progress
+	if maya_npc != null:
+		close_progress = int(maya_npc.postgraduate_work_snapshot().get("assembly_progress", close_progress))
+	var popup := maya_workbench_popup
+	maya_workbench_popup = null
+	InteractionFeedback.fade_then(popup, popup.queue_free)
+	_resume_room_guidance_after_modal()
+	if not completed and maya_npc != null:
+		maya_npc.react_to_workbench_walkaway(maya_workbench_open_progress, close_progress)
+	maya_workbench_open_progress = 0
+
+
+func _open_maya_rest_chat() -> void:
+	if maya_rest_chat_popup != null or maya_npc == null:
+		return
+	var chat := maya_npc.postgraduate_rest_chat_snapshot()
+	var topics_value: Variant = chat.get("topics", [])
+	var topics: Array = topics_value if topics_value is Array else []
+	if topics.is_empty():
+		return
+	_suspend_room_guidance_for_modal()
+	maya_rest_chat_popup = Control.new()
+	maya_rest_chat_popup.name = "MayaRestConversation"
+	maya_rest_chat_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
+	maya_rest_chat_popup.mouse_filter = Control.MOUSE_FILTER_STOP
+	maya_rest_chat_popup.z_index = COMPUTER_MODAL_LAYER
+	add_child(maya_rest_chat_popup)
+
+	var dim := ColorRect.new()
+	dim.color = Color(0.005, 0.010, 0.022, 0.72)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	dim.mouse_filter = Control.MOUSE_FILTER_STOP
+	maya_rest_chat_popup.add_child(dim)
+
+	var panel := Panel.new()
+	panel.name = "MayaRestConversationPanel"
+	panel.position = Vector2(220, 134)
+	panel.size = Vector2(584, 500)
+	panel.add_theme_stylebox_override("panel", _style(Color(0.024, 0.035, 0.055, 0.99), Color(0.73, 0.58, 0.36), 2, 9))
+	maya_rest_chat_popup.add_child(panel)
+	_board_label(panel, str(chat.get("title", "")), Vector2(24, 20), Vector2(536, 30), 20, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
+	_board_label(
+		panel,
+		maya_npc.editable_text("rest_tonight", {"night": str(chat.get("night_name", ""))}),
+		Vector2(24, 52), Vector2(536, 22), 12, Color(0.60, 0.83, 0.92), HORIZONTAL_ALIGNMENT_CENTER
+	)
+	var intro := _board_label(panel, str(chat.get("intro", "")), Vector2(38, 80), Vector2(508, 44), 13, Color(0.76, 0.80, 0.82), HORIZONTAL_ALIGNMENT_CENTER)
+	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	var response_panel := Panel.new()
+	response_panel.position = Vector2(30, 132)
+	response_panel.size = Vector2(524, 104)
+	response_panel.add_theme_stylebox_override("panel", _style(Color(0.038, 0.057, 0.078, 0.96), Color(0.32, 0.46, 0.58), 1, 6))
+	panel.add_child(response_panel)
+	_board_label(response_panel, "MAYA", Vector2(16, 10), Vector2(70, 18), 11, Color(0.52, 0.82, 1.0))
+	var response := _board_label(
+		response_panel,
+		maya_npc.editable_text("rest_prompt"),
+		Vector2(16, 32), Vector2(492, 58), 14, WARM_TEXT
+	)
+	response.name = "MayaRestConversationResponse"
+	response.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	response.max_lines_visible = 3
+
+	var five_topic_layout := topics.size() > 4
+	var topic_height := 34.0 if five_topic_layout else (40.0 if topics.size() > 3 else 46.0)
+	var topic_step := 38.0 if five_topic_layout else (44.0 if topics.size() > 3 else 56.0)
+	var topic_start_y := 238.0 if five_topic_layout else (244.0 if topics.size() > 3 else 252.0)
+	for index in range(topics.size()):
+		var topic_value: Variant = topics[index]
+		if not topic_value is Dictionary:
+			continue
+		var topic := topic_value as Dictionary
+		var topic_id := str(topic.get("id", ""))
+		var button := _board_button(
+			panel, str(topic.get("label", "")),
+			Vector2(42, topic_start_y + index * topic_step), Vector2(500, topic_height),
+			Color(0.055, 0.085, 0.115), Color(0.36, 0.51, 0.62)
+		)
+		button.name = "MayaRestTopic_%s" % topic_id
+		button.pressed.connect(_choose_maya_rest_topic.bind(topic_id))
+	var close := _board_button(
+		panel, maya_npc.editable_text("rest_close"),
+		Vector2(172, 432), Vector2(240, 42), Color(0.10, 0.12, 0.15), Color(0.55, 0.45, 0.34)
+	)
+	close.name = "MayaRestConversationCloseButton"
+	close.pressed.connect(_close_maya_rest_chat)
+	InteractionFeedback.page_enter(maya_rest_chat_popup, Vector2(0, 8))
+
+
+func _choose_maya_rest_topic(topic_id: String) -> void:
+	if maya_rest_chat_popup == null or maya_npc == null:
+		return
+	var response := maya_rest_chat_popup.find_child("MayaRestConversationResponse", true, false) as Label
+	if response == null:
+		return
+	var reply := maya_npc.postgraduate_rest_response(topic_id)
+	if reply == "":
+		return
+	response.text = reply
+	InteractionFeedback.pulse(response)
+
+
+func _close_maya_rest_chat() -> void:
+	if maya_rest_chat_popup == null:
+		return
+	var popup := maya_rest_chat_popup
+	maya_rest_chat_popup = null
+	InteractionFeedback.fade_then(popup, popup.queue_free)
+	_resume_room_guidance_after_modal()
 
 
 func _click_interactable(id: String) -> void:
@@ -1205,6 +1650,9 @@ func _click_interactable(id: String) -> void:
 func _handle_interaction(id: String) -> void:
 	if furniture_interaction_active:
 		return
+	_remember_maya_pose()
+	if maya_npc != null:
+		maya_npc.react_to_interaction(id, "open")
 	if id == "mission":
 		GameManager.set_observatory_spawn("mission")
 		_toggle_mission_board()
@@ -1820,6 +2268,8 @@ func _close_mission_board(show_guidance: bool) -> void:
 		InteractionFeedback.fade_then(popup, popup.queue_free)
 	if furniture_animator != null:
 		furniture_animator.play_close("mission")
+	if maya_npc != null:
+		maya_npc.react_to_interaction("mission", "close")
 	if show_guidance:
 		var route := _mission_board_route()
 		GameManager.set_room_guidance(str(route.get("target", "")), str(route.get("title", "")), str(route.get("hint", "")))
@@ -1885,7 +2335,7 @@ func _mission_board_checklist(route: Dictionary) -> Array:
 	var level := GameManager.current_level()
 	var rows: Array = []
 	rows.append({"label": GameManager.text("Read Maya's note", "阅读玛雅的提示"), "done": true})
-	if not GameManager.current_requires_telescope():
+	if GameManager.current_observation_mode() == "naked_eye":
 		rows.append({"label": GameManager.text("Start naked-eye observation", "开始肉眼观测"), "done": false})
 	else:
 		var exact_missing := GameManager.missing_required_parts()
@@ -2077,7 +2527,7 @@ func _build_required_equipment_list(parent: Control) -> void:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 2)
 	scroll.add_child(list)
-	if not GameManager.current_requires_telescope():
+	if GameManager.current_observation_mode() == "naked_eye":
 		_board_equipment_line(list, GameManager.text("No telescope equipment required", "无需望远镜设备"), true, GameManager.text("Naked eye", "肉眼"))
 		return
 	var assembly_state: Dictionary = GameManager.progress.get("assembly_state", {})
@@ -2621,17 +3071,7 @@ func _update_room_guidance_panel() -> void:
 			route_edge_indicator.visible = false
 		_update_guidance_overlay({})
 		return
-	if not guidance_panel.visible:
-		# First appearance: slide down 8px + fade, matching the page style.
-		guidance_panel.visible = true
-		if not InteractionFeedback.is_reduced_motion():
-			var rest := guidance_panel.position
-			guidance_panel.position = rest + Vector2(0, -8)
-			guidance_panel.modulate.a = 0.0
-			var tween := guidance_panel.create_tween().set_parallel(true)
-			tween.tween_property(guidance_panel, "position", rest, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-			tween.tween_property(guidance_panel, "modulate:a", 1.0, 0.18)
-	guidance_panel.visible = true
+	guidance_panel.visible = false
 	if guidance_maya_portrait != null:
 		MayaPortrait.apply_to(
 			guidance_maya_portrait,
@@ -2950,7 +3390,7 @@ func _on_guidance_highlights_changed(enabled: bool) -> void:
 	if route_edge_indicator != null and not enabled:
 		route_edge_indicator.visible = false
 	if guidance_panel != null:
-		guidance_panel.visible = enabled and GameManager.room_guidance_target != ""
+		guidance_panel.visible = false
 	_update_guidance_toggle_button()
 	if enabled:
 		_update_room_guidance_panel()
