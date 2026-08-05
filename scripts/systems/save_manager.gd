@@ -64,6 +64,13 @@ func load_progress(default_progress: Dictionary) -> Dictionary:
 
 
 func save_progress(progress: Dictionary, queue_cloud: bool = true, touch_metadata: bool = true) -> void:
+	# A developer jump is a runtime sandbox, not campaign progression. Equipment
+	# preparation calls the normal save path many times, so the guard belongs at
+	# this single persistence boundary rather than in every assembly helper.
+	var game_manager := get_node_or_null("/root/GameManager")
+	if game_manager != null and game_manager.has_method("developer_sandbox_active") \
+			and bool(game_manager.call("developer_sandbox_active")):
+		return
 	var previous := load_raw_progress()
 	if touch_metadata:
 		_update_archive_metadata(progress, previous)

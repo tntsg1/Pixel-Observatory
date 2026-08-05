@@ -155,6 +155,11 @@ var last_sky_aim: Dictionary = {"valid": false}
 var assembly_family_id := ""
 var developer_console: Control
 var _developer_console_test_permission: Variant = null
+# Developer level jumps are disposable test sessions. They must never become
+# campaign saves or be repaired back to the first incomplete lesson while the
+# developer is preparing equipment and moving between test entry points.
+var _developer_sandbox_active := false
+var _developer_sandbox_level := 0
 var foundation_training_time_cache: Dictionary = {}
 # Remote campaign and free-observation sessions share the same instrument
 # scenes, but never the same progression path. This context is transient; only
@@ -273,6 +278,8 @@ func debug_jump_to_level(level_number: int, prepare_equipment: bool = false) -> 
 			if candidate > level_number:
 				break
 			resolved_level = candidate
+	_developer_sandbox_active = true
+	_developer_sandbox_level = resolved_level
 	progress["current_level"] = resolved_level
 	# A developer jump creates a complete test context for that lesson. Normal
 	# gameplay keeps the player's last bench choice; only this debug shortcut
@@ -502,6 +509,8 @@ func new_game() -> void:
 	# The menu is available before a meaningful campaign save exists. Preserve
 	# the language the player explicitly selected there instead of recreating a
 	# default-English progress dictionary and then reading it back.
+	_developer_sandbox_active = false
+	_developer_sandbox_level = 0
 	var selected_language := _normalized_language_mode(language_mode)
 	var audio_manager := get_node_or_null("/root/AudioManager")
 	if audio_manager != null and audio_manager.has_method("clear_music_progress"):
@@ -546,6 +555,29 @@ func has_save() -> bool:
 func save() -> void:
 	progress["language_mode"] = language_mode
 	SaveManager.save_progress(progress)
+	progress_changed.emit()
+
+
+func developer_sandbox_active() -> bool:
+	return _developer_sandbox_active
+
+
+func resume_saved_campaign() -> void:
+	# Continue always means the player's persisted campaign, not a developer
+	# lesson that happened to be active in memory after closing the console.
+	_developer_sandbox_active = false
+	_developer_sandbox_level = 0
+	progress = SaveManager.load_progress(default_progress())
+	_normalize_progress()
+	language_mode = _normalized_language_mode(str(progress.get("language_mode", language_mode)))
+	selected_object_id = ""
+	selected_object_level = 0
+	current_sky_positions.clear()
+	current_sky_location_id = ""
+	last_observation = {}
+	last_learning_card = {}
+	last_sky_aim = {"valid": false}
+	assembly_family_id = str(progress.get("selected_telescope_family", "refractor"))
 	progress_changed.emit()
 
 
@@ -3697,7 +3729,10 @@ func _normalize_progress() -> void:
 	progress["selected_telescope_family"] = saved_family
 	assembly_family_id = saved_family
 	_migrate_progress_schema()
-	_repair_campaign_progress()
+	if _developer_sandbox_active and _mission_manager() != null and _mission_manager().has_level(_developer_sandbox_level):
+		progress["current_level"] = _developer_sandbox_level
+	else:
+		_repair_campaign_progress()
 	_unlock_parts_for_current_level()
 	if campaign_completed() and bool(progress.get("graduation_seen", false)):
 		transfer_unlocked_optical_equipment_ownership()

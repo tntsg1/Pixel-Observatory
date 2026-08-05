@@ -182,6 +182,8 @@ func _process(delta: float) -> void:
 
 
 func queue_upload(progress: Dictionary) -> void:
+	if GameManager.has_method("developer_sandbox_active") and GameManager.developer_sandbox_active():
+		return
 	if not OS.has_feature("web") or _session_user.is_empty():
 		return
 	if _merge_pending:
@@ -452,6 +454,11 @@ func _discard_cloud_owned_local_progress() -> void:
 
 
 func _apply_progress(candidate: Dictionary, touch_metadata: bool) -> void:
+	# Do not let a delayed cloud response replace the selected developer lesson
+	# halfway through equipment preparation. The persisted archive remains the
+	# source used when the player explicitly resumes the campaign.
+	if GameManager.has_method("developer_sandbox_active") and GameManager.developer_sandbox_active():
+		return
 	var merged: Dictionary = SaveManager._merge_defaults(GameManager.default_progress(), candidate)
 	merged["cloud_owner_id"] = str(_session_user.get("id", ""))
 	GameManager.progress = merged
