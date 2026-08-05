@@ -2,9 +2,10 @@ extends SceneTree
 
 const CASES := {
 	23: {"mount": "tracking_mount", "tracking": true, "rate": 1.0},
-	35: {"mount": "reflector_mount", "tracking": false, "rate": 0.0},
-	36: {"mount": "dobsonian_rocker_mount", "tracking": false, "rate": 0.0},
-	41: {"mount": "dobsonian_rocker_mount", "tracking": false, "rate": 0.0}
+	30: {"mount": "reflector_mount", "tracking": true, "rate": 1.0},
+	35: {"mount": "reflector_mount", "tracking": true, "rate": 1.0},
+	36: {"mount": "dobsonian_rocker_mount", "tracking": true, "rate": 1.0},
+	41: {"mount": "dobsonian_rocker_mount", "tracking": true, "rate": 1.0}
 }
 
 var failures := 0

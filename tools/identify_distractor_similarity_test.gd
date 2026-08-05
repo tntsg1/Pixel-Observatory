@@ -7,6 +7,7 @@ const CASES := [
 	"m13",
 	"sombrero_galaxy",
 	"ring_nebula",
+	"crab_nebula",
 	"betelgeuse",
 	"jupiter",
 ]
@@ -47,6 +48,21 @@ func _initialize() -> void:
 	var double_top: Array = double_ranked.slice(0, 3)
 	for expected_id in ["pleiades", "m13", "albireo"]:
 		_check(double_top.has(expected_id), "Double Cluster can be confused with %s" % expected_id)
+
+	# Regression for L30: the Crab Nebula must not be surrounded by visually
+	# unrelated naked-eye stars and planets, which makes the answer obvious.
+	var crab_ranked: Array = classifier.call("_distractors_for", "crab_nebula")
+	var crab_top: Array = crab_ranked.slice(0, 3)
+	for candidate_id_value in crab_top:
+		var candidate_id := str(candidate_id_value)
+		_check(
+			str(classifier.call("_identify_visual_family", gm.get_object(candidate_id))) == "nebula",
+			"Crab Nebula distractor %s is another nebula-like target" % candidate_id
+		)
+		_check(
+			not candidate_id in ["sirius", "jupiter", "betelgeuse"],
+			"Crab Nebula no longer uses an obvious star/planet distractor (%s)" % candidate_id
+		)
 	classifier.free()
 
 	gm.new_game()
