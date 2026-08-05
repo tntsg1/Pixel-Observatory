@@ -18,6 +18,7 @@ const MODE_BUTTONS_TEXTURE := "res://assets/reference/sky_view_mode_cards.png"
 const BRIGHT_STARS_PATH := "res://data/bright_stars.json"
 const SkyPositionServiceScript := preload("res://scripts/systems/sky_position_service.gd")
 const OPTICAL_LENS_SHADER := preload("res://shaders/optical_lens.gdshader")
+const DEEP_SKY_THUMBNAIL_SHADER := preload("res://shaders/sky_deep_sky_thumbnail.gdshader")
 const ICON_DIR := "res://assets/celestial_icons/"
 const OBS_UI_DIR := "res://assets/ui/observation/suc/processed/"
 const AZ_SCALE_TEXTURE := OBS_UI_DIR + "azimuth_scale_shell.png"
@@ -1580,10 +1581,13 @@ func _format_dms(value: float, signed: bool = false) -> String:
 
 
 func _icon_path_for_object(object_id: String) -> String:
+	var obj := GameManager.get_object(object_id)
+	var science_backed_icon := str(obj.get("sky_icon_path", ""))
+	if science_backed_icon != "" and ResourceLoader.exists(science_backed_icon):
+		return science_backed_icon
 	var exact_path := ICON_DIR + object_id + ".png"
 	if ResourceLoader.exists(exact_path):
 		return exact_path
-	var obj := GameManager.get_object(object_id)
 	var category := _object_category(obj)
 	var fallback_by_category := {
 		"star": ICON_DIR + "sirius.png",
@@ -1924,7 +1928,24 @@ func _build_view_layer() -> void:
 		var icon := TextureRect.new()
 		icon.texture = texture
 		icon.stretch_mode = TextureRect.STRETCH_KEEP
-		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		var object_data := GameManager.get_object(object_id)
+		var science_backed := str(object_data.get("sky_icon_path", "")) == icon_path
+		var prepared_icon := bool(object_data.get("sky_icon_prepared", false))
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if science_backed else CanvasItem.TEXTURE_FILTER_NEAREST
+		if science_backed and not prepared_icon:
+			var thumbnail_material := ShaderMaterial.new()
+			thumbnail_material.shader = DEEP_SKY_THUMBNAIL_SHADER
+			var focus_data: Variant = object_data.get("sky_icon_focus", [0.5, 0.5])
+			var focus := Vector2(0.5, 0.5)
+			if focus_data is Array and (focus_data as Array).size() >= 2:
+				focus = Vector2(float((focus_data as Array)[0]), float((focus_data as Array)[1]))
+			thumbnail_material.set_shader_parameter("focus", focus)
+			thumbnail_material.set_shader_parameter("zoom", float(object_data.get("sky_icon_zoom", 1.0)))
+			thumbnail_material.set_shader_parameter("exposure", float(object_data.get("sky_icon_exposure", 1.45)))
+			thumbnail_material.set_shader_parameter("saturation", float(object_data.get("sky_icon_saturation", 0.42)))
+			thumbnail_material.set_shader_parameter("black_point", float(object_data.get("sky_icon_black_point", 0.018)))
+			thumbnail_material.set_shader_parameter("soft_edge", float(object_data.get("sky_icon_soft_edge", 0.16)))
+			icon.material = thumbnail_material
 		icon.size = texture.get_size()
 		icon.visible = false
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2427,7 +2448,13 @@ func _object_category(obj: Dictionary) -> String:
 	if id == "moon":
 		return "moon"
 	var type_lower := str(obj.get("type_en", "")).to_lower()
-	if type_lower.contains("nebula") or type_lower.contains("galaxy"):
+	if (
+		type_lower.contains("nebula")
+		or type_lower.contains("galaxy")
+		or type_lower.contains("cluster")
+		or type_lower.contains("supernova remnant")
+		or type_lower.contains("star-forming region")
+	):
 		return "deep_sky"
 	if type_lower.contains("planet"):
 		return "planet"

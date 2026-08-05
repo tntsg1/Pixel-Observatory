@@ -100,8 +100,8 @@ func _test_sky_positions() -> int:
 	var failures := 0
 	var service: RefCounted = SkyPositionServiceScript.new()
 	var data: Dictionary = service.get_sky_positions(Rect2(40, 72, 650, 560))
-	if data.size() != 27:
-		print("FAIL: expected 27 catalog objects, got %d" % data.size())
+	if data.size() != 34:
+		print("FAIL: expected 34 catalog objects, got %d" % data.size())
 		failures += 1
 
 	print("--- tonight's positions (offline/calculated pass) ---")
@@ -134,11 +134,48 @@ func _test_sky_positions() -> int:
 				visible_ids.append(object_id)
 		print("FOV %2.0f deg -> in view: %s" % [float(fov), ", ".join(visible_ids) if not visible_ids.is_empty() else "(none)"])
 
-	# every icon file must exist for every catalog object
+	# Every non-constellation target needs a dedicated visual. Deep-sky targets
+	# use their real science image as a low-light finder thumbnail; no two may
+	# silently share the old generic purple-nebula fallback.
+	var object_index := _load_object_index()
+	var science_paths: Dictionary = {}
+	var science_backed_count := 0
 	for id_value in ids:
-		var path := "res://assets/celestial_icons/%s.png" % str(id_value)
+		var object_id := str(id_value)
+		var object_data: Dictionary = object_index.get(object_id, {})
+		var path := str(object_data.get("sky_icon_path", ""))
+		if path == "":
+			path = "res://assets/celestial_icons/%s.png" % object_id
 		if not ResourceLoader.exists(path):
 			print("FAIL: missing icon %s" % path)
 			failures += 1
+		if object_data.has("sky_icon_path"):
+			science_backed_count += 1
+			if science_paths.has(path):
+				print("FAIL: %s and %s share science-backed icon %s" % [object_id, science_paths[path], path])
+				failures += 1
+			science_paths[path] = object_id
+			if path.contains("/temporary/"):
+				print("FAIL: %s still uses temporary art %s" % [object_id, path])
+				failures += 1
+	if science_backed_count != 14:
+		print("FAIL: expected 14 science-backed deep-sky icons, got %d" % science_backed_count)
+		failures += 1
 	print("icon files: %s" % ("ok" if failures == 0 else "check output"))
 	return failures
+
+
+func _load_object_index() -> Dictionary:
+	var result: Dictionary = {}
+	for path in ["res://data/celestial_objects.json", "res://data/expansion/celestial_objects.json"]:
+		var file := FileAccess.open(path, FileAccess.READ)
+		if file == null:
+			continue
+		var parsed: Variant = JSON.parse_string(file.get_as_text())
+		if not parsed is Array:
+			continue
+		for value in parsed:
+			if value is Dictionary:
+				var item: Dictionary = value
+				result[str(item.get("id", ""))] = item
+	return result
