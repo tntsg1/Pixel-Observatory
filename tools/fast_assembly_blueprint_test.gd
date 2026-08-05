@@ -80,8 +80,8 @@ func _initialize() -> void:
 					and not path.contains("fast_feed_blueprint")
 					and not path.contains("fast_signal_blueprint"),
 				"FAST center never loads the simplified line-art boards")
-			_check(not path.contains("telescope_parts/fast_radio"),
-				"FAST part sprites remain in the tray, not the center blueprint")
+			# Part sprites are intentionally absent before selection/installation;
+			# the checks below verify that they then appear in their exact slots.
 
 	_check(bench.find_child("FastBlueprintTab_dish", true, false) != null, "dish blueprint tab exists")
 	_check(bench.find_child("FastBlueprintTab_feed", true, false) != null, "feed blueprint tab exists")
@@ -92,8 +92,33 @@ func _initialize() -> void:
 		if icon != null:
 			_check(icon.texture != null, "%s part card thumbnail is loaded" % part_type)
 			if icon.texture != null:
-				_check(icon.texture.resource_path.contains("telescope_parts/fast_radio"),
+				_check(_source_texture_path(icon.texture).contains("telescope_parts/fast_radio"),
 					"%s thumbnail uses the FAST part artwork" % part_type)
+			_check(icon.texture is AtlasTexture,
+				"%s thumbnail trims transparent canvas padding" % part_type)
+			if part_type == "receiver" and icon.texture is AtlasTexture:
+				var cabin_atlas := icon.texture as AtlasTexture
+				_check(cabin_atlas.atlas != null and cabin_atlas.region.size.x <= cabin_atlas.atlas.get_width() * 0.5,
+					"feed cabin thumbnail focuses the cabin instead of scaling all six cables")
+
+	# Selecting previews the same tray art in the printed window; installing it
+	# keeps the art there instead of collapsing to a frame and an OK badge.
+	for part_type in ["radio_dish", "receiver", "signal_processor"]:
+		bench.call("_select_flat_part", part_type)
+		await process_frame
+		await process_frame
+		var preview := bench.find_child("FastBlueprintPart_%s" % part_type, true, false) as TextureRect
+		_check(preview != null and preview.texture != null,
+			"%s selection previews its real part art in the blueprint slot" % part_type)
+		bench.call("_install_at_slot", part_type)
+		await process_frame
+		await process_frame
+		var installed_art := bench.find_child("FastBlueprintPart_%s" % part_type, true, false) as TextureRect
+		_check(installed_art != null and installed_art.texture != null,
+			"%s installed part art remains visible in the blueprint slot" % part_type)
+		if installed_art != null and installed_art.texture != null:
+			_check(_source_texture_path(installed_art.texture).contains("telescope_parts/fast_radio"),
+				"%s blueprint slot uses the same FAST artwork as its tray card" % part_type)
 	bench.queue_free()
 	await process_frame
 	_finish()
@@ -104,6 +129,14 @@ func _check(condition: bool, message: String) -> void:
 		print("  PASS: %s" % message)
 	else:
 		_fail(message)
+
+
+func _source_texture_path(texture: Texture2D) -> String:
+	if texture is AtlasTexture:
+		var atlas_texture := texture as AtlasTexture
+		if atlas_texture.atlas != null:
+			return atlas_texture.atlas.resource_path
+	return texture.resource_path
 
 
 func _fail(message: String) -> void:

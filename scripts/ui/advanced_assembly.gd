@@ -1125,7 +1125,24 @@ func _part_texture_control(part: Dictionary, bounds: Rect2) -> TextureRect:
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	icon.texture = texture
+	# Part masters use a shared 512x512 transparent canvas. Scaling that whole
+	# canvas into a 42px card made wide pieces such as the FAST dish look like a
+	# missing one-pixel scribble. Crop only transparent padding; keep every
+	# opaque cable, reflector edge and control surface intact.
+	if str(part.get("id", "")) == "fast_feed_cabin":
+		# The master also contains six long suspension cables. They are already
+		# drawn on the FAST blueprint and make the actual cabin microscopic when
+		# the whole 512px canvas is fitted into a card/slot. Use a non-destructive
+		# atlas view centred on the cabin, receiver drum and status lamps.
+		var cabin_view := AtlasTexture.new()
+		cabin_view.atlas = texture
+		cabin_view.region = Rect2(
+			Vector2(texture.get_width(), texture.get_height()) * Vector2(0.285, 0.34),
+			Vector2(texture.get_width(), texture.get_height()) * Vector2(0.43, 0.50)
+		)
+		icon.texture = cabin_view
+	else:
+		icon.texture = _trim_transparent_texture(texture)
 	icon.position = bounds.position
 	icon.size = bounds.size
 	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -1265,8 +1282,9 @@ func _draw_fast_blueprint_page() -> void:
 	blueprint.add_child(art)
 
 	# The supplied blueprint already contains all three cyan installation
-	# windows. Keep that original composition visible, then add only restrained
-	# interaction/status overlays at the exact printed windows.
+	# windows. Installed/selected part art is clipped inside those exact printed
+	# windows, matching the infrared assembly behavior and keeping the source
+	# blueprint visible around it.
 	for slot_page_id in FAST_BLUEPRINT_CONFIG:
 		var slot_config: Dictionary = FAST_BLUEPRINT_CONFIG[slot_page_id]
 		var part_type := str(slot_config["part_type"])
@@ -1287,6 +1305,15 @@ func _draw_fast_blueprint_slot(part_type: String, rect: Rect2) -> void:
 	slot.clip_contents = true
 	blueprint.add_child(slot)
 	slot_controls[part_type] = slot
+	if installed or active:
+		var part_icon := _part_texture_control(
+			_part_for_type(part_type),
+			Rect2(Vector2(4, 4), rect.size - Vector2(8, 8))
+		)
+		if part_icon != null:
+			part_icon.name = "FastBlueprintPart_%s" % part_type
+			part_icon.modulate = Color(1.0, 1.0, 1.0, 0.96 if installed else 0.62)
+			slot.add_child(part_icon)
 
 	var frame := Panel.new()
 	frame.name = "FastBlueprintFrame_%s" % part_type

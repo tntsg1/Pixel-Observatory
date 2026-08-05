@@ -7,6 +7,14 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - FAST Assembly Part Artwork Visibility
+
+- Cropped transparent canvas padding from assembly thumbnails so the active
+  dish and suspended feed cabin remain legible in the left parts tray.
+- Added persistent selected/installed FAST part artwork inside each printed
+  blueprint window instead of showing only an outline and `OK` badge after
+  the installation animation.
+
 ## 2026-08-04 - Similar-Looking Identification Choices
 
 - Replaced the generic star/planet answer filler with ranked visual-family
