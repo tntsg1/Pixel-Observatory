@@ -20,6 +20,7 @@ func _initialize() -> void:
 		return
 
 	_test_planet_alpha_assets()
+	_test_expanded_canvas_shader_contract()
 	await _test_saturn_runtime_composite()
 	_finish()
 
@@ -42,6 +43,15 @@ func _test_planet_alpha_assets() -> void:
 		]
 		_check(float(corners.max()) <= 0.01, "%s has transparent corners" % object_id)
 		_check(image.get_pixel(width / 2, height / 2).a >= 0.98, "%s solid disk center is opaque" % object_id)
+
+
+func _test_expanded_canvas_shader_contract() -> void:
+	var shader_source := FileAccess.get_file_as_string("res://shaders/optical_target_state.gdshader")
+	_check(
+		shader_source.contains("COLOR = vec4(optical_sample.rgb * brightness, optical_sample.a);")
+		and not shader_source.contains("optical_sample.a) * COLOR"),
+		"expanded solid-body canvas does not mask transformed UVs with a second texture sample"
+	)
 
 
 func _test_saturn_runtime_composite() -> void:

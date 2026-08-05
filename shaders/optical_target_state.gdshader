@@ -61,5 +61,10 @@ void fragment() {
 	vec4 defocused = vec4(blurred_rgb, blurred_alpha);
 	float convolution_mix = smoothstep(0.0, 0.55, defocus_amount);
 	vec4 optical_sample = mix(source, defocused, convolution_mix);
-	COLOR = vec4(optical_sample.rgb * brightness, optical_sample.a) * COLOR;
+	// COLOR already contains a texture lookup at the control's unexpanded UV.
+	// Multiplying by it sampled the source twice with two different UV maps:
+	// the transformed Venus crescent was masked by a dark/transparent pixel
+	// from the oversized canvas. Brightness is supplied explicitly, and solid
+	// bodies keep node alpha at one, so write the optical sample directly.
+	COLOR = vec4(optical_sample.rgb * brightness, optical_sample.a);
 }
