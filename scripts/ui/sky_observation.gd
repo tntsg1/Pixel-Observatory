@@ -127,9 +127,9 @@ const VIEW_MODES := {
 # Wide FOV means objects look SMALLER, not bigger; resolved detail images
 # exist only in the Telescope View scene.
 const RENDER_SIZES := {
-	"naked_eye": {"star": 2.0, "planet": 4.0, "moon": 18.0, "deep_sky": 10.0},
-	"finder": {"star": 3.0, "planet": 6.0, "moon": 34.0, "deep_sky": 18.0},
-	"telescope": {"star": 6.0, "planet": 12.0, "moon": 52.0, "deep_sky": 40.0}
+	"naked_eye": {"star": 2.0, "planet": 4.0, "moon": 18.0, "deep_sky": 3.0},
+	"finder": {"star": 3.0, "planet": 6.0, "moon": 34.0, "deep_sky": 15.0},
+	"telescope": {"star": 6.0, "planet": 12.0, "moon": 52.0, "deep_sky": 36.0}
 }
 
 
@@ -1934,21 +1934,10 @@ func _build_view_layer() -> void:
 		var object_data := GameManager.get_object(object_id)
 		var science_backed := str(object_data.get("sky_icon_path", "")) == icon_path
 		var prepared_icon := bool(object_data.get("sky_icon_prepared", false))
-		icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS if science_backed else CanvasItem.TEXTURE_FILTER_NEAREST
-		if science_backed and not prepared_icon:
-			var thumbnail_material := ShaderMaterial.new()
-			thumbnail_material.shader = DEEP_SKY_THUMBNAIL_SHADER
-			var focus_data: Variant = object_data.get("sky_icon_focus", [0.5, 0.5])
-			var focus := Vector2(0.5, 0.5)
-			if focus_data is Array and (focus_data as Array).size() >= 2:
-				focus = Vector2(float((focus_data as Array)[0]), float((focus_data as Array)[1]))
-			thumbnail_material.set_shader_parameter("focus", focus)
-			thumbnail_material.set_shader_parameter("zoom", float(object_data.get("sky_icon_zoom", 1.0)))
-			thumbnail_material.set_shader_parameter("exposure", float(object_data.get("sky_icon_exposure", 1.45)))
-			thumbnail_material.set_shader_parameter("saturation", float(object_data.get("sky_icon_saturation", 0.42)))
-			thumbnail_material.set_shader_parameter("black_point", float(object_data.get("sky_icon_black_point", 0.018)))
-			thumbnail_material.set_shader_parameter("soft_edge", float(object_data.get("sky_icon_soft_edge", 0.16)))
-			icon.material = thumbnail_material
+		var deep_sky_icon := science_backed and _object_category(object_data) == "deep_sky"
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST if deep_sky_icon else CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		if deep_sky_icon:
+			_configure_deep_sky_icon_material(icon, object_data, prepared_icon)
 		icon.size = texture.get_size()
 		icon.visible = false
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2622,20 +2611,91 @@ func _object_visual_for_mode(obj: Dictionary) -> Dictionary:
 			if not bool(obj.get("naked_eye_visible", magnitude <= 7.5)) or magnitude > 7.5:
 				shown = false
 			elif category == "deep_sky" or magnitude > 5.5:
-				alpha = 0.14  # unknown faint smudge
+				alpha = 0.34  # point-like hint; morphology remains unresolved
 		"finder":
 			if magnitude > 9.0:
 				shown = false
 			elif category == "deep_sky":
-				alpha = 0.5  # still a blur, no structure
+				alpha = 0.62  # coarse low-light signature, not a science image
 		"telescope":
 			alpha = 0.9
 			if category == "deep_sky":
-				alpha = 0.6
+				alpha = 0.78
 	if category == "deep_sky":
 		alpha *= _deep_sky_city_dim()
 	alpha *= mode_content_alpha
 	return {"shown": shown, "alpha": alpha, "size_px": size_px}
+
+
+func _configure_deep_sky_icon_material(icon: TextureRect, obj: Dictionary, prepared_icon: bool) -> void:
+	var material := ShaderMaterial.new()
+	material.shader = DEEP_SKY_THUMBNAIL_SHADER
+	var focus := Vector2(0.5, 0.5)
+	var zoom := 1.0
+	# Prepared icons are already cropped around the target. Applying the source
+	# crop a second time turns a faint object into a bright photographic badge.
+	if not prepared_icon:
+		var focus_data: Variant = obj.get("sky_icon_focus", [0.5, 0.5])
+		if focus_data is Array and (focus_data as Array).size() >= 2:
+			focus = Vector2(float((focus_data as Array)[0]), float((focus_data as Array)[1]))
+		zoom = float(obj.get("sky_icon_zoom", 1.0))
+	material.set_shader_parameter("focus", focus)
+	material.set_shader_parameter("zoom", zoom)
+	var base_exposure := 1.0 if prepared_icon else float(obj.get("sky_icon_exposure", 1.45))
+	material.set_shader_parameter("exposure", base_exposure)
+	material.set_shader_parameter("black_point", 0.012 if prepared_icon else float(obj.get("sky_icon_black_point", 0.018)))
+	material.set_shader_parameter("soft_edge", 0.11 if prepared_icon else float(obj.get("sky_icon_soft_edge", 0.16)))
+	icon.material = material
+	icon.set_meta("deep_sky_lod", true)
+	icon.set_meta("deep_sky_base_exposure", base_exposure)
+
+
+func _deep_sky_visual_family(obj: Dictionary) -> String:
+	var type_lower := str(obj.get("type_en", "")).to_lower()
+	if type_lower.contains("cluster"):
+		return "cluster"
+	if type_lower.contains("galaxy"):
+		return "galaxy"
+	return "nebula"
+
+
+func _apply_deep_sky_view_lod(icon: TextureRect, obj: Dictionary) -> void:
+	if not bool(icon.get_meta("deep_sky_lod", false)):
+		return
+	var material := icon.material as ShaderMaterial
+	if material == null:
+		return
+	var family := _deep_sky_visual_family(obj)
+	var reveal := 0.0
+	var saturation := 0.0
+	var pixel_grid := 7.0
+	var value_steps := 4.0
+	var halo_strength := 0.52
+	var exposure_scale := 0.90
+	match view_mode:
+		"naked_eye":
+			reveal = 0.20 if family == "cluster" else 0.04
+		"finder":
+			reveal = 0.58 if family == "cluster" else (0.44 if family == "galaxy" else 0.36)
+			saturation = 0.06
+			pixel_grid = 22.0 if family == "cluster" else 12.0
+			value_steps = 6.0
+			halo_strength = 0.34
+			exposure_scale = 1.65 if family == "cluster" else 1.12
+		"telescope":
+			reveal = 0.90 if family == "cluster" else (0.84 if family == "galaxy" else 0.80)
+			saturation = 0.12
+			pixel_grid = 34.0 if family == "cluster" else 18.0
+			value_steps = 7.0
+			halo_strength = 0.20
+			exposure_scale = 2.10 if family == "cluster" else (1.35 if family == "galaxy" else 1.42)
+	var base_exposure := float(icon.get_meta("deep_sky_base_exposure", 1.0))
+	material.set_shader_parameter("morphology_reveal", reveal)
+	material.set_shader_parameter("saturation", saturation)
+	material.set_shader_parameter("pixel_grid", pixel_grid)
+	material.set_shader_parameter("value_steps", value_steps)
+	material.set_shader_parameter("halo_strength", halo_strength)
+	material.set_shader_parameter("exposure", base_exposure * exposure_scale)
 
 
 func _continuous_render_size(category: String, magnitude: float) -> float:
@@ -2740,6 +2800,7 @@ func _rebuild_view(sync_camera := true) -> void:
 		if str(item.get("visibility_text", "")) == "Low on horizon":
 			alpha *= 0.7
 		icon.set_meta("base_alpha", alpha)
+		_apply_deep_sky_view_lod(icon, obj)
 		icon.modulate = Color(1, 1, 1, alpha)
 		# Visual guidance and pointer hit testing are separate concerns. Catalog
 		# angular size must never inflate the lock art or change the angular lock
