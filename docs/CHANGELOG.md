@@ -7,6 +7,15 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - Similar-Looking Identification Choices
+
+- Replaced the generic star/planet answer filler with ranked visual-family
+  distractors using object class, shape profile, colour, brightness and
+  apparent magnitude.
+- Cluster observations now compare against other clusters and close stellar
+  groupings; galaxies, nebulae, planets and stars likewise stay within a
+  plausible visual family instead of exposing the answer by category.
+
 ## 2026-08-04 - Betelgeuse Optical Visual Fidelity
 
 - Restored the registered high-resolution Betelgeuse observation master at

@@ -2870,7 +2870,7 @@ func _build_identify_choice_ids() -> Array[String]:
 		if ids.size() >= 4:
 			break
 		_add_unique(ids, id)
-	for id in ["sirius", "betelgeuse", "jupiter", "polaris"]:
+	for id in _identify_family_fallbacks(correct_id):
 		if ids.size() >= 4:
 			break
 		_add_unique(ids, id)
@@ -4188,19 +4188,136 @@ func _rebuild_quality_noise() -> void:
 
 
 func _distractors_for(id: String) -> Array[String]:
-	match id:
-		"moon": return ["jupiter", "sirius"]
-		"mars": return ["jupiter", "betelgeuse"]
-		"jupiter": return ["mars", "moon"]
-		"orion_nebula": return ["andromeda", "betelgeuse"]
-		"andromeda": return ["orion_nebula", "sirius"]
-		# Star vs star confusions teach color/context identification.
-		"sirius": return ["canopus", "polaris"]
-		"arcturus": return ["betelgeuse", "canopus"]
-		"canopus": return ["sirius", "arcturus"]
-		"alpha_centauri": return ["proxima", "sirius"]
-		"proxima": return ["alpha_centauri", "betelgeuse"]
-	return ["sirius", "betelgeuse"]
+	var target := GameManager.get_object(id)
+	if target.is_empty():
+		return _identify_family_fallbacks(id)
+	var ranked: Array[Dictionary] = []
+	for candidate_value in GameManager.objects_data:
+		var candidate: Dictionary = candidate_value
+		var candidate_id := str(candidate.get("id", ""))
+		if candidate_id == "" or candidate_id == id:
+			continue
+		# Infrared/radio targets belong to different instruments and would make
+		# an optical identification answer obvious from the name alone.
+		var candidate_type := str(candidate.get("type_en", "")).to_lower()
+		if candidate_id.contains("infrared") or candidate_id.begins_with("pulsar_") or candidate_type.contains("infrared"):
+			continue
+		if OpticalMediaRegistry.master_path(candidate_id) == "" and not SPRITE_MAP.has(candidate_id):
+			continue
+		ranked.append({
+			"id": candidate_id,
+			"score": _identify_similarity_score(target, candidate),
+		})
+	ranked.sort_custom(_sort_identify_distractor_rank)
+	var result: Array[String] = []
+	for entry in ranked:
+		_add_unique(result, str(entry.get("id", "")))
+	return result
+
+
+func _sort_identify_distractor_rank(a: Dictionary, b: Dictionary) -> bool:
+	var score_a := float(a.get("score", 0.0))
+	var score_b := float(b.get("score", 0.0))
+	if not is_equal_approx(score_a, score_b):
+		return score_a > score_b
+	return str(a.get("id", "")) < str(b.get("id", ""))
+
+
+func _identify_similarity_score(target: Dictionary, candidate: Dictionary) -> float:
+	var target_family := _identify_visual_family(target)
+	var candidate_family := _identify_visual_family(candidate)
+	var target_profile := _identify_visual_profile(target)
+	var candidate_profile := _identify_visual_profile(candidate)
+	var score := 0.0
+	if target_family == candidate_family:
+		score += 100.0
+	if target_profile == candidate_profile:
+		score += 38.0
+	# A close stellar grouping is a fair third alternative when the catalogue
+	# has only two other cluster entries. It still asks the player to read the
+	# number, density and layout of the resolved points.
+	var target_id := str(target.get("id", ""))
+	var candidate_id := str(candidate.get("id", ""))
+	if target_family == "cluster" and candidate_id == "albireo":
+		score += 72.0
+	elif target_id == "albireo" and candidate_family == "cluster":
+		score += 58.0
+
+	var target_colors := _identify_color_tokens(target)
+	for token in _identify_color_tokens(candidate):
+		if target_colors.has(token):
+			score += 8.0
+	var brightness_gap := absf(float(target.get("brightness", 50.0)) - float(candidate.get("brightness", 50.0)))
+	score += clampf(18.0 - brightness_gap * 0.25, 0.0, 18.0)
+	var magnitude_gap := absf(float(target.get("apparent_magnitude", 5.0)) - float(candidate.get("apparent_magnitude", 5.0)))
+	score += clampf(12.0 - magnitude_gap * 1.5, 0.0, 12.0)
+	return score
+
+
+func _identify_visual_family(obj: Dictionary) -> String:
+	var object_id := str(obj.get("id", ""))
+	var type_lower := str(obj.get("type_en", "")).to_lower()
+	if type_lower.contains("cluster") or object_id in ["pleiades", "m13", "double_cluster"]:
+		return "cluster"
+	if type_lower.contains("galaxy"):
+		return "galaxy"
+	if type_lower.contains("nebula") or type_lower.contains("remnant"):
+		return "nebula"
+	if type_lower.contains("planet") or type_lower.contains("moon") or type_lower.contains("satellite") or object_id.begins_with("moon_"):
+		return "solid_body"
+	if type_lower.contains("star"):
+		return "star"
+	return "other"
+
+
+func _identify_visual_profile(obj: Dictionary) -> String:
+	var object_id := str(obj.get("id", ""))
+	var family := _identify_visual_family(obj)
+	var declared := str(obj.get("visual_profile", "")).to_lower()
+	match family:
+		"cluster":
+			return "open_cluster" if object_id in ["pleiades", "double_cluster"] else "globular_cluster"
+		"galaxy":
+			if "edge_on" in declared or object_id in ["sombrero_galaxy", "needle_galaxy"]:
+				return "edge_on_galaxy"
+			return "spiral_galaxy"
+		"nebula":
+			if object_id in ["ring_nebula", "dumbbell_nebula"]:
+				return "planetary_nebula"
+			if object_id == "crab_nebula":
+				return "stellar_remnant"
+			return "diffuse_nebula"
+		"solid_body":
+			if object_id in ["jupiter", "saturn", "uranus", "neptune"]:
+				return "giant_planet"
+			return "rocky_body"
+		"star":
+			if object_id in ["albireo", "alpha_centauri"]:
+				return "multiple_star"
+			var color_lower := str(obj.get("color", "")).to_lower()
+			if color_lower.contains("red") or color_lower.contains("orange") or color_lower.contains("gold") or color_lower.contains("warm"):
+				return "warm_star"
+			return "cool_star"
+	return declared if declared != "" else family
+
+
+func _identify_color_tokens(obj: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	var normalized := str(obj.get("color", "")).to_lower().replace("-", " ").replace(",", " ")
+	for token in normalized.split(" ", false):
+		_add_unique(result, token)
+	return result
+
+
+func _identify_family_fallbacks(id: String) -> Array[String]:
+	var family := _identify_visual_family(GameManager.get_object(id))
+	match family:
+		"cluster": return ["pleiades", "double_cluster", "m13", "albireo"]
+		"galaxy": return ["andromeda", "sombrero_galaxy", "needle_galaxy", "whirlpool_galaxy"]
+		"nebula": return ["orion_nebula", "lagoon_nebula", "crab_nebula", "dumbbell_nebula", "ring_nebula"]
+		"solid_body": return ["mars", "venus", "mercury", "jupiter", "saturn", "uranus", "neptune", "moon"]
+		"star": return ["sirius", "vega", "polaris", "canopus", "arcturus", "betelgeuse", "proxima", "alpha_centauri"]
+	return ["pleiades", "andromeda", "jupiter", "sirius"]
 
 
 func _mystery_description(obj: Dictionary) -> Dictionary:
