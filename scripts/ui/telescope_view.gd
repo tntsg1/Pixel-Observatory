@@ -1975,6 +1975,8 @@ func _build_observation_panel() -> void:
 	var feedback_h := 26.0 if feedback_y <= 320.0 else 14.0
 	feedback_label = _plabel(_current_feedback(), Vector2(CONTENT_X, feedback_y), Vector2(CONTENT_W, feedback_h), 9, Color(0.86, 0.90, 0.88))
 	feedback_label.max_lines_visible = 1 if feedback_y > 320.0 else 2
+	feedback_label.clip_text = true
+	feedback_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 	if requires_focus:
 		_build_focus_block()
@@ -1983,10 +1985,10 @@ func _build_observation_panel() -> void:
 		_build_free_observation_panel()
 		return
 
-	identify_title_label = _plabel(GameManager.text("Identify", "识别"), Vector2(CONTENT_X, 414), Vector2(CONTENT_W, 20), 16, Color(0.98, 0.82, 0.50))
+	identify_title_label = _plabel(GameManager.text("Identify", "识别"), Vector2(CONTENT_X, 424), Vector2(CONTENT_W, 20), 16, Color(0.98, 0.82, 0.50))
 
 	choices_box = VBoxContainer.new()
-	choices_box.position = Vector2(CONTENT_X, 436)
+	choices_box.position = Vector2(CONTENT_X, 446)
 	choices_box.size = Vector2(CONTENT_W, 146)
 	choices_box.add_theme_constant_override("separation", 6)
 	add_child(choices_box)
@@ -2019,25 +2021,25 @@ func _build_observation_panel() -> void:
 func _build_free_observation_panel() -> void:
 	# Non-mission target: no identify quiz. The player can log the result, return
 	# directly to the mission target, or leave for the wider sky view.
-	identify_title_label = _plabel(GameManager.text("Free Observation", "自由观测"), Vector2(CONTENT_X, 414), Vector2(CONTENT_W, 22), 17, Color(0.42, 0.82, 1.0))
+	identify_title_label = _plabel(GameManager.text("Free Observation", "自由观测"), Vector2(CONTENT_X, 424), Vector2(CONTENT_W, 22), 17, Color(0.42, 0.82, 1.0))
 	var name_line := GameManager.dict_text(selected_object, "name")
-	var identity := _plabel(name_line + "  ·  " + GameManager.dict_text(selected_object, "type"), Vector2(CONTENT_X, 440), Vector2(CONTENT_W, 34), 12, COL_TEXT)
+	var identity := _plabel(name_line + "  ·  " + GameManager.dict_text(selected_object, "type"), Vector2(CONTENT_X, 450), Vector2(CONTENT_W, 34), 12, COL_TEXT)
 	identity.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	identity.max_lines_visible = 2
 	var q := str(observation.get("quality", "Good"))
-	free_quality_label = _plabel(GameManager.text("Quality: ", "观测质量：") + q, Vector2(CONTENT_X, 478), Vector2(CONTENT_W, 20), 13, _quality_color(q))
+	free_quality_label = _plabel(GameManager.text("Quality: ", "观测质量：") + q, Vector2(CONTENT_X, 488), Vector2(CONTENT_W, 20), 13, _quality_color(q))
 	free_quality_label.name = "FreeObservationQualityLabel"
-	var learn := _plabel(GameManager.dict_text(selected_object, "learning_text") if selected_object.has("learning_text_en") else GameManager.dict_text(selected_object, "short_hint"), Vector2(CONTENT_X, 502), Vector2(CONTENT_W, 54), 12, Color(0.82, 0.88, 0.92))
+	var learn := _plabel(GameManager.dict_text(selected_object, "learning_text") if selected_object.has("learning_text_en") else GameManager.dict_text(selected_object, "short_hint"), Vector2(CONTENT_X, 512), Vector2(CONTENT_W, 54), 12, Color(0.82, 0.88, 0.92))
 	learn.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	learn.max_lines_visible = 3
-	free_result_label = _plabel("", Vector2(CONTENT_X, 558), Vector2(CONTENT_W, 18), 11, Color(0.55, 1.0, 0.68))
+	free_result_label = _plabel("", Vector2(CONTENT_X, 568), Vector2(CONTENT_W, 18), 11, Color(0.55, 1.0, 0.68))
 
 	var mission_id := GameManager.current_target_object_id()
 	var mission_object: Dictionary = GameManager.get_object(mission_id)
 	var mission_name := GameManager.dict_text(mission_object, "name")
 	var mission_button := _pixel_button(GameManager.text("Return to Mission", "返回任务目标"), Vector2(CONTENT_W, 34), 12)
 	mission_button.name = "FreeObservationMissionButton"
-	mission_button.position = Vector2(CONTENT_X, 580)
+	mission_button.position = Vector2(CONTENT_X, 590)
 	mission_button.tooltip_text = GameManager.text(
 		"Return to the sky view and point the telescope toward %s." % mission_name,
 		"返回天空视角，再自行把望远镜指向%s。" % mission_name
@@ -2047,7 +2049,7 @@ func _build_free_observation_panel() -> void:
 	add_child(mission_button)
 
 	var bottom := HBoxContainer.new()
-	bottom.position = Vector2(CONTENT_X, 620)
+	bottom.position = Vector2(CONTENT_X, 630)
 	bottom.size = Vector2(CONTENT_W, 34)
 	var button_gap := 8.0
 	var button_width := (CONTENT_W - button_gap) * 0.5
@@ -2062,7 +2064,7 @@ func _build_free_observation_panel() -> void:
 	back.name = "FreeObservationBackButton"
 	back.pressed.connect(func() -> void: GameManager.go("sky"))
 	bottom.add_child(back)
-	_add_change_equipment_button(658.0, 30.0)
+	_add_change_equipment_button(668.0, 30.0)
 
 
 func _add_change_equipment_button(y := 650.0, height := 34.0) -> void:
@@ -2125,9 +2127,11 @@ func _build_focus_block() -> void:
 		missing.max_lines_visible = 2
 		focus_state_label = _plabel(
 			GameManager.text("Install it at the Assembly Table.", "请回组装台安装调焦旋钮。"),
-			Vector2(CONTENT_X, 378), Vector2(CONTENT_W, 32), 9, Color(1.0, 0.62, 0.40)
+			Vector2(CONTENT_X, 378), Vector2(CONTENT_W, 42), 9, Color(1.0, 0.62, 0.40)
 		)
 		focus_state_label.max_lines_visible = 3
+		focus_state_label.clip_text = true
+		focus_state_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		return
 
 	# Equipment property, deliberately constant: the knob's mechanical
@@ -2161,8 +2165,10 @@ func _build_focus_block() -> void:
 	)
 	add_child(focus_slider)
 
-	focus_state_label = _plabel("", Vector2(CONTENT_X, 388), Vector2(CONTENT_W, 24), 9, COL_TEXT)
-	focus_state_label.max_lines_visible = 2
+	focus_state_label = _plabel("", Vector2(CONTENT_X, 388), Vector2(CONTENT_W, 34), 9, COL_TEXT)
+	focus_state_label.max_lines_visible = 3
+	focus_state_label.clip_text = true
+	focus_state_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 
 
 func _set_focus_value(value: float) -> void:
@@ -2326,6 +2332,8 @@ func _build_technique_panel() -> void:
 		x += 246.0
 	technique_status_label = _plabel("", Vector2(x, panel_pos.y + 4), Vector2(panel_pos.x + panel_size.x - x - 8, 32), 9, Color(0.74, 0.86, 0.96))
 	technique_status_label.max_lines_visible = 2
+	technique_status_label.clip_text = true
+	technique_status_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	_refresh_technique_status()
 
 

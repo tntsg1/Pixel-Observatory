@@ -7,6 +7,14 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - Telescope Guidance Text Containment
+
+- Expanded the right-panel focus diagnosis area and moved identification/free
+  observation content down so long Chinese Maya guidance remains inside its
+  own region instead of overlapping the next heading.
+- Added hard clipping and final-line ellipsis safeguards to diagnostic and
+  observing-method labels for 1024x768 layouts.
+
 ## 2026-08-04 - Random Selection Across All Available Observatories
 
 - Replaced the world map's deterministic highest-score destination with a
