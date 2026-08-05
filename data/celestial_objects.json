@@ -165,7 +165,12 @@
     "learning_text_en": "The Orion Nebula is a cloud of gas and dust where new stars can form.",
     "learning_text_zh": "猎户座大星云是由气体和尘埃组成的云，新恒星可能在其中形成。",
     "naked_eye_visible": false,
-    "apparent_magnitude": 4.0
+    "apparent_magnitude": 4.0,
+    "sky_icon_path": "res://assets/celestial_icons/deep_sky/orion_nebula.png",
+    "sky_icon_source_path": "res://assets/telescope_view/orion_nebula_clear.png",
+    "sky_icon_prepared": true,
+    "sky_icon_focus": [0.50, 0.50],
+    "sky_icon_zoom": 1.10
   },
   {
     "id": "andromeda",
@@ -186,7 +191,12 @@
     "learning_text_en": "Andromeda is the nearest large galaxy to the Milky Way, but it looks faint because it is extremely far away.",
     "learning_text_zh": "仙女座是离银河系最近的大星系，但距离极远，所以看起来很暗。",
     "naked_eye_visible": false,
-    "apparent_magnitude": 3.4
+    "apparent_magnitude": 3.4,
+    "sky_icon_path": "res://assets/celestial_icons/deep_sky/andromeda.png",
+    "sky_icon_source_path": "res://assets/telescope_view/andromeda_clear.png",
+    "sky_icon_prepared": true,
+    "sky_icon_focus": [0.50, 0.50],
+    "sky_icon_zoom": 1.08
   },
   {
     "id": "arcturus",
