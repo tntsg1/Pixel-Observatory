@@ -367,6 +367,7 @@ var selected_badge: Label
 var selected_panel_border: Panel
 var selected_detail: Label
 var guidance_label: Label
+var mission_target_button: Button
 var visited_modes: Dictionary = {}
 
 var calibration_panel: Control
@@ -2263,21 +2264,47 @@ func _build_panel_text() -> void:
 	selected_panel_border.position = Vector2(768, 282)
 	selected_panel_border.size = Vector2(232, 194)
 	selected_panel_border.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	selected_panel_border.z_index = 1
+	# Added before the panel's labels, so the normal canvas order keeps this
+	# opaque backing below every piece of dynamic text and every action.
+	selected_panel_border.z_index = 0
 	add_child(selected_panel_border)
-	selected_badge = _label(self, "", Vector2(778, 287), Vector2(210, 18), 12, GOLD)
+	selected_badge = _label(self, "", Vector2(778, 287), Vector2(150, 18), 12, GOLD)
 	selected_title = _label(self, "", Vector2(778, 306), Vector2(210, 20), 14, Color(0.84, 0.62, 1.0))
 	selected_title.clip_text = true
-	selected_detail = _label(self, "", Vector2(778, 328), Vector2(214, 58), 11, TEXT)
+	selected_detail = _label(self, "", Vector2(778, 328), Vector2(214, 48), 11, TEXT)
 	selected_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	selected_detail.max_lines_visible = 4
+	selected_detail.max_lines_visible = 3
 
-	aim_label = _label(self, "", Vector2(778, 389), Vector2(214, 46), 11, TEXT)
-	aim_label.max_lines_visible = 3
+	aim_label = _label(self, "", Vector2(778, 378), Vector2(214, 33), 11, MUTED)
+	aim_label.max_lines_visible = 2
 
-	guidance_label = _label(self, "", Vector2(778, 440), Vector2(214, 30), 11, WARNING, HORIZONTAL_ALIGNMENT_CENTER)
+	mission_target_button = Button.new()
+	mission_target_button.name = "ReturnToMissionTargetButton"
+	mission_target_button.text = GameManager.text("Guide mission target", "切回任务目标")
+	mission_target_button.position = Vector2(782, 414)
+	mission_target_button.size = Vector2(204, 25)
+	mission_target_button.add_theme_font_size_override("font_size", 11)
+	mission_target_button.add_theme_color_override("font_color", Color(0.96, 0.90, 0.68))
+	mission_target_button.add_theme_color_override("font_hover_color", Color.WHITE)
+	for state in ["normal", "hover", "pressed"]:
+		var mission_style := StyleBoxFlat.new()
+		mission_style.bg_color = Color(0.05, 0.10, 0.15, 0.96) if state == "normal" else Color(0.12, 0.18, 0.22, 0.98)
+		mission_style.border_color = Color(GOLD.r, GOLD.g, GOLD.b, 0.78 if state == "normal" else 1.0)
+		mission_style.set_border_width_all(1)
+		mission_style.set_corner_radius_all(3)
+		mission_target_button.add_theme_stylebox_override(state, mission_style)
+	mission_target_button.tooltip_text = GameManager.text(
+		"Restore the current mission as the guided target",
+		"将当前任务天体恢复为引导目标"
+	)
+	mission_target_button.pressed.connect(_return_to_mission_target)
+	mission_target_button.visible = false
+	InteractionFeedback.bind_button(mission_target_button)
+	add_child(mission_target_button)
+
+	guidance_label = _label(self, "", Vector2(778, 415), Vector2(214, 55), 11, WARNING, HORIZONTAL_ALIGNMENT_CENTER)
 	guidance_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	guidance_label.max_lines_visible = 2
+	guidance_label.max_lines_visible = 3
 
 	_update_selected_text()
 
@@ -3464,24 +3491,14 @@ func _source_text() -> String:
 func _update_aim_text() -> void:
 	var config: Dictionary = VIEW_MODES[view_mode]
 	var mode_name := _single(str(config.get("en", view_mode)), str(config.get("zh", view_mode)))
-	aim_label.text = "Az: %s (%s)\nAlt: %s\nFOV: %s x %s\n%s · %s" % [
+	# Position source is already shown above. Keep the live pointing readout to
+	# two rows so the free-observation action never collides with panel dividers.
+	aim_label.text = "View  Az %s · Alt %s\n%s · FOV %s x %s" % [
 		_format_dms(display_azimuth),
-		_direction_text_for_azimuth(display_azimuth),
 		_format_dms(display_altitude),
-		_format_dms(display_fov_x),
-		_format_dms(display_fov_y),
 		mode_name,
-		_source_text()
-	]
-	# The source is already shown in the mission/selection panels. Keep this
-	# compact readout to three lines so it never overlaps the guidance row.
-	aim_label.text = "Az: %s (%s)\nAlt: %s\nFOV: %s x %s  %s" % [
-		_format_dms(display_azimuth),
-		_direction_text_for_azimuth(display_azimuth),
-		_format_dms(display_altitude),
 		_format_dms(display_fov_x),
-		_format_dms(display_fov_y),
-		mode_name
+		_format_dms(display_fov_y)
 	]
 
 
@@ -3546,6 +3563,12 @@ func _select_object(object_id: String) -> void:
 			GOLD,
 			2.6
 		)
+
+
+func _return_to_mission_target() -> void:
+	if target_id == "" or target_id == _active_observation_object_id():
+		return
+	_select_object(target_id)
 
 
 func _mission_target_action_instruction() -> String:
@@ -3942,7 +3965,9 @@ func _update_selected_text() -> void:
 		selected_badge.add_theme_color_override("font_color", accent)
 	if selected_panel_border != null:
 		var panel_style := StyleBoxFlat.new()
-		panel_style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+		# An opaque interior covers the ornamental divider baked into the old
+		# background. That divider previously ran through the free-target text.
+		panel_style.bg_color = Color(0.012, 0.026, 0.045, 0.97)
 		panel_style.border_color = Color(accent.r, accent.g, accent.b, 0.82)
 		panel_style.set_border_width_all(2)
 		panel_style.set_corner_radius_all(4)
@@ -3954,19 +3979,26 @@ func _update_selected_text() -> void:
 	selected_title.text = prefix + GameManager.dict_text(obj, "name").replace("\n", " · ")
 	# Always show the selected object's true angles AND how far the current aim
 	# is from it. Mission and free observation use the exact same coordinate math.
-	var label_prefix := GameManager.text("Target", "目标") if display_id == target_id else GameManager.text("Object", "天体")
 	var delta_az := shortest_angle_degrees(telescope_azimuth, float(item.get("azimuth", 0.0)))
 	var delta_alt := float(item.get("altitude", 0.0)) - telescope_altitude
-	selected_detail.text = "%s Az: %s (%s)\n%s Alt: %s\nΔ Az: %s   Δ Alt: %s\n%s" % [
-		label_prefix,
+	selected_detail.text = "%s · Az %s (%s)\nAlt %s\nΔAz %s · ΔAlt %s" % [
+		GameManager.text(str(obj.get("type_en", item.get("type", "Object"))), str(obj.get("type_zh", "天体"))),
 		_format_dms(float(item.get("azimuth", 0.0))),
 		str(item.get("direction_text", "Estimate")),
-		label_prefix,
 		_format_dms(float(item.get("altitude", 0.0))),
 		_format_dms(delta_az, true),
-		_format_dms(delta_alt, true),
-		GameManager.text(str(obj.get("type_en", item.get("type", "Object"))), str(obj.get("type_zh", "天体")))
+		_format_dms(delta_alt, true)
 	]
+	if mission_target_button != null:
+		mission_target_button.visible = not is_mission
+		mission_target_button.tooltip_text = GameManager.text(
+			"Guide the current mission target: %s" % GameManager.dict_text(GameManager.get_object(target_id), "name"),
+			"切回当前任务目标：%s" % GameManager.dict_text(GameManager.get_object(target_id), "name")
+		)
+	if guidance_label != null:
+		guidance_label.position = Vector2(778, 442) if not is_mission else Vector2(778, 415)
+		guidance_label.size = Vector2(214, 28) if not is_mission else Vector2(214, 55)
+		guidance_label.max_lines_visible = 2 if not is_mission else 3
 
 
 func _update_guidance() -> void:
@@ -4342,3 +4374,4 @@ func _clear_built_ui() -> void:
 	faint_mission_target_waypoint_id = ""
 	selected_badge = null
 	selected_panel_border = null
+	mission_target_button = null
