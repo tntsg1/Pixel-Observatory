@@ -163,7 +163,7 @@ func _draw_title_bar() -> void:
 	add_child(back)
 
 	if GameManager.current_equipment_stage() != "eye":
-		var auto_button := _button(GameManager.text("Auto Equip Best", "一键装备最佳组合"), Vector2(652, 22), Vector2(182, 40))
+		var auto_button := _button(GameManager.text("Equip Latest", "一键装备最先进"), Vector2(652, 22), Vector2(182, 40))
 		auto_button.add_theme_font_size_override("font_size", 13)
 		auto_button.pressed.connect(_show_auto_equip_preview)
 		add_child(auto_button)
@@ -426,14 +426,14 @@ func _part_card(part: Dictionary) -> Control:
 	elif recommended:
 		_badge_to(root, GameManager.text("Recommended for current mission", "当前任务推荐"), Vector2(122, 10), Vector2(322, 22), GOLD)
 	elif pending_step_part_id == "" and unlocked and GameManager.pinned_part_id(part_type) == "" and str(GameManager.best_part_for_type(part_type).get("id", "")) == part_id:
-		_badge_to(root, GameManager.text("Best available for this mission", "本关可用的最佳零件"), Vector2(122, 10), Vector2(300, 22), GOLD)
+		_badge_to(root, GameManager.text("Newest unlocked generation", "当前已解锁的最新一代"), Vector2(122, 10), Vector2(300, 22), GOLD)
 	elif is_next_step:
 		_badge_to(root, GameManager.text("Next assembly step", "下一步安装"), Vector2(122, 10), Vector2(220, 22), WARNING)
 	# Free-slot upgrade warning: equipped part beaten by an unlocked one.
 	if equipped and pending_step_part_id == "" and GameManager.pinned_part_id(part_type) == "":
 		var best_part: Dictionary = GameManager.best_part_for_type(part_type)
 		if not best_part.is_empty() and str(best_part.get("id", "")) != part_id:
-			_badge_to(root, GameManager.text("Better available: ", "可用更佳设备：") + GameManager.dict_text(best_part, "name"), Vector2(446, 10), Vector2(286, 22), Color(1.0, 0.55, 0.40))
+			_badge_to(root, GameManager.text("Newer available: ", "已有更新一代：") + GameManager.dict_text(best_part, "name"), Vector2(446, 10), Vector2(286, 22), Color(1.0, 0.55, 0.40))
 
 	var icon_box := _rect_to(root, Vector2(18, 34), Vector2(70, 70), Color(0.070, 0.090, 0.120))
 	icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE

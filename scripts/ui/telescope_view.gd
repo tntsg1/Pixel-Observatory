@@ -728,9 +728,8 @@ func _focus_control_score() -> float:
 func _is_dark_adaptation_target() -> bool:
 	if not requires_focus:
 		return false
-	var type_lower := str(selected_object.get("type_en", "")).to_lower()
 	var requirements: Dictionary = _active_observation_requirements()
-	return type_lower.contains("nebula") or type_lower.contains("galaxy") or requirements.has("dark_adaptation_min")
+	return _is_diffuse_target() or requirements.has("dark_adaptation_min")
 
 
 func _visual_detection_techniques_available() -> bool:
@@ -761,7 +760,13 @@ func _is_star_target() -> bool:
 
 func _is_diffuse_target() -> bool:
 	var type_lower := str(selected_object.get("type_en", "")).to_lower()
-	return type_lower.contains("nebula") or type_lower.contains("galaxy")
+	var visual_profile := str(selected_object.get("visual_profile", "")).to_lower()
+	return (
+		type_lower.contains("nebula")
+		or type_lower.contains("galaxy")
+		or type_lower.contains("supernova remnant")
+		or visual_profile == "supernova_remnant"
+	)
 
 
 func _is_cluster_target() -> bool:

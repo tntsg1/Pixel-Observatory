@@ -1951,42 +1951,7 @@ func set_assembly_hints(enabled: bool) -> void:
 	save()
 
 
-# ------------------------------------------------- auto-equip (scored)
-# Task profile for part scoring: what does TONIGHT's observation reward?
-func _task_profile() -> String:
-	var target_type := str(current_target().get("type_en", "")).to_lower()
-	if target_type.contains("nebula") or target_type.contains("galaxy"):
-		return "deep_sky"
-	if str(current_environment().get("seeing", "")) == "poor":
-		return "steady"
-	return "planet"
-
-
-# Composite performance score of a part under the given task profile.
-func _part_score(part: Dictionary, profile: String) -> float:
-	var s := 0.0
-	s += float(part.get("quality", 0.0))
-	s += float(part.get("stability", 0.0)) * (1.5 if profile == "steady" else 0.8)
-	s += float(part.get("stability_bonus", 0.0))
-	s += float(part.get("alignment_quality", 0.0)) * 0.5
-	s += float(part.get("tracking", 0.0)) * (1.2 if profile == "steady" else 0.5)
-	if bool(part.get("tracking_capable", false)):
-		s += 25.0 if profile == "steady" else 12.0
-	s += (float(part.get("focus_sensitivity", 0.0)) + float(part.get("focus_stability", 0.0))) * 30.0
-	s += float(part.get("aim_assist", 0.0))
-	var aperture := float(part.get("aperture_mm", 0.0))
-	if aperture > 0.0:
-		s += log(aperture) * (22.0 if profile == "deep_sky" else 10.0)
-	if str(part.get("type", "")) == "eyepiece":
-		var focal := float(part.get("focal_length_mm", 20.0))
-		s += float(part.get("field_of_view", 0.0)) * (0.8 if profile == "deep_sky" else 0.3)
-		if profile == "planet":
-			# Planetary detail wants magnification: shorter focal = higher power.
-			s += (40.0 - focal) * 2.5
-		else:
-			# Deep sky / rough air want the wide, bright, forgiving field.
-			s += focal * 2.0
-	return s
+# ------------------------------------------------- auto-equip (progression)
 
 
 # The exact part id this level PINS for a slot type ("" = free slot).
@@ -2000,60 +1965,53 @@ func pinned_part_id(part_type: String) -> String:
 	return ""
 
 
-# Best unlocked, family-compatible part for a slot under tonight's profile.
+# Most advanced unlocked, family-compatible part for a slot. Progression is
+# defined by unlock level; catalog order breaks same-generation ties. Automatic
+# equipment must never silently swap generations based on a hidden task score.
 func best_part_for_type(part_type: String) -> Dictionary:
-	var profile := _task_profile()
 	var best: Dictionary = {}
-	var best_score := -1.0
+	var newest_unlock_level := -1
 	var current_family := assembly_context_family()
 	for option_value in unlocked_parts_by_type(part_type):
 		var option: Dictionary = option_value
 		var part_family := str(option.get("telescope_family", ""))
 		if part_family != "" and part_family != current_family:
 			continue
-		var score := _part_score(option, profile)
-		if score > best_score:
-			best_score = score
+		var unlock_level := int(option.get("unlock_level", 0))
+		if unlock_level >= newest_unlock_level:
+			newest_unlock_level = unlock_level
 			best = option
 	return best
 
 
-func _auto_reason(part_type: String, profile: String, part: Dictionary) -> Dictionary:
+func _auto_reason(part_type: String, part: Dictionary) -> Dictionary:
+	var unlock_level := int(part.get("unlock_level", 0))
 	match part_type:
 		"eyepiece":
-			var focal := int(part.get("focal_length_mm", 0))
-			if profile == "planet":
-				return {"en": "Planetary detail needs power: the %dmm eyepiece gives the highest usable magnification." % focal,
-					"zh": "行星/恒星细节需要倍率：%dmm 目镜提供最高可用放大倍数。" % focal}
-			if profile == "steady":
-				return {"en": "Rough air punishes high power: the %dmm keeps the image low-power and steady." % focal,
-					"zh": "视宁度差时高倍率吃亏：%dmm 目镜保持低倍率、画面更稳。" % focal}
-			return {"en": "Deep sky wants a wide, bright field: the %dmm shows the most sky." % focal,
-				"zh": "深空目标需要宽而亮的视场：%dmm 目镜视场最大。" % focal}
+			return {"en": "Newest unlocked eyepiece in this telescope family (level %d)." % unlock_level,
+				"zh": "该望远镜家族中当前已解锁的最新一代目镜（第 %d 关）。" % unlock_level}
 		"mount":
-			if bool(part.get("tracking_capable", false)):
-				return {"en": "Highest stability, and its tracking motor cancels Earth-rotation drift.",
-					"zh": "稳定性最高，且追踪马达能抵消地球自转漂移。"}
-			return {"en": "Highest stability of the compatible mounts.", "zh": "兼容支架中稳定性最高。"}
+			return {"en": "Newest unlocked compatible mount (level %d)." % unlock_level,
+				"zh": "当前已解锁的最新一代兼容支架（第 %d 关）。" % unlock_level}
 		"objective", "primary_mirror":
-			return {"en": "Largest aperture: %dmm collects the most light." % int(part.get("aperture_mm", 0)),
-				"zh": "口径最大：%dmm 收集的光最多。" % int(part.get("aperture_mm", 0))}
+			return {"en": "Newest unlocked light-collecting element (level %d)." % unlock_level,
+				"zh": "当前已解锁的最新一代集光部件（第 %d 关）。" % unlock_level}
 		"finder_scope":
-			return {"en": "Best available finder for this chapter.", "zh": "当前章节可用的最佳寻星镜。"}
+			return {"en": "Newest unlocked finder for this telescope family.", "zh": "该望远镜家族中当前已解锁的最新寻星设备。"}
 		"focus_knob", "focuser":
-			return {"en": "Finest focus control available.", "zh": "可用调焦部件中控制精度最高。"}
-	return {"en": "Highest overall score among compatible parts.", "zh": "兼容零件中综合评分最高。"}
+			return {"en": "Newest unlocked focus control.", "zh": "当前已解锁的最新一代调焦部件。"}
+	return {"en": "Newest unlocked compatible component (level %d)." % unlock_level,
+		"zh": "当前已解锁的最新一代兼容零件（第 %d 关）。" % unlock_level}
 
 
-# One-click best loadout for the CURRENT level and target. Returns a plan
+# One-click latest-generation loadout for the CURRENT level. Returns a plan
 # WITHOUT touching the save - the cabinet shows a preview (with per-part
 # reasons) and only applies on confirmation.
 #
 # Selection order per slot: family compatibility -> unlocked -> the level's
 # PINNED part if any (teaching levels, shown with the teaching reason) ->
-# otherwise the highest-scoring candidate for tonight's task profile.
+# otherwise the newest unlocked compatible generation.
 func auto_equip_plan() -> Array:
-	var profile := _task_profile()
 	var plan: Array = []
 	var slot_types: Array = []
 	for type_value in _effective_required_parts():
@@ -2083,7 +2041,7 @@ func auto_equip_plan() -> Array:
 		var best := best_part_for_type(part_type)
 		if best.is_empty():
 			continue
-		plan.append(_auto_equip_entry(part_type, best, false, _auto_reason(part_type, profile, best)))
+		plan.append(_auto_equip_entry(part_type, best, false, _auto_reason(part_type, best)))
 	return plan
 
 
