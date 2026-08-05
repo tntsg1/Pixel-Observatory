@@ -7,6 +7,14 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - Betelgeuse Optical Visual Fidelity
+
+- Restored the registered high-resolution Betelgeuse observation master at
+  correct focus instead of flattening it into a solid orange analytical icon.
+- Kept the physical point-spread response for real defocus and seeing while
+  preserving the source's white-hot core, warm halo and diffraction detail.
+- Removed the obsolete pixel-star fallback from telescope and story visuals.
+
 ## 2026-08-04 - Telescope Guidance Text Containment
 
 - Expanded the right-panel focus diagnosis area and moved identification/free

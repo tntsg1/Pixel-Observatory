@@ -188,14 +188,16 @@ void fragment() {
 	// and spreading the footprint as focus error grows.
 	float energy_peak = mix(1.0, 0.58, pow(optical_error, 0.78));
 	// Preserve the catalog hue. A per-channel minimum turned an orange giant
-	// into a pink star by lifting blue much more than red. The source image is
-	// used only to locate its compact core; its baked low-alpha halo is omitted
-	// so no circular texture boundary can appear in the eyepiece.
+	// into a pink star by lifting blue much more than red. At correct focus the
+	// registered observation master must remain visible: it contains the hot
+	// core, asymmetric glow and restrained diffraction detail that distinguish
+	// Betelgeuse from a flat orange game icon. Only blend toward the analytical
+	// PSF as real optical error grows.
 	vec3 star_color = source_tint.rgb;
 	vec4 analytical_core = vec4(star_color * brightness, max(diffraction * 0.94, source_core));
-	vec4 sharp_response = analytical_core;
+	vec4 sharp_response = vec4(sharp.rgb * brightness, sharp.a);
 	vec4 spread = vec4(star_color * brightness, profile * energy_peak);
-	float spread_mix = smoothstep(0.015, 0.34, optical_error);
+	float spread_mix = smoothstep(0.035, 0.34, optical_error);
 	// TextureRect input COLOR can already contain source alpha. Multiplying
 	// the analytical PSF by it would crop the expanded light back to the
 	// original tiny star footprint. source_tint also avoids a second built-in
@@ -226,7 +228,7 @@ const SPRITE_MAP := {
 	"jupiter": "res://assets/telescope_view/jupiter_large.png",
 	"polaris": "res://assets/telescope_view/star_white_large.png",
 	"sirius": "res://assets/telescope_view/star_blue_large.png",
-	"betelgeuse": "res://assets/telescope_view/star_red_large.png",
+	"betelgeuse": "res://assets/telescope_view/star_red_clear.png",
 	"vega": "res://assets/telescope_view/vega_chromatic_demo.png",
 	"orion_nebula": "res://assets/telescope_view/orion_nebula_large.png",
 	"andromeda": "res://assets/telescope_view/andromeda_large.png",

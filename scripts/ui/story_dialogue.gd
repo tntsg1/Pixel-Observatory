@@ -22,7 +22,7 @@ const TARGET_VISUALS := {
 	"jupiter": "res://assets/telescope_view/jupiter_large.png",
 	"polaris": "res://assets/telescope_view/star_white_large.png",
 	"sirius": "res://assets/telescope_view/star_blue_large.png",
-	"betelgeuse": "res://assets/telescope_view/star_red_large.png",
+	"betelgeuse": "res://assets/telescope_view/star_red_clear.png",
 	"orion_nebula": "res://assets/telescope_view/orion_nebula_large.png",
 	"andromeda": "res://assets/telescope_view/andromeda_large.png"
 }
