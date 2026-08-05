@@ -14,6 +14,24 @@ it: find a target, choose compatible equipment, assemble the instrument, aim
 through several optical views, focus the image, respond to the observing
 conditions, and identify what was actually seen.
 
+## Play the Observatory
+
+Step into **Starlight Observatory** and become the newest member of a living
+astronomy club. Maya, your senior club partner, is waiting in the observatory
+hall: check the mission board, gather the right parts, build a working
+telescope, and take your own observations into the night sky.
+
+This is astronomy you can touch. Every lens, mount, focus adjustment, cloud
+bank and faint signal has a consequence. Start with the Moon and bright stars,
+then work toward deep-sky objects, reflector telescopes, infrared space
+observations and FAST radio astronomy. Your discoveries, mistakes and best
+observations stay with you in the Club Logbook.
+
+**Play now:** [pixelobservatorygame.com/game/](https://pixelobservatorygame.com/game/)
+  · **Visit the observatory:** [pixelobservatorygame.com](https://pixelobservatorygame.com/)
+
+> Build the instrument. Read the conditions. Make the observation yourself.
+
 ## Why This Project Is Different
 
 Most astronomy education projects are either tabletop activities, reference
