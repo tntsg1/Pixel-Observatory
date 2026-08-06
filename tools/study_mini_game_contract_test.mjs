@@ -49,6 +49,7 @@ assert.match(workflow, /--export-pack Web/);
 assert.match(workflow, /build_study_game_shell\.mjs/);
 assert.match(cloudflareBuilder, /study\/game\/study\.pck/);
 assert.match(cloudflareBuilder, /allowedStaticPacks/);
+assert.match(cloudflareBuilder, /rel\.startsWith\("\."\)/);
 assert.match(builder, /mainPack: "study\.pck"/);
 
 assert.match(worker, /const STUDY_MIN_GAME_SECONDS = 300/);

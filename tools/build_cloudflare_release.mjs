@@ -9,7 +9,8 @@ const r2RuntimeFiles = new Set(["index.pck", "index.wasm", "index.side.wasm"]);
 function shouldCopy(source) {
 	const rel = relative(webDir, source).replace(/\\/g, "/");
 	if (!rel || rel === ".") return true;
-	if (rel.startsWith(".godot-export/")) return false;
+	// Local/CI export probes are staging directories, never public assets.
+	if (rel.startsWith(".")) return false;
 	// The study experience is a separate compact Godot project. Its own pack
 	// can remain a Worker asset without joining the main game's R2 runtime.
 	if (rel === "study/game/study.pck") return true;
