@@ -94,10 +94,27 @@ func _run() -> void:
 		var silent_bubble := maya.get_node("MayaThoughtBubble") as Panel
 		var silent_badge := maya.get_node("MayaThoughtBadge") as Panel
 		_check(
-			silent_line.text == "" and not silent_bubble.visible and silent_badge.visible,
-			"an empty Chinese state stays silent without English or default fallback text"
+			silent_line.text == "" and not silent_bubble.visible and not silent_badge.visible,
+			"an empty Chinese state stays silent without English or a symbol fallback"
 		)
 		dialogue_states.erase("__silent_zh_test")
+		var marquee_line := "Here we are—don't jump to high power yet, little stargazer~"
+		dialogue_states["__marquee_test"] = {
+			"lines_en": [marquee_line],
+			"lines_zh": [],
+		}
+		gm.language_mode = "en"
+		maya.call("_show_state", "__marquee_test", true)
+		await process_frame
+		await process_frame
+		var marquee_label := maya.get("_bubble_line") as Label
+		_check(
+			marquee_label.text == marquee_line
+			and maya.get("_bubble_line_marquee") != null,
+			"long Maya speech keeps its full text and starts an in-bubble marquee"
+		)
+		dialogue_states.erase("__marquee_test")
+		gm.language_mode = "zh"
 		maya.call("_show_state", "greeting", true)
 		_check_postgraduate_bubble_copy()
 		_check(maya.collision_rect().size == Vector2.ZERO, "Maya never blocks the player")
@@ -186,8 +203,15 @@ func _run() -> void:
 		var entrance := Vector2(512, 292)
 		var assembly_destination: Vector2 = room.call("_maya_destination_for", "assembly")
 		_check(
-			assembly_destination.distance_to(Vector2(852, 510)) < 1.0,
-			"Maya assembles from the centered work position, not the bench's left aisle"
+			assembly_destination.distance_to(Vector2(852, 540)) < 1.0,
+			"Maya assembles from the centered front edge of the workbench"
+		)
+		maya.position = assembly_destination
+		room.call("_update_furniture_occlusion")
+		maya.call("_update_depth")
+		_check(
+			maya.z_index > 3,
+			"Maya at the front of the workbench stays above its foreground cutout"
 		)
 		var entrance_route: PackedVector2Array = maya.call("_make_path", entrance, assembly_destination)
 		print("MAYA ENTRANCE -> ASSEMBLY ROUTE: ", entrance_route)
@@ -201,7 +225,10 @@ func _run() -> void:
 		maya.call("_show_state", "greeting", true)
 		var bubble_status: Label = maya.get("_bubble_status") as Label
 		var bubble_line: Label = maya.get("_bubble_line") as Label
-		_check(bubble_status.text == "" and not bubble_status.visible, "hall bubble hides mission-panel metadata")
+		_check(
+			bubble_status.text == str(greeting_state.get("status_zh", "")) and bubble_status.visible,
+			"hall bubble shows a readable Maya status instead of a symbol"
+		)
 		_check(greeting_lines.has(bubble_line.text), "greeting uses the user's current authored line")
 		gm.progress["current_level"] = 3
 		gm.update_room_guidance_for_level()
@@ -228,7 +255,8 @@ func _run() -> void:
 		room.set("player_pos", overlap_start + Vector2(0, 5))
 		maya.call("_update_depth")
 		_check(maya.z_index == overlap_depth, "overlap depth uses hysteresis instead of flickering")
-		maya.position = overlap_start + Vector2(120, 0)
+		maya.position = Vector2(120, 700)
+		room.call("_update_furniture_occlusion")
 		maya.call("_update_depth")
 		_check(maya.z_index == 1, "separated Maya returns to the same normal actor layer as the player")
 
@@ -476,8 +504,9 @@ func _run() -> void:
 		maya.respond_to_player()
 		_check(
 			int(maya.postgraduate_work_snapshot().get("interaction_count", 0)) == 2
-			and (maya.get("_bubble_icon") as Label).text == "·",
-			"repeatedly interrupting Maya produces a deliberate second response instead of rerolling chatter"
+			and not (maya.get("_bubble_icon") as Label).visible
+			and not (maya.get("_bubble_line") as Label).text.strip_edges().is_empty(),
+			"repeatedly interrupting Maya produces a deliberate text response without a symbol badge"
 		)
 		for expected_phase in ["recording", "reviewing"]:
 			maya.set("_free_activity_elapsed", 999.0)

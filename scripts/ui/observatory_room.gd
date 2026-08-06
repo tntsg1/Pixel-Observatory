@@ -514,7 +514,7 @@ func _maya_destination_for(destination_id: String) -> Vector2:
 		# Use the middle of the clear aisle in front of the workbench.  The old
 		# left-side waypoint made Maya look detached from the telescope she was
 		# meant to be assembling.
-		"assembly": Vector2(852, 510),
+		"assembly": Vector2(852, 540),
 		# Observe from the clear right-hand aisle instead of standing on, or
 		# routing across, the central circular platform.
 		"telescope": Vector2(680, 496),
@@ -842,6 +842,7 @@ func _update_furniture_occlusion() -> void:
 			_player_visual_position() - PLAYER_DISPLAY_SIZE * 0.5,
 			PLAYER_DISPLAY_SIZE
 		)
+	var maya_in_front_of_furniture := false
 	for data in furniture_occluders:
 		var occluder := data.get("node") as CanvasItem
 		if occluder == null:
@@ -851,7 +852,11 @@ func _update_furniture_occlusion() -> void:
 		var player_behind := player != null and player_pos.y <= front_y \
 			and visual_rect.intersects(furniture_rect)
 		var maya_behind := maya_npc != null and maya_npc.is_behind_furniture(furniture_rect, front_y)
+		var maya_in_front := maya_npc != null and maya_npc.is_in_front_of_furniture(furniture_rect, front_y)
+		maya_in_front_of_furniture = maya_in_front_of_furniture or maya_in_front
 		occluder.visible = player_behind or maya_behind
+	if maya_npc != null:
+		maya_npc.set_furniture_front_layer(maya_in_front_of_furniture)
 
 
 func _draw_hud() -> void:

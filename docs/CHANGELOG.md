@@ -7,6 +7,15 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-08-04 - Crab Side-view and Latest-generation Auto Equip
+
+- Classified supernova remnants such as the Crab as extended diffuse targets,
+  so L30 now uses the same visible Shift hold, confirmation, contrast gain and
+  quality calculation as the Sombrero and other averted-vision observations.
+- Replaced hidden task-score auto-equipping with a deterministic newest-unlocked
+  generation rule, while retaining exact lesson-pinned parts and telescope-family
+  compatibility.
+
 ## 2026-08-04 - Dialogue Portrait Matches the Protagonist
 
 - Replaced the retired blocky player headshot in story dialogue with a lossless

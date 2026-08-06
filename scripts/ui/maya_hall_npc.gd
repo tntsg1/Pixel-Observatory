@@ -46,6 +46,9 @@ var _bubble_status: Label
 var _bubble_line: Label
 var _bubble_badge: Panel
 var _badge_icon: Label
+var _bubble_line_marquee: Tween
+var _bubble_line_marquee_enabled := false
+var _bubble_line_home_position := Vector2.ZERO
 var _animations: Dictionary = {}
 var _dialogue_states: Dictionary = {}
 var _ambient_lines: Dictionary = {}
@@ -91,6 +94,7 @@ var _interaction_counts: Dictionary = {}
 var _player_was_near := false
 var _player_has_been_near := false
 var _maya_in_front_of_player := false
+var _maya_in_front_of_furniture := false
 var _rng := RandomNumberGenerator.new()
 var _postgraduate_routines: Dictionary = {}
 var _postgraduate_phase := ""
@@ -179,8 +183,10 @@ func set_room_blocked(blocked: bool) -> void:
 			_bubble_badge.visible = false
 	elif _bubble != null and _bubble_badge != null:
 		_update_bubble_visibility()
+		# An intentionally silent state stays silent.  Never revive the retired
+		# symbol badge as a fallback; it surfaced as an unexplained question mark.
 		if not _bubble.visible:
-			_bubble_badge.visible = true
+			_bubble_badge.visible = false
 
 
 func refresh_language() -> void:
@@ -550,6 +556,18 @@ func is_behind_furniture(rect: Rect2, front_y: float) -> bool:
 	return position.y <= front_y and visual_rect.intersects(rect)
 
 
+func is_in_front_of_furniture(rect: Rect2, front_y: float) -> bool:
+	var visual_rect := Rect2(
+		position - Vector2(18.0 * DISPLAY_SCALE, 48.0 * DISPLAY_SCALE),
+		Vector2(36.0 * DISPLAY_SCALE, 50.0 * DISPLAY_SCALE)
+	)
+	return position.y > front_y and visual_rect.intersects(rect)
+
+
+func set_furniture_front_layer(active: bool) -> void:
+	_maya_in_front_of_furniture = active
+
+
 func _load_data() -> void:
 	var atlas_data := _read_json(ATLAS_METADATA_PATH)
 	_animations = atlas_data.get("animations", {})
@@ -624,6 +642,7 @@ func _build_visuals() -> void:
 	_bubble.size = Vector2(174, 44)
 	_bubble.z_as_relative = false
 	_bubble.z_index = 70
+	_bubble.clip_contents = true
 	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bubble.add_theme_stylebox_override("panel", _bubble_style(Color(0.52, 0.86, 1.0), 0.97, 8))
 	add_child(_bubble)
@@ -1853,7 +1872,7 @@ func _show_state(state_id: String, important: bool = false) -> void:
 		_expand_bubble()
 	else:
 		_bubble.visible = false
-		_bubble_badge.visible = true
+		_bubble_badge.visible = false
 
 
 func _orient_station_gesture(state_id: String) -> void:
@@ -1888,10 +1907,12 @@ func _apply_state_text(state_id: String) -> void:
 		_set_postgraduate_bubble_layout(true)
 		var return_copy := _postgraduate_observation_return_copy(chinese)
 		var return_icon := str(return_copy.get("icon", "✓"))
-		_bubble_icon.text = return_icon
-		_badge_icon.text = return_icon
+		_bubble_icon.text = ""
+		_badge_icon.text = ""
 		_bubble_status.text = _short_bubble_text(str(return_copy.get("status", "")), 18 if chinese else 30)
 		_bubble_line.text = _short_bubble_text(str(return_copy.get("line", "")), 22 if chinese else 60)
+		_bubble_line_marquee_enabled = false
+		_queue_bubble_line_marquee()
 		return
 	if state_id.begins_with("postgraduate_"):
 		_set_postgraduate_bubble_layout(true)
@@ -1899,19 +1920,46 @@ func _apply_state_text(state_id: String) -> void:
 			if not _postgraduate_override_copy.is_empty() else _postgraduate_copy(chinese)
 		_postgraduate_override_copy.clear()
 		var postgraduate_icon := str(copy.get("icon", "..."))
-		_bubble_icon.text = postgraduate_icon
-		_badge_icon.text = postgraduate_icon
+		_bubble_icon.text = ""
+		_badge_icon.text = ""
 		_bubble_status.text = _short_bubble_text(str(copy.get("status", "")), 18 if chinese else 30)
 		_bubble_line.text = _short_bubble_text(str(copy.get("line", "")), 22 if chinese else 60)
+		_bubble_line_marquee_enabled = false
+		_queue_bubble_line_marquee()
 		return
 	_set_postgraduate_bubble_layout(false)
 	var state: Dictionary = _dialogue_states.get(state_id, _dialogue_states.get("idle", {}))
+	var status_key := "status_zh" if chinese else "status_en"
+	var status := _short_bubble_text(str(state.get(status_key, "")), 14 if chinese else 28)
 	var line := _ambient_bubble_copy(state_id, chinese)
-	var icon := str(state.get("icon", "..."))
-	_bubble_icon.text = icon
-	_badge_icon.text = icon
-	_bubble_status.text = ""
-	_bubble_line.text = _short_bubble_text(line, 12 if chinese else 22)
+	# The source icon remains editable for compatibility, but never becomes a
+	# mystery symbol in the hall.  The activity text is what players need.
+	_bubble_icon.text = ""
+	_bubble_icon.visible = false
+	_badge_icon.text = ""
+	_bubble_badge.visible = false
+	_bubble_status.visible = not status.is_empty()
+	_bubble_status.text = status
+	if status.is_empty():
+		_bubble_line.position = Vector2(8, 4)
+		_bubble_line.size = Vector2(158, 36)
+		_bubble_line.add_theme_font_size_override("font_size", 13)
+		_bubble_line.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_bubble_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	else:
+		_bubble_status.position = Vector2(8, 3)
+		_bubble_status.size = Vector2(158, 15)
+		_bubble_line.position = Vector2(8, 17)
+		_bubble_line.size = Vector2(158, 24)
+		_bubble_line.add_theme_font_size_override("font_size", 11)
+		_bubble_line.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		_bubble_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Normal hall bubbles are one-line speech.  Keep the full authored text and
+	# pan it within the bubble when necessary instead of replacing the ending
+	# with an ellipsis.
+	_bubble_line.text = line
+	_bubble_line_marquee_enabled = true
+	_queue_bubble_line_marquee()
 
 
 func _set_postgraduate_bubble_layout(active: bool) -> void:
@@ -1932,7 +1980,7 @@ func _set_postgraduate_bubble_layout(active: bool) -> void:
 		return
 	_bubble.position = Vector2(-87, -126)
 	_bubble.size = Vector2(174, 44)
-	_bubble_icon.visible = true
+	_bubble_icon.visible = false
 	_bubble_icon.position = Vector2(8, 4)
 	_bubble_icon.size = Vector2(28, 36)
 	_bubble_status.position = Vector2.ZERO
@@ -1942,6 +1990,51 @@ func _set_postgraduate_bubble_layout(active: bool) -> void:
 	_bubble_line.size = Vector2(126, 36)
 	_bubble_line.add_theme_font_size_override("font_size", 13)
 	_bubble_line.autowrap_mode = TextServer.AUTOWRAP_OFF
+
+
+func _queue_bubble_line_marquee() -> void:
+	call_deferred("_start_bubble_line_marquee")
+
+
+func _start_bubble_line_marquee() -> void:
+	if _bubble_line_marquee != null and _bubble_line_marquee.is_valid():
+		_bubble_line_marquee.kill()
+	_bubble_line_home_position = _bubble_line.position
+	_bubble_line.position = _bubble_line_home_position
+	_bubble_line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	if not _bubble_line_marquee_enabled or _bubble_line.text.strip_edges().is_empty():
+		return
+	_bubble_line.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var font := _bubble_line.get_theme_font("font")
+	var font_size := _bubble_line.get_theme_font_size("font_size")
+	if font == null or font_size <= 0:
+		return
+	var text_width := font.get_string_size(
+		_bubble_line.text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		font_size
+	).x
+	var overflow := text_width - _bubble_line.size.x
+	if overflow <= 2.0:
+		return
+	_bubble_line.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	var travel_seconds := clampf(overflow / 28.0, 1.3, 5.5)
+	_bubble_line_marquee = _bubble_line.create_tween().set_loops()
+	_bubble_line_marquee.tween_interval(0.55)
+	_bubble_line_marquee.tween_property(
+		_bubble_line,
+		"position:x",
+		_bubble_line_home_position.x - overflow,
+		travel_seconds
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_bubble_line_marquee.tween_interval(0.8)
+	_bubble_line_marquee.tween_property(
+		_bubble_line,
+		"position:x",
+		_bubble_line_home_position.x,
+		travel_seconds
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func _ambient_bubble_copy(state_id: String, chinese: bool) -> String:
@@ -2134,13 +2227,13 @@ func _update_bubble_visibility() -> void:
 	var expired := Time.get_ticks_msec() >= _bubble_hide_at_msec
 	if expired and not nearby:
 		_bubble.visible = false
-		_bubble_badge.visible = true
+		_bubble_badge.visible = false
 	elif nearby and not _bubble.visible:
 		_apply_state_text(_state_id)
 		if _bubble_has_visible_text():
 			_expand_bubble()
 		else:
-			_bubble_badge.visible = true
+			_bubble_badge.visible = false
 
 
 func _update_ambient_bubble(delta: float) -> void:
@@ -2187,6 +2280,12 @@ func _update_depth() -> void:
 	# only needed while their sprites actually overlap; keeping Maya at z=0/2
 	# everywhere made unrelated furniture animation copies cut through her.
 	z_index = 1
+	if _maya_in_front_of_furniture:
+		# A foreground cutout is shared by both actors.  When the player happens
+		# to be behind this desk, keep Maya (whose feet are below its front edge)
+		# above that cutout instead of cutting her body in half.
+		z_index = 4
+		return
 	if not _player_position_provider.is_valid():
 		return
 	var player_position: Vector2 = _player_position_provider.call()

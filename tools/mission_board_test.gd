@@ -14,6 +14,8 @@ func _initialize() -> void:
 		quit(1)
 		return
 	gm.new_game()
+	gm.language_mode = "en"
+	gm.progress["language_mode"] = "en"
 
 	var room_scene: PackedScene = load("res://scenes/observatory_room.tscn")
 	var room: Node = room_scene.instantiate()
@@ -66,11 +68,23 @@ func _initialize() -> void:
 	route = room.call("_mission_board_route")
 	var l10_rows: Array = room.call("_mission_board_checklist", route)
 	_check(_rows_contain(l10_rows, "20mm") and _rows_contain(l10_rows, "10mm"), "L10 checklist names both eyepiece passes")
-
 	room.call("_open_mission_board")
 	_check(room.get("mission_board_popup") != null, "Mission Board opens as a modal task center")
 	room.call("_close_mission_board", true)
 	_check(str(gm.room_guidance_target) == "telescope", "closing board sets large Observation Pad guidance")
+
+	# FAST is remotely operated rather than player-held, but it is not a
+	# naked-eye lesson. L78 must explicitly route through its hardware build.
+	gm.debug_jump_to_level(78, true)
+	gm.call("_debug_prepare_equipment")
+	gm.reset_assembly()
+	route = room.call("_mission_board_route")
+	var l78_rows: Array = room.call("_mission_board_checklist", route)
+	_check(str(route.get("target", "")) == "assembly", "L78 routes to FAST assembly while engineering parts are missing")
+	_check(_rows_contain(l78_rows, "Equip required parts"), "L78 checklist introduces the required FAST components")
+	_check(_rows_contain(l78_rows, "Assemble the telescope"), "L78 checklist directs the player to assemble FAST")
+	_check(not _rows_contain(l78_rows, "naked-eye"), "L78 is never mislabeled as a naked-eye lesson")
+
 	room.queue_free()
 
 	if failures == 0:

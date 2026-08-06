@@ -3615,7 +3615,11 @@
     "unlock_parts": [
       "fast_active_dish",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_signal_processor",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_control_terminal"
     ],
     "unlock_equipment_stage": "space_segmented",
     "badge": "Infrared Graduate",
@@ -3661,18 +3665,30 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
       "receiver",
-      "signal_processor"
+      "signal_processor",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_signal_processor",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
       "receiver",
-      "signal_processor"
+      "signal_processor",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -3682,7 +3698,11 @@
     "success_text_en": "Set up FAST: active dish, suspended feed cabin, signal processor. There is no eyepiece - there never will be.",
     "success_text_zh": "搭建 FAST：主动反射面、悬吊馈源舱、信号处理器。这里没有目镜——永远不会有。",
     "reward_credits": 190,
-    "unlock_parts": [],
+    "unlock_parts": [
+      "fast_tension_controller",
+      "fast_feed_receiver",
+      "fast_rf_receiver"
+    ],
     "unlock_equipment_stage": "fast_radio",
     "badge": "",
     "chapter_id": "ch12_fast_radio",
@@ -3740,18 +3760,39 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -3761,7 +3802,10 @@
     "success_text_en": "Sweep the frequency band until the pulsar's repeating pulse rises out of the noise.",
     "success_text_zh": "扫过频段，直到脉冲星重复的脉冲从噪声中浮现。",
     "reward_credits": 160,
-    "unlock_parts": [],
+    "unlock_parts": [
+      "fast_spectrum_monitor",
+      "fast_pulsar_console"
+    ],
     "unlock_equipment_stage": "fast_radio",
     "badge": "",
     "chapter_id": "ch12_fast_radio",
@@ -3832,18 +3876,45 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -3853,7 +3924,9 @@
     "success_text_en": "Read the trace and measure the period: 0.714 seconds per revolution of a dead star.",
     "success_text_zh": "读取轨迹并测量周期：一颗死亡恒星每 0.714 秒自转一圈。",
     "reward_credits": 160,
-    "unlock_parts": [],
+    "unlock_parts": [
+      "fast_data_recorder"
+    ],
     "unlock_equipment_stage": "fast_radio",
     "badge": "",
     "chapter_id": "ch12_fast_radio",
@@ -3904,18 +3977,48 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -3980,18 +4083,48 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -4053,18 +4186,48 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -4125,18 +4288,48 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -4201,18 +4394,51 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "rfi_monitor",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_rfi_monitor",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "rfi_monitor",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -4281,18 +4507,51 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "rfi_monitor",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_rfi_monitor",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "rfi_monitor",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",
@@ -4353,18 +4612,51 @@
     },
     "required_parts": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "rfi_monitor",
+      "control_terminal"
     ],
     "required_part_ids": [
       "fast_active_dish",
+      "fast_panel_segment",
+      "fast_panel_actuator",
+      "fast_cable_system",
+      "fast_tension_controller",
       "fast_feed_cabin",
-      "fast_signal_processor"
+      "fast_feed_receiver",
+      "fast_rf_receiver",
+      "fast_signal_processor",
+      "fast_spectrum_monitor",
+      "fast_pulsar_console",
+      "fast_data_recorder",
+      "fast_rfi_monitor",
+      "fast_control_terminal"
     ],
     "assembly_order": [
       "radio_dish",
+      "panel_segment",
+      "panel_actuator",
+      "cable_system",
+      "tension_controller",
       "receiver",
-      "signal_processor"
+      "feed_receiver",
+      "rf_receiver",
+      "signal_processor",
+      "spectrum_monitor",
+      "timing_console",
+      "data_recorder",
+      "rfi_monitor",
+      "control_terminal"
     ],
     "required_assembly_score": 88,
     "minimum_success_quality": "Fair",

@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Pixel Observatory Research Study</title>
+  <link rel="stylesheet" href="/study/study.css">
+</head>
+<body>
+  <main class="study-shell">
+    <header class="study-header">
+      <a class="study-brand" href="/" aria-label="Pixel Observatory home"><i></i> Pixel Observatory</a>
+      <span class="study-kicker">Research session</span>
+    </header>
+    <section class="study-progress" aria-label="Study progress">
+      <span data-step="pretest">1. Baseline</span><i></i>
+      <span data-step="reading">2. Read</span><i></i>
+      <span data-step="reading_posttest">3. Check</span><i></i>
+      <span data-step="game">4. Observe</span><i></i>
+      <span data-step="posttest">5. Reflect</span>
+    </section>
+    <section class="study-card" id="study-app" aria-live="polite"></section>
+    <footer>Anonymous research record. No game account or personal details are required.</footer>
+  </main>
+  <script src="/study/study.js"></script>
+</body>
+</html>

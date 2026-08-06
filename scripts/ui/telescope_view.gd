@@ -728,13 +728,12 @@ func _focus_control_score() -> float:
 func _is_dark_adaptation_target() -> bool:
 	if not requires_focus:
 		return false
-	var type_lower := str(selected_object.get("type_en", "")).to_lower()
 	var requirements: Dictionary = _active_observation_requirements()
-	return type_lower.contains("nebula") or type_lower.contains("galaxy") or requirements.has("dark_adaptation_min")
+	return _is_diffuse_target() or requirements.has("dark_adaptation_min")
 
 
 func _visual_detection_techniques_available() -> bool:
-	if not requires_focus or not _is_diffuse_target():
+	if not requires_focus or not _is_visual_detection_target():
 		return false
 	var requirements := _active_observation_requirements()
 	if requirements.has("dark_adaptation_min") or bool(requirements.get("require_averted_vision", false)):
@@ -751,6 +750,17 @@ func _visual_detection_techniques_available() -> bool:
 	return completed.has(18) or completed.has("18")
 
 
+func _is_visual_detection_target() -> bool:
+	if _is_diffuse_target():
+		return true
+	# M13 is catalogued as a star cluster, not a nebula or galaxy.  When a
+	# mission explicitly asks for peripheral vision on its faint grainy halo,
+	# it uses the exact same Shift hold, guide, and evaluation route as a galaxy.
+	return _is_cluster_target() and bool(
+		_active_observation_requirements().get("require_averted_vision", false)
+	)
+
+
 # ------------------------------------------------------- object-type dispatch
 
 
@@ -761,7 +771,13 @@ func _is_star_target() -> bool:
 
 func _is_diffuse_target() -> bool:
 	var type_lower := str(selected_object.get("type_en", "")).to_lower()
-	return type_lower.contains("nebula") or type_lower.contains("galaxy")
+	var visual_profile := str(selected_object.get("visual_profile", "")).to_lower()
+	return (
+		type_lower.contains("nebula")
+		or type_lower.contains("galaxy")
+		or type_lower.contains("supernova remnant")
+		or visual_profile == "supernova_remnant"
+	)
 
 
 func _is_cluster_target() -> bool:
@@ -3647,7 +3663,7 @@ func _refresh_target_sprite() -> void:
 			# Contrast flattening for poor/failed quality (grain layer above
 			# handles the noise half of this; this is the color-desaturation half).
 			rgb *= 0.85
-		if averted_vision_active and _is_diffuse_target():
+		if averted_vision_active and _is_visual_detection_target():
 			# Averted vision: subtle contour brighten, not a flat clean-up.
 			rgb *= AVERTED_VISION_BRIGHTEN
 		main_sprite.modulate = Color(rgb, rgb, rgb, main_sprite.modulate.a)
