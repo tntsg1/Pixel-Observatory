@@ -15,6 +15,9 @@
   let miniLastTick = 0;
   let pendingActiveSeconds = 0;
   let miniState = null;
+  let godotCompleted = false;
+  let godotReportInFlight = false;
+  let godotReportedSeconds = 0;
 
   const staticCopy = {
     sessionLabel: ["Research session", "研究流程"],
@@ -112,6 +115,8 @@
       const value = staticCopy[node.dataset.copyAria];
       if (value) node.setAttribute("aria-label", localText(value));
     });
+    const frame = document.getElementById("study-godot-frame");
+    if (frame) frame.src = `/study/game/?lang=${encodeURIComponent(language)}&participant=${encodeURIComponent(session?.participantId || "anonymous")}`;
   }
 
   document.querySelectorAll("[data-language]").forEach(button => {
@@ -220,6 +225,72 @@
   }
 
   function miniStorageKey() { return `${sessionStorageKey}:mini:${session?.participantId || "anonymous"}`; }
+  function godotReportKey() { return `${sessionStorageKey}:godot-reported:${session?.participantId || "anonymous"}`; }
+  function godotStartedKey() { return `${sessionStorageKey}:godot-started:${session?.participantId || "anonymous"}`; }
+  function loadGodotReportState() {
+    try { godotReportedSeconds = Math.max(0, Number(localStorage.getItem(godotReportKey()) || 0)); } catch (_) { godotReportedSeconds = 0; }
+  }
+  function saveGodotReportState() { try { localStorage.setItem(godotReportKey(), String(godotReportedSeconds)); } catch (_) {} }
+
+  async function reportGodotSeconds(totalSeconds, event = "heartbeat") {
+    if (!session || godotReportInFlight || serverState?.nextStage !== "game") return;
+    const target = Math.max(0, Math.floor(Number(totalSeconds || 0)));
+    const delta = Math.min(90, target - godotReportedSeconds);
+    if (delta <= 0) return;
+    godotReportInFlight = true;
+    try {
+      const data = await api("/api/study/game-event", authenticated({event, activeSeconds: delta}));
+      godotReportedSeconds += delta;
+      saveGodotReportState();
+      serverState.gameActiveSeconds = Number(data.activeSeconds || serverState.gameActiveSeconds || 0);
+      updateGodotStudyStatus();
+      if (target > godotReportedSeconds) window.setTimeout(() => reportGodotSeconds(target, "heartbeat"), 50);
+    } catch (_) {
+      window.setTimeout(() => reportGodotSeconds(target, event), 3000);
+    } finally { godotReportInFlight = false; }
+  }
+
+  function updateGodotStudyStatus() {
+    const elapsed = Number(serverState?.gameActiveSeconds || 0);
+    const minimum = Number(serverState?.minimumGameSeconds || 300);
+    const timer = document.querySelector("[data-godot-time]");
+    const status = document.querySelector("[data-godot-status]");
+    const finish = document.getElementById("finish-godot-game");
+    if (timer) timer.textContent = formatTime(elapsed);
+    if (status) status.textContent = elapsed >= minimum ? t("Minimum active time reached", "已达到最低有效时长") : t(`${formatTime(minimum - elapsed)} remaining`, `还需 ${formatTime(minimum - elapsed)}`);
+    if (finish) finish.disabled = !(godotCompleted && elapsed >= minimum);
+  }
+
+  function godotGame() {
+    stopMiniTimer(false);
+    loadGodotReportState();
+    let started = Number(serverState?.gameActiveSeconds || 0) > 0 || godotReportedSeconds > 0;
+    try { started ||= localStorage.getItem(godotStartedKey()) === "1"; } catch (_) {}
+    view(`<span class="eyebrow">${t("Independent Godot observation", "独立 Godot 观测任务")}</span><h2>${t("Operate the instrument, not a browser imitation.", "亲手操作仪器，而不是网页模拟。")}</h2>
+      <p>${t("This is a separate Godot 4.7 mini-game built only around the concepts measured in this study. Its save directory and progress are isolated from Pixel Observatory.", "这是一个仅围绕本研究知识点制作的独立 Godot 4.7 小游戏，其存档目录和进度与 Pixel Observatory 本体完全隔离。")}</p>
+      ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Independent Godot study observatory", "独立 Godot 研究观测台")}" allow="autoplay; fullscreen" src="/study/game/?lang=${encodeURIComponent(language)}&participant=${encodeURIComponent(session?.participantId || "anonymous")}"></iframe></div>
+      <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · useful magnification · focus · tracking · false colour · pulsar dispersion", "肉眼 → 寻星镜 → 主望远镜 · 有效倍率 · 调焦 · 追踪 · 假彩色 · 脉冲星色散")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
+      <div class="actions"><button class="text-button" data-withdraw>${t("Withdraw this study record", "撤回这份研究记录")}</button></div><p class="error" role="alert"></p>`, "godot-game");
+    if (!started) {
+      document.getElementById("start-godot-game").onclick = async () => {
+        try {
+          const data = await api("/api/study/advance", authenticated({action: "start_game"}));
+          serverState = data.state;
+          await api("/api/study/game-event", authenticated({event: "opened", activeSeconds: 0})).catch(() => null);
+          godotReportedSeconds = 0;
+          saveGodotReportState();
+          try { localStorage.setItem(godotStartedKey(), "1"); } catch (_) {}
+          godotGame();
+        } catch (error) { showError(error.message); }
+      };
+    } else {
+      updateGodotStudyStatus();
+      document.getElementById("finish-godot-game").onclick = async () => {
+        try { const data = await api("/api/study/advance", authenticated({action: "finish_game"})); serverState = data.state; render(); } catch (error) { showError(error.message); }
+      };
+    }
+    app.querySelector("[data-withdraw]").onclick = withdraw;
+  }
   function defaultMiniState() {
     return {version: 1, started: false, stage: 0, mode: 0, locks: [false, false, false], offsetX: .48, offsetY: -.32, eyepiece: "10", focus: 35, tracking: false, stable: false, infrared: {r: "dust", g: "near", b: "mid"}, infraredDone: false, dm: 8, radioDone: false, complete: false};
   }
@@ -555,12 +626,12 @@
   function completed(message = "") {
     stopMiniTimer(false);
     view(`<span class="eyebrow">${t("Study complete", "研究流程完成")}</span><h1>${t("Thank you for taking the time to observe carefully.", "感谢你认真完成这次观测。")}</h1><p class="lead">${t("Your responses were stored under an anonymous research code. They can help evaluate whether hands-on instrument operation makes astronomy concepts easier to understand.", "你的回答已通过匿名研究编号保存，它们将帮助评估亲手操作仪器是否能让天文概念更容易理解。")}</p>${message ? `<p class="score">${escapeHtml(message)}</p>` : ""}<div class="actions"><a class="primary" href="/">${t("Return to Pixel Observatory", "返回 Pixel Observatory")}</a><button class="text-button" id="forget">${t("Remove this study code from this browser", "从浏览器中移除此研究编号")}</button></div>`, "complete");
-    document.getElementById("forget").onclick = () => { localStorage.removeItem(sessionStorageKey); localStorage.removeItem(miniStorageKey()); session = null; miniState = null; serverState = null; home(); };
+    document.getElementById("forget").onclick = () => { localStorage.removeItem(sessionStorageKey); localStorage.removeItem(miniStorageKey()); localStorage.removeItem(godotReportKey()); localStorage.removeItem(godotStartedKey()); session = null; miniState = null; serverState = null; home(); };
   }
 
   async function withdraw() {
     if (!confirm(t("Withdraw this anonymous study record? Stored answers will no longer be used in the study flow.", "确认撤回这份匿名研究记录吗？已保存的回答将不再用于研究流程。"))) return;
-    try { await api("/api/study/withdraw", authenticated()); localStorage.removeItem(sessionStorageKey); localStorage.removeItem(miniStorageKey()); session = null; miniState = null; serverState = null; stopMiniTimer(false); home(); } catch (error) { showError(error.message); }
+    try { await api("/api/study/withdraw", authenticated()); localStorage.removeItem(sessionStorageKey); localStorage.removeItem(miniStorageKey()); localStorage.removeItem(godotReportKey()); localStorage.removeItem(godotStartedKey()); session = null; miniState = null; serverState = null; stopMiniTimer(false); home(); } catch (error) { showError(error.message); }
   }
 
   function render(message = "") {
@@ -568,7 +639,7 @@
     if (serverState.nextStage === "pretest") return test("pre", ["A short baseline check", "简短的基线测试"], ["Answer from what you know now. This is not a graded exam.", "请根据你现在的理解作答，这不是计分考试。"]);
     if (serverState.nextStage === "reading") return reading();
     if (serverState.nextStage === "reading_posttest") return test("reading_post", ["What did the reading make clearer?", "阅读让哪些概念更清楚？"], ["Use the notes you just read. Your response will be compared with your first attempt.", "请根据刚才的阅读作答，系统会将结果与第一次回答进行比较。"]);
-    if (serverState.nextStage === "game") return game();
+    if (serverState.nextStage === "game") return godotGame();
     if (serverState.nextStage === "posttest") return test("post", ["After operating the observatory", "完成观测操作后"], ["Answer the same concepts after your observation session. Do not look back at the reading notes.", "请在完成观测后再次回答相同概念，不要回看阅读材料。"]);
     if (serverState.nextStage === "experience") return experience();
     return completed(message);
@@ -582,6 +653,14 @@
     pendingActiveSeconds -= seconds;
     const body = JSON.stringify(authenticated({event: "leave", activeSeconds: seconds}));
     navigator.sendBeacon?.(`${origin}/api/study/game-event`, new Blob([body], {type: "application/json"}));
+  });
+  window.addEventListener("message", event => {
+    const frame = document.getElementById("study-godot-frame");
+    const data = event.data;
+    if (!frame || event.origin !== location.origin || event.source !== frame.contentWindow || !data || data.source !== "pixel-observatory-study-godot") return;
+    if (data.event === "complete" || data.complete === true) godotCompleted = true;
+    reportGodotSeconds(data.activeSeconds, data.event === "complete" ? "heartbeat" : data.event);
+    updateGodotStudyStatus();
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden) sendGameTime("hidden", true); else miniLastTick = performance.now(); });
 

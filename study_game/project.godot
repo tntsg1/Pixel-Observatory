@@ -1,0 +1,52 @@
+; Independent Pixel Observatory research mini-game.
+; This project intentionally has no autoloads from the full game.
+
+config_version=5
+
+[application]
+
+config/name="Pixel Observatory Study"
+run/main_scene="res://main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+config/use_custom_user_dir=true
+config/custom_user_dir_name="PixelObservatoryStudy"
+
+[display]
+
+window/size/viewport_width=1024
+window/size/viewport_height=768
+window/size/window_width_override=1024
+window/size/window_height_override=768
+window/stretch/mode="canvas_items"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+renderer/rendering_method.web="gl_compatibility"
+textures/default_filters/use_nearest_mipmap_filter=false
+textures/canvas_textures/default_texture_filter=1
+
+[input]
+
+move_up={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":87,"unicode":119)]
+}
+move_down={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":83,"unicode":115)]
+}
+move_left={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":65,"unicode":97)]
+}
+move_right={
+"deadzone": 0.5,
+"events": [Object(InputEventKey,"physical_keycode":68,"unicode":100)]
+}
+
+[gui]
+
+theme/custom_font="res://assets/ui_cjk_font.tres"

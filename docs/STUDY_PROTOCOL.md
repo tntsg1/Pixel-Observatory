@@ -9,11 +9,12 @@ entry page so the published link has one stable, easy-to-share address.
 1. Read consent and receive an anonymous study id.
 2. Complete a short baseline knowledge check.
 3. Read the four concept notes and complete the reading check.
-4. Complete the embedded study observatory: acquire M42 through naked-eye,
+4. Complete the embedded Godot study observatory: acquire M42 through naked-eye,
    finder, and main-telescope views; configure useful magnification, focus, and
    tracking; then produce infrared false-colour and radio-dispersion evidence.
-   This mini-game has its own participant-scoped browser save and never reads or
-   changes the main Pixel Observatory game save.
+   This is a separate Godot 4.7 project with its own `PixelObservatoryStudy`
+   user-data directory and `study_observation_v1.json` save. It never reads or
+   changes the main Pixel Observatory project or game save.
 5. Return after at least five active minutes for the post-game check and a short
    experience survey.
 
@@ -28,10 +29,12 @@ preference when one exists, accepts `?lang=en` or `?lang=zh`, and provides an
 English/Chinese switch in the top-right corner. Language changes preserve
 in-progress questionnaire answers and the study mini-game state.
 
-The mini-game intentionally covers only concepts measured by the questionnaire:
+The independent Godot mini-game intentionally covers only concepts measured by the questionnaire:
 the naked-eye/finder/main-scope workflow, eyepiece magnification, focus,
 atmospheric seeing, sidereal tracking, false-colour infrared mapping, and pulsar
-dispersion correction. It does not open the main game or require a game account.
+dispersion correction. The website only hosts its exported PCK inside the study
+flow; all observation interaction and state are implemented in Godot. It does
+not open the main game or require a game account.
 Only time while the study tab is visible and focused is submitted as active time.
 
 ## Data handling

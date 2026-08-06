@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - agent/current-version-2026-07-18
+      - agent/maya-npc-companion
   workflow_dispatch:
 
 permissions:
@@ -57,6 +58,12 @@ jobs:
           node tools/build_web_resource_packs.mjs \
             ./Godot_v4.7-stable_linux.x86_64 \
             build/web/.godot-export/resource-packs
+          mkdir -p build/web/.study-godot-export
+          ./Godot_v4.7-stable_linux.x86_64 --headless --path study_game --import
+          ./Godot_v4.7-stable_linux.x86_64 --headless --path study_game \
+            --script res://tests/study_observatory_test.gd
+          ./Godot_v4.7-stable_linux.x86_64 --headless --path study_game \
+            --export-pack Web "$GITHUB_WORKSPACE/build/web/.study-godot-export/study.pck"
 
       - name: Verify retired remote audio is absent
         run: |
@@ -72,7 +79,9 @@ jobs:
           PIXEL_OBSERVATORY_BUILD_SHA: ${{ github.sha }}
         run: |
           node tools/build_web_shell.mjs build/web build/web/.godot-export
+          node tools/build_study_game_shell.mjs build/web build/web/.study-godot-export/study.pck
           node tools/verify_web_game_shell.mjs build/web
+          node tools/study_mini_game_contract_test.mjs
           node tools/incremental_resource_pack_contract_test.mjs
           node tools/runtime_cache_contract_test.mjs
 
