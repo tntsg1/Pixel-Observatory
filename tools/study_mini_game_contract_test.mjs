@@ -67,7 +67,7 @@ assert.match(gameManager, /func launch_study_current_level/);
 assert.match(gameManager, /_debug_prepare_equipment\(\)/);
 assert.match(gameManager, /func _prepare_study_inventory/);
 assert.match(gameManager, /furthest_completed_index/);
-assert.match(saveManager, /STUDY_SAVE_PREFIX := "user:\/\/study_campaign_"/);
+assert.match(saveManager, /STUDY_SAVE_PREFIX := "user:\/\/study_campaign_l1_24_"/);
 assert.match(saveManager, /return STUDY_SAVE_PREFIX \+ _study_participant_id\(\)/);
 assert.match(saveManager, /func clear_study_progress/);
 assert.match(missionManager, /func use_campaign_order_subset/);

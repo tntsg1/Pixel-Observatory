@@ -1,7 +1,10 @@
 extends Node
 
 const SAVE_PATH := "user://savegame.json"
-const STUDY_SAVE_PREFIX := "user://study_campaign_"
+# Version the participant archive when the authored research curriculum
+# changes. The former extracted route began at L16, so reusing that file would
+# make returning participants skip L1-L15 in the complete foundation route.
+const STUDY_SAVE_PREFIX := "user://study_campaign_l1_24_"
 const SAVE_INITIALIZED_KEY := "save_initialized"
 const SAVE_REVISION_KEY := "save_revision"
 const SAVE_UPDATED_AT_KEY := "save_updated_at"
