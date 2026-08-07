@@ -1465,7 +1465,7 @@ func _apply_breathing_and_jitter(t: float) -> void:
 					_solid_body_brightness(
 						str(observation.get("quality", "Unknown")),
 						str(observation.get("visual_effect", "clear"))
-					) * lerpf(1.0, 0.82, solid_amount)
+					) * _solid_body_defocus_brightness(solid_amount)
 				)
 		elif blur_overlay != null:
 			blur_overlay.position = visual_target_center - blur_overlay.size * display_scale * 0.5 + jitter
@@ -3491,19 +3491,29 @@ func _solid_body_defocus_screen_radius(weight: float, object_id := "") -> float:
 	# Define the PSF in final eyepiece pixels so distant planets do not receive
 	# a token one-pixel blur while larger lunar targets become over-softened.
 	var resolved_id := object_id if object_id != "" else str(selected_object.get("id", ""))
-	var maximum_radius := 30.0
+	var maximum_radius := 88.0
 	match resolved_id:
 		"moon", "moon_crater_copernicus", "moon_mare_tranquillitatis", "moon_terminator":
-			maximum_radius = 34.0
+			maximum_radius = 132.0
 		"jupiter", "saturn":
-			maximum_radius = 108.0
+			maximum_radius = 188.0
 		"mercury", "venus", "mars":
-			maximum_radius = 42.0
+			maximum_radius = 138.0
 		"uranus", "neptune":
-			maximum_radius = 32.0
+			maximum_radius = 96.0
 	# Keep tiny seeing/collimation residuals from softening a correctly focused
 	# planet, while preserving the full broad disk at genuine defocus.
-	return lerpf(0.0, maximum_radius, pow(clampf(weight, 0.0, 1.0), 1.05))
+	# A steeper curve decouples tiny seeing residuals from the much larger
+	# severe-defocus ceiling: best focus stays crisp, while the far end still
+	# blooms quickly enough to lose the source silhouette.
+	return lerpf(0.0, maximum_radius, pow(clampf(weight, 0.0, 1.0), 1.55))
+
+
+func _solid_body_defocus_brightness(weight: float) -> float:
+	# Spreading the same photons over a much wider circle lowers surface
+	# brightness. Keep enough haze to steer the knob, but never leave a bright,
+	# easily identified planet photograph at the far end of the focus travel.
+	return lerpf(1.0, 0.38, smoothstep(0.18, 1.0, clampf(weight, 0.0, 1.0)))
 
 
 func _solid_body_defocus_texture_radius(weight: float, object_id := "") -> float:
@@ -3735,7 +3745,7 @@ func _update_target_visuals() -> void:
 			var solid_blur := _solid_body_defocus_texture_radius(combined_blur)
 			turbulence_material_main.set_shader_parameter("blur_radius_px", solid_blur)
 			turbulence_material_main.set_shader_parameter("defocus_amount", combined_blur)
-			turbulence_material_main.set_shader_parameter("brightness", lerpf(1.0, 0.60, combined_blur))
+			turbulence_material_main.set_shader_parameter("brightness", _solid_body_defocus_brightness(combined_blur))
 	elif point_source:
 		# A star is a point source at the same infinity focus as the catalog
 		# field. Preserve its photon energy while the PSF expands; fading the
