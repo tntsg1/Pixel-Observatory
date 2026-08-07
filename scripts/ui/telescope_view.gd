@@ -3788,7 +3788,10 @@ func _update_target_visuals() -> void:
 		# wider split than star points so the colored rims read at the same scale.
 		var target_scale := 1.65 if _is_diffuse_target() else (1.30 if not _is_star_target() else 1.0)
 		var chroma_offset := (12.0 + visual_focus_error * 20.0) * target_scale
-		var chroma_alpha := 0.50 if _is_diffuse_target() else 0.68
+		# Colour separation is an edge aberration, not three equally bright
+		# candidate stars. Keep the real stellar core dominant so its intrinsic
+		# blue/white/yellow/red colour remains usable for identification.
+		var chroma_alpha := 0.50 if _is_diffuse_target() else (0.44 if _is_star_target() else 0.60)
 		ghost_a.modulate = Color(1.0, 0.12, 0.18, visual_base_alpha * chroma_alpha * cloud_mult)
 		ghost_b.modulate = Color(0.10, 0.36, 1.0, visual_base_alpha * chroma_alpha * cloud_mult)
 		ghost_a.position = visual_target_center - ghost_a.size * display_scale * 0.5 + Vector2(chroma_offset, 0)
@@ -3905,14 +3908,32 @@ func _target_star_material(point_shader: Shader) -> ShaderMaterial:
 func _target_star_source_tint() -> Color:
 	# The analytical out-of-focus PSF cannot sample a second center texel on
 	# every Web renderer. Keep the star's catalog colour explicit instead.
+	# These are deliberately display-calibrated rather than near-white RGB
+	# values: on an SDR canvas the old pale tints clipped perceptually to the
+	# same white core, making a colour-identification quiz impossible.
+	match str(selected_object.get("id", "")):
+		"sirius", "vega":
+			return Color(0.34, 0.62, 1.0, 1.0)
+		"polaris":
+			return Color(0.94, 0.90, 0.78, 1.0)
+		"betelgeuse":
+			return Color(1.0, 0.28, 0.10, 1.0)
+		"arcturus":
+			return Color(1.0, 0.46, 0.14, 1.0)
+		"canopus":
+			return Color(1.0, 0.72, 0.30, 1.0)
+		"alpha_centauri":
+			return Color(1.0, 0.78, 0.42, 1.0)
+		"proxima":
+			return Color(1.0, 0.20, 0.08, 1.0)
 	var color_name := str(selected_object.get("color", "")).to_lower()
 	if color_name.contains("red") or color_name.contains("orange"):
-		return Color(1.0, 0.58, 0.36, 1.0)
+		return Color(1.0, 0.38, 0.14, 1.0)
 	if color_name.contains("blue"):
-		return Color(0.72, 0.84, 1.0, 1.0)
+		return Color(0.38, 0.66, 1.0, 1.0)
 	if color_name.contains("yellow"):
-		return Color(1.0, 0.90, 0.62, 1.0)
-	return Color(0.90, 0.93, 1.0, 1.0)
+		return Color(1.0, 0.76, 0.36, 1.0)
+	return Color(0.90, 0.92, 0.96, 1.0)
 
 
 func _sync_target_star_psf_tints() -> void:
