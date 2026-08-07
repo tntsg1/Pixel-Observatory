@@ -544,6 +544,7 @@ const CLOUD_TEXTURES := [
 # Real-sky background stars (deep HYG catalog, mag <= 8).
 const DEEP_STARS_PATH := "res://data/deep_stars.json"
 const SCOPE_FOV_RADIUS_DEG := 2.6   # eyepiece circle spans ~5.2 deg of sky
+const CATALOG_TARGET_DEDUP_RADIUS_DEG := 0.01
 const EYE_FOV_RADIUS_DEG := 24.0    # naked-eye circle spans ~48 deg
 
 # --- Earth-drift and tracking (E2). drift_enabled levels move the target and
@@ -4035,6 +4036,13 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 	var stars: Array = _load_deep_stars()
 	if stars.is_empty():
 		return
+	# Point-source targets are rendered separately with their intrinsic colour
+	# and optical response.  The HYG field contains the same bright stars, so
+	# leaving the selected entry here stacks a neutral-white PSF over the target
+	# (Sirius consequently looked white in the eyepiece but blue in the result).
+	var selected_target_radec: Dictionary = {}
+	if _is_star_target():
+		selected_target_radec = GameManager.object_radec(str(selected_object.get("id", "")))
 	var service := SkyPositionService.new()
 	service.load_config()
 	# Eyepiece star field uses the player's actual observing site too.
@@ -4061,6 +4069,8 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 			continue
 		var star: Array = star_value
 		if star.size() < 3:
+			continue
+		if _catalog_star_matches_selected_target(star, selected_target_radec):
 			continue
 		var magnitude := float(star[2])
 		if magnitude > mag_limit:
@@ -4100,6 +4110,22 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 		added += 1
 		if added >= 170:
 			break  # brightest-first cap keeps the node count sane
+
+
+func _catalog_star_matches_selected_target(star: Array, target_radec: Dictionary) -> bool:
+	if star.size() < 2 or target_radec.is_empty():
+		return false
+	var target_ra_hours := float(target_radec.get("ra_hours", NAN))
+	var target_dec_degrees := float(target_radec.get("dec_degrees", NAN))
+	if is_nan(target_ra_hours) or is_nan(target_dec_degrees):
+		return false
+	var delta_ra_degrees := wrapf(
+		(float(star[0]) - target_ra_hours) * 15.0,
+		-180.0,
+		180.0
+	) * cos(deg_to_rad(target_dec_degrees))
+	var delta_dec_degrees := float(star[1]) - target_dec_degrees
+	return Vector2(delta_ra_degrees, delta_dec_degrees).length() <= CATALOG_TARGET_DEDUP_RADIUS_DEG
 
 
 func _add_cloud_layer(parent: Control, scope_center: Vector2) -> void:
