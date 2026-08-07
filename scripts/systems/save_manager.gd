@@ -58,6 +58,8 @@ func is_resumable_progress(candidate: Dictionary) -> bool:
 
 
 func load_progress(default_progress: Dictionary) -> Dictionary:
+	if _consume_study_reset_request():
+		clear_study_progress()
 	var parsed := load_raw_progress()
 	if parsed.is_empty():
 		return default_progress.duplicate(true)
@@ -96,6 +98,15 @@ func reset_progress(default_progress: Dictionary) -> Dictionary:
 	return progress
 
 
+func clear_study_progress() -> bool:
+	if not _study_mode_requested():
+		return false
+	var path := _save_path()
+	if not FileAccess.file_exists(path):
+		return true
+	return DirAccess.remove_absolute(ProjectSettings.globalize_path(path)) == OK
+
+
 func _save_path() -> String:
 	if not _study_mode_requested():
 		return SAVE_PATH
@@ -109,6 +120,18 @@ func _study_mode_requested() -> bool:
 	if OS.has_feature("web") and ClassDB.class_exists("JavaScriptBridge"):
 		return bool(JavaScriptBridge.eval("new URL(location.href).searchParams.get('mode') === 'study'", true))
 	return false
+
+
+func _consume_study_reset_request() -> bool:
+	var requested := false
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--study-reset" or argument.begins_with("--study-reset="):
+			requested = true
+	if OS.has_feature("web") and ClassDB.class_exists("JavaScriptBridge"):
+		requested = requested or bool(JavaScriptBridge.eval("new URL(location.href).searchParams.has('study_reset')", true))
+		if requested:
+			JavaScriptBridge.eval("const u=new URL(location.href);u.searchParams.delete('study_reset');history.replaceState(null,'',u)", true)
+	return requested
 
 
 func _study_participant_id() -> String:

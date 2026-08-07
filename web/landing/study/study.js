@@ -138,7 +138,7 @@
   }
   function authenticated(body = {}) { return {...body, participantId: session?.participantId, token: session?.token}; }
 
-  function studyGameUrl() {
+  function studyGameUrl(reset = false) {
     const params = new URLSearchParams({
       mode: "study",
       lang: language,
@@ -146,6 +146,7 @@
       study: session?.participantId || "",
       study_token: session?.token || "",
     });
+    if (reset) params.set("study_reset", String(Date.now()));
     return `/game/?${params.toString()}`;
   }
   function updateProgress() {
@@ -280,7 +281,7 @@
     view(`<span class="eyebrow">${t("Extracted Pixel Observatory curriculum", "Pixel Observatory 原课程提取路线")}</span><h2>${t("Play the original levels, in a shorter research route.", "直接游玩原有关卡，以更短的研究路线推进。")}</h2>
       <p>${t("This route opens selected levels from the main Godot project with their original scenes, instruments, interactions, and results. Completing one lesson jumps directly to the next selected lesson. Only the participant save is separate; your normal campaign is never changed.", "本路线直接打开 Godot 本体中选定的原有关卡，保留原场景、仪器、互动和观测结果。完成一关后会直接跳到下一项选定课程。只有参与者存档是独立的，你的正式游戏进度不会被修改。")}</p>
       ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Pixel Observatory research route", "像素天文台研究速通线")}" allow="autoplay; fullscreen" src="${studyGameUrl()}"></iframe></div>
-      <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · useful magnification · focus · tracking · false colour · pulsar dispersion", "肉眼 → 寻星镜 → 主望远镜 · 有效倍率 · 调焦 · 追踪 · 假彩色 · 脉冲星色散")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
+      <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><div class="actions"><button class="text-button" id="restart-godot-game">${t("Start route from the beginning", "从头开始研究路线")}</button><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · useful magnification · focus · tracking · false colour · pulsar dispersion", "肉眼 → 寻星镜 → 主望远镜 · 有效倍率 · 调焦 · 追踪 · 假彩色 · 脉冲星色散")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
       <div class="actions"><button class="text-button" data-withdraw>${t("Withdraw this study record", "撤回这份研究记录")}</button></div><p class="error" role="alert"></p>`, "godot-game");
     if (!started) {
       document.getElementById("start-godot-game").onclick = async () => {
@@ -296,6 +297,13 @@
       };
     } else {
       updateGodotStudyStatus();
+      document.getElementById("restart-godot-game").onclick = () => {
+        if (!window.confirm(t("Restart the selected Godot lessons from the first level? Your normal game save and questionnaire answers will not be changed.", "确定从第一关重新开始这组 Godot 课程吗？正式游戏存档和问卷答案不会改变。"))) return;
+        godotCompleted = false;
+        const frame = document.getElementById("study-godot-frame");
+        if (frame) frame.src = studyGameUrl(true);
+        updateGodotStudyStatus();
+      };
       document.getElementById("finish-godot-game").onclick = async () => {
         try { const data = await api("/api/study/advance", authenticated({action: "finish_game"})); serverState = data.state; render(); } catch (error) { showError(error.message); }
       };

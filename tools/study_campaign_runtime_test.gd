@@ -8,8 +8,9 @@ func _initialize() -> void:
 	await process_frame
 	var gm := root.get_node_or_null("/root/GameManager")
 	var mm := root.get_node_or_null("/root/MissionManager")
-	_check(gm != null and mm != null, "main-game autoloads are available")
-	if gm == null or mm == null:
+	var sm := root.get_node_or_null("/root/SaveManager")
+	_check(gm != null and mm != null and sm != null, "main-game autoloads are available")
+	if gm == null or mm == null or sm == null:
 		quit(1)
 		return
 	_check(gm.study_mode_active(), "study mode is active")
@@ -42,6 +43,9 @@ func _initialize() -> void:
 	_check(not gm.study_campaign_complete(), "research route remains open before L84 completion")
 	gm.progress["completed_levels"].append(84)
 	_check(gm.study_campaign_complete(), "research route completes after the original L84 mission")
+	_check(bool(sm.clear_study_progress()), "research save can be cleared independently")
+	var restarted: Dictionary = sm.load_progress(gm.default_progress())
+	_check(int(restarted.get("current_level", 0)) == 16, "cleared research route restarts at original L16")
 
 	if failures == 0:
 		print("STUDY CAMPAIGN RUNTIME TEST PASS")
