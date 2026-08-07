@@ -25,6 +25,8 @@ const PLAYER_STOPPED_MSEC := 5200
 const PLAYER_INACTIVE_MSEC := 12500
 const POSTGRADUATE_TIME_SCALE := 10.0
 const POSTGRADUATE_TIMING_VERSION := 2
+const OBSERVATION_HALL_ROAM_LEG_SECONDS := 36.0
+const OBSERVATION_HALL_ROAM_DWELL_SECONDS := 12.0
 
 const FACING_ROWS := {
 	"down": "walk_south",
@@ -112,6 +114,9 @@ var _postgraduate_override_copy: Dictionary = {}
 var _recent_postgraduate_lines: Array[String] = []
 var _postgraduate_relationship: Dictionary = {}
 var _postgraduate_return_result: Dictionary = {}
+var _observation_hall_roam_stations: Array[String] = []
+var _observation_hall_roam_index := 0
+var _observation_hall_roam_dwell_elapsed := 0.0
 
 
 func setup(
@@ -155,6 +160,7 @@ func setup(
 	# the logical facing restored from the lobby. When the gesture finishes the
 	# correct directional idle frame resumes.
 	_set_facing(initial_facing)
+	_resume_observation_hall_roam()
 	call_deferred("_begin_first_route")
 
 
@@ -170,6 +176,7 @@ func _process(delta: float) -> void:
 	_update_player_behavior()
 	_update_movement(delta)
 	_update_animation(delta)
+	_update_observation_hall_roam(delta)
 	_update_ambient_bubble(delta)
 	_update_free_activity(delta)
 
@@ -304,7 +311,7 @@ func remember_joined_observation() -> void:
 	_remember_postgraduate_event("observations_joined")
 
 
-func remember_player_departure() -> void:
+func remember_player_departure(begin_observation_hall_roam: bool = false) -> void:
 	if not _is_postgraduate_free_roam():
 		return
 	_ensure_postgraduate_work_plan()
@@ -312,6 +319,14 @@ func remember_player_departure() -> void:
 	var progress_value: Variant = manager.get("progress") if manager != null else {}
 	if not progress_value is Dictionary:
 		return
+	if begin_observation_hall_roam:
+		var stations := _observation_hall_roam_stations_for_phase()
+		if not stations.is_empty():
+			(progress_value as Dictionary)["maya_observation_hall_roam"] = {
+				"started_unix": _postgraduate_now_unix(),
+				"stations": stations.duplicate(),
+				"leg_seconds": OBSERVATION_HALL_ROAM_LEG_SECONDS,
+			}
 	(progress_value as Dictionary)["maya_postgraduate_presence"] = {
 		"departed_unix": _postgraduate_now_unix(),
 		"phase": _postgraduate_phase,
@@ -709,11 +724,15 @@ func _begin_first_route() -> void:
 	# replacing it with route copy on the very next frame.
 	await get_tree().create_timer(1.5).timeout
 	_route_enabled = true
+	if not _observation_hall_roam_stations.is_empty():
+		return
 	_update_route_target(true)
 
 
 func _update_route_target(force: bool = false) -> void:
 	if not _route_target_provider.is_valid():
+		return
+	if not _observation_hall_roam_stations.is_empty():
 		return
 	# Graduation ends Maya's tutorial job. The player's postgraduate equipment
 	# HUD may still point at a bench, but it must not commandeer Maya's own night
@@ -1130,6 +1149,97 @@ func _postgraduate_time_band() -> String:
 
 func _postgraduate_destination() -> String:
 	return str(_postgraduate_phase_data().get("destination", "telescope"))
+
+
+func _observation_hall_roam_stations_for_phase() -> Array[String]:
+	# When the player is inside a telescope screen, Maya remains a physical person
+	# in the hall. These are short errand loops around her actual work, not a new
+	# task: she returns to the station that owns the active phase afterwards.
+	var primary := _postgraduate_destination()
+	var by_phase := {
+		"assembling": ["cabinet", "assembly", "computer", "assembly"],
+		"observing": ["computer", "journal", "telescope"],
+		"recording": ["computer", "journal", "telescope", "journal"],
+		"reviewing": ["computer", "cabinet", "journal"],
+		"resting": ["cabinet", "computer", "journal"],
+	}
+	var raw: Array = by_phase.get(_postgraduate_phase, ["computer", primary])
+	var stations: Array[String] = []
+	for value in raw:
+		var station := str(value)
+		if station != "" and (stations.is_empty() or stations.back() != station):
+			stations.append(station)
+	if stations.is_empty() or stations.back() != primary:
+		stations.append(primary)
+	return stations
+
+
+func _resume_observation_hall_roam() -> void:
+	if not _is_postgraduate_free_roam():
+		return
+	var manager := get_node_or_null("/root/GameManager")
+	var progress_value: Variant = manager.get("progress") if manager != null else {}
+	if not progress_value is Dictionary:
+		return
+	var progress: Dictionary = progress_value
+	var saved_value: Variant = progress.get("maya_observation_hall_roam", {})
+	if not saved_value is Dictionary:
+		return
+	progress.erase("maya_observation_hall_roam")
+	var saved: Dictionary = saved_value
+	var stations_value: Variant = saved.get("stations", [])
+	var stations: Array[String] = []
+	if stations_value is Array:
+		for value in stations_value:
+			var station := str(value)
+			if station != "":
+				stations.append(station)
+	if stations.is_empty():
+		return
+	var leg_seconds := maxf(1.0, float(saved.get("leg_seconds", OBSERVATION_HALL_ROAM_LEG_SECONDS)))
+	var elapsed := maxf(0.0, float(_postgraduate_now_unix() - int(saved.get("started_unix", _postgraduate_now_unix()))))
+	var completed := mini(stations.size(), floori(elapsed / leg_seconds))
+	# The hall scene was unloaded while the player observed. Resume at the last
+	# station Maya could plausibly have reached, then animate the remaining legs.
+	if completed > 0:
+		var settled_station := stations[completed - 1]
+		var settled_position: Vector2 = _destination_provider.call(settled_station)
+		if bool(_walkable_provider.call(settled_position)):
+			position = settled_position
+			_set_facing(_facing_from_vector(_station_focus(settled_station) - position))
+	for index in range(completed, stations.size()):
+		_observation_hall_roam_stations.append(stations[index])
+	_observation_hall_roam_index = 0
+	_observation_hall_roam_dwell_elapsed = 0.0
+	if manager != null and manager.has_method("save"):
+		manager.call_deferred("save")
+	if not _observation_hall_roam_stations.is_empty():
+		_begin_observation_hall_roam_leg()
+
+
+func _begin_observation_hall_roam_leg() -> void:
+	if _observation_hall_roam_index >= _observation_hall_roam_stations.size():
+		_observation_hall_roam_stations.clear()
+		_update_route_target(true)
+		return
+	_destination_id = _observation_hall_roam_stations[_observation_hall_roam_index]
+	_route_is_guided = false
+	_arrived = false
+	_route_started_at_msec = Time.get_ticks_msec()
+	_route_arrived_at_msec = 0
+	_path = _make_path(position, _destination_provider.call(_destination_id))
+	_path_index = 0
+
+
+func _update_observation_hall_roam(delta: float) -> void:
+	if _observation_hall_roam_stations.is_empty() or _moving or not _arrived:
+		return
+	_observation_hall_roam_dwell_elapsed += delta
+	if _observation_hall_roam_dwell_elapsed < OBSERVATION_HALL_ROAM_DWELL_SECONDS:
+		return
+	_observation_hall_roam_dwell_elapsed = 0.0
+	_observation_hall_roam_index += 1
+	_begin_observation_hall_roam_leg()
 
 
 func _postgraduate_state_id() -> String:

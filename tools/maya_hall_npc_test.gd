@@ -292,6 +292,7 @@ func _run() -> void:
 		var prior_work_value: Variant = gm.progress.get("maya_postgraduate_work", null)
 		var prior_relationship_value: Variant = gm.progress.get("maya_postgraduate_relationship", null)
 		var prior_presence_value: Variant = gm.progress.get("maya_postgraduate_presence", null)
+		var prior_observation_roam_value: Variant = gm.progress.get("maya_observation_hall_roam", null)
 		gm.progress["graduation_seen"] = true
 		gm.progress.erase("maya_postgraduate_work")
 		gm.progress.erase("maya_postgraduate_relationship")
@@ -316,6 +317,25 @@ func _run() -> void:
 			and float(first_work.get("phase_duration_seconds", 0.0)) >= 240.0,
 			"Maya's current work phase uses the slower ten-times real-world clock"
 		)
+		maya.position = room.call("_maya_destination_for", "assembly")
+		maya.call("remember_player_departure", true)
+		var saved_roam_value: Variant = gm.progress.get("maya_observation_hall_roam", {})
+		var saved_roam: Dictionary = saved_roam_value if saved_roam_value is Dictionary else {}
+		_check(
+			not saved_roam.is_empty() and (saved_roam.get("stations", []) as Array).size() >= 2,
+			"leaving for an observation schedules Maya's off-screen hall walk"
+		)
+		if not saved_roam.is_empty():
+			saved_roam["started_unix"] = int(Time.get_unix_time_from_system()) - 40
+			gm.progress["maya_observation_hall_roam"] = saved_roam
+			maya.call("_resume_observation_hall_roam")
+			_check(
+				maya.current_destination_id() == "assembly" and maya.position.distance_to(room.call("_maya_destination_for", "cabinet")) < 0.1,
+				"returning from observation resumes Maya from a later hall station instead of freezing her old pose"
+			)
+			maya.set("_movement_locked_until_msec", 0)
+			maya.call("_update_movement", 0.5)
+			_check(bool(maya.get("_moving")), "Maya visibly continues her hall route after the player returns")
 		var first_cycle := int(first_work.get("cycle", 0))
 		gm.progress["maya_postgraduate_presence"] = {
 			"departed_unix": int(Time.get_unix_time_from_system()) - 2,
@@ -721,6 +741,10 @@ func _run() -> void:
 			gm.progress.erase("maya_postgraduate_presence")
 		else:
 			gm.progress["maya_postgraduate_presence"] = prior_presence_value
+		if prior_observation_roam_value == null:
+			gm.progress.erase("maya_observation_hall_roam")
+		else:
+			gm.progress["maya_observation_hall_roam"] = prior_observation_roam_value
 		gm.room_guidance_target = prior_postgraduate_room_guidance
 
 	var legacy_card := room.find_child("MayaRoomGuidancePortrait", true, false)

@@ -1145,10 +1145,10 @@ func _open_main_menu() -> void:
 	GameManager.go("menu")
 
 
-func _remember_maya_pose() -> void:
+func _remember_maya_pose(begin_observation_hall_roam: bool = false) -> void:
 	if maya_npc == null:
 		return
-	maya_npc.remember_player_departure()
+	maya_npc.remember_player_departure(begin_observation_hall_roam)
 	GameManager.remember_maya_observatory_pose(
 		maya_npc.position,
 		maya_npc.current_facing(),
@@ -1391,7 +1391,7 @@ func _interact_with_maya() -> void:
 	if str(request.get("action", "")) != "join_observation":
 		return
 	var object_id := str(request.get("object_id", ""))
-	_remember_maya_pose()
+	_remember_maya_pose(true)
 	var instrument := {
 		"id": str(request.get("instrument_id", "")),
 		"name_en": str(request.get("instrument_name_en", "")),
@@ -1669,6 +1669,7 @@ func _handle_interaction(id: String) -> void:
 		_play_furniture_action("door", _enter_observatory_door)
 	elif id == "telescope":
 		if GameManager.postgraduate_free_build() or _space_console_active():
+			_remember_maya_pose(true)
 			if GameManager.go_to_local_optical_observation("telescope"):
 				GameManager.clear_room_guidance()
 				return
@@ -1686,6 +1687,7 @@ func _handle_interaction(id: String) -> void:
 		if bool(gate.get("ok", false)):
 			GameManager.set_observatory_spawn("telescope")
 			GameManager.clear_room_guidance()
+			_remember_maya_pose(true)
 			_enter_sky_or_relocate("telescope")
 		else:
 			_show_feedback(GameManager.text(
