@@ -585,51 +585,18 @@ func study_campaign_complete() -> bool:
 	return true
 
 
-func launch_study_current_level() -> void:
+func launch_study_current_level(begin_with_intro: bool = false) -> void:
 	if not _study_mode_active:
 		return
 	if study_campaign_complete():
 		go("study_graduation")
 		return
-	_prepare_study_inventory()
-	_debug_prepare_equipment()
 	progress["save_initialized"] = true
 	save()
-	selected_object_id = current_target_object_id()
-	selected_object_level = int(progress.get("current_level", STUDY_CAMPAIGN_ORDER[0]))
-	last_sky_aim = {"valid": false}
-	match current_observation_mode():
-		"radio": go("radio_observation")
-		"multi_device", "space_infrared": go("space_observation")
-		"telescope" when str(current_level().get("telescope_family", "")) == "space_segmented": go("space_observation")
-		_: go("sky")
-
-
-func _prepare_study_inventory() -> void:
-	# Each foundation lesson receives exactly the equipment that existed by that
-	# point in the original campaign. This keeps early focus and magnification
-	# experiments faithful instead of silently fitting end-game optics.
-	var source_level := int(progress.get("current_level", STUDY_CAMPAIGN_ORDER[0]))
-	var unlocked: Array = []
-	for part_id_value in default_progress().get("unlocked_parts", []):
-		var default_id := str(part_id_value)
-		if not unlocked.has(default_id):
-			unlocked.append(default_id)
-	for part_value in parts_data:
-		if not part_value is Dictionary:
-			continue
-		var part: Dictionary = part_value
-		var part_id := str(part.get("id", ""))
-		if not part_id.is_empty() and int(part.get("unlock_level", 999)) <= source_level and not unlocked.has(part_id):
-			unlocked.append(part_id)
-	for key in ["required_part_ids", "recommended_part_ids"]:
-		for part_id_value in current_level().get(key, []):
-			var required_id := str(part_id_value)
-			if not required_id.is_empty() and not unlocked.has(required_id):
-				unlocked.append(required_id)
-	progress["unlocked_parts"] = unlocked
-	progress["unlocked_equipment_stages"] = ["eye", "finder", "telescope", "space", "radio"]
-	progress["pending_unlock_notice"] = []
+	if begin_with_intro and try_story_event("intro", "observatory"):
+		return
+	update_room_guidance_for_level()
+	go("observatory")
 
 
 func _study_mode_requested() -> bool:

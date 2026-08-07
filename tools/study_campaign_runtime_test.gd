@@ -29,15 +29,8 @@ func _initialize() -> void:
 	gm.progress["current_level"] = 4
 	gm._normalize_progress()
 	_check(int(gm.progress.get("current_level", 0)) == 4, "sequential L1-L3 completion resumes at L4")
-	gm._prepare_study_inventory()
-	var allowed_exceptions: Array = gm.current_level().get("required_part_ids", []).duplicate()
-	allowed_exceptions.append_array(gm.current_level().get("recommended_part_ids", []))
-	var leaked: Array[String] = []
-	for part_id_value in gm.progress.get("unlocked_parts", []):
-		var part: Dictionary = gm.get_part(str(part_id_value))
-		if not part.is_empty() and int(part.get("unlock_level", 999)) > 4 and not allowed_exceptions.has(str(part_id_value)):
-			leaked.append(str(part_id_value))
-	_check(leaked.is_empty(), "L4 inventory contains no later-campaign optics: %s" % ", ".join(leaked))
+	_check(not bool(gm.progress.get("telescope_ready", false)), "research mode does not auto-assemble the telescope")
+	_check(gm.progress.get("unlocked_equipment_stages", []) == ["eye"], "research mode preserves authored equipment unlock progression")
 
 	gm.progress["completed_levels"] = EXPECTED_ORDER.slice(0, EXPECTED_ORDER.size() - 1)
 	gm.progress["current_level"] = 24

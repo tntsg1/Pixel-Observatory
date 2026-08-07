@@ -817,7 +817,15 @@ func _build_completion_navigation(level: Dictionary) -> void:
 	continue_button.name = "GraduationButton" if program_complete else "ContinueButton"
 	continue_button.pressed.connect(func() -> void:
 		if GameManager.study_mode_active():
-			GameManager.launch_study_current_level()
+			if program_complete:
+				if GameManager.try_story_epilogue(completed_level_number, "study_graduation"):
+					return
+				GameManager.go("study_graduation")
+				return
+			GameManager.update_room_guidance_for_level()
+			if GameManager.try_story_epilogue(completed_level_number, "observatory"):
+				return
+			GameManager.go("observatory")
 			return
 		if program_complete:
 			if GameManager.try_story_epilogue(completed_level_number, "graduation"):

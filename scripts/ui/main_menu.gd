@@ -62,11 +62,12 @@ func _ready() -> void:
 
 
 func _launch_study_route() -> void:
-	if not GameManager.has_save():
+	var is_new_campaign := not GameManager.has_save()
+	if is_new_campaign:
 		GameManager.new_game()
 	else:
 		GameManager.resume_saved_campaign()
-	GameManager.launch_study_current_level()
+	GameManager.launch_study_current_level(is_new_campaign)
 
 
 func _build() -> void:
