@@ -25,6 +25,8 @@ assert.match(patcher, /<span>LOADING<\/span><small lang="zh-Hans">在加载中<\
 assert.doesNotMatch(patcher, /class="loader-aperture"|class="loader-brand-mark"/, "The loading shell must not substitute an ambiguous icon for status text.");
 assert.match(patcher, /messaging\.js/, "The game shell loads the existing messaging controller.");
 assert.match(gameLoader, /game-compact-controls/, "Narrow viewports must retain an on-demand social and feedback entry point.");
+assert.match(gameLoader, /launchParams\.get\("mode"\) === "study"/, "The embedded research route must be detected before social UI is created.");
+assert.match(gameLoader, /classList\.contains\("game-study-mode"\)\) return/, "The embedded research route must skip website-level floating social controls.");
 assert.match(gameLoader, /po:open-inbox/, "The game rail must reuse the existing private-message drawer.");
 assert.match(gameLoader, /invite_observe/, "Online friends can invite one another to observe without leaving the game.");
 assert.match(gameLoader, /\/api\/social\/presence/, "The game rail publishes the player's current observatory activity.");
@@ -41,6 +43,7 @@ assert.match(gameLoaderCss, /@media \(max-width: 1727px\)/, "16:9 desktop gutter
 assert.doesNotMatch(gameLoaderCss, /max-aspect-ratio:\s*16\/9/, "A 1920×1080 desktop must not collapse the two side rails.");
 assert.match(gameLoaderCss, /\.game-compact-actions\[hidden\]\s*\{\s*display: none !important;/, "Collapsed social controls must not leave focusable action buttons visible.");
 assert.match(gameLoaderCss, /html\.game-social-compact-open \.game-compact-controls \{ top:/, "A portrait bottom sheet moves its close trigger into the letterbox safe area.");
+assert.match(gameLoaderCss, /html\.game-study-mode \.game-compact-controls[\s\S]*display: none !important;/, "Study mode must keep the original Godot lesson navigation unobstructed.");
 assert.match(account, /document\.addEventListener\("click",event=>/, "Late-created game shell controls must use shared delegated account handlers.");
 assert.match(account, /event\.target\.closest\("#feedback-open"\)/, "The game feedback control opens the existing privacy-scoped form.");
 assert.match(cloudflareBuilder, /R2-only/, "Cloudflare packaging keeps large runtime binaries outside static assets.");

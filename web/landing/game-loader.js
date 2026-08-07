@@ -1,9 +1,13 @@
 (() => {
   "use strict";
 
+  const launchParams = new URLSearchParams(location.search);
+  const studyMode = launchParams.get("mode") === "study";
+  document.documentElement.classList.toggle("game-study-mode", studyMode);
+
   const languageStorageKey = "so-lang";
   const normalizeLanguage = value => /^zh(?:\b|-|_)/i.test(String(value || "")) ? "zh" : String(value || "").toLowerCase() === "en" ? "en" : "";
-  const queryLanguage = normalizeLanguage(new URLSearchParams(location.search).get("lang"));
+  const queryLanguage = normalizeLanguage(launchParams.get("lang"));
   let storedLanguage = "";
   try { storedLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)); } catch (_) {}
   const language = queryLanguage || storedLanguage || normalizeLanguage(navigator.language) || "en";
@@ -657,6 +661,11 @@
 
 (() => {
   "use strict";
+
+  // The study route embeds the original Godot lessons inside a research page.
+  // Keep website-level social tools out of that constrained canvas so they
+  // cannot cover the lesson's own navigation controls.
+  if (document.documentElement.classList.contains("game-study-mode")) return;
 
   const zh = window.POLanguage?.current() === "zh";
   const t = (en, cn) => zh ? cn : en;
