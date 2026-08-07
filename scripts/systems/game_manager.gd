@@ -2274,6 +2274,39 @@ func update_room_guidance_for_level() -> void:
 	)
 
 
+func pending_mission_setup_scene() -> String:
+	# Mission-complete navigation must honor the next lesson's physical setup
+	# before playing an epilogue or opening an observation. This is especially
+	# important when a reward (such as L5's finder scope) becomes a required
+	# component of the very next lesson.
+	var route := current_room_route()
+	if bool(route.get("ready", false)):
+		return ""
+	match str(route.get("target", "")):
+		"assembly":
+			return "assembly"
+		"cabinet":
+			return "parts"
+	return ""
+
+
+func go_to_pending_mission_setup() -> bool:
+	var scene_key := pending_mission_setup_scene()
+	if scene_key == "":
+		return false
+	if scene_key == "assembly":
+		set_observatory_spawn("assembly")
+		# The concept brief is part of learning how to install the new component;
+		# after the card, TeachingFlowManager returns straight to the bench.
+		if try_teaching_intercept("before_assembly", scene_key):
+			return true
+	elif scene_key == "parts":
+		set_observatory_spawn("cabinet")
+	clear_room_guidance()
+	go(scene_key)
+	return true
+
+
 func campaign_completed() -> bool:
 	return bool(progress.get("program_completed", false))
 

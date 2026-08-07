@@ -823,6 +823,8 @@ func _build_completion_navigation(level: Dictionary) -> void:
 				GameManager.go("study_graduation")
 				return
 			GameManager.update_room_guidance_for_level()
+			if GameManager.go_to_pending_mission_setup():
+				return
 			if GameManager.try_story_epilogue(completed_level_number, "observatory"):
 				return
 			GameManager.go("observatory")
@@ -833,6 +835,8 @@ func _build_completion_navigation(level: Dictionary) -> void:
 			GameManager.go("graduation")
 			return
 		GameManager.update_room_guidance_for_level()
+		if GameManager.go_to_pending_mission_setup():
+			return
 		if GameManager.try_story_epilogue(completed_level_number, "observatory"):
 			return
 		GameManager.go("observatory")
