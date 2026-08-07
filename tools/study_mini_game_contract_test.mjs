@@ -35,6 +35,10 @@ assert.match(script, /pixel-observatory-study-godot/);
 assert.match(script, /event\.origin !== location\.origin/);
 assert.match(script, /event\.source !== frame\.contentWindow/);
 assert.match(script, /if \(serverState\.nextStage === "game"\) return godotGame\(\)/);
+assert.match(script, /id: "aperture"/);
+assert.match(script, /id: "alignment"/);
+assert.match(script, /id: "deep_sky"/);
+assert.doesNotMatch(script.slice(script.indexOf("const questions = ["), script.indexOf("function preferredLanguage")), /id: "(?:infrared|radio|dispersion)"/);
 
 assert.match(styles, /\.language-switch/);
 assert.match(styles, /\.godot-study-frame/);
@@ -61,6 +65,10 @@ assert.doesNotMatch(cloudflareBuilder, /study\/game\/study\.pck/);
 assert.match(cloudflareBuilder, /rel\.startsWith\("\."\)/);
 
 assert.match(worker, /const STUDY_MIN_GAME_SECONDS = 300/);
+assert.match(worker, /STUDY_QUESTIONNAIRE_VERSION = "foundation_1_24_v1"/);
+assert.match(worker, /aperture: "collect"/);
+assert.match(worker, /alignment: "agree"/);
+assert.match(worker, /deep_sky: "expected"/);
 assert.match(worker, /activeSeconds = Math\.max\(0, Math\.min\(90/);
 
 console.log("Study language and extracted main-game campaign contract passed.");

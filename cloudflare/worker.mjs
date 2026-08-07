@@ -33,10 +33,11 @@ const STUDY_ANSWER_KEY = {
 	tracking: "rotation",
 	chromatic: "refraction",
 	light: "glow",
-	infrared: "false_colour",
-	radio: "signal",
-	dispersion: "arrival",
+	aperture: "collect",
+	alignment: "agree",
+	deep_sky: "expected",
 };
+const STUDY_QUESTIONNAIRE_VERSION = "foundation_1_24_v1";
 const PUBLIC_SITE_ORIGIN = "https://pixelobservatorygame.com";
 const ONLINE_WINDOW_SECONDS = 120;
 const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
@@ -1981,6 +1982,7 @@ async function handleStudySubmit(request, env) {
 	const durationSeconds = Math.max(0, Math.min(7_200, Math.floor(Number(body.durationSeconds || 0))));
 	const now = Math.floor(Date.now() / 1000);
 	const knowledgePhase = phase !== "experience";
+	if (knowledgePhase) answers.questionnaire_version = STUDY_QUESTIONNAIRE_VERSION;
 	const result = knowledgePhase ? studyScore(answers) : { score: null, maxScore: null };
 	const flags = studyQualityFlags(answers, durationSeconds);
 	const responseId = `SR-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;

@@ -67,19 +67,19 @@
       options: [["glow", "Sky glow reduces contrast.", "天空背景光会降低对比度。"], ["magnify", "It increases useful magnification.", "它会提高有效倍率。"], ["cool", "It cools the optics.", "它会冷却光学系统。"], ["track", "It improves tracking.", "它会改善追踪。"]],
     },
     {
-      id: "infrared",
-      text: ["Why are many space-infrared images shown in false colour?", "为什么许多太空红外图像使用假彩色显示？"],
-      options: [["false_colour", "Infrared wavelengths are assigned visible colours to show structure.", "将红外波段映射为可见颜色，以显示结构。"], ["printer", "The printer cannot make black.", "打印机无法打印黑色。"], ["weather", "Clouds add colour in space.", "太空中的云层会添加颜色。"], ["mirror", "Mirrors only reflect coloured light.", "镜面只能反射彩色光。"]],
+      id: "aperture",
+      text: ["For a faint nebula, what is the main benefit of using a larger objective lens?", "观测暗弱星云时，使用更大口径物镜的主要作用是什么？"],
+      options: [["collect", "It collects more light, making faint structure easier to detect.", "它能收集更多光线，使暗弱结构更容易被看见。"], ["magnify", "It always produces the highest magnification.", "它一定会产生最高倍率。"], ["track", "It automatically tracks Earth's rotation.", "它会自动追踪地球自转。"], ["colour", "It removes all colour from the image.", "它会消除图像中的所有颜色。"]],
     },
     {
-      id: "radio",
-      text: ["What is a FAST radio observation mainly trying to recover?", "FAST 射电观测主要试图从数据中恢复什么？"],
-      options: [["signal", "A weak patterned radio signal in noisy data.", "噪声数据中微弱但有规律的射电信号。"], ["photo", "A conventional colour photograph.", "普通彩色照片。"], ["temperature", "The surface temperature of a planet.", "行星表面温度。"], ["satellite", "A new optical lens.", "一枚新的光学镜片。"]],
+      id: "alignment",
+      text: ["What does a correctly calibrated finder scope allow an observer to do?", "正确校准寻星镜后，观测者能够做到什么？"],
+      options: [["agree", "Point the finder and main telescope at the same target.", "让寻星镜与主望远镜指向同一个目标。"], ["focus", "Focus every eyepiece automatically.", "自动为所有目镜调焦。"], ["brighten", "Make a faint object intrinsically brighter.", "让暗弱天体本身变得更亮。"], ["weather", "Remove clouds from the observing site.", "消除观测地点的云层。"]],
     },
     {
-      id: "dispersion",
-      text: ["In a pulsar observation, dispersion correction aligns what?", "脉冲星观测中的色散校正会对齐什么？"],
-      options: [["arrival", "Arrival times across frequency channels.", "不同频率通道中的到达时间。"], ["stars", "The shapes of visible stars.", "可见恒星的形状。"], ["mount", "The telescope legs.", "望远镜支腿。"], ["clouds", "Cloud layers.", "云层。"]],
+      id: "deep_sky",
+      text: ["A nebula remains faint and softly edged at best focus. What is the most reasonable conclusion?", "星云在最佳焦点下仍然暗弱且边缘柔和，最合理的判断是什么？"],
+      options: [["expected", "This can be a normal visual appearance for a faint deep-sky object.", "这可能就是暗弱深空天体正常的目视外观。"], ["broken", "The telescope must be broken.", "望远镜一定损坏了。"], ["maximum", "Maximum magnification will always reveal sharp edges.", "最高倍率一定能显示锐利边缘。"], ["daylight", "The observation should be repeated in daylight.", "应该在白天重新观测。"]],
     },
   ];
 
@@ -225,10 +225,10 @@
     stopMiniTimer(false);
     view(`<span class="eyebrow">${t("Short reading", "短篇阅读")}</span><h2>${t("How an observation becomes evidence", "一次观测如何成为证据")}</h2><p>${t("Read the four notes before completing the knowledge check. They describe the causal model used by Pixel Observatory.", "请阅读以下四条说明，再完成知识检查。它们概括了 Pixel Observatory 使用的因果模型。")}</p>
       <div class="reading">
-        <article><h3>${t("1. The instrument changes the result", "1. 仪器会改变结果")}</h3><p>${t("Assembly, focus, collimation, eyepiece focal length, and tracking are not cosmetic settings. They change clarity, stability, magnification, and field of view.", "组装、调焦、准直、目镜焦距和追踪并非装饰性设置，它们会改变清晰度、稳定性、倍率和视场。")}</p></article>
+        <article><h3>${t("1. Different controls solve different problems", "1. 不同控制解决不同问题")}</h3><p>${t("Focus changes image sharpness, eyepiece focal length changes magnification and field of view, and aperture changes how much light the telescope collects. One adjustment cannot replace the others.", "调焦改变图像清晰度，目镜焦距改变倍率和视场，口径决定望远镜收集多少光线；一种调整不能替代其他调整。")}</p></article>
         <article><h3>${t("2. The atmosphere has a limit", "2. 大气会限制观测")}</h3><p>${t("Cloud cover and light pollution reduce contrast. Poor atmospheric seeing also limits useful magnification: using more magnification can make a target worse rather than better.", "云层和光污染会降低对比度。较差的视宁度还会限制有效倍率：继续提高倍率有时会让目标更糟，而不是更清楚。")}</p></article>
-        <article><h3>${t("3. Different telescopes collect different evidence", "3. 不同望远镜收集不同证据")}</h3><p>${t("Optical telescopes show visible light. Infrared observations use false colour to represent invisible wavelength bands. FAST receives radio data and searches for faint structured signals, such as periodic pulsar pulses.", "光学望远镜呈现可见光；红外观测用假彩色表示不可见波段；FAST 接收射电数据，并从噪声中寻找脉冲星等微弱而有规律的信号。")}</p></article>
-        <article><h3>${t("4. A clear result is produced, not granted", "4. 清晰结果需要由操作产生")}</h3><p>${t("Finding a target begins with the naked eye and finder scope, then continues through the main telescope. Focus, tracking, environmental conditions, and a suitable configuration determine what becomes visible.", "寻找目标从肉眼和寻星镜开始，再进入主望远镜。调焦、追踪、环境条件和合适配置共同决定最终能够看见什么。")}</p></article>
+        <article><h3>${t("3. Find wide, then observe narrow", "3. 先用宽视场寻找，再用窄视场观测")}</h3><p>${t("Target acquisition normally moves from the naked eye to a calibrated finder scope and then to the main telescope. Calibration makes the finder and telescope agree on the same direction.", "寻找目标通常从肉眼开始，再使用已校准的寻星镜，最后进入主望远镜；校准能让寻星镜与主望远镜指向同一方向。")}</p></article>
+        <article><h3>${t("4. An imperfect image can still be truthful", "4. 不完美的图像也可能是真实结果")}</h3><p>${t("A faint nebula may remain a soft smudge at best focus. Tracking corrects drift caused by Earth's rotation, but it does not remove the persistent red-blue fringe produced by a simple refractor lens.", "暗弱星云在最佳焦点下仍可能只是一团柔和光斑。追踪可以修正地球自转造成的漂移，但不能消除简单折射镜透镜产生的红蓝色边。")}</p></article>
       </div><div class="actions"><button class="primary" id="reading-done">${t("I have finished reading", "我已完成阅读")}</button><button class="text-button" data-withdraw>${t("Withdraw this study record", "撤回这份研究记录")}</button></div><p class="error" role="alert"></p>`, "reading");
     document.getElementById("reading-done").onclick = async () => {
       try { const data = await api("/api/study/advance", authenticated({action: "finish_reading"})); serverState = data.state; render(); } catch (error) { showError(error.message); }
@@ -281,7 +281,7 @@
     view(`<span class="eyebrow">${t("Extracted Pixel Observatory curriculum", "Pixel Observatory 原课程提取路线")}</span><h2>${t("Play the original levels, in a shorter research route.", "直接游玩原有关卡，以更短的研究路线推进。")}</h2>
       <p>${t("This route opens selected levels from the main Godot project with their original scenes, instruments, interactions, and results. Completing one lesson jumps directly to the next selected lesson. Only the participant save is separate; your normal campaign is never changed.", "本路线直接打开 Godot 本体中选定的原有关卡，保留原场景、仪器、互动和观测结果。完成一关后会直接跳到下一项选定课程。只有参与者存档是独立的，你的正式游戏进度不会被修改。")}</p>
       ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Pixel Observatory research route", "像素天文台研究速通线")}" allow="autoplay; fullscreen" src="${studyGameUrl()}"></iframe></div>
-      <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><div class="actions"><button class="text-button" id="restart-godot-game">${t("Start route from the beginning", "从头开始研究路线")}</button><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · useful magnification · focus · tracking · false colour · pulsar dispersion", "肉眼 → 寻星镜 → 主望远镜 · 有效倍率 · 调焦 · 追踪 · 假彩色 · 脉冲星色散")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
+      <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><div class="actions"><button class="text-button" id="restart-godot-game">${t("Start route from the beginning", "从头开始研究路线")}</button><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · focus · magnification and field of view · aperture · seeing · tracking · chromatic aberration", "肉眼 → 寻星镜 → 主望远镜 · 调焦 · 倍率与视场 · 口径 · 视宁度 · 追踪 · 色差")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
       <div class="actions"><button class="text-button" data-withdraw>${t("Withdraw this study record", "撤回这份研究记录")}</button></div><p class="error" role="alert"></p>`, "godot-game");
     if (!started) {
       document.getElementById("start-godot-game").onclick = async () => {
