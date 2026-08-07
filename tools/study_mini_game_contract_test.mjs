@@ -40,6 +40,20 @@ assert.match(script, /id: "alignment"/);
 assert.match(script, /id: "deep_sky"/);
 assert.doesNotMatch(script.slice(script.indexOf("const questions = ["), script.indexOf("function preferredLanguage")), /id: "(?:infrared|radio|dispersion)"/);
 
+const questionnaireSource = script.slice(script.indexOf("const questions = ["), script.indexOf("function preferredLanguage"));
+const correctAnswers = new Map([
+	["workflow", "finder"], ["magnification", "short"], ["focus", "focuser"], ["seeing", "lower"], ["tracking", "rotation"],
+	["chromatic", "refraction"], ["light", "glow"], ["aperture", "collect"], ["alignment", "agree"], ["deep_sky", "expected"],
+]);
+const correctPositions = [];
+for (const [id, answer] of correctAnswers) {
+	const block = questionnaireSource.match(new RegExp(`id: "${id}"[\\s\\S]*?options: \\[(.*?)\\],\\n    \\}`, "m"));
+	assert.ok(block, `Question ${id} must remain in the questionnaire.`);
+	const values = [...block[1].matchAll(/\["([a-z_]+)"/g)].map(match => match[1]);
+	correctPositions.push(values.indexOf(answer));
+}
+assert.deepEqual(correctPositions, [1, 3, 2, 0, 3, 1, 2, 0, 3, 1], "Correct options must be balanced across A-D instead of clustering in A.");
+
 assert.match(styles, /\.language-switch/);
 assert.match(styles, /\.godot-study-frame/);
 assert.match(styles, /@media \(max-width: 600px\)/);

@@ -34,17 +34,17 @@
     {
       id: "workflow",
       text: ["Which step normally comes between naked-eye observation and looking through the main telescope?", "在肉眼观察和使用主望远镜之间，通常应先完成哪一步？"],
-      options: [["finder", "Use a finder scope to narrow the target.", "使用寻星镜缩小目标范围。"], ["focus", "Adjust the focuser.", "调整调焦器。"], ["filter", "Add a colour filter.", "添加彩色滤镜。"], ["report", "Write an observation report.", "撰写观测报告。"]],
+      options: [["focus", "Adjust the focuser.", "调整调焦器。"], ["finder", "Use a finder scope to narrow the target.", "使用寻星镜缩小目标范围。"], ["report", "Write an observation report.", "撰写观测报告。"], ["filter", "Add a colour filter.", "添加彩色滤镜。"]],
     },
     {
       id: "magnification",
       text: ["Which eyepiece change normally gives a higher magnification?", "通常更换哪种目镜会获得更高倍率？"],
-      options: [["short", "Use a shorter focal-length eyepiece.", "使用焦距更短的目镜。"], ["long", "Use a longer focal-length eyepiece.", "使用焦距更长的目镜。"], ["aperture", "Close the telescope aperture.", "缩小望远镜口径。"], ["cloud", "Wait for cloud cover.", "等待云层出现。"]],
+      options: [["long", "Use a longer focal-length eyepiece.", "使用焦距更长的目镜。"], ["aperture", "Close the telescope aperture.", "缩小望远镜口径。"], ["cloud", "Wait for cloud cover.", "等待云层出现。"], ["short", "Use a shorter focal-length eyepiece.", "使用焦距更短的目镜。"]],
     },
     {
       id: "focus",
       text: ["A target is dim and soft even when it is centred. What should you adjust first?", "目标已经居中，但仍然模糊发虚，首先应该调整什么？"],
-      options: [["focuser", "The focuser.", "调焦器。"], ["mount", "The tripod height.", "三脚架高度。"], ["finder", "The finder scope cap.", "寻星镜镜盖。"], ["credits", "The mission credits.", "任务积分。"]],
+      options: [["mount", "The tripod height.", "三脚架高度。"], ["finder", "The finder scope cap.", "寻星镜镜盖。"], ["focuser", "The focuser.", "调焦器。"], ["credits", "The mission credits.", "任务积分。"]],
     },
     {
       id: "seeing",
@@ -54,17 +54,17 @@
     {
       id: "tracking",
       text: ["Why does a telescope need tracking during a long observation?", "长时间观测时，望远镜为什么需要追踪？"],
-      options: [["rotation", "Earth's rotation moves the sky across the field.", "地球自转会使天体移出视场。"], ["moon", "The Moon changes colour.", "月球会改变颜色。"], ["battery", "The eyepiece battery drains.", "目镜电池会耗尽。"], ["mirror", "The mirror becomes transparent.", "镜面会变透明。"]],
+      options: [["moon", "The Moon changes colour.", "月球会改变颜色。"], ["battery", "The eyepiece battery drains.", "目镜电池会耗尽。"], ["mirror", "The mirror becomes transparent.", "镜面会变透明。"], ["rotation", "Earth's rotation moves the sky across the field.", "地球自转会使天体移出视场。"]],
     },
     {
       id: "chromatic",
       text: ["What causes chromatic aberration in a simple refracting telescope?", "简单折射式望远镜中的色差由什么引起？"],
-      options: [["refraction", "Different colours refract by different amounts.", "不同颜色的光折射程度不同。"], ["radio", "Radio signals have colour.", "无线电信号带有颜色。"], ["tracking", "The mount tracks too smoothly.", "支架追踪过于平稳。"], ["dust", "Dust changes focal length.", "灰尘改变了焦距。"]],
+      options: [["tracking", "The mount tracks too smoothly.", "支架追踪过于平稳。"], ["refraction", "Different colours refract by different amounts.", "不同颜色的光折射程度不同。"], ["dust", "Dust changes focal length.", "灰尘改变了焦距。"], ["radio", "Radio signals have colour.", "无线电信号带有颜色。"]],
     },
     {
       id: "light",
       text: ["How does light pollution most directly affect a faint deep-sky observation?", "光污染对暗弱深空天体观测最直接的影响是什么？"],
-      options: [["glow", "Sky glow reduces contrast.", "天空背景光会降低对比度。"], ["magnify", "It increases useful magnification.", "它会提高有效倍率。"], ["cool", "It cools the optics.", "它会冷却光学系统。"], ["track", "It improves tracking.", "它会改善追踪。"]],
+      options: [["magnify", "It increases useful magnification.", "它会提高有效倍率。"], ["cool", "It cools the optics.", "它会冷却光学系统。"], ["glow", "Sky glow reduces contrast.", "天空背景光会降低对比度。"], ["track", "It improves tracking.", "它会改善追踪。"]],
     },
     {
       id: "aperture",
@@ -74,12 +74,12 @@
     {
       id: "alignment",
       text: ["What does a correctly calibrated finder scope allow an observer to do?", "正确校准寻星镜后，观测者能够做到什么？"],
-      options: [["agree", "Point the finder and main telescope at the same target.", "让寻星镜与主望远镜指向同一个目标。"], ["focus", "Focus every eyepiece automatically.", "自动为所有目镜调焦。"], ["brighten", "Make a faint object intrinsically brighter.", "让暗弱天体本身变得更亮。"], ["weather", "Remove clouds from the observing site.", "消除观测地点的云层。"]],
+      options: [["focus", "Focus every eyepiece automatically.", "自动为所有目镜调焦。"], ["brighten", "Make a faint object intrinsically brighter.", "让暗弱天体本身变得更亮。"], ["weather", "Remove clouds from the observing site.", "消除观测地点的云层。"], ["agree", "Point the finder and main telescope at the same target.", "让寻星镜与主望远镜指向同一个目标。"]],
     },
     {
       id: "deep_sky",
       text: ["A nebula remains faint and softly edged at best focus. What is the most reasonable conclusion?", "星云在最佳焦点下仍然暗弱且边缘柔和，最合理的判断是什么？"],
-      options: [["expected", "This can be a normal visual appearance for a faint deep-sky object.", "这可能就是暗弱深空天体正常的目视外观。"], ["broken", "The telescope must be broken.", "望远镜一定损坏了。"], ["maximum", "Maximum magnification will always reveal sharp edges.", "最高倍率一定能显示锐利边缘。"], ["daylight", "The observation should be repeated in daylight.", "应该在白天重新观测。"]],
+      options: [["broken", "The telescope must be broken.", "望远镜一定损坏了。"], ["expected", "This can be a normal visual appearance for a faint deep-sky object.", "这可能就是暗弱深空天体正常的目视外观。"], ["maximum", "Maximum magnification will always reveal sharp edges.", "最高倍率一定能显示锐利边缘。"], ["daylight", "The observation should be repeated in daylight.", "应该在白天重新观测。"]],
     },
   ];
 
