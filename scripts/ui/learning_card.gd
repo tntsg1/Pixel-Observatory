@@ -806,13 +806,19 @@ func _fast_operation_chain(observation: Dictionary, product: Dictionary, kind: S
 
 func _build_completion_navigation(level: Dictionary) -> void:
 	var completed_level_number := int(level.get("level_number", 0))
-	var program_complete := bool(GameManager.progress.get("program_completed", false)) \
-		and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL
-	var continue_text := GameManager.text("Graduation Ceremony", "参加毕业典礼") if program_complete \
-		else GameManager.text("Continue", "继续")
-	var continue_button: Button = _mission_button(continue_text, Vector2(298, 668), Vector2(210, 48), Color(0.08, 0.38, 0.20))
+	var program_complete := GameManager.study_campaign_complete() if GameManager.study_mode_active() else ( \
+		bool(GameManager.progress.get("program_completed", false)) \
+		and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL)
+	var continue_text := GameManager.text("Complete Research Route", "完成研究路线") if GameManager.study_mode_active() and program_complete \
+		else (GameManager.text("Graduation Ceremony", "参加毕业典礼") if program_complete else GameManager.text("Continue", "继续"))
+	var continue_position := Vector2(357, 668) if GameManager.study_mode_active() else Vector2(298, 668)
+	var continue_size := Vector2(310, 48) if GameManager.study_mode_active() else Vector2(210, 48)
+	var continue_button: Button = _mission_button(continue_text, continue_position, continue_size, Color(0.08, 0.38, 0.20))
 	continue_button.name = "GraduationButton" if program_complete else "ContinueButton"
 	continue_button.pressed.connect(func() -> void:
+		if GameManager.study_mode_active():
+			GameManager.launch_study_current_level()
+			return
 		if program_complete:
 			if GameManager.try_story_epilogue(completed_level_number, "graduation"):
 				return
@@ -823,6 +829,8 @@ func _build_completion_navigation(level: Dictionary) -> void:
 			return
 		GameManager.go("observatory")
 	)
+	if GameManager.study_mode_active():
+		return
 	var journal_button: Button = _mission_button(GameManager.text("Open Journal", "打开观测日志"), Vector2(536, 668), Vector2(230, 48), Color(0.06, 0.20, 0.42))
 	journal_button.pressed.connect(func() -> void:
 		GameManager.set_observatory_spawn("journal")
@@ -835,8 +843,10 @@ func _build_next_mission_route() -> void:
 	var next_route := GameManager.current_room_route()
 	var next_level := int(GameManager.progress.get("current_level", 0))
 	var next_title := GameManager.dict_text(GameManager.current_level(), "title")
+	var next_heading := GameManager.text("NEXT RESEARCH STEP: %s" % next_title, "下一研究步骤：%s" % next_title) if GameManager.study_mode_active() \
+		else GameManager.text("NEXT: Level %d - %s" % [next_level, next_title], "下一关：第 %d 关 - %s" % [next_level, next_title])
 	var head := _label(
-		GameManager.text("NEXT: Level %d - %s" % [next_level, next_title], "下一关：第 %d 关 - %s" % [next_level, next_title]),
+		next_heading,
 		Vector2(180, 598), Vector2(664, 22), 15, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	head.clip_text = true
 	var where := _label(

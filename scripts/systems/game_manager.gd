@@ -16,6 +16,7 @@ const EXPANSION_DIR := "res://data/expansion/"
 const REMOTE_FREE_CATALOG_PATH := "res://data/remote_free_observation_catalog.json"
 const CAMPAIGN_VERSION := 94
 const FINAL_CAMPAIGN_LEVEL := 85
+const STUDY_CAMPAIGN_ORDER: Array[int] = [16, 4, 10, 11, 20, 22, 25, 74, 84]
 const RETIRED_POST_FAST_LEVEL := 86
 const FREE_OBSERVATION_CREDITS := 5
 const TUTORIAL_ASSIST_FULL := "full"
@@ -107,7 +108,8 @@ const SCENES := {
 	"journal": "res://scenes/learning_journal.tscn",
 	"card": "res://scenes/learning_card.tscn",
 	"story": "res://scenes/story_dialogue.tscn",
-	"graduation": "res://scenes/graduation_ceremony.tscn"
+	"graduation": "res://scenes/graduation_ceremony.tscn",
+	"study_graduation": "res://scenes/study_graduation.tscn"
 }
 
 var parts_data: Array = []
@@ -174,9 +176,11 @@ var remote_observation_context: Dictionary = {}
 # context keeps an active FAST/space campaign from taking over the player's
 # assembled ground telescope without adding another save field.
 var local_optical_observation_context: Dictionary = {}
+var _study_mode_active := false
 
 
 func _ready() -> void:
+	_study_mode_active = _study_mode_requested()
 	parts_data = _load_json_array("res://data/telescope_parts.json")
 	parts_data.append_array(_load_json_array(ADVANCED_PARTS_PATH))
 	objects_data = _load_json_array("res://data/celestial_objects.json")
@@ -190,7 +194,11 @@ func _ready() -> void:
 	var mission_manager: Variant = _mission_manager()
 	if mission_manager != null:
 		mission_manager.load_levels(levels_data)
+		if _study_mode_active:
+			mission_manager.use_campaign_order_subset(STUDY_CAMPAIGN_ORDER)
 	progress = SaveManager.load_progress(default_progress())
+	if _study_mode_active and not STUDY_CAMPAIGN_ORDER.has(int(progress.get("current_level", 0))):
+		progress = default_progress()
 	_normalize_progress()
 	language_mode = _normalized_language_mode(str(progress.get("language_mode", "en")))
 	var website_language := _website_language_mode()
@@ -465,7 +473,7 @@ func default_progress() -> Dictionary:
 		# begins a campaign. new_game() flips it so the menu can distinguish a
 		# resumable L1 game from an empty/default save file.
 		"save_initialized": false,
-		"current_level": 1,
+		"current_level": STUDY_CAMPAIGN_ORDER[0] if _study_mode_active else 1,
 		"selected_telescope_family": "refractor",
 		"active_optical_telescope_id": "",
 		"owned_optical_telescope_families": [],
@@ -556,6 +564,75 @@ func new_game() -> void:
 	TeachingFlowManager.reset_flow()
 	StoryManager.reset_flow()
 	progress_changed.emit()
+
+
+func study_mode_active() -> bool:
+	return _study_mode_active
+
+
+func study_campaign_complete() -> bool:
+	if not _study_mode_active:
+		return false
+	for level_number in STUDY_CAMPAIGN_ORDER:
+		if not progress.get("completed_levels", []).has(level_number):
+			return false
+	return true
+
+
+func launch_study_current_level() -> void:
+	if not _study_mode_active:
+		return
+	if study_campaign_complete():
+		go("study_graduation")
+		return
+	_prepare_study_inventory()
+	_debug_prepare_equipment()
+	progress["save_initialized"] = true
+	save()
+	selected_object_id = current_target_object_id()
+	selected_object_level = int(progress.get("current_level", STUDY_CAMPAIGN_ORDER[0]))
+	last_sky_aim = {"valid": false}
+	match current_observation_mode():
+		"radio": go("radio_observation")
+		"multi_device", "space_infrared": go("space_observation")
+		"telescope" when str(current_level().get("telescope_family", "")) == "space_segmented": go("space_observation")
+		_: go("sky")
+
+
+func _prepare_study_inventory() -> void:
+	# Each extracted lesson receives exactly the equipment that existed by that
+	# point in the original campaign. This keeps early focus and magnification
+	# experiments faithful instead of silently fitting end-game optics.
+	var source_level := int(progress.get("current_level", STUDY_CAMPAIGN_ORDER[0]))
+	var unlocked: Array = []
+	for part_id_value in default_progress().get("unlocked_parts", []):
+		var default_id := str(part_id_value)
+		if not unlocked.has(default_id):
+			unlocked.append(default_id)
+	for part_value in parts_data:
+		if not part_value is Dictionary:
+			continue
+		var part: Dictionary = part_value
+		var part_id := str(part.get("id", ""))
+		if not part_id.is_empty() and int(part.get("unlock_level", 999)) <= source_level and not unlocked.has(part_id):
+			unlocked.append(part_id)
+	for key in ["required_part_ids", "recommended_part_ids"]:
+		for part_id_value in current_level().get(key, []):
+			var required_id := str(part_id_value)
+			if not required_id.is_empty() and not unlocked.has(required_id):
+				unlocked.append(required_id)
+	progress["unlocked_parts"] = unlocked
+	progress["unlocked_equipment_stages"] = ["eye", "finder", "telescope", "space", "radio"]
+	progress["pending_unlock_notice"] = []
+
+
+func _study_mode_requested() -> bool:
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--study" or argument.begins_with("--study="):
+			return true
+	if OS.has_feature("web") and ClassDB.class_exists("JavaScriptBridge"):
+		return bool(JavaScriptBridge.eval("new URL(location.href).searchParams.get('mode') === 'study'", true))
+	return false
 
 
 func has_save() -> bool:
@@ -786,7 +863,7 @@ func _normalized_language_mode(mode: String) -> String:
 func _website_language_mode() -> String:
 	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
 		return ""
-	var value: Variant = JavaScriptBridge.eval("(()=>{try{return localStorage.getItem('so-lang')||''}catch(_){return ''}})()", true)
+	var value: Variant = JavaScriptBridge.eval("(()=>{const q=new URL(location.href).searchParams.get('lang');if(q==='en'||q==='zh')return q;try{return localStorage.getItem('so-lang')||''}catch(_){return ''}})()", true)
 	var mode := str(value).to_lower()
 	if mode == "zh" or mode == "en":
 		return mode
@@ -3941,13 +4018,15 @@ func _repair_campaign_progress() -> void:
 	# is a real level and is no further than one step past the furthest level the
 	# player has actually completed; retired or otherwise impossible ids still
 	# fail that test and are repaired.
-	var furthest_completed := 0
+	var furthest_completed_index := -1
 	for completed_value in valid_completed:
-		furthest_completed = maxi(furthest_completed, int(completed_value))
+		furthest_completed_index = maxi(furthest_completed_index, mission_manager.order_index(int(completed_value)))
 	# A campaign cursor that still points at a completed lesson is an
 	# interrupted completion handoff, not a plausible resume position.
-	var saved_is_plausible: bool = mission_manager.has_level(previous_level) \
-		and previous_level <= maxi(furthest_completed + 1, repaired_level) \
+	var previous_index: int = mission_manager.order_index(previous_level)
+	var repaired_index: int = mission_manager.order_index(repaired_level)
+	var saved_is_plausible: bool = previous_index >= 0 \
+		and previous_index <= maxi(furthest_completed_index + 1, repaired_index) \
 		and not valid_completed.has(previous_level)
 	if saved_is_plausible:
 		repaired_level = previous_level

@@ -116,7 +116,7 @@
       if (value) node.setAttribute("aria-label", localText(value));
     });
     const frame = document.getElementById("study-godot-frame");
-    if (frame) frame.src = `/study/game/?lang=${encodeURIComponent(language)}&participant=${encodeURIComponent(session?.participantId || "anonymous")}`;
+    if (frame) frame.src = studyGameUrl();
   }
 
   document.querySelectorAll("[data-language]").forEach(button => {
@@ -137,6 +137,17 @@
     return data;
   }
   function authenticated(body = {}) { return {...body, participantId: session?.participantId, token: session?.token}; }
+
+  function studyGameUrl() {
+    const params = new URLSearchParams({
+      mode: "study",
+      lang: language,
+      participant: session?.participantId || "anonymous",
+      study: session?.participantId || "",
+      study_token: session?.token || "",
+    });
+    return `/game/?${params.toString()}`;
+  }
   function updateProgress() {
     const current = serverState?.nextStage || "pretest";
     const order = ["pretest", "reading", "reading_posttest", "game", "posttest", "experience", "complete"];
@@ -266,9 +277,9 @@
     loadGodotReportState();
     let started = Number(serverState?.gameActiveSeconds || 0) > 0 || godotReportedSeconds > 0;
     try { started ||= localStorage.getItem(godotStartedKey()) === "1"; } catch (_) {}
-    view(`<span class="eyebrow">${t("Independent Godot observation", "独立 Godot 观测任务")}</span><h2>${t("Operate the instrument, not a browser imitation.", "亲手操作仪器，而不是网页模拟。")}</h2>
-      <p>${t("This is a separate Godot 4.7 mini-game built only around the concepts measured in this study. Its save directory and progress are isolated from Pixel Observatory.", "这是一个仅围绕本研究知识点制作的独立 Godot 4.7 小游戏，其存档目录和进度与 Pixel Observatory 本体完全隔离。")}</p>
-      ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Independent Godot study observatory", "独立 Godot 研究观测台")}" allow="autoplay; fullscreen" src="/study/game/?lang=${encodeURIComponent(language)}&participant=${encodeURIComponent(session?.participantId || "anonymous")}"></iframe></div>
+    view(`<span class="eyebrow">${t("Extracted Pixel Observatory curriculum", "Pixel Observatory 原课程提取路线")}</span><h2>${t("Play the original levels, in a shorter research route.", "直接游玩原有关卡，以更短的研究路线推进。")}</h2>
+      <p>${t("This route opens selected levels from the main Godot project with their original scenes, instruments, interactions, and results. Completing one lesson jumps directly to the next selected lesson. Only the participant save is separate; your normal campaign is never changed.", "本路线直接打开 Godot 本体中选定的原有关卡，保留原场景、仪器、互动和观测结果。完成一关后会直接跳到下一项选定课程。只有参与者存档是独立的，你的正式游戏进度不会被修改。")}</p>
+      ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Pixel Observatory research route", "像素天文台研究速通线")}" allow="autoplay; fullscreen" src="${studyGameUrl()}"></iframe></div>
       <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · useful magnification · focus · tracking · false colour · pulsar dispersion", "肉眼 → 寻星镜 → 主望远镜 · 有效倍率 · 调焦 · 追踪 · 假彩色 · 脉冲星色散")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
       <div class="actions"><button class="text-button" data-withdraw>${t("Withdraw this study record", "撤回这份研究记录")}</button></div><p class="error" role="alert"></p>`, "godot-game");
     if (!started) {
@@ -658,8 +669,17 @@
     const frame = document.getElementById("study-godot-frame");
     const data = event.data;
     if (!frame || event.origin !== location.origin || event.source !== frame.contentWindow || !data || data.source !== "pixel-observatory-study-godot") return;
-    if (data.event === "complete" || data.complete === true) godotCompleted = true;
-    reportGodotSeconds(data.activeSeconds, data.event === "complete" ? "heartbeat" : data.event);
+    if (data.event === "complete" || data.complete === true) {
+      godotCompleted = true;
+      api("/api/study/session", authenticated()).then(result => {
+        serverState = result.state;
+        godotReportedSeconds = Number(serverState?.gameActiveSeconds || godotReportedSeconds || 0);
+        saveGodotReportState();
+        updateGodotStudyStatus();
+      }).catch(() => updateGodotStudyStatus());
+      return;
+    }
+    reportGodotSeconds(data.activeSeconds, data.event);
     updateGodotStudyStatus();
   });
   document.addEventListener("visibilitychange", () => { if (document.hidden) sendGameTime("hidden", true); else miniLastTick = performance.now(); });

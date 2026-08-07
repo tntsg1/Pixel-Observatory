@@ -4,11 +4,27 @@ var levels: Array = []
 # Play sequence of level NUMBERS. This is the single mainline authority and
 # intentionally ends at the FAST graduation.
 var campaign_order: Array[int] = []
+var campaign_order_is_subset := false
 
 
 func load_levels(level_data: Array) -> void:
 	levels = level_data
+	campaign_order_is_subset = false
 	_load_campaign_order()
+
+
+func use_campaign_order_subset(order: Array[int]) -> bool:
+	var validated: Array[int] = []
+	for level_number in order:
+		if level_number <= 0 or validated.has(level_number) or get_level(level_number).is_empty():
+			push_error("Invalid study campaign level: %s" % level_number)
+			return false
+		validated.append(level_number)
+	if validated.is_empty():
+		return false
+	campaign_order = validated
+	campaign_order_is_subset = true
+	return true
 
 
 func _load_campaign_order() -> void:
@@ -102,7 +118,12 @@ func campaign_order_issues() -> Array[String]:
 			available.append(level_number)
 	available.sort()
 	var issues: Array[String] = []
-	if not _is_complete_campaign_order(campaign_order, available):
+	if campaign_order_is_subset:
+		for level_number in campaign_order:
+			if not available.has(level_number):
+				issues.append("campaign subset contains an unavailable level")
+				break
+	elif not _is_complete_campaign_order(campaign_order, available):
 		issues.append("campaign_order must contain each real level exactly once")
 	return issues
 
