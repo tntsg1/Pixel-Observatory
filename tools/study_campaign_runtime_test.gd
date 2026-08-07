@@ -1,6 +1,9 @@
 extends SceneTree
 
-const EXPECTED_ORDER: Array[int] = [16, 4, 10, 11, 20, 22, 25, 74, 84]
+const EXPECTED_ORDER: Array[int] = [
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+]
 var failures := 0
 
 
@@ -14,18 +17,18 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_check(gm.study_mode_active(), "study mode is active")
-	_check(mm.campaign_order == EXPECTED_ORDER, "original levels use the extracted research order")
-	_check(mm.campaign_order_issues().is_empty(), "research subset is a valid campaign order")
+	_check(mm.campaign_order == EXPECTED_ORDER, "research route uses every foundation level from L1 through L24")
+	_check(mm.campaign_order_issues().is_empty(), "foundation research route is a valid campaign order")
 	for index in range(EXPECTED_ORDER.size() - 1):
 		_check(mm.next_level_number(EXPECTED_ORDER[index]) == EXPECTED_ORDER[index + 1],
-			"L%d jumps directly to L%d" % [EXPECTED_ORDER[index], EXPECTED_ORDER[index + 1]])
+			"L%d advances sequentially to L%d" % [EXPECTED_ORDER[index], EXPECTED_ORDER[index + 1]])
 
 	gm.progress = gm.default_progress()
 	gm.progress["save_initialized"] = true
-	gm.progress["completed_levels"] = [16]
+	gm.progress["completed_levels"] = [1, 2, 3]
 	gm.progress["current_level"] = 4
 	gm._normalize_progress()
-	_check(int(gm.progress.get("current_level", 0)) == 4, "non-contiguous L16 to L4 survives save repair")
+	_check(int(gm.progress.get("current_level", 0)) == 4, "sequential L1-L3 completion resumes at L4")
 	gm._prepare_study_inventory()
 	var allowed_exceptions: Array = gm.current_level().get("required_part_ids", []).duplicate()
 	allowed_exceptions.append_array(gm.current_level().get("recommended_part_ids", []))
@@ -37,15 +40,15 @@ func _initialize() -> void:
 	_check(leaked.is_empty(), "L4 inventory contains no later-campaign optics: %s" % ", ".join(leaked))
 
 	gm.progress["completed_levels"] = EXPECTED_ORDER.slice(0, EXPECTED_ORDER.size() - 1)
-	gm.progress["current_level"] = 84
+	gm.progress["current_level"] = 24
 	gm._normalize_progress()
-	_check(int(gm.progress.get("current_level", 0)) == 84, "final FAST lesson survives save repair")
-	_check(not gm.study_campaign_complete(), "research route remains open before L84 completion")
-	gm.progress["completed_levels"].append(84)
-	_check(gm.study_campaign_complete(), "research route completes after the original L84 mission")
+	_check(int(gm.progress.get("current_level", 0)) == 24, "final foundation lesson survives save repair")
+	_check(not gm.study_campaign_complete(), "research route remains open before L24 completion")
+	gm.progress["completed_levels"].append(24)
+	_check(gm.study_campaign_complete(), "research route completes after L24")
 	_check(bool(sm.clear_study_progress()), "research save can be cleared independently")
 	var restarted: Dictionary = sm.load_progress(gm.default_progress())
-	_check(int(restarted.get("current_level", 0)) == 16, "cleared research route restarts at original L16")
+	_check(int(restarted.get("current_level", 0)) == 1, "cleared research route restarts at L1")
 
 	if failures == 0:
 		print("STUDY CAMPAIGN RUNTIME TEST PASS")

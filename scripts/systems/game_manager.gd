@@ -16,7 +16,13 @@ const EXPANSION_DIR := "res://data/expansion/"
 const REMOTE_FREE_CATALOG_PATH := "res://data/remote_free_observation_catalog.json"
 const CAMPAIGN_VERSION := 94
 const FINAL_CAMPAIGN_LEVEL := 85
-const STUDY_CAMPAIGN_ORDER: Array[int] = [16, 4, 10, 11, 20, 22, 25, 74, 84]
+# The research build uses the complete foundation curriculum in its authored
+# order. Keep this explicit so a missing or reordered lesson fails review
+# instead of silently turning the study into a hand-picked shortcut.
+const STUDY_CAMPAIGN_ORDER: Array[int] = [
+	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+]
 const RETIRED_POST_FAST_LEVEL := 86
 const FREE_OBSERVATION_CREDITS := 5
 const TUTORIAL_ASSIST_FULL := "full"
@@ -600,7 +606,7 @@ func launch_study_current_level() -> void:
 
 
 func _prepare_study_inventory() -> void:
-	# Each extracted lesson receives exactly the equipment that existed by that
+	# Each foundation lesson receives exactly the equipment that existed by that
 	# point in the original campaign. This keeps early focus and magnification
 	# experiments faithful instead of silently fitting end-game optics.
 	var source_level := int(progress.get("current_level", STUDY_CAMPAIGN_ORDER[0]))

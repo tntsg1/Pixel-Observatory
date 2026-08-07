@@ -278,9 +278,9 @@
     loadGodotReportState();
     let started = Number(serverState?.gameActiveSeconds || 0) > 0 || godotReportedSeconds > 0;
     try { started ||= localStorage.getItem(godotStartedKey()) === "1"; } catch (_) {}
-    view(`<span class="eyebrow">${t("Extracted Pixel Observatory curriculum", "Pixel Observatory 原课程提取路线")}</span><h2>${t("Play the original levels, in a shorter research route.", "直接游玩原有关卡，以更短的研究路线推进。")}</h2>
-      <p>${t("This route opens selected levels from the main Godot project with their original scenes, instruments, interactions, and results. Completing one lesson jumps directly to the next selected lesson. Only the participant save is separate; your normal campaign is never changed.", "本路线直接打开 Godot 本体中选定的原有关卡，保留原场景、仪器、互动和观测结果。完成一关后会直接跳到下一项选定课程。只有参与者存档是独立的，你的正式游戏进度不会被修改。")}</p>
-      ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Pixel Observatory research route", "像素天文台研究速通线")}" allow="autoplay; fullscreen" src="${studyGameUrl()}"></iframe></div>
+    view(`<span class="eyebrow">${t("Pixel Observatory foundation curriculum", "Pixel Observatory 基础课程路线")}</span><h2>${t("Play every original level from Level 1 through Level 24.", "按顺序游玩原作第 1 关至第 24 关。")}</h2>
+      <p>${t("This route opens Levels 1-24 from the main Godot project in their original order, with their original scenes, instruments, interactions, and results. Completing a lesson advances to the next numbered level. Only the participant save is separate; your normal campaign is never changed.", "本路线按照原始顺序打开 Godot 本体第 1 至第 24 关，保留原场景、仪器、互动和观测结果。完成一关后会进入下一编号关卡。只有参与者存档是独立的，你的正式游戏进度不会被修改。")}</p>
+      ${started ? `<div class="godot-study-frame"><iframe id="study-godot-frame" title="${t("Pixel Observatory foundation route", "像素天文台基础课程路线")}" allow="autoplay; fullscreen" src="${studyGameUrl()}"></iframe></div>
       <div class="godot-study-footer"><div><strong data-godot-time>${formatTime(Number(serverState?.gameActiveSeconds || 0))}</strong><span data-godot-status></span></div><div class="actions"><button class="text-button" id="restart-godot-game">${t("Start route from the beginning", "从头开始研究路线")}</button><button class="primary" id="finish-godot-game" disabled>${t("Continue to final questions", "继续完成后测")}</button></div></div>` : `<div class="game-callout"><strong>${t("What you will practise", "你将练习")}</strong><span class="fine">${t("Naked eye → finder → main telescope · focus · magnification and field of view · aperture · seeing · tracking · chromatic aberration", "肉眼 → 寻星镜 → 主望远镜 · 调焦 · 倍率与视场 · 口径 · 视宁度 · 追踪 · 色差")}</span><div class="actions"><button class="primary" id="start-godot-game">${t("Launch the Godot observatory", "启动 Godot 观测台")}</button></div></div>`}
       <div class="actions"><button class="text-button" data-withdraw>${t("Withdraw this study record", "撤回这份研究记录")}</button></div><p class="error" role="alert"></p>`, "godot-game");
     if (!started) {
@@ -298,7 +298,7 @@
     } else {
       updateGodotStudyStatus();
       document.getElementById("restart-godot-game").onclick = () => {
-        if (!window.confirm(t("Restart the selected Godot lessons from the first level? Your normal game save and questionnaire answers will not be changed.", "确定从第一关重新开始这组 Godot 课程吗？正式游戏存档和问卷答案不会改变。"))) return;
+        if (!window.confirm(t("Restart the complete Level 1-24 route from Level 1? Your normal game save and questionnaire answers will not be changed.", "确定从第 1 关重新开始完整的第 1 至 24 关课程吗？正式游戏存档和问卷答案不会改变。"))) return;
         godotCompleted = false;
         const frame = document.getElementById("study-godot-frame");
         if (frame) frame.src = studyGameUrl(true);

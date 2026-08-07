@@ -60,7 +60,9 @@ assert.match(styles, /@media \(max-width: 600px\)/);
 assert.match(styles, /prefers-reduced-motion/);
 
 assert.match(project, /run\/main_scene="res:\/\/scenes\/main_menu\.tscn"/);
-assert.match(gameManager, /STUDY_CAMPAIGN_ORDER: Array\[int\] = \[16, 4, 10, 11, 20, 22, 25, 74, 84\]/);
+const studyOrderSource = gameManager.match(/STUDY_CAMPAIGN_ORDER: Array\[int\] = \[([\s\S]*?)\n\]/)?.[1] || "";
+const studyOrder = [...studyOrderSource.matchAll(/\b(\d+)\b/g)].map(match => Number(match[1]));
+assert.deepEqual(studyOrder, Array.from({length: 24}, (_, index) => index + 1), "Study campaign must run every level sequentially from L1 through L24.");
 assert.match(gameManager, /func launch_study_current_level/);
 assert.match(gameManager, /_debug_prepare_equipment\(\)/);
 assert.match(gameManager, /func _prepare_study_inventory/);
@@ -85,4 +87,4 @@ assert.match(worker, /alignment: "agree"/);
 assert.match(worker, /deep_sky: "expected"/);
 assert.match(worker, /activeSeconds = Math\.max\(0, Math\.min\(90/);
 
-console.log("Study language and extracted main-game campaign contract passed.");
+console.log("Study language and complete L1-L24 main-game campaign contract passed.");
