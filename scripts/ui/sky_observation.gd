@@ -382,6 +382,8 @@ var calibrate_repeat_timer := 0.0
 var calibration_steps_banner: Control
 var calibration_step_labels: Array = []
 var calibration_complete_visible_until_msec := 0
+var finder_calibration_center_hint: Control
+var finder_calibration_center_hint_tween: Tween
 
 var workflow_elapsed := 0.0
 var workflow_move_count := 0
@@ -813,7 +815,7 @@ func _update_calibration_panel() -> void:
 		return
 	var aligned := GameManager.is_finder_aligned()
 	if aligned and not calibration_success_played:
-		calibration_complete_visible_until_msec = Time.get_ticks_msec() + 900
+		calibration_complete_visible_until_msec = Time.get_ticks_msec() + 3400
 	_update_calibration_steps_banner()
 	_sync_calibration_utility_strip()
 	var pct := GameManager.finder_alignment_percent()
@@ -830,6 +832,8 @@ func _update_calibration_panel() -> void:
 		if not calibration_success_played:
 			calibration_success_played = true
 			InteractionFeedback.success(calibration_panel, "finder_aligned")
+			if prior_pct >= 0.0:
+				_show_finder_calibration_center_hint(true)
 			if scope_reticle_layer != null:
 				InteractionFeedback.pulse(scope_reticle_layer, GOLD, 0.48)
 			if target_state_ring != null:
@@ -958,6 +962,8 @@ func _set_view_mode(mode: String) -> void:
 		_build_cloud_layer()
 	_rebuild_view()
 	_animate_mode_transition(mode, previous_mode)
+	if mode == "finder" and _is_finder_calibration_level() and not GameManager.is_finder_aligned():
+		_show_finder_calibration_center_hint(false)
 
 
 func _animate_mode_transition(mode: String, previous_mode := "") -> void:
@@ -1620,6 +1626,7 @@ func _build() -> void:
 	_update_mode_buttons()
 	_sync_calibration_utility_strip()
 	_rebuild_view()
+	call_deferred("_show_initial_finder_calibration_hint")
 
 
 func _build_mobile_sky_controls() -> void:
@@ -1677,6 +1684,67 @@ func _build_calibration_panel() -> void:
 	_update_calibration_panel()
 
 
+func _show_initial_finder_calibration_hint() -> void:
+	if _is_finder_calibration_level() and view_mode == "finder" and not GameManager.is_finder_aligned():
+		_show_finder_calibration_center_hint(false)
+
+
+func _show_finder_calibration_center_hint(completed: bool) -> void:
+	if not _is_finder_calibration_level() or view_mode != "finder":
+		return
+	if finder_calibration_center_hint_tween != null and finder_calibration_center_hint_tween.is_valid():
+		finder_calibration_center_hint_tween.kill()
+	if finder_calibration_center_hint != null and is_instance_valid(finder_calibration_center_hint):
+		finder_calibration_center_hint.queue_free()
+
+	var hint := Control.new()
+	hint.name = "FinderCalibrationCompleteHint" if completed else "FinderCalibrationEntryHint"
+	hint.position = VIEW_RECT.position
+	hint.size = VIEW_RECT.size
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.z_index = Z_GUIDANCE + 30
+	add_child(hint)
+	finder_calibration_center_hint = hint
+
+	var panel_size := Vector2(474, 126)
+	var panel_pos := Vector2((VIEW_RECT.size.x - panel_size.x) * 0.5, 176)
+	var shadow := _rect(hint, panel_pos + Vector2(5, 7), panel_size, Color(0.0, 0.0, 0.0, 0.46))
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rect(hint, panel_pos, panel_size, Color(0.012, 0.026, 0.047, 0.94))
+	_make_frame(hint, Rect2(panel_pos, panel_size), GREEN if completed else CYAN, 2)
+
+	var title_text := GameManager.text("FINDER ALIGNED", "寻星镜校准完成") if completed else GameManager.text("I / J / K / L  TO ADJUST", "I / J / K / L  微调")
+	var action_text := GameManager.text("Continue observing", "可以继续观测") if completed else GameManager.text("Align the parallel guide lines", "让两组平行线重合")
+	var footer_text := GameManager.text("Watch the calibration bar below", "留意底部校准条的状态") if completed else GameManager.text("Calibration progress is shown below", "校准进度显示在屏幕底部")
+	var accent := GREEN if completed else CYAN
+	var title := _label(hint, title_text, panel_pos + Vector2(18, 15), Vector2(panel_size.x - 36, 28), 20, accent, HORIZONTAL_ALIGNMENT_CENTER)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var action := _label(hint, action_text, panel_pos + Vector2(18, 48), Vector2(panel_size.x - 36, 27), 17, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	action.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var footer := _label(hint, footer_text, panel_pos + Vector2(18, 86), Vector2(panel_size.x - 36, 22), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	footer.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	hint.modulate.a = 0.0
+	hint.pivot_offset = hint.size * 0.5
+	var reduced := InteractionFeedback.is_reduced_motion()
+	if not reduced:
+		hint.scale = Vector2.ONE * 0.96
+	finder_calibration_center_hint_tween = create_tween().bind_node(hint)
+	finder_calibration_center_hint_tween.set_parallel(true)
+	finder_calibration_center_hint_tween.tween_property(hint, "modulate:a", 1.0, 0.18 if reduced else 0.24).set_trans(Tween.TRANS_SINE)
+	if not reduced:
+		finder_calibration_center_hint_tween.tween_property(hint, "scale", Vector2.ONE, 0.30).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	finder_calibration_center_hint_tween.set_parallel(false)
+	finder_calibration_center_hint_tween.tween_interval(2.35 if completed else 2.75)
+	finder_calibration_center_hint_tween.tween_property(hint, "modulate:a", 0.0, 0.34).set_trans(Tween.TRANS_SINE)
+	finder_calibration_center_hint_tween.tween_callback(func() -> void:
+		if is_instance_valid(hint):
+			hint.queue_free()
+		if finder_calibration_center_hint == hint:
+			finder_calibration_center_hint = null
+	)
+
+
 func _build_calibration_steps_banner() -> void:
 	# The step guide shares the fixed frame utility strip with the live
 	# calibration readout. It never covers the finder sky or its target.
@@ -1722,6 +1790,12 @@ func _sync_calibration_utility_strip() -> void:
 	# above the calibration controls.
 	if guidance_utility_root != null:
 		guidance_utility_root.visible = not calibration_active
+	if guidance_banner_bg != null:
+		guidance_banner_bg.visible = not calibration_active
+	if guidance_banner != null:
+		guidance_banner.visible = not calibration_active
+	if controls_help != null:
+		controls_help.visible = not calibration_active
 	if guidance_strip_toggle != null:
 		guidance_strip_toggle.visible = not calibration_active
 	if view_mode_caption != null:
@@ -4500,6 +4574,10 @@ func _clear_built_ui() -> void:
 	controls_help = null
 	guidance_utility_root = null
 	guidance_strip_toggle = null
+	finder_calibration_center_hint = null
+	if finder_calibration_center_hint_tween != null and finder_calibration_center_hint_tween.is_valid():
+		finder_calibration_center_hint_tween.kill()
+	finder_calibration_center_hint_tween = null
 	if guidance_strip_tween != null and guidance_strip_tween.is_valid():
 		guidance_strip_tween.kill()
 	guidance_strip_tween = null
