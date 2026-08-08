@@ -514,7 +514,7 @@ func _maya_destination_for(destination_id: String) -> Vector2:
 		# Use the middle of the clear aisle in front of the workbench.  The old
 		# left-side waypoint made Maya look detached from the telescope she was
 		# meant to be assembling.
-		"assembly": Vector2(852, 510),
+		"assembly": Vector2(852, 540),
 		# Observe from the clear right-hand aisle instead of standing on, or
 		# routing across, the central circular platform.
 		"telescope": Vector2(680, 496),
@@ -842,6 +842,7 @@ func _update_furniture_occlusion() -> void:
 			_player_visual_position() - PLAYER_DISPLAY_SIZE * 0.5,
 			PLAYER_DISPLAY_SIZE
 		)
+	var maya_in_front_of_furniture := false
 	for data in furniture_occluders:
 		var occluder := data.get("node") as CanvasItem
 		if occluder == null:
@@ -851,7 +852,11 @@ func _update_furniture_occlusion() -> void:
 		var player_behind := player != null and player_pos.y <= front_y \
 			and visual_rect.intersects(furniture_rect)
 		var maya_behind := maya_npc != null and maya_npc.is_behind_furniture(furniture_rect, front_y)
+		var maya_in_front := maya_npc != null and maya_npc.is_in_front_of_furniture(furniture_rect, front_y)
+		maya_in_front_of_furniture = maya_in_front_of_furniture or maya_in_front
 		occluder.visible = player_behind or maya_behind
+	if maya_npc != null:
+		maya_npc.set_furniture_front_layer(maya_in_front_of_furniture)
 
 
 func _draw_hud() -> void:
@@ -1140,10 +1145,10 @@ func _open_main_menu() -> void:
 	GameManager.go("menu")
 
 
-func _remember_maya_pose() -> void:
+func _remember_maya_pose(begin_observation_hall_roam: bool = false) -> void:
 	if maya_npc == null:
 		return
-	maya_npc.remember_player_departure()
+	maya_npc.remember_player_departure(begin_observation_hall_roam)
 	GameManager.remember_maya_observatory_pose(
 		maya_npc.position,
 		maya_npc.current_facing(),
@@ -1386,7 +1391,7 @@ func _interact_with_maya() -> void:
 	if str(request.get("action", "")) != "join_observation":
 		return
 	var object_id := str(request.get("object_id", ""))
-	_remember_maya_pose()
+	_remember_maya_pose(true)
 	var instrument := {
 		"id": str(request.get("instrument_id", "")),
 		"name_en": str(request.get("instrument_name_en", "")),
@@ -1664,6 +1669,7 @@ func _handle_interaction(id: String) -> void:
 		_play_furniture_action("door", _enter_observatory_door)
 	elif id == "telescope":
 		if GameManager.postgraduate_free_build() or _space_console_active():
+			_remember_maya_pose(true)
 			if GameManager.go_to_local_optical_observation("telescope"):
 				GameManager.clear_room_guidance()
 				return
@@ -1681,6 +1687,7 @@ func _handle_interaction(id: String) -> void:
 		if bool(gate.get("ok", false)):
 			GameManager.set_observatory_spawn("telescope")
 			GameManager.clear_room_guidance()
+			_remember_maya_pose(true)
 			_enter_sky_or_relocate("telescope")
 		else:
 			_show_feedback(GameManager.text(
@@ -2721,8 +2728,16 @@ func _maybe_show_unlock_popup() -> void:
 		_popup_label_on(unlock_popup, "•  " + part_name, Vector2(x_text, y), Vector2(360, 22), 13, Color(0.60, 0.95, 0.70))
 		y += 26.0
 	y += 10.0
+	var opens_observation_pad := int(GameManager.current_level().get("level_number", 0)) == 6
+	var hint_text := GameManager.text(
+		"The 10mm eyepiece is now in your inventory. Return to the Observation Pad to continue.",
+		"10mm 目镜已加入库存，返回观星台继续。"
+	) if opens_observation_pad else GameManager.text(
+		"Equip them at the Parts Cabinet, then reassemble at the Assembly Table.",
+		"到零件柜装备它们，然后在组装台重新组装。"
+	)
 	var hint := _popup_label_on(unlock_popup,
-		GameManager.text("Equip them at the Parts Cabinet, then reassemble at the Assembly Table.", "到零件柜装备它们，然后在组装台重新组装。"),
+		hint_text,
 		Vector2(x_text, y), Vector2(360, 40), 11, Color(0.78, 0.86, 0.92))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
@@ -2737,12 +2752,15 @@ func _maybe_show_unlock_popup() -> void:
 	unlock_popup.add_child(later)
 
 	var equip_now := Button.new()
-	equip_now.text = GameManager.text("Open Parts Cabinet", "打开零件柜")
+	equip_now.text = GameManager.text("Open Observation Pad", "打开观星台") if opens_observation_pad else GameManager.text("Open Parts Cabinet", "打开零件柜")
 	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
 	equip_now.size = Vector2(220, 38)
 	equip_now.add_theme_font_size_override("font_size", 13)
 	equip_now.pressed.connect(func() -> void:
 		_close_unlock_popup(false)
+		if opens_observation_pad:
+			_handle_interaction("telescope")
+			return
 		GameManager.set_room_guidance(
 			"cabinet",
 			GameManager.text("Maya: Equip the New Parts", "玛雅：装备新零件"),

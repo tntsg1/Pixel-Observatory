@@ -62,6 +62,10 @@ var _browser_http_callback
 
 func _ready() -> void:
 	sync_status_changed.connect(_publish_web_sync_status)
+	if _study_mode_requested():
+		_progress_availability_is_resolved = true
+		set_process(false)
+		return
 	if not OS.has_feature("web"):
 		_progress_availability_is_resolved = true
 		set_process(false)
@@ -76,6 +80,15 @@ func _ready() -> void:
 	add_child(_request)
 	_install_browser_bridge()
 	call_deferred("_check_session")
+
+
+func _study_mode_requested() -> bool:
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--study" or argument.begins_with("--study="):
+			return true
+	if OS.has_feature("web") and ClassDB.class_exists("JavaScriptBridge"):
+		return bool(JavaScriptBridge.eval("new URL(location.href).searchParams.get('mode') === 'study'", true))
+	return false
 
 
 func _install_browser_bridge() -> void:

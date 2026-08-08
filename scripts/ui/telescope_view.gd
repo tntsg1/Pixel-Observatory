@@ -171,6 +171,9 @@ uniform float seeing : hint_range(0.0, 1.0) = 0.0;
 uniform float brightness : hint_range(0.2, 1.4) = 1.0;
 uniform vec4 psf_tint : source_color = vec4(1.0);
 uniform vec4 source_tint : source_color = vec4(0.78, 0.84, 1.0, 1.0);
+uniform float sharp_core_sigma : hint_range(0.003, 0.02) = 0.0065;
+uniform float halo_strength : hint_range(0.0, 0.3) = 0.10;
+uniform float source_art_mix : hint_range(0.0, 1.0) = 0.0;
 
 void fragment() {
 	vec4 sharp = texture(TEXTURE, UV);
@@ -178,10 +181,11 @@ void fragment() {
 	float sigma = mix(0.012, 0.14, pow(optical_error, 0.72));
 	vec2 centered = UV - vec2(0.5);
 	float profile = exp(-dot(centered, centered) / max(2.0 * sigma * sigma, 0.0001));
-	float source_core = smoothstep(0.18, 0.82, sharp.a);
+	float sharp_core = exp(-dot(centered, centered) / max(2.0 * sharp_core_sigma * sharp_core_sigma, 0.0001));
+	float soft_halo = exp(-dot(centered, centered) / (2.0 * 0.026 * 0.026));
 	float horizontal_spike = exp(-abs(centered.y) / 0.006) * exp(-abs(centered.x) / 0.095);
 	float vertical_spike = exp(-abs(centered.x) / 0.006) * exp(-abs(centered.y) / 0.095);
-	float diffraction = max(profile, (horizontal_spike + vertical_spike) * 0.16);
+	float diffraction = max(sharp_core, max(soft_halo * halo_strength, (horizontal_spike + vertical_spike) * 0.10));
 	// A strictly energy-normalized stellar PSF becomes imperceptible on an
 	// SDR game display long before the player reaches focus. Keep a continuous
 	// perceptual peak for bright guide stars while still reducing brightness
@@ -192,8 +196,12 @@ void fragment() {
 	// used only to locate its compact core; its baked low-alpha halo is omitted
 	// so no circular texture boundary can appear in the eyepiece.
 	vec3 star_color = source_tint.rgb;
-	vec4 analytical_core = vec4(star_color * brightness, max(diffraction * 0.94, source_core));
-	vec4 sharp_response = analytical_core;
+	vec3 core_color = mix(vec3(1.0), star_color, 0.34);
+	vec3 analytical_color = mix(star_color, core_color, sharp_core);
+	vec4 analytical_core = vec4(analytical_color * brightness, diffraction);
+	float source_art_alpha = smoothstep(0.006, 0.055, sharp.a);
+	vec4 source_art = vec4(sharp.rgb * brightness, source_art_alpha);
+	vec4 sharp_response = mix(analytical_core, source_art, source_art_mix);
 	vec4 spread = vec4(star_color * brightness, profile * energy_peak);
 	float spread_mix = smoothstep(0.015, 0.34, optical_error);
 	// TextureRect input COLOR can already contain source alpha. Multiplying
@@ -544,6 +552,7 @@ const CLOUD_TEXTURES := [
 # Real-sky background stars (deep HYG catalog, mag <= 8).
 const DEEP_STARS_PATH := "res://data/deep_stars.json"
 const SCOPE_FOV_RADIUS_DEG := 2.6   # eyepiece circle spans ~5.2 deg of sky
+const CATALOG_TARGET_DEDUP_RADIUS_DEG := 0.01
 const EYE_FOV_RADIUS_DEG := 24.0    # naked-eye circle spans ~48 deg
 
 # --- Earth-drift and tracking (E2). drift_enabled levels move the target and
@@ -728,13 +737,12 @@ func _focus_control_score() -> float:
 func _is_dark_adaptation_target() -> bool:
 	if not requires_focus:
 		return false
-	var type_lower := str(selected_object.get("type_en", "")).to_lower()
 	var requirements: Dictionary = _active_observation_requirements()
-	return type_lower.contains("nebula") or type_lower.contains("galaxy") or requirements.has("dark_adaptation_min")
+	return _is_diffuse_target() or requirements.has("dark_adaptation_min")
 
 
 func _visual_detection_techniques_available() -> bool:
-	if not requires_focus or not _is_diffuse_target():
+	if not requires_focus or not _is_visual_detection_target():
 		return false
 	var requirements := _active_observation_requirements()
 	if requirements.has("dark_adaptation_min") or bool(requirements.get("require_averted_vision", false)):
@@ -751,6 +759,17 @@ func _visual_detection_techniques_available() -> bool:
 	return completed.has(18) or completed.has("18")
 
 
+func _is_visual_detection_target() -> bool:
+	if _is_diffuse_target():
+		return true
+	# M13 is catalogued as a star cluster, not a nebula or galaxy.  When a
+	# mission explicitly asks for peripheral vision on its faint grainy halo,
+	# it uses the exact same Shift hold, guide, and evaluation route as a galaxy.
+	return _is_cluster_target() and bool(
+		_active_observation_requirements().get("require_averted_vision", false)
+	)
+
+
 # ------------------------------------------------------- object-type dispatch
 
 
@@ -761,7 +780,13 @@ func _is_star_target() -> bool:
 
 func _is_diffuse_target() -> bool:
 	var type_lower := str(selected_object.get("type_en", "")).to_lower()
-	return type_lower.contains("nebula") or type_lower.contains("galaxy")
+	var visual_profile := str(selected_object.get("visual_profile", "")).to_lower()
+	return (
+		type_lower.contains("nebula")
+		or type_lower.contains("galaxy")
+		or type_lower.contains("supernova remnant")
+		or visual_profile == "supernova_remnant"
+	)
 
 
 func _is_cluster_target() -> bool:
@@ -1448,7 +1473,7 @@ func _apply_breathing_and_jitter(t: float) -> void:
 					_solid_body_brightness(
 						str(observation.get("quality", "Unknown")),
 						str(observation.get("visual_effect", "clear"))
-					) * lerpf(1.0, 0.82, solid_amount)
+					) * _solid_body_defocus_brightness(solid_amount)
 				)
 		elif blur_overlay != null:
 			blur_overlay.position = visual_target_center - blur_overlay.size * display_scale * 0.5 + jitter
@@ -3474,19 +3499,29 @@ func _solid_body_defocus_screen_radius(weight: float, object_id := "") -> float:
 	# Define the PSF in final eyepiece pixels so distant planets do not receive
 	# a token one-pixel blur while larger lunar targets become over-softened.
 	var resolved_id := object_id if object_id != "" else str(selected_object.get("id", ""))
-	var maximum_radius := 30.0
+	var maximum_radius := 88.0
 	match resolved_id:
 		"moon", "moon_crater_copernicus", "moon_mare_tranquillitatis", "moon_terminator":
-			maximum_radius = 34.0
+			maximum_radius = 132.0
 		"jupiter", "saturn":
-			maximum_radius = 108.0
+			maximum_radius = 188.0
 		"mercury", "venus", "mars":
-			maximum_radius = 42.0
+			maximum_radius = 138.0
 		"uranus", "neptune":
-			maximum_radius = 32.0
+			maximum_radius = 96.0
 	# Keep tiny seeing/collimation residuals from softening a correctly focused
 	# planet, while preserving the full broad disk at genuine defocus.
-	return lerpf(0.0, maximum_radius, pow(clampf(weight, 0.0, 1.0), 1.05))
+	# A steeper curve decouples tiny seeing residuals from the much larger
+	# severe-defocus ceiling: best focus stays crisp, while the far end still
+	# blooms quickly enough to lose the source silhouette.
+	return lerpf(0.0, maximum_radius, pow(clampf(weight, 0.0, 1.0), 1.55))
+
+
+func _solid_body_defocus_brightness(weight: float) -> float:
+	# Spreading the same photons over a much wider circle lowers surface
+	# brightness. Keep enough haze to steer the knob, but never leave a bright,
+	# easily identified planet photograph at the far end of the focus travel.
+	return lerpf(1.0, 0.38, smoothstep(0.18, 1.0, clampf(weight, 0.0, 1.0)))
 
 
 func _solid_body_defocus_texture_radius(weight: float, object_id := "") -> float:
@@ -3543,6 +3578,8 @@ func _object_view_scale(id: String) -> float:
 			return 0.46
 		"andromeda":
 			return 0.62
+		"sirius":
+			return 1.50
 		"orion_nebula":
 			return 0.70
 		# Licensed planet masters are 1024px transparent canvases. These values
@@ -3647,7 +3684,7 @@ func _refresh_target_sprite() -> void:
 			# Contrast flattening for poor/failed quality (grain layer above
 			# handles the noise half of this; this is the color-desaturation half).
 			rgb *= 0.85
-		if averted_vision_active and _is_diffuse_target():
+		if averted_vision_active and _is_visual_detection_target():
 			# Averted vision: subtle contour brighten, not a flat clean-up.
 			rgb *= AVERTED_VISION_BRIGHTEN
 		main_sprite.modulate = Color(rgb, rgb, rgb, main_sprite.modulate.a)
@@ -3718,7 +3755,7 @@ func _update_target_visuals() -> void:
 			var solid_blur := _solid_body_defocus_texture_radius(combined_blur)
 			turbulence_material_main.set_shader_parameter("blur_radius_px", solid_blur)
 			turbulence_material_main.set_shader_parameter("defocus_amount", combined_blur)
-			turbulence_material_main.set_shader_parameter("brightness", lerpf(1.0, 0.60, combined_blur))
+			turbulence_material_main.set_shader_parameter("brightness", _solid_body_defocus_brightness(combined_blur))
 	elif point_source:
 		# A star is a point source at the same infinity focus as the catalog
 		# field. Preserve its photon energy while the PSF expands; fading the
@@ -3772,7 +3809,10 @@ func _update_target_visuals() -> void:
 		# wider split than star points so the colored rims read at the same scale.
 		var target_scale := 1.65 if _is_diffuse_target() else (1.30 if not _is_star_target() else 1.0)
 		var chroma_offset := (12.0 + visual_focus_error * 20.0) * target_scale
-		var chroma_alpha := 0.50 if _is_diffuse_target() else 0.68
+		# Colour separation is an edge aberration, not three equally bright
+		# candidate stars. Keep the real stellar core dominant so its intrinsic
+		# blue/white/yellow/red colour remains usable for identification.
+		var chroma_alpha := 0.50 if _is_diffuse_target() else (0.44 if _is_star_target() else 0.60)
 		ghost_a.modulate = Color(1.0, 0.12, 0.18, visual_base_alpha * chroma_alpha * cloud_mult)
 		ghost_b.modulate = Color(0.10, 0.36, 1.0, visual_base_alpha * chroma_alpha * cloud_mult)
 		ghost_a.position = visual_target_center - ghost_a.size * display_scale * 0.5 + Vector2(chroma_offset, 0)
@@ -3883,20 +3923,41 @@ func _target_star_material(point_shader: Shader) -> ShaderMaterial:
 	material.set_shader_parameter("brightness", 1.0)
 	material.set_shader_parameter("psf_tint", Color.WHITE)
 	material.set_shader_parameter("source_tint", _target_star_source_tint())
+	material.set_shader_parameter("sharp_core_sigma", 0.0065)
+	material.set_shader_parameter("halo_strength", 0.10)
+	material.set_shader_parameter("source_art_mix", 1.0 if str(selected_object.get("id", "")) == "sirius" else 0.0)
 	return material
 
 
 func _target_star_source_tint() -> Color:
 	# The analytical out-of-focus PSF cannot sample a second center texel on
 	# every Web renderer. Keep the star's catalog colour explicit instead.
+	# These are deliberately display-calibrated rather than near-white RGB
+	# values: on an SDR canvas the old pale tints clipped perceptually to the
+	# same white core, making a colour-identification quiz impossible.
+	match str(selected_object.get("id", "")):
+		"sirius", "vega":
+			return Color(0.34, 0.62, 1.0, 1.0)
+		"polaris":
+			return Color(0.94, 0.90, 0.78, 1.0)
+		"betelgeuse":
+			return Color(1.0, 0.28, 0.10, 1.0)
+		"arcturus":
+			return Color(1.0, 0.46, 0.14, 1.0)
+		"canopus":
+			return Color(1.0, 0.72, 0.30, 1.0)
+		"alpha_centauri":
+			return Color(1.0, 0.78, 0.42, 1.0)
+		"proxima":
+			return Color(1.0, 0.20, 0.08, 1.0)
 	var color_name := str(selected_object.get("color", "")).to_lower()
 	if color_name.contains("red") or color_name.contains("orange"):
-		return Color(1.0, 0.58, 0.36, 1.0)
+		return Color(1.0, 0.38, 0.14, 1.0)
 	if color_name.contains("blue"):
-		return Color(0.72, 0.84, 1.0, 1.0)
+		return Color(0.38, 0.66, 1.0, 1.0)
 	if color_name.contains("yellow"):
-		return Color(1.0, 0.90, 0.62, 1.0)
-	return Color(0.90, 0.93, 1.0, 1.0)
+		return Color(1.0, 0.76, 0.36, 1.0)
+	return Color(0.90, 0.92, 0.96, 1.0)
 
 
 func _sync_target_star_psf_tints() -> void:
@@ -3998,6 +4059,13 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 	var stars: Array = _load_deep_stars()
 	if stars.is_empty():
 		return
+	# Point-source targets are rendered separately with their intrinsic colour
+	# and optical response.  The HYG field contains the same bright stars, so
+	# leaving the selected entry here stacks a neutral-white PSF over the target
+	# (Sirius consequently looked white in the eyepiece but blue in the result).
+	var selected_target_radec: Dictionary = {}
+	if _is_star_target():
+		selected_target_radec = GameManager.object_radec(str(selected_object.get("id", "")))
 	var service := SkyPositionService.new()
 	service.load_config()
 	# Eyepiece star field uses the player's actual observing site too.
@@ -4024,6 +4092,8 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 			continue
 		var star: Array = star_value
 		if star.size() < 3:
+			continue
+		if _catalog_star_matches_selected_target(star, selected_target_radec):
 			continue
 		var magnitude := float(star[2])
 		if magnitude > mag_limit:
@@ -4063,6 +4133,22 @@ func _add_real_sky_stars(parent: Control, scope_center: Vector2, fov_radius: flo
 		added += 1
 		if added >= 170:
 			break  # brightest-first cap keeps the node count sane
+
+
+func _catalog_star_matches_selected_target(star: Array, target_radec: Dictionary) -> bool:
+	if star.size() < 2 or target_radec.is_empty():
+		return false
+	var target_ra_hours := float(target_radec.get("ra_hours", NAN))
+	var target_dec_degrees := float(target_radec.get("dec_degrees", NAN))
+	if is_nan(target_ra_hours) or is_nan(target_dec_degrees):
+		return false
+	var delta_ra_degrees := wrapf(
+		(float(star[0]) - target_ra_hours) * 15.0,
+		-180.0,
+		180.0
+	) * cos(deg_to_rad(target_dec_degrees))
+	var delta_dec_degrees := float(star[1]) - target_dec_degrees
+	return Vector2(delta_ra_degrees, delta_dec_degrees).length() <= CATALOG_TARGET_DEDUP_RADIUS_DEG
 
 
 func _add_cloud_layer(parent: Control, scope_center: Vector2) -> void:

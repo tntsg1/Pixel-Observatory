@@ -25,6 +25,8 @@ const PLAYER_STOPPED_MSEC := 5200
 const PLAYER_INACTIVE_MSEC := 12500
 const POSTGRADUATE_TIME_SCALE := 10.0
 const POSTGRADUATE_TIMING_VERSION := 2
+const OBSERVATION_HALL_ROAM_LEG_SECONDS := 36.0
+const OBSERVATION_HALL_ROAM_DWELL_SECONDS := 12.0
 
 const FACING_ROWS := {
 	"down": "walk_south",
@@ -46,6 +48,9 @@ var _bubble_status: Label
 var _bubble_line: Label
 var _bubble_badge: Panel
 var _badge_icon: Label
+var _bubble_line_marquee: Tween
+var _bubble_line_marquee_enabled := false
+var _bubble_line_home_position := Vector2.ZERO
 var _animations: Dictionary = {}
 var _dialogue_states: Dictionary = {}
 var _ambient_lines: Dictionary = {}
@@ -91,6 +96,7 @@ var _interaction_counts: Dictionary = {}
 var _player_was_near := false
 var _player_has_been_near := false
 var _maya_in_front_of_player := false
+var _maya_in_front_of_furniture := false
 var _rng := RandomNumberGenerator.new()
 var _postgraduate_routines: Dictionary = {}
 var _postgraduate_phase := ""
@@ -108,6 +114,9 @@ var _postgraduate_override_copy: Dictionary = {}
 var _recent_postgraduate_lines: Array[String] = []
 var _postgraduate_relationship: Dictionary = {}
 var _postgraduate_return_result: Dictionary = {}
+var _observation_hall_roam_stations: Array[String] = []
+var _observation_hall_roam_index := 0
+var _observation_hall_roam_dwell_elapsed := 0.0
 
 
 func setup(
@@ -151,6 +160,7 @@ func setup(
 	# the logical facing restored from the lobby. When the gesture finishes the
 	# correct directional idle frame resumes.
 	_set_facing(initial_facing)
+	_resume_observation_hall_roam()
 	call_deferred("_begin_first_route")
 
 
@@ -166,6 +176,7 @@ func _process(delta: float) -> void:
 	_update_player_behavior()
 	_update_movement(delta)
 	_update_animation(delta)
+	_update_observation_hall_roam(delta)
 	_update_ambient_bubble(delta)
 	_update_free_activity(delta)
 
@@ -179,8 +190,10 @@ func set_room_blocked(blocked: bool) -> void:
 			_bubble_badge.visible = false
 	elif _bubble != null and _bubble_badge != null:
 		_update_bubble_visibility()
+		# An intentionally silent state stays silent.  Never revive the retired
+		# symbol badge as a fallback; it surfaced as an unexplained question mark.
 		if not _bubble.visible:
-			_bubble_badge.visible = true
+			_bubble_badge.visible = false
 
 
 func refresh_language() -> void:
@@ -298,7 +311,7 @@ func remember_joined_observation() -> void:
 	_remember_postgraduate_event("observations_joined")
 
 
-func remember_player_departure() -> void:
+func remember_player_departure(begin_observation_hall_roam: bool = false) -> void:
 	if not _is_postgraduate_free_roam():
 		return
 	_ensure_postgraduate_work_plan()
@@ -306,6 +319,14 @@ func remember_player_departure() -> void:
 	var progress_value: Variant = manager.get("progress") if manager != null else {}
 	if not progress_value is Dictionary:
 		return
+	if begin_observation_hall_roam:
+		var stations := _observation_hall_roam_stations_for_phase()
+		if not stations.is_empty():
+			(progress_value as Dictionary)["maya_observation_hall_roam"] = {
+				"started_unix": _postgraduate_now_unix(),
+				"stations": stations.duplicate(),
+				"leg_seconds": OBSERVATION_HALL_ROAM_LEG_SECONDS,
+			}
 	(progress_value as Dictionary)["maya_postgraduate_presence"] = {
 		"departed_unix": _postgraduate_now_unix(),
 		"phase": _postgraduate_phase,
@@ -550,6 +571,18 @@ func is_behind_furniture(rect: Rect2, front_y: float) -> bool:
 	return position.y <= front_y and visual_rect.intersects(rect)
 
 
+func is_in_front_of_furniture(rect: Rect2, front_y: float) -> bool:
+	var visual_rect := Rect2(
+		position - Vector2(18.0 * DISPLAY_SCALE, 48.0 * DISPLAY_SCALE),
+		Vector2(36.0 * DISPLAY_SCALE, 50.0 * DISPLAY_SCALE)
+	)
+	return position.y > front_y and visual_rect.intersects(rect)
+
+
+func set_furniture_front_layer(active: bool) -> void:
+	_maya_in_front_of_furniture = active
+
+
 func _load_data() -> void:
 	var atlas_data := _read_json(ATLAS_METADATA_PATH)
 	_animations = atlas_data.get("animations", {})
@@ -624,6 +657,7 @@ func _build_visuals() -> void:
 	_bubble.size = Vector2(174, 44)
 	_bubble.z_as_relative = false
 	_bubble.z_index = 70
+	_bubble.clip_contents = true
 	_bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_bubble.add_theme_stylebox_override("panel", _bubble_style(Color(0.52, 0.86, 1.0), 0.97, 8))
 	add_child(_bubble)
@@ -690,11 +724,15 @@ func _begin_first_route() -> void:
 	# replacing it with route copy on the very next frame.
 	await get_tree().create_timer(1.5).timeout
 	_route_enabled = true
+	if not _observation_hall_roam_stations.is_empty():
+		return
 	_update_route_target(true)
 
 
 func _update_route_target(force: bool = false) -> void:
 	if not _route_target_provider.is_valid():
+		return
+	if not _observation_hall_roam_stations.is_empty():
 		return
 	# Graduation ends Maya's tutorial job. The player's postgraduate equipment
 	# HUD may still point at a bench, but it must not commandeer Maya's own night
@@ -1111,6 +1149,97 @@ func _postgraduate_time_band() -> String:
 
 func _postgraduate_destination() -> String:
 	return str(_postgraduate_phase_data().get("destination", "telescope"))
+
+
+func _observation_hall_roam_stations_for_phase() -> Array[String]:
+	# When the player is inside a telescope screen, Maya remains a physical person
+	# in the hall. These are short errand loops around her actual work, not a new
+	# task: she returns to the station that owns the active phase afterwards.
+	var primary := _postgraduate_destination()
+	var by_phase := {
+		"assembling": ["cabinet", "assembly", "computer", "assembly"],
+		"observing": ["computer", "journal", "telescope"],
+		"recording": ["computer", "journal", "telescope", "journal"],
+		"reviewing": ["computer", "cabinet", "journal"],
+		"resting": ["cabinet", "computer", "journal"],
+	}
+	var raw: Array = by_phase.get(_postgraduate_phase, ["computer", primary])
+	var stations: Array[String] = []
+	for value in raw:
+		var station := str(value)
+		if station != "" and (stations.is_empty() or stations.back() != station):
+			stations.append(station)
+	if stations.is_empty() or stations.back() != primary:
+		stations.append(primary)
+	return stations
+
+
+func _resume_observation_hall_roam() -> void:
+	if not _is_postgraduate_free_roam():
+		return
+	var manager := get_node_or_null("/root/GameManager")
+	var progress_value: Variant = manager.get("progress") if manager != null else {}
+	if not progress_value is Dictionary:
+		return
+	var progress: Dictionary = progress_value
+	var saved_value: Variant = progress.get("maya_observation_hall_roam", {})
+	if not saved_value is Dictionary:
+		return
+	progress.erase("maya_observation_hall_roam")
+	var saved: Dictionary = saved_value
+	var stations_value: Variant = saved.get("stations", [])
+	var stations: Array[String] = []
+	if stations_value is Array:
+		for value in stations_value:
+			var station := str(value)
+			if station != "":
+				stations.append(station)
+	if stations.is_empty():
+		return
+	var leg_seconds := maxf(1.0, float(saved.get("leg_seconds", OBSERVATION_HALL_ROAM_LEG_SECONDS)))
+	var elapsed := maxf(0.0, float(_postgraduate_now_unix() - int(saved.get("started_unix", _postgraduate_now_unix()))))
+	var completed := mini(stations.size(), floori(elapsed / leg_seconds))
+	# The hall scene was unloaded while the player observed. Resume at the last
+	# station Maya could plausibly have reached, then animate the remaining legs.
+	if completed > 0:
+		var settled_station := stations[completed - 1]
+		var settled_position: Vector2 = _destination_provider.call(settled_station)
+		if bool(_walkable_provider.call(settled_position)):
+			position = settled_position
+			_set_facing(_facing_from_vector(_station_focus(settled_station) - position))
+	for index in range(completed, stations.size()):
+		_observation_hall_roam_stations.append(stations[index])
+	_observation_hall_roam_index = 0
+	_observation_hall_roam_dwell_elapsed = 0.0
+	if manager != null and manager.has_method("save"):
+		manager.call_deferred("save")
+	if not _observation_hall_roam_stations.is_empty():
+		_begin_observation_hall_roam_leg()
+
+
+func _begin_observation_hall_roam_leg() -> void:
+	if _observation_hall_roam_index >= _observation_hall_roam_stations.size():
+		_observation_hall_roam_stations.clear()
+		_update_route_target(true)
+		return
+	_destination_id = _observation_hall_roam_stations[_observation_hall_roam_index]
+	_route_is_guided = false
+	_arrived = false
+	_route_started_at_msec = Time.get_ticks_msec()
+	_route_arrived_at_msec = 0
+	_path = _make_path(position, _destination_provider.call(_destination_id))
+	_path_index = 0
+
+
+func _update_observation_hall_roam(delta: float) -> void:
+	if _observation_hall_roam_stations.is_empty() or _moving or not _arrived:
+		return
+	_observation_hall_roam_dwell_elapsed += delta
+	if _observation_hall_roam_dwell_elapsed < OBSERVATION_HALL_ROAM_DWELL_SECONDS:
+		return
+	_observation_hall_roam_dwell_elapsed = 0.0
+	_observation_hall_roam_index += 1
+	_begin_observation_hall_roam_leg()
 
 
 func _postgraduate_state_id() -> String:
@@ -1853,7 +1982,7 @@ func _show_state(state_id: String, important: bool = false) -> void:
 		_expand_bubble()
 	else:
 		_bubble.visible = false
-		_bubble_badge.visible = true
+		_bubble_badge.visible = false
 
 
 func _orient_station_gesture(state_id: String) -> void:
@@ -1888,10 +2017,12 @@ func _apply_state_text(state_id: String) -> void:
 		_set_postgraduate_bubble_layout(true)
 		var return_copy := _postgraduate_observation_return_copy(chinese)
 		var return_icon := str(return_copy.get("icon", "✓"))
-		_bubble_icon.text = return_icon
-		_badge_icon.text = return_icon
+		_bubble_icon.text = ""
+		_badge_icon.text = ""
 		_bubble_status.text = _short_bubble_text(str(return_copy.get("status", "")), 18 if chinese else 30)
 		_bubble_line.text = _short_bubble_text(str(return_copy.get("line", "")), 22 if chinese else 60)
+		_bubble_line_marquee_enabled = false
+		_queue_bubble_line_marquee()
 		return
 	if state_id.begins_with("postgraduate_"):
 		_set_postgraduate_bubble_layout(true)
@@ -1899,19 +2030,46 @@ func _apply_state_text(state_id: String) -> void:
 			if not _postgraduate_override_copy.is_empty() else _postgraduate_copy(chinese)
 		_postgraduate_override_copy.clear()
 		var postgraduate_icon := str(copy.get("icon", "..."))
-		_bubble_icon.text = postgraduate_icon
-		_badge_icon.text = postgraduate_icon
+		_bubble_icon.text = ""
+		_badge_icon.text = ""
 		_bubble_status.text = _short_bubble_text(str(copy.get("status", "")), 18 if chinese else 30)
 		_bubble_line.text = _short_bubble_text(str(copy.get("line", "")), 22 if chinese else 60)
+		_bubble_line_marquee_enabled = false
+		_queue_bubble_line_marquee()
 		return
 	_set_postgraduate_bubble_layout(false)
 	var state: Dictionary = _dialogue_states.get(state_id, _dialogue_states.get("idle", {}))
+	var status_key := "status_zh" if chinese else "status_en"
+	var status := _short_bubble_text(str(state.get(status_key, "")), 14 if chinese else 28)
 	var line := _ambient_bubble_copy(state_id, chinese)
-	var icon := str(state.get("icon", "..."))
-	_bubble_icon.text = icon
-	_badge_icon.text = icon
-	_bubble_status.text = ""
-	_bubble_line.text = _short_bubble_text(line, 12 if chinese else 22)
+	# The source icon remains editable for compatibility, but never becomes a
+	# mystery symbol in the hall.  The activity text is what players need.
+	_bubble_icon.text = ""
+	_bubble_icon.visible = false
+	_badge_icon.text = ""
+	_bubble_badge.visible = false
+	_bubble_status.visible = not status.is_empty()
+	_bubble_status.text = status
+	if status.is_empty():
+		_bubble_line.position = Vector2(8, 4)
+		_bubble_line.size = Vector2(158, 36)
+		_bubble_line.add_theme_font_size_override("font_size", 13)
+		_bubble_line.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		_bubble_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	else:
+		_bubble_status.position = Vector2(8, 3)
+		_bubble_status.size = Vector2(158, 15)
+		_bubble_line.position = Vector2(8, 17)
+		_bubble_line.size = Vector2(158, 24)
+		_bubble_line.add_theme_font_size_override("font_size", 11)
+		_bubble_line.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+		_bubble_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# Normal hall bubbles are one-line speech.  Keep the full authored text and
+	# pan it within the bubble when necessary instead of replacing the ending
+	# with an ellipsis.
+	_bubble_line.text = line
+	_bubble_line_marquee_enabled = true
+	_queue_bubble_line_marquee()
 
 
 func _set_postgraduate_bubble_layout(active: bool) -> void:
@@ -1932,7 +2090,7 @@ func _set_postgraduate_bubble_layout(active: bool) -> void:
 		return
 	_bubble.position = Vector2(-87, -126)
 	_bubble.size = Vector2(174, 44)
-	_bubble_icon.visible = true
+	_bubble_icon.visible = false
 	_bubble_icon.position = Vector2(8, 4)
 	_bubble_icon.size = Vector2(28, 36)
 	_bubble_status.position = Vector2.ZERO
@@ -1942,6 +2100,51 @@ func _set_postgraduate_bubble_layout(active: bool) -> void:
 	_bubble_line.size = Vector2(126, 36)
 	_bubble_line.add_theme_font_size_override("font_size", 13)
 	_bubble_line.autowrap_mode = TextServer.AUTOWRAP_OFF
+
+
+func _queue_bubble_line_marquee() -> void:
+	call_deferred("_start_bubble_line_marquee")
+
+
+func _start_bubble_line_marquee() -> void:
+	if _bubble_line_marquee != null and _bubble_line_marquee.is_valid():
+		_bubble_line_marquee.kill()
+	_bubble_line_home_position = _bubble_line.position
+	_bubble_line.position = _bubble_line_home_position
+	_bubble_line.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	if not _bubble_line_marquee_enabled or _bubble_line.text.strip_edges().is_empty():
+		return
+	_bubble_line.autowrap_mode = TextServer.AUTOWRAP_OFF
+	var font := _bubble_line.get_theme_font("font")
+	var font_size := _bubble_line.get_theme_font_size("font_size")
+	if font == null or font_size <= 0:
+		return
+	var text_width := font.get_string_size(
+		_bubble_line.text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		-1.0,
+		font_size
+	).x
+	var overflow := text_width - _bubble_line.size.x
+	if overflow <= 2.0:
+		return
+	_bubble_line.text_overrun_behavior = TextServer.OVERRUN_NO_TRIMMING
+	var travel_seconds := clampf(overflow / 28.0, 1.3, 5.5)
+	_bubble_line_marquee = _bubble_line.create_tween().set_loops()
+	_bubble_line_marquee.tween_interval(0.55)
+	_bubble_line_marquee.tween_property(
+		_bubble_line,
+		"position:x",
+		_bubble_line_home_position.x - overflow,
+		travel_seconds
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_bubble_line_marquee.tween_interval(0.8)
+	_bubble_line_marquee.tween_property(
+		_bubble_line,
+		"position:x",
+		_bubble_line_home_position.x,
+		travel_seconds
+	).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 
 
 func _ambient_bubble_copy(state_id: String, chinese: bool) -> String:
@@ -2134,13 +2337,13 @@ func _update_bubble_visibility() -> void:
 	var expired := Time.get_ticks_msec() >= _bubble_hide_at_msec
 	if expired and not nearby:
 		_bubble.visible = false
-		_bubble_badge.visible = true
+		_bubble_badge.visible = false
 	elif nearby and not _bubble.visible:
 		_apply_state_text(_state_id)
 		if _bubble_has_visible_text():
 			_expand_bubble()
 		else:
-			_bubble_badge.visible = true
+			_bubble_badge.visible = false
 
 
 func _update_ambient_bubble(delta: float) -> void:
@@ -2187,6 +2390,12 @@ func _update_depth() -> void:
 	# only needed while their sprites actually overlap; keeping Maya at z=0/2
 	# everywhere made unrelated furniture animation copies cut through her.
 	z_index = 1
+	if _maya_in_front_of_furniture:
+		# A foreground cutout is shared by both actors.  When the player happens
+		# to be behind this desk, keep Maya (whose feet are below its front edge)
+		# above that cutout instead of cutting her body in half.
+		z_index = 4
+		return
 	if not _player_position_provider.is_valid():
 		return
 	var player_position: Vector2 = _player_position_provider.call()

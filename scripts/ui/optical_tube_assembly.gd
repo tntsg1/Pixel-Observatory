@@ -65,6 +65,7 @@ var status_label: Label
 var blueprint: Control
 var template_parts_scroll: ScrollContainer
 var template_parts_list: Control
+var parts_scroll: ScrollContainer
 var template_inspector_title: Label
 var template_feedback: Label
 var template_stats: Control
@@ -76,6 +77,8 @@ var install_animation_active := false
 var auto_assemble_button: Button
 var auto_assemble_running := false
 var auto_assemble_skip_requested := false
+var remembered_parts_scroll_y := 0
+var parts_scroll_restore_serial := 0
 
 
 func _ready() -> void:
@@ -97,13 +100,17 @@ func _show_tube_tutorial() -> void:
 	), self)
 
 func _build() -> void:
+	_remember_parts_scroll_position()
 	for child in get_children():
 		child.queue_free()
+	parts_scroll = null
+	template_parts_scroll = null
 	part_card_controls.clear()
 	slot_controls.clear()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	if str(config.get("family", "")) in ["newtonian", "dobsonian", "cassegrain"]:
 		_build_newtonian_template()
+		_queue_parts_scroll_restore()
 		return
 	_rect(Vector2.ZERO, Vector2(1024, 768), BG)
 	var is_newtonian := str(config.get("family", "")) == "newtonian"
@@ -114,6 +121,7 @@ func _build() -> void:
 
 	var tray := _panel(Vector2(20, 88), Vector2(276, 614), GameManager.text("TUBE SUBPARTS", "镜筒子零件"))
 	var scroll := ScrollContainer.new()
+	parts_scroll = scroll
 	scroll.position = Vector2(12, 42)
 	scroll.size = Vector2(252, 550)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -150,6 +158,7 @@ func _build() -> void:
 	var back := _button(GameManager.text("Back", "返回"), Vector2(14, 550), Vector2(192, 34), Color(0.10, 0.14, 0.22))
 	back.pressed.connect(_back)
 	inspector.add_child(back)
+	_queue_parts_scroll_restore()
 
 
 func _build_newtonian_template() -> void:
@@ -163,6 +172,7 @@ func _build_newtonian_template() -> void:
 	AssemblyUITemplate.add_blueprint_panel(self, GameManager.text("Tube Blueprint", "镜筒蓝图"))
 
 	template_parts_scroll = ScrollContainer.new()
+	parts_scroll = template_parts_scroll
 	template_parts_scroll.position = AssemblyUITemplate.PARTS_SCROLL_RECT.position
 	template_parts_scroll.size = AssemblyUITemplate.PARTS_SCROLL_RECT.size
 	template_parts_scroll.clip_contents = true
@@ -231,6 +241,27 @@ func _build_newtonian_template() -> void:
 	_add_template_auto_assemble_button()
 	AssemblyUITemplate.add_hints_toggle(self, GameManager, _build)
 	_refresh_newtonian_tube_inspector()
+
+
+func _remember_parts_scroll_position() -> void:
+	if is_instance_valid(parts_scroll):
+		remembered_parts_scroll_y = parts_scroll.scroll_vertical
+
+
+func _queue_parts_scroll_restore() -> void:
+	parts_scroll_restore_serial += 1
+	call_deferred("_restore_parts_scroll_position", parts_scroll_restore_serial)
+
+
+func _restore_parts_scroll_position(serial: int) -> void:
+	# Rebuilding the selected card replaces the ScrollContainer.  Wait until its
+	# new content has calculated a range before restoring the exact viewport.
+	await get_tree().process_frame
+	if serial != parts_scroll_restore_serial or not is_instance_valid(parts_scroll):
+		return
+	var bar := parts_scroll.get_v_scroll_bar()
+	var maximum := maxi(0, floori(bar.max_value - bar.page))
+	parts_scroll.scroll_vertical = clampi(remembered_parts_scroll_y, 0, maximum)
 
 
 func _add_newtonian_tube_card(subpart: String, position: Vector2) -> void:

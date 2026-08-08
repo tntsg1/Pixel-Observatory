@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Pixel Observatory Research Study</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/study/study.css?v=study-godot-20260806">
+</head>
+<body>
+  <main class="study-shell">
+    <header class="study-header">
+      <a class="study-brand" href="/" aria-label="Pixel Observatory home"><i></i> Pixel Observatory</a>
+      <div class="study-header-tools">
+        <span class="study-kicker" data-copy="sessionLabel">Research session</span>
+        <div class="language-switch" role="group" aria-label="Language / 语言">
+          <button type="button" data-language="zh" aria-pressed="false">中文</button>
+          <button type="button" data-language="en" aria-pressed="true">EN</button>
+        </div>
+      </div>
+    </header>
+    <section class="study-progress" aria-label="Study progress" data-copy-aria="progressLabel">
+      <span data-step="pretest" data-copy="progressBaseline">1. Baseline</span><i></i>
+      <span data-step="reading" data-copy="progressRead">2. Read</span><i></i>
+      <span data-step="reading_posttest" data-copy="progressCheck">3. Check</span><i></i>
+      <span data-step="game" data-copy="progressObserve">4. Observe</span><i></i>
+      <span data-step="posttest" data-copy="progressReflect">5. Reflect</span>
+    </section>
+    <section class="study-card" id="study-app" aria-live="polite"></section>
+    <footer data-copy="privacyFooter">Anonymous research record. No game account or personal details are required.</footer>
+  </main>
+  <script src="/study/study.js?v=study-godot-20260806"></script>
+</body>
+</html>

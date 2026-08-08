@@ -15,6 +15,29 @@ const MAX_MESSAGE_LENGTH = 4_000;
 const MAX_COMMUNITY_BODY = 3_000;
 const MAX_OBSERVATION_SHARE_BYTES = 24_000;
 const OBSERVATION_SHARE_ID_PATTERN = /^OBS-[A-Z0-9]{8,40}$/;
+const STUDY_PARTICIPANT_PATTERN = /^STUDY-[A-Z0-9_-]{8,48}$/;
+const STUDY_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{32,128}$/;
+const STUDY_MIN_GAME_SECONDS = 300;
+const STUDY_PHASES = new Set(["pre", "reading_post", "post", "experience"]);
+const STUDY_PHASE_NEXT_STAGE = {
+	pre: "reading",
+	reading_post: "game",
+	post: "experience",
+	experience: "complete",
+};
+const STUDY_ANSWER_KEY = {
+	workflow: "finder",
+	magnification: "short",
+	focus: "focuser",
+	seeing: "lower",
+	tracking: "rotation",
+	chromatic: "refraction",
+	light: "glow",
+	aperture: "collect",
+	alignment: "agree",
+	deep_sky: "expected",
+};
+const STUDY_QUESTIONNAIRE_VERSION = "foundation_1_24_v1";
 const PUBLIC_SITE_ORIGIN = "https://pixelobservatorygame.com";
 const ONLINE_WINDOW_SECONDS = 120;
 const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
@@ -1808,6 +1831,236 @@ async function handleCommunityReplyCreate(request, env, postId) {
 	return json({ ok: true, replyId: id }, 201);
 }
 
+function normalizeStudyParticipantId(value) {
+	const participantId = String(value || "").trim();
+	return STUDY_PARTICIPANT_PATTERN.test(participantId) ? participantId : "";
+}
+
+function normalizeStudyToken(value) {
+	const token = String(value || "").trim();
+	return STUDY_TOKEN_PATTERN.test(token) ? token : "";
+}
+
+function normalizeStudyAnswers(value) {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+	const answers = {};
+	for (const [key, answer] of Object.entries(value)) {
+		if (!/^[a-z_]{2,40}$/.test(key)) continue;
+		answers[key] = String(answer || "").trim().slice(0, 4_000);
+	}
+	return answers;
+}
+
+function studyScore(answers) {
+	let score = 0;
+	for (const [key, correctAnswer] of Object.entries(STUDY_ANSWER_KEY)) {
+		if (answers[key] === correctAnswer) score += 1;
+	}
+	return { score, maxScore: Object.keys(STUDY_ANSWER_KEY).length };
+}
+
+function studyQualityFlags(answers, durationSeconds) {
+	const flags = [];
+	if (durationSeconds > 0 && durationSeconds < 45) flags.push("very_fast_response");
+	const values = Object.values(answers).filter(Boolean);
+	if (values.length >= 6 && new Set(values).size === 1) flags.push("uniform_response_pattern");
+	return flags;
+}
+
+async function studyParticipantForPayload(env, payload) {
+	const participantId = normalizeStudyParticipantId(payload.participantId);
+	const token = normalizeStudyToken(payload.token);
+	if (!participantId || !token) return null;
+	const tokenHash = await sha256(token);
+	return env.DB.prepare(
+		`SELECT id, language, status, next_stage, game_active_seconds, game_event_count,
+		        pretest_completed_at, reading_started_at, reading_completed_at,
+		        reading_posttest_completed_at, game_started_at, game_completed_at,
+		        posttest_completed_at, experience_completed_at
+		 FROM study_participants WHERE id = ? AND study_token_hash = ?`,
+	).bind(participantId, tokenHash).first();
+}
+
+function publicStudyState(row) {
+	return {
+		participantId: row.id,
+		language: row.language,
+		status: row.status,
+		nextStage: row.next_stage,
+		gameActiveSeconds: Number(row.game_active_seconds || 0),
+		minimumGameSeconds: STUDY_MIN_GAME_SECONDS,
+		completed: {
+			pretest: Number(row.pretest_completed_at || 0) > 0,
+			reading: Number(row.reading_completed_at || 0) > 0,
+			readingPosttest: Number(row.reading_posttest_completed_at || 0) > 0,
+			game: Number(row.game_completed_at || 0) > 0,
+			posttest: Number(row.posttest_completed_at || 0) > 0,
+			experience: Number(row.experience_completed_at || 0) > 0,
+		},
+	};
+}
+
+async function handleStudyEnroll(request, env) {
+	if (!(await rateLimit(env, request, "study_enroll", 8, 3_600))) return apiError("Too many study enrolment attempts. Please wait.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid study enrolment request.");
+	}
+	if (String(body.website || "").trim()) return apiError("Verification failed.", 400, "verification_failed");
+	if (body.consent !== true) return apiError("Consent is required before starting the study.", 400, "consent_required");
+	const language = body.language === "zh" ? "zh" : "en";
+	const token = randomToken(32);
+	const participantId = `STUDY-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
+	const now = Math.floor(Date.now() / 1000);
+	await env.DB.prepare(
+		`INSERT INTO study_participants
+		 (id, study_token_hash, language, consent_version, status, next_stage, created_at, updated_at)
+		 VALUES (?, ?, ?, '2026-08-05', 'enrolled', 'pretest', ?, ?)`,
+	).bind(participantId, await sha256(token), language, now, now).run();
+	return json({
+		ok: true,
+		participantId,
+		token,
+		state: { participantId, language, status: "enrolled", nextStage: "pretest", gameActiveSeconds: 0, minimumGameSeconds: STUDY_MIN_GAME_SECONDS, completed: {} },
+	}, 201);
+}
+
+async function handleStudyState(request, env) {
+	let body;
+	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study session."); }
+	const participant = await studyParticipantForPayload(env, body);
+	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
+	return json({ ok: true, state: publicStudyState(participant) });
+}
+
+async function handleStudyAdvance(request, env) {
+	let body;
+	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study update."); }
+	const participant = await studyParticipantForPayload(env, body);
+	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
+	const action = String(body.action || "");
+	const now = Math.floor(Date.now() / 1000);
+	if (action === "start_reading") {
+		if (participant.next_stage !== "reading") return apiError("Complete the baseline questions first.", 409, "invalid_study_stage");
+		await env.DB.prepare("UPDATE study_participants SET status = 'reading', reading_started_at = CASE WHEN reading_started_at = 0 THEN ? ELSE reading_started_at END, updated_at = ? WHERE id = ?")
+			.bind(now, now, participant.id).run();
+	} else if (action === "finish_reading") {
+		if (participant.next_stage !== "reading") return apiError("Reading is not the current study stage.", 409, "invalid_study_stage");
+		await env.DB.prepare("UPDATE study_participants SET status = 'reading', next_stage = 'reading_posttest', reading_completed_at = ?, updated_at = ? WHERE id = ?")
+			.bind(now, now, participant.id).run();
+	} else if (action === "start_game") {
+		if (participant.next_stage !== "game") return apiError("Complete the reading check first.", 409, "invalid_study_stage");
+		await env.DB.prepare("UPDATE study_participants SET status = 'game', game_started_at = CASE WHEN game_started_at = 0 THEN ? ELSE game_started_at END, updated_at = ? WHERE id = ?")
+			.bind(now, now, participant.id).run();
+	} else if (action === "finish_game") {
+		if (participant.next_stage !== "game") return apiError("The game stage is not currently active.", 409, "invalid_study_stage");
+		if (Number(participant.game_active_seconds || 0) < STUDY_MIN_GAME_SECONDS) {
+			return apiError(`Please keep observing for at least ${Math.ceil(STUDY_MIN_GAME_SECONDS / 60)} active minutes before continuing.`, 409, "insufficient_game_time");
+		}
+		await env.DB.prepare("UPDATE study_participants SET status = 'post_game', next_stage = 'posttest', game_completed_at = ?, updated_at = ? WHERE id = ?")
+			.bind(now, now, participant.id).run();
+	} else {
+		return apiError("Unknown study action.", 400, "invalid_study_action");
+	}
+	const updated = await env.DB.prepare("SELECT * FROM study_participants WHERE id = ?").bind(participant.id).first();
+	return json({ ok: true, state: publicStudyState(updated) });
+}
+
+async function handleStudySubmit(request, env) {
+	if (!(await rateLimit(env, request, "study_submit", 60, 3_600))) return apiError("Too many study submissions. Please wait.", 429, "rate_limited");
+	let body;
+	try { body = await readJson(request, 16_000); } catch { return apiError("Invalid study response."); }
+	const participant = await studyParticipantForPayload(env, body);
+	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
+	const phase = String(body.phase || "");
+	if (!STUDY_PHASES.has(phase)) return apiError("Unknown study phase.", 400, "invalid_study_phase");
+	const allowedStage = { pre: "pretest", reading_post: "reading_posttest", post: "posttest", experience: "experience" }[phase];
+	if (participant.next_stage !== allowedStage) return apiError("That study stage is not available yet.", 409, "invalid_study_stage");
+	const answers = normalizeStudyAnswers(body.answers);
+	const durationSeconds = Math.max(0, Math.min(7_200, Math.floor(Number(body.durationSeconds || 0))));
+	const now = Math.floor(Date.now() / 1000);
+	const knowledgePhase = phase !== "experience";
+	if (knowledgePhase) answers.questionnaire_version = STUDY_QUESTIONNAIRE_VERSION;
+	const result = knowledgePhase ? studyScore(answers) : { score: null, maxScore: null };
+	const flags = studyQualityFlags(answers, durationSeconds);
+	const responseId = `SR-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
+	try {
+		await env.DB.prepare(
+			`INSERT INTO study_responses (id, participant_id, phase, responses_json, score, max_score, duration_seconds, quality_flags_json, created_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		).bind(responseId, participant.id, phase, JSON.stringify(answers), result.score, result.maxScore, durationSeconds, JSON.stringify(flags), now).run();
+	} catch (error) {
+		return apiError("This study stage has already been submitted.", 409, "study_phase_already_submitted");
+	}
+	const completionColumn = {
+		pre: "pretest_completed_at",
+		reading_post: "reading_posttest_completed_at",
+		post: "posttest_completed_at",
+		experience: "experience_completed_at",
+	}[phase];
+	const nextStage = STUDY_PHASE_NEXT_STAGE[phase];
+	const status = phase === "experience" ? "completed" : participant.status;
+	await env.DB.prepare(`UPDATE study_participants SET ${completionColumn} = ?, next_stage = ?, status = ?, updated_at = ? WHERE id = ?`)
+		.bind(now, nextStage, status, now, participant.id).run();
+	const updated = await env.DB.prepare("SELECT * FROM study_participants WHERE id = ?").bind(participant.id).first();
+	return json({ ok: true, result, qualityFlags: flags, state: publicStudyState(updated) });
+}
+
+async function handleStudyGameEvent(request, env) {
+	if (!(await rateLimit(env, request, "study_game_event", 180, 3_600))) return apiError("Too many game study updates. Please wait.", 429, "rate_limited");
+	let body;
+	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid game study update."); }
+	const participant = await studyParticipantForPayload(env, body);
+	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
+	if (participant.next_stage !== "game") return apiError("The game study stage is not active.", 409, "invalid_study_stage");
+	const eventType = new Set(["opened", "heartbeat", "hidden", "leave"]).has(body.event) ? body.event : "heartbeat";
+	const activeSeconds = Math.max(0, Math.min(90, Math.floor(Number(body.activeSeconds || 0))));
+	const now = Math.floor(Date.now() / 1000);
+	await env.DB.batch([
+		env.DB.prepare(
+			"UPDATE study_participants SET status = 'game', game_started_at = CASE WHEN game_started_at = 0 THEN ? ELSE game_started_at END, game_active_seconds = game_active_seconds + ?, game_event_count = game_event_count + 1, updated_at = ? WHERE id = ?",
+		).bind(now, activeSeconds, now, participant.id),
+		env.DB.prepare("INSERT INTO study_events (id, participant_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?, ?)")
+			.bind(`SE-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`, participant.id, `game_${eventType}`, JSON.stringify({ activeSeconds }), now),
+	]);
+	return json({ ok: true, activeSeconds: Number(participant.game_active_seconds || 0) + activeSeconds, minimumGameSeconds: STUDY_MIN_GAME_SECONDS });
+}
+
+async function handleStudyWithdraw(request, env) {
+	let body;
+	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study session."); }
+	const participant = await studyParticipantForPayload(env, body);
+	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
+	const now = Math.floor(Date.now() / 1000);
+	await env.DB.prepare("UPDATE study_participants SET status = 'withdrawn', updated_at = ? WHERE id = ?").bind(now, participant.id).run();
+	return json({ ok: true });
+}
+
+function csvCell(value) {
+	return `"${String(value ?? "").replaceAll('"', '""')}"`;
+}
+
+async function handleAdminStudyExport(request, env) {
+	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
+	const result = await env.DB.prepare(
+		`SELECT p.id AS participant_id, p.language, p.status, p.created_at, p.updated_at, p.game_active_seconds,
+		 r.phase, r.score, r.max_score, r.duration_seconds, r.quality_flags_json, r.responses_json, r.created_at AS response_created_at
+		 FROM study_participants p LEFT JOIN study_responses r ON r.participant_id = p.id
+		 ORDER BY p.created_at DESC, r.created_at ASC`,
+	).all();
+	const header = ["participant_id", "language", "status", "created_at", "updated_at", "game_active_seconds", "phase", "score", "max_score", "duration_seconds", "quality_flags", "responses_json", "response_created_at"];
+	const rows = (result.results || []).map(row => header.map(key => csvCell(row[key])).join(","));
+	return new Response([header.join(","), ...rows].join("\n"), {
+		headers: {
+			"Content-Type": "text/csv; charset=utf-8",
+			"Content-Disposition": "attachment; filename=pixel-observatory-study-export.csv",
+			"Cache-Control": "no-store",
+		},
+	});
+}
+
 async function handleApi(request, env, url) {
 	if (request.method !== "GET" && !requestOriginAllowed(request)) return apiError("Request origin rejected.", 403, "origin_rejected");
 	if (url.pathname === "/api/config" && request.method === "GET") {
@@ -1816,6 +2069,13 @@ async function handleApi(request, env, url) {
 			: (env.TURNSTILE_SITE_KEY || "");
 		return json({ turnstileSiteKey: siteKey, cloudSync: true, feedback: true, mailbox: true, social: true });
 	}
+	if (url.pathname === "/api/study/enroll" && request.method === "POST") return handleStudyEnroll(request, env);
+	if (url.pathname === "/api/study/session" && request.method === "POST") return handleStudyState(request, env);
+	if (url.pathname === "/api/study/advance" && request.method === "POST") return handleStudyAdvance(request, env);
+	if (url.pathname === "/api/study/submit" && request.method === "POST") return handleStudySubmit(request, env);
+	if (url.pathname === "/api/study/game-event" && request.method === "POST") return handleStudyGameEvent(request, env);
+	if (url.pathname === "/api/study/withdraw" && request.method === "POST") return handleStudyWithdraw(request, env);
+	if (url.pathname === "/api/admin/study/export" && request.method === "GET") return handleAdminStudyExport(request, env);
 	if (url.pathname === "/api/auth/register" && request.method === "POST") return handleRegister(request, env);
 	if (url.pathname === "/api/auth/login" && request.method === "POST") return handleLogin(request, env);
 	if (url.pathname === "/api/auth/logout" && request.method === "POST") return handleLogout(request, env);
@@ -1903,6 +2163,20 @@ function withIsolationHeaders(response) {
 export default {
 	async fetch(request, env, context) {
 		const url = new URL(request.url);
+		// Cloudflare Assets canonicalises *.html routes to extensionless paths.
+		// Serve this private text asset directly so /study cannot be redirected
+		// back to itself by that canonicalisation rule.
+		if ((url.pathname === "/study" || url.pathname === "/study/") && request.method === "GET") {
+			const studyAsset = await env.ASSETS.fetch(new Request(new URL("/study-entry.txt", url), request));
+			const headers = new Headers(studyAsset.headers);
+			headers.set("Content-Type", "text/html; charset=utf-8");
+			headers.set("Cache-Control", "no-store, max-age=0");
+			return withIsolationHeaders(new Response(studyAsset.body, {
+				status: studyAsset.status,
+				statusText: studyAsset.statusText,
+				headers,
+			}));
+		}
 		if (url.pathname === "/api/visits") {
 			const counter = env.VISITOR_COUNTER.get(env.VISITOR_COUNTER.idFromName("global"));
 			return counter.fetch(request);
@@ -1944,7 +2218,7 @@ export default {
 		const observationPageMatch = url.pathname.match(/^\/observation\/OBS-[A-Z0-9]{8,40}\/?$/);
 		const assetRequest = observationPageMatch
 			? new Request(new URL("/observation", url), request)
-			: request;
+				: request;
 		const response = await env.ASSETS.fetch(assetRequest);
 		if (url.pathname === "/game" || url.pathname === "/game/" || url.pathname === "/game/index.html") {
 			const headers = new Headers(response.headers);

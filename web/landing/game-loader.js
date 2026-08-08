@@ -1,9 +1,13 @@
 (() => {
   "use strict";
 
+  const launchParams = new URLSearchParams(location.search);
+  const studyMode = launchParams.get("mode") === "study";
+  document.documentElement.classList.toggle("game-study-mode", studyMode);
+
   const languageStorageKey = "so-lang";
   const normalizeLanguage = value => /^zh(?:\b|-|_)/i.test(String(value || "")) ? "zh" : String(value || "").toLowerCase() === "en" ? "en" : "";
-  const queryLanguage = normalizeLanguage(new URLSearchParams(location.search).get("lang"));
+  const queryLanguage = normalizeLanguage(launchParams.get("lang"));
   let storedLanguage = "";
   try { storedLanguage = normalizeLanguage(localStorage.getItem(languageStorageKey)); } catch (_) {}
   const language = queryLanguage || storedLanguage || normalizeLanguage(navigator.language) || "en";
@@ -314,6 +318,57 @@
   requestAnimationFrame(update);
 })();
 
+// The research flow deliberately uses an opaque study token rather than a game
+// account id. It records active time only while this tab is visible, then
+// removes the token from the address bar so a copied URL cannot expose it.
+(() => {
+  "use strict";
+  const params = new URLSearchParams(location.search);
+  const participantId = String(params.get("study") || "");
+  const token = String(params.get("study_token") || "");
+  if (!/^STUDY-[A-Z0-9_-]{8,48}$/.test(participantId) || !/^[a-zA-Z0-9_-]{32,128}$/.test(token)) return;
+
+  params.delete("study");
+  params.delete("study_token");
+  const cleanUrl = `${location.pathname}${params.size ? `?${params}` : ""}${location.hash}`;
+  history.replaceState(null, "", cleanUrl);
+
+  let activeSeconds = 0;
+  let lastTick = Date.now();
+  let opened = false;
+  function payload(event, seconds = 0) {
+    return JSON.stringify({ participantId, token, event, activeSeconds: Math.max(0, Math.min(90, Math.floor(seconds))) });
+  }
+  async function report(event, seconds = 0) {
+    try {
+      await fetch("/api/study/game-event", { method: "POST", headers: { "Content-Type": "application/json" }, body: payload(event, seconds), keepalive: event === "hidden" || event === "leave" });
+    } catch (_) {
+      // Research telemetry must never block the game from starting or closing.
+    }
+  }
+  function accrue() {
+    const now = Date.now();
+    if (!document.hidden && document.hasFocus()) activeSeconds += (now - lastTick) / 1000;
+    lastTick = now;
+  }
+  function flush(event) {
+    accrue();
+    const seconds = activeSeconds;
+    activeSeconds = 0;
+    if (seconds >= 1 || event === "opened") report(event, seconds);
+  }
+  report("opened"); opened = true;
+  setInterval(() => flush("heartbeat"), 30_000);
+  addEventListener("visibilitychange", () => flush(document.hidden ? "hidden" : "heartbeat"));
+  addEventListener("pagehide", () => {
+    accrue();
+    const body = payload("leave", activeSeconds);
+    activeSeconds = 0;
+    if (navigator.sendBeacon) navigator.sendBeacon("/api/study/game-event", new Blob([body], { type: "application/json" }));
+    else if (opened) report("leave", 0);
+  });
+})();
+
 (() => {
   "use strict";
   const rankKey = "pixel-observatory:last-rank-level";
@@ -606,6 +661,11 @@
 
 (() => {
   "use strict";
+
+  // The study route embeds the original Godot lessons inside a research page.
+  // Keep website-level social tools out of that constrained canvas so they
+  // cannot cover the lesson's own navigation controls.
+  if (document.documentElement.classList.contains("game-study-mode")) return;
 
   const zh = window.POLanguage?.current() === "zh";
   const t = (en, cn) => zh ? cn : en;

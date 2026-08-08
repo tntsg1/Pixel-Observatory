@@ -43,6 +43,10 @@ const NO_SAVE_LAYOUT_ZH := {
 
 
 func _ready() -> void:
+	if GameManager.study_mode_active():
+		visible = false
+		call_deferred("_launch_study_route")
+		return
 	GameManager.language_changed.connect(_on_language_changed)
 	GameManager.progress_changed.connect(_on_progress_changed)
 	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
@@ -55,6 +59,15 @@ func _ready() -> void:
 	_continue_available = _should_show_continue()
 	_build()
 	InteractionFeedback.page_enter(self)
+
+
+func _launch_study_route() -> void:
+	var is_new_campaign := not GameManager.has_save()
+	if is_new_campaign:
+		GameManager.new_game()
+	else:
+		GameManager.resume_saved_campaign()
+	GameManager.launch_study_current_level(is_new_campaign)
 
 
 func _build() -> void:

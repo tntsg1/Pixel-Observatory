@@ -9,7 +9,10 @@ const r2RuntimeFiles = new Set(["index.pck", "index.wasm", "index.side.wasm"]);
 function shouldCopy(source) {
 	const rel = relative(webDir, source).replace(/\\/g, "/");
 	if (!rel || rel === ".") return true;
-	if (rel.startsWith(".godot-export/")) return false;
+	// Local/CI export probes are staging directories, never public assets.
+	if (rel.startsWith(".")) return false;
+	// The study route reuses the main Godot runtime, so no standalone study
+	// package should ever be copied into the Worker assets.
 	// PCK files are always delivered by the authenticated R2 runtime route.  A
 	// stray audit or prior export PCK in the source directory must never become
 	// a Workers static asset (and therefore can never make deployment too large).
@@ -43,5 +46,8 @@ const desiredFiles = new Set((await listFiles(webDir)).filter(rel => shouldCopy(
 const staleFiles = (await listFiles(publicDir)).filter(rel => !desiredFiles.has(rel));
 for (const stale of staleFiles) await rm(join(publicDir, stale), { force: true });
 
-const gameIndex = await verifyWebGameShell(publicDir, { requireRuntime: false });
+const gameIndex = await verifyWebGameShell(publicDir, {
+	requireRuntime: false,
+	allowedStaticPacks: [],
+});
 console.log(`Published Cloudflare static release at ${publicDir}; ${gameIndex} is custom; PCK/WASM remain R2-only.`);

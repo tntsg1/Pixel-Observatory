@@ -382,6 +382,8 @@ var calibrate_repeat_timer := 0.0
 var calibration_steps_banner: Control
 var calibration_step_labels: Array = []
 var calibration_complete_visible_until_msec := 0
+var finder_calibration_center_hint: Control
+var finder_calibration_center_hint_tween: Tween
 
 var workflow_elapsed := 0.0
 var workflow_move_count := 0
@@ -813,7 +815,7 @@ func _update_calibration_panel() -> void:
 		return
 	var aligned := GameManager.is_finder_aligned()
 	if aligned and not calibration_success_played:
-		calibration_complete_visible_until_msec = Time.get_ticks_msec() + 900
+		calibration_complete_visible_until_msec = Time.get_ticks_msec() + 3400
 	_update_calibration_steps_banner()
 	_sync_calibration_utility_strip()
 	var pct := GameManager.finder_alignment_percent()
@@ -830,6 +832,8 @@ func _update_calibration_panel() -> void:
 		if not calibration_success_played:
 			calibration_success_played = true
 			InteractionFeedback.success(calibration_panel, "finder_aligned")
+			if prior_pct >= 0.0:
+				_show_finder_calibration_center_hint(true)
 			if scope_reticle_layer != null:
 				InteractionFeedback.pulse(scope_reticle_layer, GOLD, 0.48)
 			if target_state_ring != null:
@@ -958,6 +962,8 @@ func _set_view_mode(mode: String) -> void:
 		_build_cloud_layer()
 	_rebuild_view()
 	_animate_mode_transition(mode, previous_mode)
+	if mode == "finder" and _is_finder_calibration_level() and not GameManager.is_finder_aligned():
+		_show_finder_calibration_center_hint(false)
 
 
 func _animate_mode_transition(mode: String, previous_mode := "") -> void:
@@ -1620,6 +1626,7 @@ func _build() -> void:
 	_update_mode_buttons()
 	_sync_calibration_utility_strip()
 	_rebuild_view()
+	call_deferred("_show_initial_finder_calibration_hint")
 
 
 func _build_mobile_sky_controls() -> void:
@@ -1677,6 +1684,67 @@ func _build_calibration_panel() -> void:
 	_update_calibration_panel()
 
 
+func _show_initial_finder_calibration_hint() -> void:
+	if _is_finder_calibration_level() and view_mode == "finder" and not GameManager.is_finder_aligned():
+		_show_finder_calibration_center_hint(false)
+
+
+func _show_finder_calibration_center_hint(completed: bool) -> void:
+	if not _is_finder_calibration_level() or view_mode != "finder":
+		return
+	if finder_calibration_center_hint_tween != null and finder_calibration_center_hint_tween.is_valid():
+		finder_calibration_center_hint_tween.kill()
+	if finder_calibration_center_hint != null and is_instance_valid(finder_calibration_center_hint):
+		finder_calibration_center_hint.queue_free()
+
+	var hint := Control.new()
+	hint.name = "FinderCalibrationCompleteHint" if completed else "FinderCalibrationEntryHint"
+	hint.position = VIEW_RECT.position
+	hint.size = VIEW_RECT.size
+	hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hint.z_index = Z_GUIDANCE + 30
+	add_child(hint)
+	finder_calibration_center_hint = hint
+
+	var panel_size := Vector2(474, 126)
+	var panel_pos := Vector2((VIEW_RECT.size.x - panel_size.x) * 0.5, 176)
+	var shadow := _rect(hint, panel_pos + Vector2(5, 7), panel_size, Color(0.0, 0.0, 0.0, 0.46))
+	shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rect(hint, panel_pos, panel_size, Color(0.012, 0.026, 0.047, 0.94))
+	_make_frame(hint, Rect2(panel_pos, panel_size), GREEN if completed else CYAN, 2)
+
+	var title_text := GameManager.text("FINDER ALIGNED", "寻星镜校准完成") if completed else GameManager.text("I / J / K / L  TO ADJUST", "I / J / K / L  微调")
+	var action_text := GameManager.text("Continue observing", "可以继续观测") if completed else GameManager.text("Align the parallel guide lines", "让两组平行线重合")
+	var footer_text := GameManager.text("Watch the calibration bar below", "留意底部校准条的状态") if completed else GameManager.text("Calibration progress is shown below", "校准进度显示在屏幕底部")
+	var accent := GREEN if completed else CYAN
+	var title := _label(hint, title_text, panel_pos + Vector2(18, 15), Vector2(panel_size.x - 36, 28), 20, accent, HORIZONTAL_ALIGNMENT_CENTER)
+	title.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var action := _label(hint, action_text, panel_pos + Vector2(18, 48), Vector2(panel_size.x - 36, 27), 17, TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	action.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var footer := _label(hint, footer_text, panel_pos + Vector2(18, 86), Vector2(panel_size.x - 36, 22), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	footer.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+
+	hint.modulate.a = 0.0
+	hint.pivot_offset = hint.size * 0.5
+	var reduced := InteractionFeedback.is_reduced_motion()
+	if not reduced:
+		hint.scale = Vector2.ONE * 0.96
+	finder_calibration_center_hint_tween = create_tween().bind_node(hint)
+	finder_calibration_center_hint_tween.set_parallel(true)
+	finder_calibration_center_hint_tween.tween_property(hint, "modulate:a", 1.0, 0.18 if reduced else 0.24).set_trans(Tween.TRANS_SINE)
+	if not reduced:
+		finder_calibration_center_hint_tween.tween_property(hint, "scale", Vector2.ONE, 0.30).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	finder_calibration_center_hint_tween.set_parallel(false)
+	finder_calibration_center_hint_tween.tween_interval(2.35 if completed else 2.75)
+	finder_calibration_center_hint_tween.tween_property(hint, "modulate:a", 0.0, 0.34).set_trans(Tween.TRANS_SINE)
+	finder_calibration_center_hint_tween.tween_callback(func() -> void:
+		if is_instance_valid(hint):
+			hint.queue_free()
+		if finder_calibration_center_hint == hint:
+			finder_calibration_center_hint = null
+	)
+
+
 func _build_calibration_steps_banner() -> void:
 	# The step guide shares the fixed frame utility strip with the live
 	# calibration readout. It never covers the finder sky or its target.
@@ -1722,6 +1790,12 @@ func _sync_calibration_utility_strip() -> void:
 	# above the calibration controls.
 	if guidance_utility_root != null:
 		guidance_utility_root.visible = not calibration_active
+	if guidance_banner_bg != null:
+		guidance_banner_bg.visible = not calibration_active
+	if guidance_banner != null:
+		guidance_banner.visible = not calibration_active
+	if controls_help != null:
+		controls_help.visible = not calibration_active
 	if guidance_strip_toggle != null:
 		guidance_strip_toggle.visible = not calibration_active
 	if view_mode_caption != null:
@@ -3762,7 +3836,7 @@ func _open_detail_panel() -> void:
 	# --- fixed header: name + type + mission/free badge ---
 	_dlabel(panel, GameManager.text(str(detail.get("name_en", "")), str(detail.get("name_zh", ""))), Vector2(12, 10), Vector2(190, 26), 17, accent)
 	_dlabel(panel, GameManager.text(str(detail.get("type_en", "")), str(detail.get("type_zh", ""))), Vector2(12, 38), Vector2(118, 20), 11, TEXT)
-	var badge := GameManager.text("MISSION TARGET", "任务目标") if is_mission else GameManager.text("FREE OBSERVATION", "自由观测")
+	var badge := _observation_badge_text(is_mission)
 	if bool(detail.get("is_observed", false)):
 		badge = GameManager.text("✓ OBSERVED · ", "✓ 已观测 · ") + badge
 	var badge_label := _dlabel(panel, badge, Vector2(126, 38), Vector2(104, 20), 10, accent, HORIZONTAL_ALIGNMENT_RIGHT)
@@ -4084,10 +4158,10 @@ func _update_selected_text() -> void:
 		display_id = target_id
 	var obj: Dictionary = GameManager.get_object(display_id)
 	var item: Dictionary = _sky_item(display_id)
-	var is_mission := display_id == target_id
+	var is_mission := display_id == target_id and not GameManager.is_local_optical_free_observation()
 	var accent := GOLD if is_mission else CYAN
 	if selected_badge != null:
-		selected_badge.text = GameManager.text("MISSION TARGET", "任务目标") if is_mission else GameManager.text("FREE OBSERVATION", "自由观测")
+		selected_badge.text = _observation_badge_text(is_mission)
 		selected_badge.add_theme_color_override("font_color", accent)
 	if selected_panel_border != null:
 		var panel_style := StyleBoxFlat.new()
@@ -4107,14 +4181,27 @@ func _update_selected_text() -> void:
 	# is from it. Mission and free observation use the exact same coordinate math.
 	var delta_az := shortest_angle_degrees(telescope_azimuth, float(item.get("azimuth", 0.0)))
 	var delta_alt := float(item.get("altitude", 0.0)) - telescope_altitude
-	selected_detail.text = "%s · Az %s (%s)\nAlt %s\nΔAz %s · ΔAlt %s" % [
-		GameManager.text(str(obj.get("type_en", item.get("type", "Object"))), str(obj.get("type_zh", "天体"))),
-		_format_dms(float(item.get("azimuth", 0.0))),
-		str(item.get("direction_text", "Estimate")),
-		_format_dms(float(item.get("altitude", 0.0))),
-		_format_dms(delta_az, true),
-		_format_dms(delta_alt, true)
-	]
+	if GameManager.is_maya_companion_observation():
+		var instrument_name := GameManager.text(
+			str(GameManager.local_optical_observation_context.get("companion_instrument_name_en", "Maya's telescope")),
+			str(GameManager.local_optical_observation_context.get("companion_instrument_name_zh", "玛雅的望远镜"))
+		)
+		selected_detail.text = "%s\nAz %s · Alt %s\nΔAz %s · ΔAlt %s" % [
+			instrument_name,
+			_format_dms(float(item.get("azimuth", 0.0))),
+			_format_dms(float(item.get("altitude", 0.0))),
+			_format_dms(delta_az, true),
+			_format_dms(delta_alt, true)
+		]
+	else:
+		selected_detail.text = "%s · Az %s (%s)\nAlt %s\nΔAz %s · ΔAlt %s" % [
+			GameManager.text(str(obj.get("type_en", item.get("type", "Object"))), str(obj.get("type_zh", "天体"))),
+			_format_dms(float(item.get("azimuth", 0.0))),
+			str(item.get("direction_text", "Estimate")),
+			_format_dms(float(item.get("altitude", 0.0))),
+			_format_dms(delta_az, true),
+			_format_dms(delta_alt, true)
+		]
 	if mission_target_button != null:
 		mission_target_button.visible = not is_mission
 		mission_target_button.tooltip_text = GameManager.text(
@@ -4125,6 +4212,13 @@ func _update_selected_text() -> void:
 		guidance_label.position = Vector2(778, 442) if not is_mission else Vector2(778, 415)
 		guidance_label.size = Vector2(214, 28) if not is_mission else Vector2(214, 55)
 		guidance_label.max_lines_visible = 2 if not is_mission else 3
+
+
+func _observation_badge_text(is_mission: bool) -> String:
+	if GameManager.is_maya_companion_observation():
+		return GameManager.text("OBSERVING WITH MAYA", "与玛雅共同观测")
+	return GameManager.text("MISSION TARGET", "任务目标") if is_mission \
+		else GameManager.text("FREE OBSERVATION", "自由观测")
 
 
 func _update_guidance() -> void:
@@ -4374,6 +4468,8 @@ func _apply_workflow_discipline_hint(default_text: String) -> String:
 
 
 func _finder_installed() -> bool:
+	if GameManager.is_maya_companion_observation():
+		return true
 	var state: Dictionary = GameManager.progress.get("assembly_state", {})
 	var finder: Dictionary = state.get("finder_scope", {})
 	return bool(finder.get("installed", false))
@@ -4478,6 +4574,10 @@ func _clear_built_ui() -> void:
 	controls_help = null
 	guidance_utility_root = null
 	guidance_strip_toggle = null
+	finder_calibration_center_hint = null
+	if finder_calibration_center_hint_tween != null and finder_calibration_center_hint_tween.is_valid():
+		finder_calibration_center_hint_tween.kill()
+	finder_calibration_center_hint_tween = null
 	if guidance_strip_tween != null and guidance_strip_tween.is_valid():
 		guidance_strip_tween.kill()
 	guidance_strip_tween = null
