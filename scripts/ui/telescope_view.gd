@@ -171,6 +171,9 @@ uniform float seeing : hint_range(0.0, 1.0) = 0.0;
 uniform float brightness : hint_range(0.2, 1.4) = 1.0;
 uniform vec4 psf_tint : source_color = vec4(1.0);
 uniform vec4 source_tint : source_color = vec4(0.78, 0.84, 1.0, 1.0);
+uniform float sharp_core_sigma : hint_range(0.003, 0.02) = 0.0065;
+uniform float halo_strength : hint_range(0.0, 0.3) = 0.10;
+uniform float source_art_mix : hint_range(0.0, 1.0) = 0.0;
 
 void fragment() {
 	vec4 sharp = texture(TEXTURE, UV);
@@ -178,10 +181,11 @@ void fragment() {
 	float sigma = mix(0.012, 0.14, pow(optical_error, 0.72));
 	vec2 centered = UV - vec2(0.5);
 	float profile = exp(-dot(centered, centered) / max(2.0 * sigma * sigma, 0.0001));
-	float source_core = smoothstep(0.18, 0.82, sharp.a);
+	float sharp_core = exp(-dot(centered, centered) / max(2.0 * sharp_core_sigma * sharp_core_sigma, 0.0001));
+	float soft_halo = exp(-dot(centered, centered) / (2.0 * 0.026 * 0.026));
 	float horizontal_spike = exp(-abs(centered.y) / 0.006) * exp(-abs(centered.x) / 0.095);
 	float vertical_spike = exp(-abs(centered.x) / 0.006) * exp(-abs(centered.y) / 0.095);
-	float diffraction = max(profile, (horizontal_spike + vertical_spike) * 0.16);
+	float diffraction = max(sharp_core, max(soft_halo * halo_strength, (horizontal_spike + vertical_spike) * 0.10));
 	// A strictly energy-normalized stellar PSF becomes imperceptible on an
 	// SDR game display long before the player reaches focus. Keep a continuous
 	// perceptual peak for bright guide stars while still reducing brightness
@@ -192,8 +196,12 @@ void fragment() {
 	// used only to locate its compact core; its baked low-alpha halo is omitted
 	// so no circular texture boundary can appear in the eyepiece.
 	vec3 star_color = source_tint.rgb;
-	vec4 analytical_core = vec4(star_color * brightness, max(diffraction * 0.94, source_core));
-	vec4 sharp_response = analytical_core;
+	vec3 core_color = mix(vec3(1.0), star_color, 0.34);
+	vec3 analytical_color = mix(star_color, core_color, sharp_core);
+	vec4 analytical_core = vec4(analytical_color * brightness, diffraction);
+	float source_art_alpha = smoothstep(0.006, 0.055, sharp.a);
+	vec4 source_art = vec4(sharp.rgb * brightness, source_art_alpha);
+	vec4 sharp_response = mix(analytical_core, source_art, source_art_mix);
 	vec4 spread = vec4(star_color * brightness, profile * energy_peak);
 	float spread_mix = smoothstep(0.015, 0.34, optical_error);
 	// TextureRect input COLOR can already contain source alpha. Multiplying
@@ -3570,6 +3578,8 @@ func _object_view_scale(id: String) -> float:
 			return 0.46
 		"andromeda":
 			return 0.62
+		"sirius":
+			return 1.50
 		"orion_nebula":
 			return 0.70
 		# Licensed planet masters are 1024px transparent canvases. These values
@@ -3913,6 +3923,9 @@ func _target_star_material(point_shader: Shader) -> ShaderMaterial:
 	material.set_shader_parameter("brightness", 1.0)
 	material.set_shader_parameter("psf_tint", Color.WHITE)
 	material.set_shader_parameter("source_tint", _target_star_source_tint())
+	material.set_shader_parameter("sharp_core_sigma", 0.0065)
+	material.set_shader_parameter("halo_strength", 0.10)
+	material.set_shader_parameter("source_art_mix", 1.0 if str(selected_object.get("id", "")) == "sirius" else 0.0)
 	return material
 
 

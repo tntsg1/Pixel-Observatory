@@ -2728,8 +2728,16 @@ func _maybe_show_unlock_popup() -> void:
 		_popup_label_on(unlock_popup, "•  " + part_name, Vector2(x_text, y), Vector2(360, 22), 13, Color(0.60, 0.95, 0.70))
 		y += 26.0
 	y += 10.0
+	var opens_observation_pad := int(GameManager.current_level().get("level_number", 0)) == 6
+	var hint_text := GameManager.text(
+		"The 10mm eyepiece is now in your inventory. Return to the Observation Pad to continue.",
+		"10mm 目镜已加入库存，返回观星台继续。"
+	) if opens_observation_pad else GameManager.text(
+		"Equip them at the Parts Cabinet, then reassemble at the Assembly Table.",
+		"到零件柜装备它们，然后在组装台重新组装。"
+	)
 	var hint := _popup_label_on(unlock_popup,
-		GameManager.text("Equip them at the Parts Cabinet, then reassemble at the Assembly Table.", "到零件柜装备它们，然后在组装台重新组装。"),
+		hint_text,
 		Vector2(x_text, y), Vector2(360, 40), 11, Color(0.78, 0.86, 0.92))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
@@ -2744,12 +2752,15 @@ func _maybe_show_unlock_popup() -> void:
 	unlock_popup.add_child(later)
 
 	var equip_now := Button.new()
-	equip_now.text = GameManager.text("Open Parts Cabinet", "打开零件柜")
+	equip_now.text = GameManager.text("Open Observation Pad", "打开观星台") if opens_observation_pad else GameManager.text("Open Parts Cabinet", "打开零件柜")
 	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
 	equip_now.size = Vector2(220, 38)
 	equip_now.add_theme_font_size_override("font_size", 13)
 	equip_now.pressed.connect(func() -> void:
 		_close_unlock_popup(false)
+		if opens_observation_pad:
+			_handle_interaction("telescope")
+			return
 		GameManager.set_room_guidance(
 			"cabinet",
 			GameManager.text("Maya: Equip the New Parts", "玛雅：装备新零件"),
