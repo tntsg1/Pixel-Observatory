@@ -903,7 +903,8 @@ func _observation_image(obj: Dictionary, level: Dictionary, observation: Diction
 		return
 	var path := _mission_object_image(obj, level)
 	if path != "":
-		_mission_texture(path, Vector2(232, 186), Vector2(306, 138), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+		var observation_image := _mission_texture(path, Vector2(232, 186), Vector2(306, 138), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+		observation_image.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 	var check := _dark_panel(Vector2(204, 158), Vector2(40, 40), Color(0.12, 0.08, 0.03, 0.95), GOLD)
 	check.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_label("✓", Vector2(204, 158), Vector2(40, 36), 28, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
@@ -945,13 +946,24 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		_dark_panel(cell_pos, cell_size, Color(0.018, 0.022, 0.030, 0.96), state["border"])
 		var image_pos := cell_pos + Vector2(5, 5)
 		var image_size := Vector2(90, 103)
-		var image := _mission_texture(clear_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
-		var material := ShaderMaterial.new()
-		material.shader = preload("res://shaders/optical_target_state.gdshader")
-		material.set_shader_parameter("blur_radius_px", float(state["blur_radius"]))
-		material.set_shader_parameter("defocus_amount", clampf(float(state["blur_radius"]) / 5.6, 0.0, 1.0))
-		material.set_shader_parameter("brightness", float(state["brightness"]))
-		image.material = material
+		var state_path := clear_path
+		var uses_authored_state := false
+		if index == 0:
+			var authored_blur := _mission_object_state_image(obj, "blurry")
+			if authored_blur != "" and authored_blur != clear_path:
+				state_path = authored_blur
+				uses_authored_state = true
+		var image := _mission_texture(state_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+		# Astronomy masters are photographic/antialiased media. Nearest-neighbour
+		# downsampling made star spikes jagged and erased thin planetary detail.
+		image.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		if float(state["blur_radius"]) > 0.0 and not uses_authored_state:
+			var material := ShaderMaterial.new()
+			material.shader = preload("res://shaders/optical_target_state.gdshader") if _mission_object_is_solid_body(obj) else preload("res://shaders/optical_focus_preview.gdshader")
+			material.set_shader_parameter("blur_radius_px", float(state["blur_radius"]))
+			material.set_shader_parameter("defocus_amount", clampf(float(state["blur_radius"]) / 5.6, 0.0, 1.0))
+			material.set_shader_parameter("brightness", float(state["brightness"]))
+			image.material = material
 		var label := _label(str(state["label"]), cell_pos + Vector2(3, 111), Vector2(94, 24), 10, state["border"], HORIZONTAL_ALIGNMENT_CENTER)
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.max_lines_visible = 2
@@ -964,6 +976,14 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		var badge := _dark_panel(Vector2(510, 180), Vector2(34, 22), Color(0.08, 0.30, 0.12, 0.96), Color(0.34, 0.76, 0.34))
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_label("OK", Vector2(510, 180), Vector2(34, 20), 10, Color(0.72, 1.0, 0.70), HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func _mission_object_is_solid_body(obj: Dictionary) -> bool:
+	var object_id := str(obj.get("id", ""))
+	if OpticalMediaRegistry.is_isolated_planet(object_id):
+		return true
+	var type_lower := str(obj.get("type_en", "")).strip_edges().to_lower()
+	return type_lower in ["planet", "natural satellite", "moon"]
 
 
 func _quality_panel(observation: Dictionary, stats: Dictionary) -> void:
