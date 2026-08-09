@@ -245,11 +245,16 @@ const fieldAState = {
 
 const study = createHarness({ responses: [
   { status: 201, body: { participantId: "RSP-1", token: "token-1", state: baselineState } },
-  { body: { state: fieldWaitingState, rewardOffer: { nodeId: "baseline", candidates: ["R01", "R02", "R03"] } } },
+  { body: { state: fieldWaitingState, rewardOffer: { offerId: "RO-BASE", nodeId: "baseline", candidates: ["R01", "R02", "R03"] } } },
+  { body: { receiptToken: "receipt-base", bundleId: "R01", prestigeLevel: 1 } },
   { body: { state: fieldWaitingState } },
   { body: { state: fieldAState, checkpoint: { level: 6, nodeId: "A" } } },
   { ok: false, status: 503, body: { error: "temporary outage" } },
-  { body: { state: { ...fieldAState, currentNode: null, completedNodes: ["baseline", "A"], questions: [] } } },
+  { body: {
+    state: { ...fieldAState, currentNode: null, completedNodes: ["baseline", "A"], questions: [] },
+    rewardOffer: { offerId: "RO-A", nodeId: "A", candidates: ["R04", "R05", "R06"] },
+  } },
+  { body: { receiptToken: "receipt-a", bundleId: "R05", prestigeLevel: 2 } },
 ] });
 
 await study.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "baseline", completedLevel: 1, language: "zh" } });
@@ -259,6 +264,10 @@ assert.match(study.document.body.textContent, /Chinese baseline question 1/, "Bi
 assert.doesNotMatch(study.document.body.textContent, /\[object Object\]/, "Question objects never stringify as objects.");
 assert.deepEqual(study.stored(), { participantId: "RSP-1", token: "token-1" }, "Only server credentials are persisted after enrollment.");
 await answerAll(study.document);
+assert.equal(study.document.querySelectorAll(".po-research-reward-card").length, 3, "Baseline completion presents exactly three research-only cosmetic bundles.");
+await findButton(study.document, "Solar Crown").click();
+assert.match(study.document.body.textContent, /Research Prestige 1/, "A confirmed baseline reward shows its separate research prestige level.");
+await findButton(study.document, "Continue").click();
 assert.match(study.document.body.textContent, /Study route ready/, "The server assignment is shown after baseline confirmation.");
 await findButton(study.document, "Continue gameplay").click();
 assert.deepEqual(study.continuations, [JSON.stringify({ nodeId: "baseline" })], "Baseline continuation sends the exact pending bridge node as JSON.");
@@ -275,32 +284,46 @@ assert.deepEqual(study.stored().pendingSubmission.answers, {
 }, "Failed submissions retain selected answers locally.");
 await findButton(study.document, "Retry").click();
 await answerAll(study.document);
+assert.equal(study.document.querySelectorAll(".po-research-reward-card").length, 3, "A gameplay checkpoint also presents three reward choices after a successful retry.");
+await findButton(study.document, "Aurora Navigator").click();
+assert.match(study.document.body.textContent, /Research Prestige 2/, "Gameplay reward confirmation advances the research prestige presentation.");
+await findButton(study.document, "Return to the stars").click();
 assert.deepEqual(study.continuations, [JSON.stringify({ nodeId: "baseline" }), JSON.stringify({ nodeId: "A" })], "Successful retry resumes the exact pending gameplay node.");
 assert.equal(study.stored().pendingSubmission, undefined, "Answers clear only after server-confirmed submission.");
 
 assert.deepEqual(study.calls.map(call => [call.url, call.method]), [
   ["/api/research/enroll", "POST"],
   ["/api/research/submit", "POST"],
+  ["/api/research/reward/choose", "POST"],
   ["/api/research/session", "POST"],
   ["/api/research/checkpoint", "POST"],
   ["/api/research/submit", "POST"],
   ["/api/research/submit", "POST"],
+  ["/api/research/reward/choose", "POST"],
 ], "The overlay uses the worker's POST-only research API.");
-assert.deepEqual(study.calls[2].body, { participantId: "RSP-1", token: "token-1" }, "Session refresh is authenticated at the top level.");
-assert.deepEqual(study.calls[3].body, { participantId: "RSP-1", token: "token-1", level: 6 }, "Checkpoint posts authenticated top-level level data from Godot.");
+assert.deepEqual(study.calls[2].body, {
+  participantId: "RSP-1", token: "token-1", offerId: "RO-BASE", bundleId: "R01",
+}, "Reward choice is authenticated and can only consume the offered bundle.");
+assert.deepEqual(study.calls[3].body, { participantId: "RSP-1", token: "token-1" }, "Session refresh is authenticated at the top level.");
+assert.deepEqual(study.calls[4].body, { participantId: "RSP-1", token: "token-1", level: 6 }, "Checkpoint posts authenticated top-level level data from Godot.");
 assert.deepEqual({ ...study.calls[1].body, durationSeconds: 0 }, {
   participantId: "RSP-1", token: "token-1", nodeId: "baseline",
   answers: { "baseline-1": "baseline-1-1", "baseline-2": "baseline-2-1", "baseline-3": "baseline-3-1" },
   durationSeconds: 0,
 }, "Baseline submit uses the server's current node and authenticated answer payload.");
 assert.ok(Number.isInteger(study.calls[1].body.durationSeconds) && study.calls[1].body.durationSeconds >= 0, "Submit records a non-negative duration in seconds.");
-assert.deepEqual(study.calls[5].body, {
-  ...study.calls[5].body,
+assert.deepEqual(study.calls[6].body, {
+  ...study.calls[6].body,
   participantId: "RSP-1",
   token: "token-1",
   nodeId: "A",
   answers: { "A-1": "A-1-1", "A-2": "A-2-1", "A-3": "A-3-1" },
 }, "Retry resends authenticated preserved answers for the current server node.");
+assert.deepEqual(study.stored().rewardReceipts, undefined, "Research reward receipts stay isolated from the questionnaire credential record.");
+assert.deepEqual(JSON.parse(study.window.localStorage.getItem("pixel-observatory:research-receipts:v1")), [
+  { receiptToken: "receipt-base", bundleId: "R01" },
+  { receiptToken: "receipt-a", bundleId: "R05" },
+], "Confirmed guest rewards are preserved as opaque receipts for later account claiming.");
 
 const checkpointWaitingState = {
   ...fieldWaitingState,

@@ -2,7 +2,23 @@
   "use strict";
 
   const SESSION_KEY = "pixel-observatory:research-session:v2";
+  const REWARD_RECEIPTS_KEY = "pixel-observatory:research-receipts:v1";
+  const EQUIPPED_RESEARCH_KEY = "pixel-observatory:research-equipped:v1";
   const API = "/api/research";
+  const RESEARCH_REWARDS = {
+    R01: { name: "Solar Crown", zh: "日冕之冠", title: "Keeper of First Light", titleZh: "初光守望者", portrait: 0 },
+    R02: { name: "Lunar Archive", zh: "月面档案", title: "Lunar Cartographer", titleZh: "月面制图师", portrait: 1 },
+    R03: { name: "Nebula Weaver", zh: "星云织者", title: "Voice of the Nebula", titleZh: "星云之声", portrait: 2 },
+    R04: { name: "Aurora Navigator", zh: "极光领航员", title: "Northern Sky Navigator", titleZh: "北天领航员", portrait: 3 },
+    R05: { name: "Pulsar Herald", zh: "脉冲星信使", title: "Keeper of the Heartbeat", titleZh: "宇宙心跳守护者", portrait: 4 },
+    R06: { name: "Event Horizon", zh: "事件视界", title: "Beyond the Last Photon", titleZh: "最后光子之外", portrait: 5 },
+    R07: { name: "Deep Sky Cartographer", zh: "深空制图师", title: "Mapper of Faint Worlds", titleZh: "暗弱天体绘图者", portrait: 6 },
+    R08: { name: "Infrared Alchemist", zh: "红外炼金师", title: "Interpreter of Hidden Light", titleZh: "隐光解译者", portrait: 7 },
+    R09: { name: "Radio Sentinel", zh: "射电哨兵", title: "Listener Between Mountains", titleZh: "群山之间的聆听者", portrait: 3 },
+    R10: { name: "Mirror Master", zh: "镜面大师", title: "Master of the Optical Path", titleZh: "光路大师", portrait: 1 },
+    R11: { name: "Sidereal Voyager", zh: "恒星时远航者", title: "Traveller of the Turning Sky", titleZh: "旋转星空的旅者", portrait: 6 },
+    R12: { name: "Observatory Laureate", zh: "天文台桂冠", title: "Laureate of Pixel Observatory", titleZh: "像素天文台桂冠", portrait: 0 },
+  };
   const FALLBACK_QUESTIONS = [
     {
       id: "clarity",
@@ -71,6 +87,38 @@
 
   function authenticatedBody(body = {}) {
     return { participantId: state.participantId, token: state.token, ...body };
+  }
+
+  function readJsonStorage(key, fallback) {
+    try {
+      return JSON.parse(window.localStorage.getItem(key)) ?? fallback;
+    } catch (_) {
+      return fallback;
+    }
+  }
+
+  function preserveResearchReward(result) {
+    const bundleId = String(result?.bundleId || "");
+    const receiptToken = String(result?.receiptToken || "");
+    if (!RESEARCH_REWARDS[bundleId] || !receiptToken) throw new Error("Research reward receipt is invalid.");
+    const storedReceipts = readJsonStorage(REWARD_RECEIPTS_KEY, []);
+    const receipts = Array.isArray(storedReceipts)
+      ? storedReceipts.filter(receipt => receipt?.receiptToken !== receiptToken)
+      : [];
+    receipts.push({ receiptToken, bundleId });
+    const equipped = {
+      bundleId,
+      avatar: `${bundleId}-avatar`,
+      frame: `${bundleId}-frame`,
+      background: `${bundleId}-background`,
+      nameGlow: `${bundleId}-name-glow`,
+      chatBubble: `${bundleId}-chat-bubble`,
+      badge: `${bundleId}-badge`,
+      title: `${bundleId}-title`,
+    };
+    window.localStorage.setItem(REWARD_RECEIPTS_KEY, JSON.stringify(receipts));
+    window.localStorage.setItem(EQUIPPED_RESEARCH_KEY, JSON.stringify(equipped));
+    window.dispatchEvent(new CustomEvent("po:research-cosmetics-changed", { detail: equipped }));
   }
 
   function activeNodeId() {
@@ -171,6 +219,14 @@
     dialog.setAttribute("aria-label", "Optional research study / 可选研究问卷");
     dialog.tabIndex = -1;
     dialog.append(content);
+    if (flow === "invitation") {
+      const detail = dialog.querySelector(".po-research-detail");
+      if (detail) {
+        detail.textContent = selectedLanguage() === "zh"
+          ? "，；。"
+          : "A short optional study appears after selected milestones. Every completed questionnaire unlocks one community cosmetic bundle; answers and correctness never change the reward.";
+      }
+    }
     overlay.append(dialog);
     document.body.append(overlay);
     document.addEventListener("keydown", trapFocus, true);
@@ -250,9 +306,118 @@
       const result = await request("/submit", authenticatedBody({ nodeId, answers, durationSeconds }));
       const nextState = updateServerState(result);
       saveState({ pendingSubmission: null });
-      showAssignment(nextState.routeArm);
+      if (result?.rewardOffer) showRewardChoice(result.rewardOffer, () => showAssignment(nextState.routeArm));
+      else showAssignment(nextState.routeArm);
       return { keepOpen: true };
     });
+  }
+
+  function rewardLabel(bundleId) {
+    const reward = RESEARCH_REWARDS[bundleId];
+    return reward ? `${reward.name} / ${reward.zh}` : bundleId;
+  }
+
+  function rewardPortrait(bundleId) {
+    const reward = RESEARCH_REWARDS[bundleId];
+    const portrait = document.createElement("span");
+    portrait.className = `po-research-reward-portrait po-research-reward-portrait-${Number(reward?.portrait || 0)}`;
+    portrait.setAttribute("aria-hidden", "true");
+    return portrait;
+  }
+
+  function showRewardChoice(offer, afterReward) {
+    const offerId = String(offer?.offerId || "");
+    const isBaselineReward = String(offer?.nodeId || "") === "baseline";
+    const candidates = Array.isArray(offer?.candidates) ? offer.candidates.map(String) : [];
+    if (!offerId || candidates.length !== 3 || new Set(candidates).size !== 3 || !candidates.every(id => RESEARCH_REWARDS[id])) {
+      afterReward();
+      return;
+    }
+    const content = document.createElement("div");
+    content.className = "po-research-reward-choice";
+    content.append(heading(
+      "Choose your observatory legacy / 选择你的天文台传承",
+      "You earned this by completing the questionnaire. Choose one complete seven-piece community set. / 你完成了问卷，请从三套限定社区装扮中选择一套完整的七件套奖励。",
+    ));
+    const cards = document.createElement("div");
+    cards.className = "po-research-reward-grid";
+    let choosing = false;
+    candidates.forEach(bundleId => {
+      const reward = RESEARCH_REWARDS[bundleId];
+      const card = makeButton(rewardLabel(bundleId), `po-research-reward-card po-research-reward-${bundleId}`, async () => {
+        if (choosing) return;
+        choosing = true;
+        cards.querySelectorAll("button").forEach(button => { button.disabled = true; });
+        card.className += " is-selected";
+        try {
+          const result = await request("/reward/choose", authenticatedBody({ offerId, bundleId }));
+          preserveResearchReward(result);
+          showRewardReveal(result, afterReward, isBaselineReward);
+        } catch (error) {
+          showError(error, () => showRewardChoice(offer, afterReward), "retry-reward");
+        }
+      });
+      const text = document.createElement("span");
+      text.className = "po-research-reward-copy";
+      const name = document.createElement("strong");
+      name.textContent = rewardLabel(bundleId);
+      const title = document.createElement("small");
+      title.textContent = `${reward.title} / ${reward.titleZh}`;
+      const pieces = document.createElement("span");
+      pieces.className = "po-research-reward-pieces";
+      pieces.textContent = "Portrait  Frame  Background  Glow  Bubble  Badge  Title";
+      text.append(name, title, pieces);
+      card.textContent = "";
+      card.append(rewardPortrait(bundleId), text);
+      cards.append(card);
+    });
+    content.append(cards);
+    showOverlay(content, "reward-choice");
+  }
+
+  function showRewardReveal(result, afterReward, isBaselineReward) {
+    const bundleId = String(result?.bundleId || "");
+    const reward = RESEARCH_REWARDS[bundleId];
+    const prestige = Math.max(1, Number(result?.prestigeLevel || 1));
+    const content = document.createElement("div");
+    content.className = `po-research-reward-reveal po-research-reward-${bundleId}`;
+    const sky = document.createElement("div");
+    sky.className = "po-research-reward-sky";
+    for (let index = 0; index < 18; index += 1) {
+      const star = document.createElement("i");
+      star.className = `po-research-reward-star po-research-reward-star-${index}`;
+      sky.append(star);
+    }
+    const seal = document.createElement("div");
+    seal.className = "po-research-reward-seal";
+    seal.append(rewardPortrait(bundleId));
+    const copy = document.createElement("div");
+    copy.className = "po-research-reward-result";
+    copy.append(heading(
+      "Observatory legacy unlocked / 天文台传承已解锁",
+      `${rewardLabel(bundleId)}  ${reward.title} / ${reward.titleZh}`,
+    ));
+    const level = document.createElement("p");
+    level.className = "po-research-prestige";
+    level.textContent = `Research Prestige ${prestige} / 研究声望 ${prestige}`;
+    const slots = document.createElement("div");
+    slots.className = "po-research-reward-slots";
+    ["Portrait / 头像", "Frame / 边框", "Background / 背景", "Name glow / 名字辉光", "Chat bubble / 聊天气泡", "Badge / 徽章", "Title / 称号"].forEach(label => {
+      const slot = document.createElement("span");
+      slot.textContent = label;
+      slots.append(slot);
+    });
+    const note = document.createElement("p");
+    note.className = "po-research-reward-note";
+    note.textContent = "Equipped on this device. Sign in later to preserve it across devices. / 奖励已在此设备装备，之后登录账号即可跨设备保存。";
+    copy.append(
+      level,
+      slots,
+      note,
+      makeButton(isBaselineReward ? "Continue / 继续" : "Return to the stars / 返回星空", "po-research-primary po-research-reward-continue", afterReward),
+    );
+    content.append(sky, seal, copy);
+    showOverlay(content, "reward-reveal");
   }
 
   function showAssignment(assignment) {
@@ -337,6 +502,10 @@
       const result = await request("/submit", authenticatedBody({ nodeId, answers, durationSeconds }));
       updateServerState(result);
       saveState({ pendingSubmission: null });
+      if (result?.rewardOffer) {
+        showRewardChoice(result.rewardOffer, completeResearch);
+        return { keepOpen: true };
+      }
     });
   }
 
