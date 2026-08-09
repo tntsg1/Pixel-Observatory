@@ -6,7 +6,7 @@ import {
 	scoreAnswers,
 	selectQuestionForm,
 } from "./research-program.mjs";
-import { RESEARCH_VERSION } from "../web/landing/study/research-content.mjs";
+import { RESEARCH_NODES, RESEARCH_VERSION } from "../web/landing/study/research-content.mjs";
 
 const ISOLATION_HEADERS = {
 	"Cross-Origin-Embedder-Policy": "require-corp",
@@ -1823,6 +1823,11 @@ const RESEARCH_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{32,128}$/;
 const RESEARCH_CONSENT_VERSION = "2026-08-08";
 const MAX_RESEARCH_DURATION_SECONDS = 7_200;
 const MAX_RESEARCH_DEFERRALS = 2;
+const RESEARCH_CHECKPOINTS = RESEARCH_NODES
+	.filter(node => node.id !== "baseline")
+	.map(node => ({ level: node.afterLevel, nodeId: node.id }));
+const RESEARCH_CHECKPOINT_BY_LEVEL = new Map(RESEARCH_CHECKPOINTS.map(checkpoint => [checkpoint.level, checkpoint]));
+const RESEARCH_CHECKPOINT_LEVEL_BY_NODE = new Map(RESEARCH_CHECKPOINTS.map(checkpoint => [checkpoint.nodeId, checkpoint.level]));
 
 function normalizeResearchParticipantId(value) {
 	const participantId = String(value || "").trim();
@@ -1854,11 +1859,11 @@ function normalizeResearchAnswers(form, value) {
 	return answers;
 }
 
-function researchEvent(env, participantId, eventType, payload, now) {
+function researchEvent(env, participantId, eventType, payload, now, eventId = researchId("RE")) {
 	return env.RESEARCH_DB.prepare(
 		`INSERT INTO research_events (event_id, participant_id, study_version, event_type, payload_json, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?)`,
-	).bind(researchId("RE"), participantId, RESEARCH_VERSION, eventType, JSON.stringify(payload), now);
+	).bind(eventId, participantId, RESEARCH_VERSION, eventType, JSON.stringify(payload), now);
 }
 
 function researchOfferCandidates(offer) {
@@ -1876,11 +1881,73 @@ async function researchParticipantForPayload(env, payload) {
 	if (!participantId || !token) return null;
 	return env.RESEARCH_DB.prepare(
 		"SELECT * FROM research_participants WHERE participant_id = ? AND study_token_hash = ?",
-	).bind(participantId, await sha256(token)).first();
+	).bind(participantId, await sha256(`${participantId}:${token}`)).first();
 }
 
-async function researchStateForParticipant(env, participant) {
-	const [responseResult, offer] = await Promise.all([
+function researchEventPayload(row) {
+	try {
+		const payload = JSON.parse(row?.payload_json || "{}");
+		return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+	} catch {
+		return {};
+	}
+}
+
+async function researchEvidenceForParticipant(env, participantId) {
+	const result = await env.RESEARCH_DB.prepare(
+		`SELECT event_id, event_type, payload_json
+		 FROM research_events
+		 WHERE participant_id = ? AND event_type IN ('gameplay_checkpoint', 'ordinary_game_exposure')
+		 ORDER BY created_at, rowid`,
+	).bind(participantId).all();
+	const checkpoints = new Map();
+	const ordinaryExposureNodes = new Set();
+	for (const row of result.results || []) {
+		const payload = researchEventPayload(row);
+		if (row.event_type === "gameplay_checkpoint") {
+			const level = Number(payload.level);
+			const checkpoint = RESEARCH_CHECKPOINT_BY_LEVEL.get(level);
+			if (checkpoint?.nodeId === payload.nodeId && !checkpoints.has(level)) {
+				checkpoints.set(level, { eventId: row.event_id, nodeId: checkpoint.nodeId });
+			}
+		} else if (row.event_type === "ordinary_game_exposure") {
+			const nodeId = String(payload.nodeId || "");
+			if (RESEARCH_CHECKPOINT_LEVEL_BY_NODE.has(nodeId)) ordinaryExposureNodes.add(nodeId);
+		}
+	}
+	return { checkpoints, ordinaryExposureNodes };
+}
+
+function researchProjectedCurrentNode(routeArm, completedNodes, evidence) {
+	const nextNode = nextResearchNode(routeArm, completedNodes);
+	if (!nextNode || routeArm !== "field_gameplay" || nextNode === "baseline") return nextNode || "";
+	const checkpointLevel = RESEARCH_CHECKPOINT_LEVEL_BY_NODE.get(nextNode);
+	return evidence.checkpoints.has(checkpointLevel) ? nextNode : "";
+}
+
+function researchResponseIsLate(nodeId, evidence) {
+	if (evidence.ordinaryExposureNodes.has(nodeId)) return true;
+	const checkpointLevel = RESEARCH_CHECKPOINT_LEVEL_BY_NODE.get(nodeId);
+	return Number.isInteger(checkpointLevel)
+		&& [...evidence.checkpoints.keys()].some(recordedLevel => recordedLevel > checkpointLevel);
+}
+
+async function researchPublicState(participant, responseRows, offer, evidence) {
+	const state = await publicResearchState({ ...participant, current_node: "" }, responseRows, offer);
+	if (
+		participant.route_arm === "field_gameplay"
+		&& state.completedNodes.includes("baseline")
+		&& !state.withdrawn
+		&& !researchProjectedCurrentNode(participant.route_arm, state.completedNodes, evidence)
+	) {
+		state.currentNode = null;
+		state.questions = [];
+	}
+	return state;
+}
+
+async function researchStateDataForParticipant(env, participant) {
+	const [responseResult, offer, evidence] = await Promise.all([
 		env.RESEARCH_DB.prepare(
 			"SELECT node_id FROM research_responses WHERE participant_id = ? ORDER BY created_at, rowid",
 		).bind(participant.participant_id).all(),
@@ -1888,8 +1955,19 @@ async function researchStateForParticipant(env, participant) {
 			`SELECT offer_id, node_id, candidate_bundle_1, candidate_bundle_2, candidate_bundle_3
 			 FROM research_reward_offers WHERE participant_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
 		).bind(participant.participant_id).first(),
+		researchEvidenceForParticipant(env, participant.participant_id),
 	]);
-	return publicResearchState(participant, responseResult.results || [], offer);
+	const responseRows = responseResult.results || [];
+	return {
+		responseRows,
+		offer,
+		evidence,
+		state: await researchPublicState(participant, responseRows, offer, evidence),
+	};
+}
+
+async function researchStateForParticipant(env, participant) {
+	return (await researchStateDataForParticipant(env, participant)).state;
 }
 
 async function researchPrestigeLevel(env, participantId) {
@@ -1925,9 +2003,10 @@ async function handleResearchEnroll(request, env) {
 	if (body.consent !== true) return apiError("Consent is required before starting research.", 400, "consent_required");
 	const token = randomToken(32);
 	const now = Math.floor(Date.now() / 1_000);
+	const participantId = researchId("RSP");
 	const participant = {
-		participant_id: researchId("RSP"),
-		study_token_hash: await sha256(token),
+		participant_id: participantId,
+		study_token_hash: await sha256(`${participantId}:${token}`),
 		language: body.language === "zh" ? "zh" : "en",
 		consent_version: RESEARCH_CONSENT_VERSION,
 		route_arm: assignRoute(crypto.getRandomValues(new Uint32Array(1))[0]),
@@ -1997,22 +2076,30 @@ async function handleResearchSubmit(request, env) {
 	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
 	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
 	const nodeId = String(body.nodeId || "");
-	const responseResult = await env.RESEARCH_DB.prepare(
-		"SELECT node_id FROM research_responses WHERE participant_id = ? ORDER BY created_at, rowid",
-	).bind(participant.participant_id).all();
-	const responseRows = responseResult.results || [];
+	const { responseRows, evidence, state: priorState } = await researchStateDataForParticipant(env, participant);
 	if (responseRows.some(row => row.node_id === nodeId)) {
 		return apiError("This research node has already been submitted.", 409, "research_node_submitted");
 	}
-	const priorState = await publicResearchState(participant, responseRows, null);
-	if (priorState.currentNode !== nodeId) return apiError("That research node is not available.", 409, "research_node_unavailable");
+	if (priorState.currentNode !== nodeId) {
+		const expectedNode = nextResearchNode(participant.route_arm, priorState.completedNodes);
+		const checkpointLevel = RESEARCH_CHECKPOINT_LEVEL_BY_NODE.get(nodeId);
+		if (
+			participant.route_arm === "field_gameplay"
+			&& expectedNode === nodeId
+			&& Number.isInteger(checkpointLevel)
+			&& !evidence.checkpoints.has(checkpointLevel)
+		) {
+			return apiError("Complete the matching gameplay checkpoint before submitting this node.", 409, "research_checkpoint_required");
+		}
+		return apiError("That research node is not available.", 409, "research_node_unavailable");
+	}
 	const form = await selectQuestionForm(participant.participant_id, nodeId);
 	const answers = normalizeResearchAnswers(form, body.answers);
 	const { score, maxScore } = scoreAnswers(form, answers);
 	const durationSeconds = researchDurationSeconds(body.durationSeconds);
-	const lateResponse = body.lateResponse === true;
+	const lateResponse = body.lateResponse === true || researchResponseIsLate(nodeId, evidence);
 	const completedNodes = [...priorState.completedNodes, nodeId];
-	const nextNode = nextResearchNode(participant.route_arm, completedNodes);
+	const nextNode = researchProjectedCurrentNode(participant.route_arm, completedNodes, evidence);
 	const ownedResult = await env.RESEARCH_DB.prepare(
 		"SELECT selected_bundle_id FROM research_reward_issuances WHERE participant_id = ?",
 	).bind(participant.participant_id).all();
@@ -2078,17 +2165,84 @@ async function handleResearchSubmit(request, env) {
 		if (duplicate) return apiError("This research node has already been submitted.", 409, "research_node_submitted");
 		throw error;
 	}
-	const state = await publicResearchState({
+	const state = await researchPublicState({
 		...participant,
 		current_node: nextNode || "",
 		completed_nodes_json: JSON.stringify(completedNodes),
 		late_response_count: Number(participant.late_response_count || 0) + Number(lateResponse),
 		updated_at: now,
-	}, [...responseRows, { node_id: nodeId }], offer);
+	}, [...responseRows, { node_id: nodeId }], offer, evidence);
 	return json({
 		state,
 		feedback: { nodeId, recorded: true },
 		rewardOffer: state.rewardOffer,
+	});
+}
+
+async function handleResearchCheckpoint(request, env) {
+	if (!(await rateLimit(env, request, "research_checkpoint", 120, 3_600))) return apiError("Too many research checkpoints. Please wait.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid research checkpoint.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
+	const level = Number(body.level);
+	const checkpoint = Number.isInteger(level) ? RESEARCH_CHECKPOINT_BY_LEVEL.get(level) : null;
+	if (!checkpoint) return apiError("Unknown research checkpoint.", 400, "invalid_research_checkpoint");
+	if (participant.route_arm !== "field_gameplay") {
+		return apiError("Gameplay checkpoints are unavailable for this research route.", 409, "research_checkpoint_unavailable");
+	}
+	const { responseRows, offer, evidence, state } = await researchStateDataForParticipant(env, participant);
+	if (!state.completedNodes.includes("baseline")) {
+		return apiError("Complete baseline before recording gameplay checkpoints.", 409, "research_checkpoint_unavailable");
+	}
+	const existing = evidence.checkpoints.get(level);
+	if (existing) {
+		return json({ state, checkpoint: { level, nodeId: checkpoint.nodeId, eventId: existing.eventId } });
+	}
+	const checkpointIndex = RESEARCH_CHECKPOINTS.findIndex(entry => entry.level === level);
+	const missingEarlierCheckpoint = RESEARCH_CHECKPOINTS
+		.slice(0, checkpointIndex)
+		.some(entry => !evidence.checkpoints.has(entry.level));
+	if (missingEarlierCheckpoint) {
+		return apiError("Record earlier gameplay checkpoints first.", 409, "research_checkpoint_unavailable");
+	}
+	const eventId = `RE-CP${level}-${participant.participant_id.slice(4)}`;
+	const now = Math.floor(Date.now() / 1_000);
+	const nextEvidence = {
+		checkpoints: new Map(evidence.checkpoints),
+		ordinaryExposureNodes: new Set(evidence.ordinaryExposureNodes),
+	};
+	nextEvidence.checkpoints.set(level, { eventId, nodeId: checkpoint.nodeId });
+	const currentNode = researchProjectedCurrentNode(participant.route_arm, state.completedNodes, nextEvidence);
+	try {
+		await env.RESEARCH_DB.batch([
+			env.RESEARCH_DB.prepare(
+				"UPDATE research_participants SET current_node = ?, updated_at = ? WHERE participant_id = ?",
+			).bind(currentNode, now, participant.participant_id),
+			researchEvent(env, participant.participant_id, "gameplay_checkpoint", {
+				level,
+				nodeId: checkpoint.nodeId,
+			}, now, eventId),
+		]);
+	} catch (error) {
+		const racedCheckpoint = await env.RESEARCH_DB.prepare(
+			"SELECT 1 FROM research_events WHERE event_id = ? AND participant_id = ? AND event_type = 'gameplay_checkpoint'",
+		).bind(eventId, participant.participant_id).first();
+		if (!racedCheckpoint) throw error;
+		return json({
+			state: await researchStateForParticipant(env, participant),
+			checkpoint: { level, nodeId: checkpoint.nodeId, eventId },
+		});
+	}
+	const updatedParticipant = { ...participant, current_node: currentNode, updated_at: now };
+	return json({
+		state: await researchPublicState(updatedParticipant, responseRows, offer, nextEvidence),
+		checkpoint: { level, nodeId: checkpoint.nodeId, eventId },
 	});
 }
 
@@ -2131,16 +2285,29 @@ async function handleResearchExposure(request, env) {
 	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
 	if (body.kind !== "ordinary_game") return apiError("Unknown research exposure.", 400, "invalid_research_exposure");
 	const state = await researchStateForParticipant(env, participant);
-	const shouldMarkCrossExposure = participant.route_arm === "archive_text" && state.completedNodes.includes("baseline");
+	const shouldMarkCrossExposure = participant.route_arm === "archive_text"
+		&& state.completedNodes.includes("baseline")
+		&& state.currentNode !== null;
 	if (!shouldMarkCrossExposure || state.crossExposed) return json({ state });
 	const now = Math.floor(Date.now() / 1_000);
+	const eventId = `RE-EXPOSURE-${participant.participant_id.slice(4)}`;
 	const updatedParticipant = { ...participant, cross_exposed: 1, updated_at: now };
-	await env.RESEARCH_DB.batch([
-		env.RESEARCH_DB.prepare(
-			"UPDATE research_participants SET cross_exposed = 1, updated_at = ? WHERE participant_id = ?",
-		).bind(now, participant.participant_id),
-		researchEvent(env, participant.participant_id, "ordinary_game_exposure", { kind: body.kind }, now),
-	]);
+	try {
+		await env.RESEARCH_DB.batch([
+			env.RESEARCH_DB.prepare(
+				"UPDATE research_participants SET cross_exposed = 1, updated_at = ? WHERE participant_id = ?",
+			).bind(now, participant.participant_id),
+			researchEvent(env, participant.participant_id, "ordinary_game_exposure", {
+				kind: body.kind,
+				nodeId: state.currentNode,
+			}, now, eventId),
+		]);
+	} catch (error) {
+		const racedExposure = await env.RESEARCH_DB.prepare(
+			"SELECT 1 FROM research_events WHERE event_id = ? AND participant_id = ? AND event_type = 'ordinary_game_exposure'",
+		).bind(eventId, participant.participant_id).first();
+		if (!racedExposure) throw error;
+	}
 	return json({ state: await researchStateForParticipant(env, updatedParticipant) });
 }
 
@@ -2153,15 +2320,38 @@ async function handleResearchWithdraw(request, env) {
 	}
 	const participant = await researchParticipantForPayload(env, body);
 	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	const existingEvent = await env.RESEARCH_DB.prepare(
+		`SELECT event_id, created_at FROM research_events
+		 WHERE participant_id = ? AND event_type = 'withdrawn'
+		 ORDER BY created_at, rowid LIMIT 1`,
+	).bind(participant.participant_id).first();
+	if (existingEvent) {
+		const withdrawnAt = Number(participant.withdrawn_at || 0) || Number(existingEvent.created_at);
+		const updatedParticipant = { ...participant, withdrawn_at: withdrawnAt, updated_at: withdrawnAt };
+		if (!researchIsWithdrawn(participant)) {
+			await env.RESEARCH_DB.prepare(
+				"UPDATE research_participants SET withdrawn_at = ?, updated_at = ? WHERE participant_id = ?",
+			).bind(withdrawnAt, withdrawnAt, participant.participant_id).run();
+		}
+		return json({ state: await researchStateForParticipant(env, updatedParticipant), eventId: existingEvent.event_id });
+	}
 	const withdrawnAt = Number(participant.withdrawn_at || 0) || Math.floor(Date.now() / 1_000);
+	const eventId = `RE-WITHDRAW-${participant.participant_id.slice(4)}`;
 	const updatedParticipant = { ...participant, withdrawn_at: withdrawnAt, updated_at: withdrawnAt };
-	await env.RESEARCH_DB.batch([
-		env.RESEARCH_DB.prepare(
-			"UPDATE research_participants SET withdrawn_at = COALESCE(withdrawn_at, ?), updated_at = ? WHERE participant_id = ?",
-		).bind(withdrawnAt, withdrawnAt, participant.participant_id),
-		researchEvent(env, participant.participant_id, "withdrawn", {}, withdrawnAt),
-	]);
-	return json({ state: await researchStateForParticipant(env, updatedParticipant) });
+	try {
+		await env.RESEARCH_DB.batch([
+			env.RESEARCH_DB.prepare(
+				"UPDATE research_participants SET withdrawn_at = COALESCE(withdrawn_at, ?), updated_at = ? WHERE participant_id = ?",
+			).bind(withdrawnAt, withdrawnAt, participant.participant_id),
+			researchEvent(env, participant.participant_id, "withdrawn", {}, withdrawnAt, eventId),
+		]);
+	} catch (error) {
+		const racedEvent = await env.RESEARCH_DB.prepare(
+			"SELECT event_id FROM research_events WHERE event_id = ? AND participant_id = ? AND event_type = 'withdrawn'",
+		).bind(eventId, participant.participant_id).first();
+		if (!racedEvent) throw error;
+	}
+	return json({ state: await researchStateForParticipant(env, updatedParticipant), eventId });
 }
 
 async function handleResearchRewardChoose(request, env) {
@@ -2224,6 +2414,7 @@ async function handleApi(request, env, url) {
 	if (url.pathname === "/api/research/enroll" && request.method === "POST") return handleResearchEnroll(request, env);
 	if (url.pathname === "/api/research/session" && request.method === "POST") return handleResearchSession(request, env);
 	if (url.pathname === "/api/research/submit" && request.method === "POST") return handleResearchSubmit(request, env);
+	if (url.pathname === "/api/research/checkpoint" && request.method === "POST") return handleResearchCheckpoint(request, env);
 	if (url.pathname === "/api/research/defer" && request.method === "POST") return handleResearchDefer(request, env);
 	if (url.pathname === "/api/research/exposure" && request.method === "POST") return handleResearchExposure(request, env);
 	if (url.pathname === "/api/research/withdraw" && request.method === "POST") return handleResearchWithdraw(request, env);

@@ -1,7 +1,19 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 const baseUrl = (process.env.RESEARCH_TEST_URL || "http://127.0.0.1:8791").replace(/\/$/, "");
 const testNetwork = 20 + Math.floor(Math.random() * 200);
+const workerSource = await readFile(new URL("../cloudflare/worker.mjs", import.meta.url), "utf8");
+const researchBlock = workerSource.slice(
+	workerSource.indexOf("const RESEARCH_PARTICIPANT_ID_PATTERN"),
+	workerSource.indexOf("async function handleApi"),
+);
+assert.equal(
+	workerSource.match(/sha256\(`\$\{participantId\}:\$\{token\}`\)/g)?.length,
+	2,
+	"Enrollment and authentication both salt study-token hashes with participantId.",
+);
+assert.doesNotMatch(researchBlock, /env\.DB\b/, "Research handlers do not access the account database binding.");
 
 function testIp(index) {
 	return `198.18.${testNetwork}.${20 + (index % 220)}`;
@@ -84,6 +96,172 @@ assert.equal(duplicateBaseline.error, "research_node_submitted");
 
 const textParticipant = assigned.find(participant => participant.state.routeArm === "archive_text");
 assert.ok(textParticipant, "A text-route participant is available for cross-exposure coverage.");
+const completedTextParticipant = assigned.find(participant => (
+	participant !== textParticipant && participant.state.routeArm === "archive_text"
+));
+assert.ok(completedTextParticipant, "A second text-route participant is available for completion coverage.");
+const fieldParticipant = assigned.find(participant => participant.state.routeArm === "field_gameplay");
+assert.ok(fieldParticipant, "A field-route participant is available for checkpoint coverage.");
+assert.equal(fieldParticipant.state.currentNode, null, "Field questionnaires wait for their gameplay checkpoint.");
+
+const invalidToken = `${fieldParticipant.token.slice(0, -1)}${fieldParticipant.token.endsWith("A") ? "B" : "A"}`;
+const invalidSession = await post("/api/research/session", {
+	participantId: fieldParticipant.participantId,
+	token: invalidToken,
+}, { expectedStatus: 401, ip: fieldParticipant.ip });
+assert.equal(invalidSession.error, "invalid_research_session");
+
+const prematureFieldA = await post("/api/research/submit", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "A",
+	answers: {},
+	durationSeconds: 30,
+	lateResponse: false,
+}, { expectedStatus: 409, ip: fieldParticipant.ip });
+assert.equal(prematureFieldA.error, "research_checkpoint_required");
+
+const invalidCheckpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 7,
+}, { expectedStatus: 400, ip: fieldParticipant.ip });
+assert.equal(invalidCheckpoint.error, "invalid_research_checkpoint");
+
+const outOfOrderCheckpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 11,
+}, { expectedStatus: 409, ip: fieldParticipant.ip });
+assert.equal(outOfOrderCheckpoint.error, "research_checkpoint_unavailable");
+
+const level6Checkpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 6,
+	routeArm: "archive_text",
+}, { ip: fieldParticipant.ip });
+assert.equal(level6Checkpoint.state.routeArm, "field_gameplay", "Checkpoint requests cannot change the assigned route.");
+assert.equal(level6Checkpoint.state.currentNode, "A");
+fieldParticipant.state = level6Checkpoint.state;
+
+const timelyFieldA = await post("/api/research/submit", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "A",
+	answers: answersFor(fieldParticipant.state),
+	durationSeconds: 50,
+	lateResponse: false,
+}, { ip: fieldParticipant.ip });
+assert.equal(timelyFieldA.state.lateResponseCount, 0);
+assert.equal(timelyFieldA.state.currentNode, null, "Field state waits after A until the Level 11 checkpoint.");
+
+const level11Checkpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 11,
+}, { ip: fieldParticipant.ip });
+assert.equal(level11Checkpoint.state.currentNode, "B");
+fieldParticipant.state = level11Checkpoint.state;
+
+const deferredFieldB = await post("/api/research/defer", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "B",
+}, { ip: fieldParticipant.ip });
+assert.equal(deferredFieldB.deferCount, 1);
+fieldParticipant.state = deferredFieldB.state;
+
+const level16Checkpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 16,
+}, { ip: fieldParticipant.ip });
+assert.equal(level16Checkpoint.state.currentNode, "B", "A later checkpoint keeps the deferred questionnaire available.");
+fieldParticipant.state = level16Checkpoint.state;
+
+const serverLateFieldB = await post("/api/research/submit", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "B",
+	answers: answersFor(fieldParticipant.state),
+	durationSeconds: 55,
+	lateResponse: false,
+}, { ip: fieldParticipant.ip });
+assert.equal(serverLateFieldB.state.lateResponseCount, 1, "A later checkpoint overrides a false lateness hint.");
+assert.equal(serverLateFieldB.state.currentNode, "C", "The already-recorded Level 16 checkpoint unlocks C.");
+fieldParticipant.state = serverLateFieldB.state;
+
+const timelyFieldC = await post("/api/research/submit", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "C",
+	answers: answersFor(fieldParticipant.state),
+	durationSeconds: 50,
+	lateResponse: false,
+}, { ip: fieldParticipant.ip });
+assert.equal(timelyFieldC.state.currentNode, null, "Field state waits after C until the Level 21 checkpoint.");
+
+const level21Checkpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 21,
+}, { ip: fieldParticipant.ip });
+assert.equal(level21Checkpoint.state.currentNode, "D");
+fieldParticipant.state = level21Checkpoint.state;
+
+const timelyFieldD = await post("/api/research/submit", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "D",
+	answers: answersFor(fieldParticipant.state),
+	durationSeconds: 50,
+	lateResponse: false,
+}, { ip: fieldParticipant.ip });
+assert.equal(timelyFieldD.state.currentNode, null, "Field state waits after D until the Level 24 checkpoint.");
+
+const level24Checkpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 24,
+}, { ip: fieldParticipant.ip });
+assert.equal(level24Checkpoint.state.currentNode, "E");
+
+const repeatedLevel24Checkpoint = await post("/api/research/checkpoint", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	level: 24,
+}, { ip: fieldParticipant.ip });
+assert.deepEqual(repeatedLevel24Checkpoint, level24Checkpoint, "Checkpoint retries reuse one event and state.");
+
+for (const nodeId of ["A", "B", "C", "D", "E"]) {
+	assert.equal(completedTextParticipant.state.currentNode, nodeId);
+	const result = await post("/api/research/submit", {
+		participantId: completedTextParticipant.participantId,
+		token: completedTextParticipant.token,
+		nodeId,
+		answers: answersFor(completedTextParticipant.state),
+		durationSeconds: 45,
+		lateResponse: false,
+	}, { ip: completedTextParticipant.ip });
+	completedTextParticipant.state = result.state;
+}
+assert.equal(completedTextParticipant.state.currentNode, null);
+assert.equal(completedTextParticipant.state.crossExposed, false);
+
+const completedExposure = await post("/api/research/exposure", {
+	participantId: completedTextParticipant.participantId,
+	token: completedTextParticipant.token,
+	kind: "ordinary_game",
+}, { ip: completedTextParticipant.ip });
+assert.equal(completedExposure.state.crossExposed, false, "Completed archive participants are not cross-exposed.");
+
+const repeatedCompletedExposure = await post("/api/research/exposure", {
+	participantId: completedTextParticipant.participantId,
+	token: completedTextParticipant.token,
+	kind: "ordinary_game",
+}, { ip: completedTextParticipant.ip });
+assert.deepEqual(repeatedCompletedExposure, completedExposure, "Completed exposure retries are idempotent.");
 
 const firstDeferral = await post("/api/research/defer", {
 	participantId: textParticipant.participantId,
@@ -103,12 +281,13 @@ assert.equal(secondDeferral.deferCount, 2);
 assert.equal(secondDeferral.state.deferCounts.A, 2);
 textParticipant.state = secondDeferral.state;
 
-const exposure = await post("/api/research/exposure", {
+const [exposure, repeatedExposure] = await Promise.all([1, 2].map(() => post("/api/research/exposure", {
 	participantId: textParticipant.participantId,
 	token: textParticipant.token,
 	kind: "ordinary_game",
-}, { ip: textParticipant.ip });
+}, { ip: textParticipant.ip })));
 assert.equal(exposure.state.crossExposed, true, "Ordinary-game navigation flags the unfinished text route.");
+assert.deepEqual(repeatedExposure, exposure, "Concurrent exposure retries are idempotent.");
 textParticipant.state = exposure.state;
 
 const lateA = await post("/api/research/submit", {
@@ -117,9 +296,9 @@ const lateA = await post("/api/research/submit", {
 	nodeId: "A",
 	answers: answersFor(textParticipant.state),
 	durationSeconds: 60,
-	lateResponse: true,
+	lateResponse: false,
 }, { ip: textParticipant.ip });
-assert.equal(lateA.state.lateResponseCount, 1, "Late questionnaire completion is retained as analysis metadata.");
+assert.equal(lateA.state.lateResponseCount, 1, "Ordinary-game exposure derives late status server-side.");
 assert.ok(lateA.state.completedNodes.includes("A"));
 assert.equal(lateA.rewardOffer.candidates.length, 3, "Each submitted node has exactly three offered candidates.");
 
@@ -163,18 +342,53 @@ const consumedChoice = await post("/api/research/reward/choose", {
 }, { expectedStatus: 409, ip: textParticipant.ip });
 assert.equal(consumedChoice.error, "reward_offer_consumed");
 
-const withdrawal = await post("/api/research/withdraw", {
+const [withdrawal, repeatedWithdrawal] = await Promise.all([1, 2].map(() => post("/api/research/withdraw", {
 	participantId: textParticipant.participantId,
 	token: textParticipant.token,
-}, { ip: textParticipant.ip });
+}, { ip: textParticipant.ip })));
 assert.equal(withdrawal.state.withdrawn, true);
 assert.equal(withdrawal.state.currentNode, null);
+assert.match(withdrawal.eventId, /^RE-[A-Z0-9_-]+$/, "Withdrawal returns its persisted event ID.");
+assert.equal(repeatedWithdrawal.eventId, withdrawal.eventId, "Concurrent withdrawal retry reuses one event.");
+assert.deepEqual(repeatedWithdrawal.state, withdrawal.state);
 
 const withdrawnSession = await post("/api/research/session", {
 	participantId: textParticipant.participantId,
 	token: textParticipant.token,
 }, { ip: textParticipant.ip });
 assert.equal(withdrawnSession.state.withdrawn, true, "Withdrawal persists across anonymous session refreshes.");
+
+const withdrawnSubmit = await post("/api/research/submit", {
+	participantId: textParticipant.participantId,
+	token: textParticipant.token,
+	nodeId: "B",
+	answers: {},
+	durationSeconds: 30,
+	lateResponse: false,
+}, { expectedStatus: 409, ip: textParticipant.ip });
+assert.equal(withdrawnSubmit.error, "research_withdrawn");
+
+const withdrawnDefer = await post("/api/research/defer", {
+	participantId: textParticipant.participantId,
+	token: textParticipant.token,
+	nodeId: "B",
+}, { expectedStatus: 409, ip: textParticipant.ip });
+assert.equal(withdrawnDefer.error, "research_withdrawn");
+
+const withdrawnCheckpoint = await post("/api/research/checkpoint", {
+	participantId: textParticipant.participantId,
+	token: textParticipant.token,
+	level: 6,
+}, { expectedStatus: 409, ip: textParticipant.ip });
+assert.equal(withdrawnCheckpoint.error, "research_withdrawn");
+
+const withdrawnRewardChoice = await post("/api/research/reward/choose", {
+	participantId: textParticipant.participantId,
+	token: textParticipant.token,
+	offerId: lateA.rewardOffer.offerId,
+	bundleId: offeredBundle,
+}, { expectedStatus: 409, ip: textParticipant.ip });
+assert.equal(withdrawnRewardChoice.error, "research_withdrawn");
 
 await post("/api/study/enroll", {
 	consent: true,
