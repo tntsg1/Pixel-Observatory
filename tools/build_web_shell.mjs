@@ -7,6 +7,7 @@ const outputDir = resolve(process.argv[2] || "build/web");
 const stagingDir = resolve(process.argv[3] || join(outputDir, ".godot-export"));
 const landingDir = resolve("web/landing");
 const gameDir = join(outputDir, "game");
+const researchOverlayAssets = ["research-overlay.css", "research-overlay.js"];
 const buildSha = process.env.PIXEL_OBSERVATORY_BUILD_SHA
 	|| process.env.GITHUB_SHA
 	|| (() => {
@@ -20,6 +21,7 @@ const buildSha = process.env.PIXEL_OBSERVATORY_BUILD_SHA
 await readFile(join(stagingDir, "index.html")).catch(() => {
 	throw new Error(`Missing staged Godot Web export at ${stagingDir}.`);
 });
+await Promise.all(researchOverlayAssets.map(asset => access(join(landingDir, asset))));
 
 await rm(gameDir, { recursive: true, force: true });
 await mkdir(gameDir, { recursive: true });
@@ -54,6 +56,7 @@ for (const workletFile of ["index.audio.position.worklet.js", "index.audio.workl
 }
 
 await cp(landingDir, outputDir, { recursive: true, force: true });
+await Promise.all(researchOverlayAssets.map(asset => access(join(outputDir, asset))));
 await cp(join(landingDir, "promo.html"), join(outputDir, "index.html"));
 await rm(stagingDir, { recursive: true, force: true });
 console.log(`Published custom game shell at ${gameIndex}; immutable runtime=${runtimeDir}; build=${safeBuildSha}`);

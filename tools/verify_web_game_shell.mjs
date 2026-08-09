@@ -28,6 +28,8 @@ for (const marker of [
 	'../account.js?v=',
 	'../messaging.js?v=',
 	'../inbox.js?v=',
+	'../research-overlay.css?v=',
+	'../research-overlay.js?v=',
 	"PIXEL_OBSERVATORY_RESOURCE_PACKS",
 ]) assert.ok(html.includes(marker), `Missing required custom game-shell marker: ${marker}`);
 for (const pack of packManifest.packs) {
@@ -72,6 +74,8 @@ if (!requireRuntime) {
 }
 await access(join(outputDir, "game-loader.js"));
 await access(join(outputDir, "game-loader.css"));
+await access(join(outputDir, "research-overlay.js"));
+await access(join(outputDir, "research-overlay.css"));
 return gameIndex;
 }
 

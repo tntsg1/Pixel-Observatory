@@ -71,6 +71,8 @@ const ASSETS = {
 	messagingJs: `../messaging.js?v=${SHELL_VERSION}`,
 	inboxJs: `../inbox.js?v=${SHELL_VERSION}`,
 	observationShareJs: `../observation-share.js?v=${SHELL_VERSION}`,
+	researchOverlayCss: `../research-overlay.css?v=${SHELL_VERSION}`,
+	researchOverlayJs: `../research-overlay.js?v=${SHELL_VERSION}`,
 	runtimeCacheJs: `../game-runtime-cache.js?v=${SHELL_VERSION}`,
 	runtimeCoreJs: `../game-runtime-core.js?v=${SHELL_VERSION}`,
 };
@@ -139,6 +141,7 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	html = upsertLink(html, ASSETS.accountCss);
 	html = upsertLink(html, ASSETS.inboxCss);
 	html = upsertLink(html, ASSETS.observationShareCss);
+	html = upsertLink(html, ASSETS.researchOverlayCss);
 	html = html.replace(
 		/<div id="status">[\s\S]*?<div id="status-notice"><\/div>\s*<\/div>/,
 		STATUS_MARKUP.trim(),
@@ -147,6 +150,7 @@ export async function patchWebLoader(indexPath, { buildSha = "local" } = {}) {
 	html = upsertScript(html, ASSETS.messagingJs);
 	html = upsertScript(html, ASSETS.inboxJs);
 	html = upsertScript(html, ASSETS.observationShareJs);
+	html = upsertEarlyScript(html, ASSETS.researchOverlayJs);
 	html = upsertEarlyScript(html, ASSETS.runtimeCoreJs);
 	html = upsertEarlyScript(html, ASSETS.runtimeCacheJs);
 	html = upsertScript(html, ASSETS.loaderJs);
