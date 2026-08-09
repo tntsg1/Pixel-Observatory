@@ -8,7 +8,8 @@ const PALE := Color(0.88, 0.92, 0.96)
 func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_build()
-	_notify_parent()
+	if not ResearchBridge.consume_resolved_checkpoint("E"):
+		_notify_parent()
 
 
 func _build() -> void:

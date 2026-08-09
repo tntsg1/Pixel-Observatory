@@ -14,6 +14,9 @@ const NODE_BY_COMPLETED_LEVEL := {
 
 var _pending_continue_scene := ""
 var _pending_node_id := ""
+var _pending_continue_action: Callable
+var _resolved_node_ids: Dictionary = {}
+var _resume_node_ids: Dictionary = {}
 var _continue_callback: JavaScriptObject
 var _exit_callback: JavaScriptObject
 
@@ -26,23 +29,17 @@ func node_for_level(level_number: int) -> String:
 	return str(NODE_BY_COMPLETED_LEVEL.get(level_number, ""))
 
 
-func offer_after_level(level_number: int, continue_scene: String) -> bool:
+func offer_after_level(level_number: int, continue_scene: String, continue_action: Callable = Callable()) -> bool:
 	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
 		return false
-	var node_id := node_for_level(level_number)
-	if node_id.is_empty() or not _browser_reports_active_research():
+	var action := continue_action
+	if not action.is_valid():
+		action = func() -> void:
+			GameManager.go(continue_scene)
+	var detail := _prepare_checkpoint(level_number, continue_scene, _browser_research_context(), action)
+	if detail.is_empty():
 		return false
 	_install_browser_callbacks()
-	_pending_continue_scene = continue_scene
-	_pending_node_id = node_id
-	var detail := {
-		"nodeId": node_id,
-		"completedLevel": level_number,
-		"continueScene": continue_scene,
-		"language": GameManager.language_mode,
-		"participantId": GameManager.research_participant_id(),
-		"routeArm": GameManager.research_route_arm(),
-	}
 	JavaScriptBridge.eval(
 		"window.dispatchEvent(new CustomEvent('observatory:research-checkpoint',{detail:%s}));" % JSON.stringify(detail),
 		true
@@ -62,12 +59,44 @@ func _install_browser_callbacks() -> void:
 	window.__poResearchExitToArchive = _exit_callback
 
 
-func _browser_reports_active_research() -> bool:
+func _browser_research_context() -> Dictionary:
 	var value: Variant = JavaScriptBridge.eval(
-		"(()=>{try{const bridge=window.PixelObservatoryResearch;if(bridge&&typeof bridge.hasActiveInvitationOrSession==='function')return !!bridge.hasActiveInvitationOrSession();const session=JSON.parse(localStorage.getItem('%s')||'null');return !!(session&&typeof session==='object'&&typeof session.participantId==='string'&&session.participantId.length>0)}catch(_){return false}})()" % RESEARCH_SESSION_KEY,
+		"(()=>{try{const bridge=window.PixelObservatoryResearch;const query=new URLSearchParams(location.search);const session=JSON.parse(localStorage.getItem('%s')||'null')||{};const provided=bridge&&typeof bridge.activeResearchContext==='function'?bridge.activeResearchContext()||{}:{};const token=String(provided.token||query.get('token')||session.token||'');const routeArm=String(provided.routeArm||query.get('routeArm')||query.get('arm')||session.routeArm||'');const participantId=String(provided.participantId||query.get('participantId')||session.participantId||'');const bridgeVerified=!!(bridge&&typeof bridge.hasActiveInvitationOrSession==='function'&&bridge.hasActiveInvitationOrSession());const queryVerified=query.has('token')&&token.length>0&&routeArm==='field_gameplay';return JSON.stringify({participantId:participantId,token:token,routeArm:routeArm,verified:!!provided.verified||(bridgeVerified&&token.length>0&&routeArm==='field_gameplay')||queryVerified});}catch(_){return '{}'}})()" % RESEARCH_SESSION_KEY,
 		true
 	)
-	return bool(value)
+	var context: Variant = JSON.parse_string(str(value))
+	return context if context is Dictionary else {}
+
+
+func _is_active_research_context(context: Dictionary) -> bool:
+	return str(context.get("participantId", "")).length() > 0 \
+		and str(context.get("token", "")).length() > 0 \
+		and str(context.get("routeArm", "")) == "field_gameplay" \
+		and bool(context.get("verified", false))
+
+
+func _prepare_checkpoint(level_number: int, continue_scene: String, context: Dictionary, continue_action: Callable = Callable()) -> Dictionary:
+	var node_id := node_for_level(level_number)
+	if node_id.is_empty() or _resolved_node_ids.has(node_id) or not _is_active_research_context(context):
+		return {}
+	_pending_continue_scene = continue_scene
+	_pending_node_id = node_id
+	_pending_continue_action = continue_action
+	return {
+		"nodeId": node_id,
+		"completedLevel": level_number,
+		"continueScene": continue_scene,
+		"language": GameManager.language_mode,
+		"participantId": str(context.get("participantId", "")),
+		"routeArm": str(context.get("routeArm", "")),
+	}
+
+
+func consume_resolved_checkpoint(node_id: String) -> bool:
+	if not _resume_node_ids.has(node_id):
+		return false
+	_resume_node_ids.erase(node_id)
+	return true
 
 
 func _on_browser_continue(arguments: Array) -> void:
@@ -75,11 +104,15 @@ func _on_browser_continue(arguments: Array) -> void:
 		return
 	var node_id := _pending_node_id
 	var continue_scene := _pending_continue_scene
+	var continue_action := _pending_continue_action
 	_pending_node_id = ""
 	_pending_continue_scene = ""
+	_pending_continue_action = Callable()
+	_resolved_node_ids[node_id] = true
+	_resume_node_ids[node_id] = true
 	checkpoint_resolved.emit("continue", node_id)
-	if not continue_scene.is_empty():
-		GameManager.go(continue_scene)
+	if continue_action.is_valid():
+		continue_action.call()
 
 
 func _on_browser_exit_to_archive(_arguments: Array) -> void:
@@ -88,6 +121,7 @@ func _on_browser_exit_to_archive(_arguments: Array) -> void:
 	var node_id := _pending_node_id
 	_pending_node_id = ""
 	_pending_continue_scene = ""
+	_pending_continue_action = Callable()
 	GameManager.save()
 	checkpoint_resolved.emit("exit_to_archive", node_id)
 	JavaScriptBridge.eval("window.top.location.assign('/study/');", true)

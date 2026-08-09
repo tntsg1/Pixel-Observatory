@@ -821,32 +821,13 @@ func _build_completion_navigation(level: Dictionary) -> void:
 			continue_scene = "study_graduation"
 		elif program_complete:
 			continue_scene = "graduation"
-		if ResearchBridge.offer_after_level(completed_level_number, continue_scene):
+		if ResearchBridge.offer_after_level(
+			completed_level_number,
+			continue_scene,
+			Callable(self, "_continue_after_completion").bind(completed_level_number, program_complete)
+		):
 			return
-		if GameManager.study_mode_active():
-			if program_complete:
-				if GameManager.try_story_epilogue(completed_level_number, "study_graduation"):
-					return
-				GameManager.go("study_graduation")
-				return
-			GameManager.update_room_guidance_for_level()
-			if GameManager.go_to_pending_mission_setup():
-				return
-			if GameManager.try_story_epilogue(completed_level_number, "observatory"):
-				return
-			GameManager.go("observatory")
-			return
-		if program_complete:
-			if GameManager.try_story_epilogue(completed_level_number, "graduation"):
-				return
-			GameManager.go("graduation")
-			return
-		GameManager.update_room_guidance_for_level()
-		if GameManager.go_to_pending_mission_setup():
-			return
-		if GameManager.try_story_epilogue(completed_level_number, "observatory"):
-			return
-		GameManager.go("observatory")
+		_continue_after_completion(completed_level_number, program_complete)
 	)
 	if GameManager.study_mode_active():
 		return
@@ -855,6 +836,33 @@ func _build_completion_navigation(level: Dictionary) -> void:
 		GameManager.set_observatory_spawn("journal")
 		GameManager.go("journal")
 	)
+
+
+func _continue_after_completion(completed_level_number: int, program_complete: bool) -> void:
+	if GameManager.study_mode_active():
+		if program_complete:
+			if GameManager.try_story_epilogue(completed_level_number, "study_graduation"):
+				return
+			GameManager.go("study_graduation")
+			return
+		GameManager.update_room_guidance_for_level()
+		if GameManager.go_to_pending_mission_setup():
+			return
+		if GameManager.try_story_epilogue(completed_level_number, "observatory"):
+			return
+		GameManager.go("observatory")
+		return
+	if program_complete:
+		if GameManager.try_story_epilogue(completed_level_number, "graduation"):
+			return
+		GameManager.go("graduation")
+		return
+	GameManager.update_room_guidance_for_level()
+	if GameManager.go_to_pending_mission_setup():
+		return
+	if GameManager.try_story_epilogue(completed_level_number, "observatory"):
+		return
+	GameManager.go("observatory")
 
 
 func _build_next_mission_route() -> void:
