@@ -1,7 +1,8 @@
 # Godot
 .godot/
 export/
-build/
+build/*
+!build/.gdignore
 *.tmp
 
 # Pixel Observatory local secrets
