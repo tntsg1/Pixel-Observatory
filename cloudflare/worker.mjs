@@ -2,11 +2,11 @@ import {
 	assignRoute,
 	buildRewardCandidates,
 	nextResearchNode,
-	orderedQuestions,
 	publicResearchState,
 	scoreAnswers,
 	selectQuestionForm,
 } from "./research-program.mjs";
+import { RESEARCH_VERSION } from "../web/landing/study/research-content.mjs";
 
 const ISOLATION_HEADERS = {
 	"Cross-Origin-Embedder-Policy": "require-corp",
@@ -1818,260 +1818,399 @@ async function handleCommunityReplyCreate(request, env, postId) {
 	return json({ ok: true, replyId: id }, 201);
 }
 
-const LEGACY_STUDY = {
-	participantIdPattern: /^STUDY-[A-Z0-9_-]{8,48}$/,
-	tokenPattern: /^[a-zA-Z0-9_-]{32,128}$/,
-	minimumGameSeconds: 300,
-	phases: new Set(["pre", "reading_post", "post", "experience"]),
-	phaseNextStage: {
-		pre: "reading",
-		reading_post: "game",
-		post: "experience",
-		experience: "complete",
-	},
-	answerKey: {
-		workflow: "finder",
-		magnification: "short",
-		focus: "focuser",
-		seeing: "lower",
-		tracking: "rotation",
-		chromatic: "refraction",
-		light: "glow",
-		aperture: "collect",
-		alignment: "agree",
-		deep_sky: "expected",
-	},
-	questionnaireVersion: "foundation_1_24_v1",
-};
+const RESEARCH_PARTICIPANT_ID_PATTERN = /^RSP-[A-Z0-9_-]{8,64}$/;
+const RESEARCH_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{32,128}$/;
+const RESEARCH_CONSENT_VERSION = "2026-08-08";
+const MAX_RESEARCH_DURATION_SECONDS = 7_200;
+const MAX_RESEARCH_DEFERRALS = 2;
 
-function normalizeStudyParticipantId(value) {
+function normalizeResearchParticipantId(value) {
 	const participantId = String(value || "").trim();
-	return LEGACY_STUDY.participantIdPattern.test(participantId) ? participantId : "";
+	return RESEARCH_PARTICIPANT_ID_PATTERN.test(participantId) ? participantId : "";
 }
 
-function normalizeStudyToken(value) {
+function normalizeResearchToken(value) {
 	const token = String(value || "").trim();
-	return LEGACY_STUDY.tokenPattern.test(token) ? token : "";
+	return RESEARCH_TOKEN_PATTERN.test(token) ? token : "";
 }
 
-function normalizeStudyAnswers(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+function researchId(prefix, byteCount = 12) {
+	return `${prefix}-${Date.now().toString(36).toUpperCase()}-${randomToken(byteCount).toUpperCase()}`;
+}
+
+function researchDurationSeconds(value) {
+	const duration = Number(value);
+	if (!Number.isFinite(duration)) return 0;
+	return Math.max(0, Math.min(MAX_RESEARCH_DURATION_SECONDS, Math.floor(duration)));
+}
+
+function normalizeResearchAnswers(form, value) {
+	const submitted = value && typeof value === "object" && !Array.isArray(value) ? value : {};
 	const answers = {};
-	for (const [key, answer] of Object.entries(value)) {
-		if (!/^[a-z_]{2,40}$/.test(key)) continue;
-		answers[key] = String(answer || "").trim().slice(0, 4_000);
+	for (const question of form.questions) {
+		const answer = String(submitted[question.id] || "");
+		if (question.options.some(option => option.id === answer)) answers[question.id] = answer;
 	}
 	return answers;
 }
 
-function studyScore(answers) {
-	let score = 0;
-	for (const [key, correctAnswer] of Object.entries(LEGACY_STUDY.answerKey)) {
-		if (answers[key] === correctAnswer) score += 1;
-	}
-	return { score, maxScore: Object.keys(LEGACY_STUDY.answerKey).length };
+function researchEvent(env, participantId, eventType, payload, now) {
+	return env.RESEARCH_DB.prepare(
+		`INSERT INTO research_events (event_id, participant_id, study_version, event_type, payload_json, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+	).bind(researchId("RE"), participantId, RESEARCH_VERSION, eventType, JSON.stringify(payload), now);
 }
 
-function studyQualityFlags(answers, durationSeconds) {
-	const flags = [];
-	if (durationSeconds > 0 && durationSeconds < 45) flags.push("very_fast_response");
-	const values = Object.values(answers).filter(Boolean);
-	if (values.length >= 6 && new Set(values).size === 1) flags.push("uniform_response_pattern");
-	return flags;
+function researchOfferCandidates(offer) {
+	if (!offer) return [];
+	return [offer.candidate_bundle_1, offer.candidate_bundle_2, offer.candidate_bundle_3].map(bundleId => String(bundleId || ""));
 }
 
-async function studyParticipantForPayload(env, payload) {
-	const participantId = normalizeStudyParticipantId(payload.participantId);
-	const token = normalizeStudyToken(payload.token);
+function researchIsWithdrawn(participant) {
+	return Number(participant.withdrawn_at || 0) > 0;
+}
+
+async function researchParticipantForPayload(env, payload) {
+	const participantId = normalizeResearchParticipantId(payload?.participantId);
+	const token = normalizeResearchToken(payload?.token);
 	if (!participantId || !token) return null;
-	const tokenHash = await sha256(token);
-	return env.DB.prepare(
-		`SELECT id, language, status, next_stage, game_active_seconds, game_event_count,
-		        pretest_completed_at, reading_started_at, reading_completed_at,
-		        reading_posttest_completed_at, game_started_at, game_completed_at,
-		        posttest_completed_at, experience_completed_at
-		 FROM study_participants WHERE id = ? AND study_token_hash = ?`,
-	).bind(participantId, tokenHash).first();
+	return env.RESEARCH_DB.prepare(
+		"SELECT * FROM research_participants WHERE participant_id = ? AND study_token_hash = ?",
+	).bind(participantId, await sha256(token)).first();
 }
 
-function publicStudyState(row) {
-	return {
-		participantId: row.id,
-		language: row.language,
-		status: row.status,
-		nextStage: row.next_stage,
-		gameActiveSeconds: Number(row.game_active_seconds || 0),
-		minimumGameSeconds: LEGACY_STUDY.minimumGameSeconds,
-		completed: {
-			pretest: Number(row.pretest_completed_at || 0) > 0,
-			reading: Number(row.reading_completed_at || 0) > 0,
-			readingPosttest: Number(row.reading_posttest_completed_at || 0) > 0,
-			game: Number(row.game_completed_at || 0) > 0,
-			posttest: Number(row.posttest_completed_at || 0) > 0,
-			experience: Number(row.experience_completed_at || 0) > 0,
-		},
-	};
+async function researchStateForParticipant(env, participant) {
+	const [responseResult, offer] = await Promise.all([
+		env.RESEARCH_DB.prepare(
+			"SELECT node_id FROM research_responses WHERE participant_id = ? ORDER BY created_at, rowid",
+		).bind(participant.participant_id).all(),
+		env.RESEARCH_DB.prepare(
+			`SELECT offer_id, node_id, candidate_bundle_1, candidate_bundle_2, candidate_bundle_3
+			 FROM research_reward_offers WHERE participant_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1`,
+		).bind(participant.participant_id).first(),
+	]);
+	return publicResearchState(participant, responseResult.results || [], offer);
 }
 
-async function handleStudyEnroll(request, env) {
-	if (!(await rateLimit(env, request, "study_enroll", 8, 3_600))) return apiError("Too many study enrolment attempts. Please wait.", 429, "rate_limited");
+async function researchPrestigeLevel(env, participantId) {
+	const row = await env.RESEARCH_DB.prepare(
+		"SELECT COUNT(*) AS prestige_level FROM research_reward_issuances WHERE participant_id = ?",
+	).bind(participantId).first();
+	return Math.max(0, Number(row?.prestige_level || 0));
+}
+
+async function researchReceiptToken(participant, offerId, bundleId) {
+	return (await sha256(`research-receipt:v1:${participant.study_token_hash}:${offerId}:${bundleId}`))
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_")
+		.replace(/=+$/g, "");
+}
+
+async function researchRewardChoiceResponse(env, participant, offerId, bundleId) {
+	return json({
+		receiptToken: await researchReceiptToken(participant, offerId, bundleId),
+		bundleId,
+		prestigeLevel: await researchPrestigeLevel(env, participant.participant_id),
+	});
+}
+
+async function handleResearchEnroll(request, env) {
+	if (!(await rateLimit(env, request, "research_enroll", 60, 3_600))) return apiError("Too many research enrolment attempts. Please wait.", 429, "rate_limited");
 	let body;
 	try {
 		body = await readJson(request, 4_000);
 	} catch {
-		return apiError("Invalid study enrolment request.");
+		return apiError("Invalid research enrolment request.");
 	}
-	if (String(body.website || "").trim()) return apiError("Verification failed.", 400, "verification_failed");
-	if (body.consent !== true) return apiError("Consent is required before starting the study.", 400, "consent_required");
-	const language = body.language === "zh" ? "zh" : "en";
+	if (body.consent !== true) return apiError("Consent is required before starting research.", 400, "consent_required");
 	const token = randomToken(32);
-	const participantId = `STUDY-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
-	const now = Math.floor(Date.now() / 1000);
-	await env.DB.prepare(
-		`INSERT INTO study_participants
-		 (id, study_token_hash, language, consent_version, status, next_stage, created_at, updated_at)
-		 VALUES (?, ?, ?, '2026-08-05', 'enrolled', 'pretest', ?, ?)`,
-	).bind(participantId, await sha256(token), language, now, now).run();
+	const now = Math.floor(Date.now() / 1_000);
+	const participant = {
+		participant_id: researchId("RSP"),
+		study_token_hash: await sha256(token),
+		language: body.language === "zh" ? "zh" : "en",
+		consent_version: RESEARCH_CONSENT_VERSION,
+		route_arm: assignRoute(crypto.getRandomValues(new Uint32Array(1))[0]),
+		current_node: "baseline",
+		completed_nodes_json: "[]",
+		defer_counts_json: "{}",
+		late_response_count: 0,
+		cross_exposed: 0,
+		withdrawn_at: null,
+		consented_at: now,
+		created_at: now,
+		updated_at: now,
+	};
+	await env.RESEARCH_DB.batch([
+		env.RESEARCH_DB.prepare(
+			`INSERT INTO research_participants (
+				participant_id, study_token_hash, language, consent_version, route_arm, current_node,
+				completed_nodes_json, defer_counts_json, late_response_count, cross_exposed, withdrawn_at,
+				consented_at, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		).bind(
+			participant.participant_id,
+			participant.study_token_hash,
+			participant.language,
+			participant.consent_version,
+			participant.route_arm,
+			participant.current_node,
+			participant.completed_nodes_json,
+			participant.defer_counts_json,
+			participant.late_response_count,
+			participant.cross_exposed,
+			participant.withdrawn_at,
+			participant.consented_at,
+			participant.created_at,
+			participant.updated_at,
+		),
+		researchEvent(env, participant.participant_id, "enrolled", { language: participant.language }, now),
+	]);
 	return json({
-		ok: true,
-		participantId,
+		participantId: participant.participant_id,
 		token,
-		state: { participantId, language, status: "enrolled", nextStage: "pretest", gameActiveSeconds: 0, minimumGameSeconds: LEGACY_STUDY.minimumGameSeconds, completed: {} },
+		state: await publicResearchState(participant, [], null),
 	}, 201);
 }
 
-async function handleStudyState(request, env) {
+async function handleResearchSession(request, env) {
 	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study session."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	return json({ ok: true, state: publicStudyState(participant) });
-}
-
-async function handleStudyAdvance(request, env) {
-	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study update."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	const action = String(body.action || "");
-	const now = Math.floor(Date.now() / 1000);
-	if (action === "start_reading") {
-		if (participant.next_stage !== "reading") return apiError("Complete the baseline questions first.", 409, "invalid_study_stage");
-		await env.DB.prepare("UPDATE study_participants SET status = 'reading', reading_started_at = CASE WHEN reading_started_at = 0 THEN ? ELSE reading_started_at END, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else if (action === "finish_reading") {
-		if (participant.next_stage !== "reading") return apiError("Reading is not the current study stage.", 409, "invalid_study_stage");
-		await env.DB.prepare("UPDATE study_participants SET status = 'reading', next_stage = 'reading_posttest', reading_completed_at = ?, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else if (action === "start_game") {
-		if (participant.next_stage !== "game") return apiError("Complete the reading check first.", 409, "invalid_study_stage");
-		await env.DB.prepare("UPDATE study_participants SET status = 'game', game_started_at = CASE WHEN game_started_at = 0 THEN ? ELSE game_started_at END, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else if (action === "finish_game") {
-		if (participant.next_stage !== "game") return apiError("The game stage is not currently active.", 409, "invalid_study_stage");
-		if (Number(participant.game_active_seconds || 0) < LEGACY_STUDY.minimumGameSeconds) {
-			return apiError(`Please keep observing for at least ${Math.ceil(LEGACY_STUDY.minimumGameSeconds / 60)} active minutes before continuing.`, 409, "insufficient_game_time");
-		}
-		await env.DB.prepare("UPDATE study_participants SET status = 'post_game', next_stage = 'posttest', game_completed_at = ?, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else {
-		return apiError("Unknown study action.", 400, "invalid_study_action");
-	}
-	const updated = await env.DB.prepare("SELECT * FROM study_participants WHERE id = ?").bind(participant.id).first();
-	return json({ ok: true, state: publicStudyState(updated) });
-}
-
-async function handleStudySubmit(request, env) {
-	if (!(await rateLimit(env, request, "study_submit", 60, 3_600))) return apiError("Too many study submissions. Please wait.", 429, "rate_limited");
-	let body;
-	try { body = await readJson(request, 16_000); } catch { return apiError("Invalid study response."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	const phase = String(body.phase || "");
-	if (!LEGACY_STUDY.phases.has(phase)) return apiError("Unknown study phase.", 400, "invalid_study_phase");
-	const allowedStage = { pre: "pretest", reading_post: "reading_posttest", post: "posttest", experience: "experience" }[phase];
-	if (participant.next_stage !== allowedStage) return apiError("That study stage is not available yet.", 409, "invalid_study_stage");
-	const answers = normalizeStudyAnswers(body.answers);
-	const durationSeconds = Math.max(0, Math.min(7_200, Math.floor(Number(body.durationSeconds || 0))));
-	const now = Math.floor(Date.now() / 1000);
-	const knowledgePhase = phase !== "experience";
-	if (knowledgePhase) answers.questionnaire_version = LEGACY_STUDY.questionnaireVersion;
-	const result = knowledgePhase ? studyScore(answers) : { score: null, maxScore: null };
-	const flags = studyQualityFlags(answers, durationSeconds);
-	const responseId = `SR-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
 	try {
-		await env.DB.prepare(
-			`INSERT INTO study_responses (id, participant_id, phase, responses_json, score, max_score, duration_seconds, quality_flags_json, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		).bind(responseId, participant.id, phase, JSON.stringify(answers), result.score, result.maxScore, durationSeconds, JSON.stringify(flags), now).run();
-	} catch (error) {
-		return apiError("This study stage has already been submitted.", 409, "study_phase_already_submitted");
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid research session.");
 	}
-	const completionColumn = {
-		pre: "pretest_completed_at",
-		reading_post: "reading_posttest_completed_at",
-		post: "posttest_completed_at",
-		experience: "experience_completed_at",
-	}[phase];
-	const nextStage = LEGACY_STUDY.phaseNextStage[phase];
-	const status = phase === "experience" ? "completed" : participant.status;
-	await env.DB.prepare(`UPDATE study_participants SET ${completionColumn} = ?, next_stage = ?, status = ?, updated_at = ? WHERE id = ?`)
-		.bind(now, nextStage, status, now, participant.id).run();
-	const updated = await env.DB.prepare("SELECT * FROM study_participants WHERE id = ?").bind(participant.id).first();
-	return json({ ok: true, result, qualityFlags: flags, state: publicStudyState(updated) });
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	return json({ state: await researchStateForParticipant(env, participant) });
 }
 
-async function handleStudyGameEvent(request, env) {
-	if (!(await rateLimit(env, request, "study_game_event", 180, 3_600))) return apiError("Too many game study updates. Please wait.", 429, "rate_limited");
+async function handleResearchSubmit(request, env) {
+	if (!(await rateLimit(env, request, "research_submit", 60, 3_600))) return apiError("Too many research submissions. Please wait.", 429, "rate_limited");
 	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid game study update."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	if (participant.next_stage !== "game") return apiError("The game study stage is not active.", 409, "invalid_study_stage");
-	const eventType = new Set(["opened", "heartbeat", "hidden", "leave"]).has(body.event) ? body.event : "heartbeat";
-	const activeSeconds = Math.max(0, Math.min(90, Math.floor(Number(body.activeSeconds || 0))));
-	const now = Math.floor(Date.now() / 1000);
-	await env.DB.batch([
-		env.DB.prepare(
-			"UPDATE study_participants SET status = 'game', game_started_at = CASE WHEN game_started_at = 0 THEN ? ELSE game_started_at END, game_active_seconds = game_active_seconds + ?, game_event_count = game_event_count + 1, updated_at = ? WHERE id = ?",
-		).bind(now, activeSeconds, now, participant.id),
-		env.DB.prepare("INSERT INTO study_events (id, participant_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?, ?)")
-			.bind(`SE-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`, participant.id, `game_${eventType}`, JSON.stringify({ activeSeconds }), now),
-	]);
-	return json({ ok: true, activeSeconds: Number(participant.game_active_seconds || 0) + activeSeconds, minimumGameSeconds: LEGACY_STUDY.minimumGameSeconds });
-}
-
-async function handleStudyWithdraw(request, env) {
-	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study session."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	const now = Math.floor(Date.now() / 1000);
-	await env.DB.prepare("UPDATE study_participants SET status = 'withdrawn', updated_at = ? WHERE id = ?").bind(now, participant.id).run();
-	return json({ ok: true });
-}
-
-function csvCell(value) {
-	return `"${String(value ?? "").replaceAll('"', '""')}"`;
-}
-
-async function handleAdminStudyExport(request, env) {
-	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
-	const result = await env.DB.prepare(
-		`SELECT p.id AS participant_id, p.language, p.status, p.created_at, p.updated_at, p.game_active_seconds,
-		 r.phase, r.score, r.max_score, r.duration_seconds, r.quality_flags_json, r.responses_json, r.created_at AS response_created_at
-		 FROM study_participants p LEFT JOIN study_responses r ON r.participant_id = p.id
-		 ORDER BY p.created_at DESC, r.created_at ASC`,
-	).all();
-	const header = ["participant_id", "language", "status", "created_at", "updated_at", "game_active_seconds", "phase", "score", "max_score", "duration_seconds", "quality_flags", "responses_json", "response_created_at"];
-	const rows = (result.results || []).map(row => header.map(key => csvCell(row[key])).join(","));
-	return new Response([header.join(","), ...rows].join("\n"), {
-		headers: {
-			"Content-Type": "text/csv; charset=utf-8",
-			"Content-Disposition": "attachment; filename=pixel-observatory-study-export.csv",
-			"Cache-Control": "no-store",
-		},
+	try {
+		body = await readJson(request, 16_000);
+	} catch {
+		return apiError("Invalid research response.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
+	const nodeId = String(body.nodeId || "");
+	const responseResult = await env.RESEARCH_DB.prepare(
+		"SELECT node_id FROM research_responses WHERE participant_id = ? ORDER BY created_at, rowid",
+	).bind(participant.participant_id).all();
+	const responseRows = responseResult.results || [];
+	if (responseRows.some(row => row.node_id === nodeId)) {
+		return apiError("This research node has already been submitted.", 409, "research_node_submitted");
+	}
+	const priorState = await publicResearchState(participant, responseRows, null);
+	if (priorState.currentNode !== nodeId) return apiError("That research node is not available.", 409, "research_node_unavailable");
+	const form = await selectQuestionForm(participant.participant_id, nodeId);
+	const answers = normalizeResearchAnswers(form, body.answers);
+	const { score, maxScore } = scoreAnswers(form, answers);
+	const durationSeconds = researchDurationSeconds(body.durationSeconds);
+	const lateResponse = body.lateResponse === true;
+	const completedNodes = [...priorState.completedNodes, nodeId];
+	const nextNode = nextResearchNode(participant.route_arm, completedNodes);
+	const ownedResult = await env.RESEARCH_DB.prepare(
+		"SELECT selected_bundle_id FROM research_reward_issuances WHERE participant_id = ?",
+	).bind(participant.participant_id).all();
+	const candidates = await buildRewardCandidates(
+		(ownedResult.results || []).map(row => row.selected_bundle_id),
+		`${participant.participant_id}:${nodeId}`,
+	);
+	const now = Math.floor(Date.now() / 1_000);
+	const offer = {
+		offer_id: researchId("RO"),
+		node_id: nodeId,
+		candidate_bundle_1: candidates[0],
+		candidate_bundle_2: candidates[1],
+		candidate_bundle_3: candidates[2],
+	};
+	try {
+		await env.RESEARCH_DB.batch([
+			env.RESEARCH_DB.prepare(
+				`INSERT INTO research_responses (
+					response_id, participant_id, node_id, question_form_id, answers_json, score, max_score,
+					duration_seconds, late_response, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			).bind(
+				researchId("RR"),
+				participant.participant_id,
+				nodeId,
+				form.id,
+				JSON.stringify(answers),
+				score,
+				maxScore,
+				durationSeconds,
+				Number(lateResponse),
+				now,
+			),
+			env.RESEARCH_DB.prepare(
+				`UPDATE research_participants
+				 SET current_node = ?, completed_nodes_json = ?, late_response_count = late_response_count + ?, updated_at = ?
+				 WHERE participant_id = ?`,
+			).bind(nextNode || "", JSON.stringify(completedNodes), Number(lateResponse), now, participant.participant_id),
+			env.RESEARCH_DB.prepare(
+				`INSERT INTO research_reward_offers (
+					offer_id, participant_id, node_id, candidate_bundle_1, candidate_bundle_2, candidate_bundle_3, created_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+			).bind(
+				offer.offer_id,
+				participant.participant_id,
+				offer.node_id,
+				offer.candidate_bundle_1,
+				offer.candidate_bundle_2,
+				offer.candidate_bundle_3,
+				now,
+			),
+			researchEvent(env, participant.participant_id, "questionnaire_completed", {
+				nodeId,
+				durationSeconds,
+				lateResponse,
+			}, now),
+		]);
+	} catch (error) {
+		const duplicate = await env.RESEARCH_DB.prepare(
+			"SELECT 1 FROM research_responses WHERE participant_id = ? AND node_id = ?",
+		).bind(participant.participant_id, nodeId).first();
+		if (duplicate) return apiError("This research node has already been submitted.", 409, "research_node_submitted");
+		throw error;
+	}
+	const state = await publicResearchState({
+		...participant,
+		current_node: nextNode || "",
+		completed_nodes_json: JSON.stringify(completedNodes),
+		late_response_count: Number(participant.late_response_count || 0) + Number(lateResponse),
+		updated_at: now,
+	}, [...responseRows, { node_id: nodeId }], offer);
+	return json({
+		state,
+		feedback: { nodeId, recorded: true },
+		rewardOffer: state.rewardOffer,
 	});
+}
+
+async function handleResearchDefer(request, env) {
+	if (!(await rateLimit(env, request, "research_defer", 60, 3_600))) return apiError("Too many research deferrals. Please wait.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid research deferral.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
+	const state = await researchStateForParticipant(env, participant);
+	const nodeId = String(body.nodeId || "");
+	if (state.currentNode !== nodeId) return apiError("That research node is not available.", 409, "research_node_unavailable");
+	const deferCount = Math.min(MAX_RESEARCH_DEFERRALS, Number(state.deferCounts[nodeId] || 0) + 1);
+	const deferCounts = { ...state.deferCounts, [nodeId]: deferCount };
+	const now = Math.floor(Date.now() / 1_000);
+	const updatedParticipant = { ...participant, defer_counts_json: JSON.stringify(deferCounts), updated_at: now };
+	await env.RESEARCH_DB.batch([
+		env.RESEARCH_DB.prepare(
+			"UPDATE research_participants SET defer_counts_json = ?, updated_at = ? WHERE participant_id = ?",
+		).bind(updatedParticipant.defer_counts_json, now, participant.participant_id),
+		researchEvent(env, participant.participant_id, "questionnaire_deferred", { nodeId, deferCount }, now),
+	]);
+	return json({ state: await researchStateForParticipant(env, updatedParticipant), deferCount });
+}
+
+async function handleResearchExposure(request, env) {
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid research exposure.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
+	if (body.kind !== "ordinary_game") return apiError("Unknown research exposure.", 400, "invalid_research_exposure");
+	const state = await researchStateForParticipant(env, participant);
+	const shouldMarkCrossExposure = participant.route_arm === "archive_text" && state.completedNodes.includes("baseline");
+	if (!shouldMarkCrossExposure || state.crossExposed) return json({ state });
+	const now = Math.floor(Date.now() / 1_000);
+	const updatedParticipant = { ...participant, cross_exposed: 1, updated_at: now };
+	await env.RESEARCH_DB.batch([
+		env.RESEARCH_DB.prepare(
+			"UPDATE research_participants SET cross_exposed = 1, updated_at = ? WHERE participant_id = ?",
+		).bind(now, participant.participant_id),
+		researchEvent(env, participant.participant_id, "ordinary_game_exposure", { kind: body.kind }, now),
+	]);
+	return json({ state: await researchStateForParticipant(env, updatedParticipant) });
+}
+
+async function handleResearchWithdraw(request, env) {
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid research session.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	const withdrawnAt = Number(participant.withdrawn_at || 0) || Math.floor(Date.now() / 1_000);
+	const updatedParticipant = { ...participant, withdrawn_at: withdrawnAt, updated_at: withdrawnAt };
+	await env.RESEARCH_DB.batch([
+		env.RESEARCH_DB.prepare(
+			"UPDATE research_participants SET withdrawn_at = COALESCE(withdrawn_at, ?), updated_at = ? WHERE participant_id = ?",
+		).bind(withdrawnAt, withdrawnAt, participant.participant_id),
+		researchEvent(env, participant.participant_id, "withdrawn", {}, withdrawnAt),
+	]);
+	return json({ state: await researchStateForParticipant(env, updatedParticipant) });
+}
+
+async function handleResearchRewardChoose(request, env) {
+	if (!(await rateLimit(env, request, "research_reward_choose", 60, 3_600))) return apiError("Too many reward choices. Please wait.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid reward choice.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
+	const offerId = String(body.offerId || "");
+	const bundleId = String(body.bundleId || "");
+	const offer = await env.RESEARCH_DB.prepare(
+		`SELECT offer_id, participant_id, node_id, candidate_bundle_1, candidate_bundle_2, candidate_bundle_3
+		 FROM research_reward_offers WHERE offer_id = ? AND participant_id = ?`,
+	).bind(offerId, participant.participant_id).first();
+	if (!offer) return apiError("Research reward offer not found.", 404, "research_reward_offer_not_found");
+	if (!researchOfferCandidates(offer).includes(bundleId)) {
+		return apiError("That bundle was not offered for this research node.", 409, "bundle_not_offered");
+	}
+	let issuance = await env.RESEARCH_DB.prepare(
+		"SELECT selected_bundle_id FROM research_reward_issuances WHERE offer_id = ?",
+	).bind(offerId).first();
+	if (issuance) {
+		if (issuance.selected_bundle_id !== bundleId) return apiError("This reward offer has already been consumed.", 409, "reward_offer_consumed");
+		return researchRewardChoiceResponse(env, participant, offerId, bundleId);
+	}
+	const receiptToken = await researchReceiptToken(participant, offerId, bundleId);
+	const now = Math.floor(Date.now() / 1_000);
+	try {
+		await env.RESEARCH_DB.batch([
+			env.RESEARCH_DB.prepare(
+				`INSERT INTO research_reward_issuances (
+					issuance_id, participant_id, offer_id, receipt_hash, selected_bundle_id, issued_at, claimed_at
+				) VALUES (?, ?, ?, ?, ?, ?, NULL)`,
+			).bind(researchId("RI"), participant.participant_id, offerId, await sha256(receiptToken), bundleId, now),
+			researchEvent(env, participant.participant_id, "reward_receipt_issued", { offerId, bundleId }, now),
+		]);
+	} catch (error) {
+		issuance = await env.RESEARCH_DB.prepare(
+			"SELECT selected_bundle_id FROM research_reward_issuances WHERE offer_id = ?",
+		).bind(offerId).first();
+		if (!issuance) throw error;
+		if (issuance.selected_bundle_id !== bundleId) return apiError("This reward offer has already been consumed.", 409, "reward_offer_consumed");
+	}
+	return researchRewardChoiceResponse(env, participant, offerId, bundleId);
 }
 
 async function handleApi(request, env, url) {
@@ -2082,13 +2221,13 @@ async function handleApi(request, env, url) {
 			: (env.TURNSTILE_SITE_KEY || "");
 		return json({ turnstileSiteKey: siteKey, cloudSync: true, feedback: true, mailbox: true, social: true });
 	}
-	if (url.pathname === "/api/study/enroll" && request.method === "POST") return handleStudyEnroll(request, env);
-	if (url.pathname === "/api/study/session" && request.method === "POST") return handleStudyState(request, env);
-	if (url.pathname === "/api/study/advance" && request.method === "POST") return handleStudyAdvance(request, env);
-	if (url.pathname === "/api/study/submit" && request.method === "POST") return handleStudySubmit(request, env);
-	if (url.pathname === "/api/study/game-event" && request.method === "POST") return handleStudyGameEvent(request, env);
-	if (url.pathname === "/api/study/withdraw" && request.method === "POST") return handleStudyWithdraw(request, env);
-	if (url.pathname === "/api/admin/study/export" && request.method === "GET") return handleAdminStudyExport(request, env);
+	if (url.pathname === "/api/research/enroll" && request.method === "POST") return handleResearchEnroll(request, env);
+	if (url.pathname === "/api/research/session" && request.method === "POST") return handleResearchSession(request, env);
+	if (url.pathname === "/api/research/submit" && request.method === "POST") return handleResearchSubmit(request, env);
+	if (url.pathname === "/api/research/defer" && request.method === "POST") return handleResearchDefer(request, env);
+	if (url.pathname === "/api/research/exposure" && request.method === "POST") return handleResearchExposure(request, env);
+	if (url.pathname === "/api/research/withdraw" && request.method === "POST") return handleResearchWithdraw(request, env);
+	if (url.pathname === "/api/research/reward/choose" && request.method === "POST") return handleResearchRewardChoose(request, env);
 	if (url.pathname === "/api/auth/register" && request.method === "POST") return handleRegister(request, env);
 	if (url.pathname === "/api/auth/login" && request.method === "POST") return handleLogin(request, env);
 	if (url.pathname === "/api/auth/logout" && request.method === "POST") return handleLogout(request, env);
