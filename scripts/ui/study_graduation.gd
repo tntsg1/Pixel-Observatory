@@ -70,6 +70,8 @@ func _add_label(parent: Control, value: String, position_value: Vector2, size_va
 
 
 func _notify_parent() -> void:
+	if ResearchBridge.offer_after_level(24, "study_graduation"):
+		return
 	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
 		return
 	JavaScriptBridge.eval("window.parent.postMessage({source:'pixel-observatory-study-godot',event:'complete',complete:true}, location.origin)", true)

@@ -816,6 +816,13 @@ func _build_completion_navigation(level: Dictionary) -> void:
 	var continue_button: Button = _mission_button(continue_text, continue_position, continue_size, Color(0.08, 0.38, 0.20))
 	continue_button.name = "GraduationButton" if program_complete else "ContinueButton"
 	continue_button.pressed.connect(func() -> void:
+		var continue_scene := "observatory"
+		if GameManager.study_mode_active() and program_complete:
+			continue_scene = "study_graduation"
+		elif program_complete:
+			continue_scene = "graduation"
+		if ResearchBridge.offer_after_level(completed_level_number, continue_scene):
+			return
 		if GameManager.study_mode_active():
 			if program_complete:
 				if GameManager.try_story_epilogue(completed_level_number, "study_graduation"):
