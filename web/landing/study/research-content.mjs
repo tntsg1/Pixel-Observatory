@@ -61,10 +61,10 @@ export const QUESTION_FORMS = freezeDeep({
         "两台望远镜使用相似的目镜。为什么口径更大的望远镜更容易看见暗弱目标？",
         "light",
         [
-          ["light", "It gathers more light from the object.", "它能从目标收集更多光线。"],
           ["magnification", "It automatically gives the highest magnification.", "它会自动提供最高倍率。"],
           ["tracking", "It stops Earth from rotating.", "它会让地球停止自转。"],
           ["not-sure", "I am not sure.", "我不确定。"],
+          ["light", "It gathers more light from the object.", "它能从目标收集更多光线。"],
         ],
       ),
     ),
@@ -76,9 +76,9 @@ export const QUESTION_FORMS = freezeDeep({
         "从肉眼可见的目标转入望远镜视野时，通常哪种顺序最高效？",
         "sequence",
         [
-          ["sequence", "Naked eye, finder scope, then main telescope.", "肉眼、寻星镜、主望远镜。"],
           ["reverse", "Main telescope, then finder scope, then naked eye.", "主望远镜、寻星镜、肉眼。"],
           ["focus", "Focuser, then main telescope, then finder scope.", "调焦器、主望远镜、寻星镜。"],
+          ["sequence", "Naked eye, finder scope, then main telescope.", "肉眼、寻星镜、主望远镜。"],
           ["not-sure", "I am not sure.", "我不确定。"],
         ],
       ),
@@ -89,9 +89,9 @@ export const QUESTION_FORMS = freezeDeep({
         "sharpness",
         [
           ["brightness", "It makes every target brighter.", "它让所有目标变得更亮。"],
-          ["sharpness", "It changes image sharpness without directly increasing magnification.", "它改变图像清晰度，而不会直接提高倍率。"],
           ["direction", "It points the telescope to a different part of the sky.", "它让望远镜指向天空的另一个区域。"],
           ["not-sure", "I am not sure.", "我不确定。"],
+          ["sharpness", "It changes image sharpness without directly increasing magnification.", "它改变图像清晰度，而不会直接提高倍率。"],
         ],
       ),
       question(
@@ -100,8 +100,8 @@ export const QUESTION_FORMS = freezeDeep({
         "如果口径增大而其他观测条件保持相同，首先会发生什么变化？",
         "collect",
         [
-          ["colour", "The telescope removes every colour from the object.", "望远镜会去除目标的所有颜色。"],
           ["collect", "More of the object's light enters the telescope.", "更多来自目标的光线进入望远镜。"],
+          ["colour", "The telescope removes every colour from the object.", "望远镜会去除目标的所有颜色。"],
           ["focus", "The focuser no longer matters.", "调焦器不再重要。"],
           ["not-sure", "I am not sure.", "我不确定。"],
         ],
@@ -116,9 +116,9 @@ export const QUESTION_FORMS = freezeDeep({
         "finder",
         [
           ["focuser", "The focuser, to make the empty view sharp.", "调焦器，让空白视野变清晰。"],
-          ["finder", "The finder scope, to aim the telescope at the target.", "寻星镜，用来将望远镜对准目标。"],
           ["aperture", "An aperture cover, to darken the view.", "口径盖，用来使视野变暗。"],
           ["not-sure", "I am not sure.", "我不确定。"],
+          ["finder", "The finder scope, to aim the telescope at the target.", "寻星镜，用来将望远镜对准目标。"],
         ],
       ),
       question(
@@ -156,8 +156,8 @@ export const QUESTION_FORMS = freezeDeep({
         "开始寻找较难的目标时，哪种方法是从最宽视野逐步转到最有用的窄视野？",
         "wide-to-narrow",
         [
-          ["high-first", "Begin at the highest power, then try the finder scope.", "先用最高倍率，再尝试寻星镜。"],
           ["wide-to-narrow", "Use a finder or low-power view first, centre the target, then use a narrower view if needed.", "先使用寻星镜或低倍率视野，将目标居中后，再按需要转入更窄的视野。"],
+          ["high-first", "Begin at the highest power, then try the finder scope.", "先用最高倍率，再尝试寻星镜。"],
           ["focus-first", "Keep changing focus before choosing a direction.", "在选择方向前不断改变焦点。"],
           ["aperture-first", "Change aperture before locating the target.", "在找到目标前先改变口径。"],
         ],
@@ -195,8 +195,8 @@ export const QUESTION_FORMS = freezeDeep({
         "在高倍率目镜中看不到一个星系。为了找到它，最合理的第一步调整是什么？",
         "wider",
         [
-          ["wider", "Switch to a wider, lower-power view or use the finder scope.", "切换到更宽的低倍率视野，或使用寻星镜。"],
           ["higher", "Use an even higher-power eyepiece.", "使用倍率更高的目镜。"],
+          ["wider", "Switch to a wider, lower-power view or use the finder scope.", "切换到更宽的低倍率视野，或使用寻星镜。"],
           ["focus", "Defocus until the galaxy fills the field.", "故意失焦，直到星系填满视野。"],
           ["cover", "Cover part of the aperture.", "遮住部分口径。"],
         ],
@@ -207,8 +207,8 @@ export const QUESTION_FORMS = freezeDeep({
         "哪句话正确地区分了调焦和倍率？",
         "separate",
         [
-          ["separate", "Focus sharpens the image; magnification is changed by the optical setup, such as an eyepiece.", "调焦使图像清晰；倍率由目镜等光学配置改变。"],
           ["same", "Focus and magnification are the same control.", "调焦和倍率是同一种控制。"],
+          ["separate", "Focus sharpens the image; magnification is changed by the optical setup, such as an eyepiece.", "调焦使图像清晰；倍率由目镜等光学配置改变。"],
           ["reverse", "Focus makes the field wider, while magnification sharpens the image.", "调焦使视野变宽，而倍率使图像清晰。"],
           ["weather", "Both controls only change the weather.", "两种控制都只改变天气。"],
         ],
@@ -219,9 +219,9 @@ export const QUESTION_FORMS = freezeDeep({
         "一颗恒星在寻星镜中已经居中，却没有出现在主目镜中。这最可能说明什么？",
         "misaligned",
         [
-          ["misaligned", "The finder and main telescope are not aligned on the same direction.", "寻星镜与主望远镜没有对准同一个方向。"],
           ["large-aperture", "The aperture is too large.", "口径太大。"],
           ["overfocused", "The telescope has too much focus.", "望远镜调焦过多。"],
+          ["misaligned", "The finder and main telescope are not aligned on the same direction.", "寻星镜与主望远镜没有对准同一个方向。"],
           ["colour", "The star has changed colour.", "恒星改变了颜色。"],
         ],
       ),
@@ -234,9 +234,9 @@ export const QUESTION_FORMS = freezeDeep({
         "为什么在寻找目标时，通常先选低倍率目镜，再选高倍率目镜？",
         "wide-field",
         [
-          ["wide-field", "Its wider field makes it easier to place the target before narrowing the view.", "它的视野更宽，便于在缩小视野前先把目标放进去。"],
           ["more-colour", "It adds more colour to every object.", "它会给每个目标增加更多颜色。"],
           ["no-focus", "It never needs focusing.", "它永远不需要调焦。"],
+          ["wide-field", "Its wider field makes it easier to place the target before narrowing the view.", "它的视野更宽，便于在缩小视野前先把目标放进去。"],
           ["more-light", "It makes the aperture physically larger.", "它会让口径在物理上变大。"],
         ],
       ),
@@ -247,8 +247,8 @@ export const QUESTION_FORMS = freezeDeep({
         "focus",
         [
           ["eyepiece", "Use a higher-power eyepiece immediately.", "立刻换成倍率更高的目镜。"],
-          ["focus", "Adjust focus for a sharper image.", "调整焦点，让图像更清晰。"],
           ["finder", "Aim only with the finder scope.", "只用寻星镜重新瞄准。"],
+          ["focus", "Adjust focus for a sharper image.", "调整焦点，让图像更清晰。"],
           ["aperture", "Reduce the aperture to make the planet smaller.", "减小口径，让行星变小。"],
         ],
       ),
@@ -258,10 +258,10 @@ export const QUESTION_FORMS = freezeDeep({
         "什么实际结果表明寻星镜校准有效？",
         "agreement",
         [
-          ["agreement", "The same centred object appears where expected in both views.", "同一个居中目标会按预期出现在两个视野中。"],
           ["brightness", "Every object becomes brighter in both views.", "每个目标在两个视野中都会变亮。"],
           ["magnification", "Both views have exactly the same magnification.", "两个视野具有完全相同的倍率。"],
           ["weather", "The sky becomes free of turbulence.", "天空不再有大气扰动。"],
+          ["agreement", "The same centred object appears where expected in both views.", "同一个居中目标会按预期出现在两个视野中。"],
         ],
       ),
     ),
@@ -275,9 +275,9 @@ export const QUESTION_FORMS = freezeDeep({
         "行星在极高倍率下看起来更大，却显示更少细节且不稳定。最合理的结论是什么？",
         "useful-limit",
         [
-          ["useful-limit", "The observation has passed a useful magnification limit set by the telescope and atmosphere.", "观测已超过由望远镜和大气共同限制的有效倍率。"],
           ["always-more", "More magnification always creates more detail.", "更高倍率总会产生更多细节。"],
           ["focus-only", "The problem can only be fixed by focusing.", "这个问题只能靠调焦解决。"],
+          ["useful-limit", "The observation has passed a useful magnification limit set by the telescope and atmosphere.", "观测已超过由望远镜和大气共同限制的有效倍率。"],
           ["aperture-cover", "Covering the aperture will add detail.", "遮住口径会增加细节。"],
         ],
       ),
@@ -287,10 +287,10 @@ export const QUESTION_FORMS = freezeDeep({
         "在大气视宁度较差的夜晚，通常哪种观测选择更明智？",
         "lower-power",
         [
-          ["lower-power", "Use a lower, more useful magnification or wait for steadier air.", "使用较低但更有效的倍率，或等待空气更稳定。"],
           ["maximum", "Use the highest available magnification at once.", "立刻使用可用的最高倍率。"],
           ["ignore", "Ignore the moving and boiling image.", "忽略不断晃动和翻滚的图像。"],
           ["finder", "Use the finder scope as the final observing view.", "把寻星镜作为最终观测视野。"],
+          ["lower-power", "Use a lower, more useful magnification or wait for steadier air.", "使用较低但更有效的倍率，或等待空气更稳定。"],
         ],
       ),
       question(
@@ -299,8 +299,8 @@ export const QUESTION_FORMS = freezeDeep({
         "为什么居中的恒星会慢慢离开没有追踪的望远镜视野？",
         "earth-rotation",
         [
-          ["battery", "The eyepiece battery is draining.", "目镜电池正在耗尽。"],
           ["earth-rotation", "Earth's rotation makes the sky appear to drift across the field.", "地球自转让天空看起来穿过视野漂移。"],
+          ["battery", "The eyepiece battery is draining.", "目镜电池正在耗尽。"],
           ["aperture", "The aperture has become smaller.", "口径变小了。"],
           ["focus", "The focuser slowly moves the sky.", "调焦器慢慢移动了天空。"],
         ],
@@ -314,10 +314,10 @@ export const QUESTION_FORMS = freezeDeep({
         "哪项最准确地描述了有效倍率上限？",
         "limit",
         [
-          ["limit", "Beyond it, enlarging the image no longer reveals reliable new detail.", "超过它后，继续放大图像不再显示可靠的新细节。"],
           ["brightness", "It is the point where every target becomes brighter.", "它是每个目标都会变亮的临界点。"],
           ["finder", "It is the widest field of the finder scope.", "它是寻星镜最宽的视野。"],
           ["colour", "It is the colour of the main mirror.", "它是主镜的颜色。"],
+          ["limit", "Beyond it, enlarging the image no longer reveals reliable new detail.", "超过它后，继续放大图像不再显示可靠的新细节。"],
         ],
       ),
       question(
@@ -338,8 +338,8 @@ export const QUESTION_FORMS = freezeDeep({
         "长时间观测时，望远镜追踪的作用是什么？",
         "counter-drift",
         [
-          ["counter-drift", "It moves the telescope to counter the sky's apparent drift.", "它移动望远镜，以抵消天空的视运动漂移。"],
           ["increase-light", "It increases the aperture's light gathering.", "它提高口径的集光能力。"],
+          ["counter-drift", "It moves the telescope to counter the sky's apparent drift.", "它移动望远镜，以抵消天空的视运动漂移。"],
           ["change-colour", "It changes the target's colour.", "它改变目标的颜色。"],
           ["replace-focus", "It replaces the need to focus.", "它取代调焦的需要。"],
         ],
@@ -365,8 +365,8 @@ export const QUESTION_FORMS = freezeDeep({
         "经过认真调焦后，木星的高倍率视野仍每时每刻都在波动。你应该尝试什么？",
         "reduce",
         [
-          ["reduce", "Reduce magnification and see whether the image becomes more usable.", "降低倍率，看看图像是否更易使用。"],
           ["increase", "Increase magnification until the ripples disappear.", "不断提高倍率，直到波动消失。"],
+          ["reduce", "Reduce magnification and see whether the image becomes more usable.", "降低倍率，看看图像是否更易使用。"],
           ["ignore", "Treat the ripples as extra planetary detail.", "把这些波动当作额外的行星细节。"],
           ["aperture", "Close the finder scope cap.", "盖上寻星镜镜盖。"],
         ],
@@ -378,8 +378,8 @@ export const QUESTION_FORMS = freezeDeep({
         "tracking",
         [
           ["focus", "A finer focuser.", "更精细的调焦器。"],
-          ["tracking", "A tracking mount that follows the sky's apparent motion.", "能够跟随天空视运动的追踪支架。"],
           ["aperture", "A smaller objective lens.", "更小的物镜。"],
+          ["tracking", "A tracking mount that follows the sky's apparent motion.", "能够跟随天空视运动的追踪支架。"],
           ["finder", "A wider finder reticle.", "更宽的寻星镜十字线。"],
         ],
       ),
@@ -406,9 +406,9 @@ export const QUESTION_FORMS = freezeDeep({
         "给反射望远镜准直的目的是什么？",
         "mirror-axis",
         [
-          ["mirror-axis", "To align the mirrors so their optical axes send light to the intended focus.", "让镜面光轴对齐，使光线汇聚到预期焦点。"],
           ["colour", "To add a blue fringe around every star.", "给每颗星增加蓝色边缘。"],
           ["tracking", "To make Earth rotate more slowly.", "让地球自转更慢。"],
+          ["mirror-axis", "To align the mirrors so their optical axes send light to the intended focus.", "让镜面光轴对齐，使光线汇聚到预期焦点。"],
           ["aperture", "To change the mirror's diameter.", "改变主镜直径。"],
         ],
       ),
@@ -418,10 +418,10 @@ export const QUESTION_FORMS = freezeDeep({
         "为什么简单反射望远镜通常比简单折射望远镜更不易产生色差？",
         "mirrors",
         [
-          ["mirrors", "Mirrors reflect different visible colours without separating them by lens refraction in the same way.", "镜面反射不同可见光颜色时，不会像透镜折射那样把它们分开。"],
           ["focuser", "Reflectors have no need for focusing.", "反射望远镜不需要调焦。"],
           ["tracking", "Reflectors automatically track the sky.", "反射望远镜会自动追踪天空。"],
           ["finder", "Reflectors use no finder scope.", "反射望远镜不用寻星镜。"],
+          ["mirrors", "Mirrors reflect different visible colours without separating them by lens refraction in the same way.", "镜面反射不同可见光颜色时，不会像透镜折射那样把它们分开。"],
         ],
       ),
     ),
@@ -434,8 +434,8 @@ export const QUESTION_FORMS = freezeDeep({
         "secondary",
         [
           ["primary", "The large primary mirror, directly through the tube wall.", "大主镜，直接穿过镜筒壁。"],
-          ["secondary", "The small flat secondary mirror near the front of the tube.", "靠近镜筒前端的小型平面副镜。"],
           ["finder", "The finder-scope lens.", "寻星镜透镜。"],
+          ["secondary", "The small flat secondary mirror near the front of the tube.", "靠近镜筒前端的小型平面副镜。"],
           ["tripod", "The tripod head.", "三脚架云台。"],
         ],
       ),
@@ -445,10 +445,10 @@ export const QUESTION_FORMS = freezeDeep({
         "反射望远镜即使认真调焦后，恒星图像仍不对称、形状异常。哪项维护检查最相关？",
         "collimation",
         [
-          ["collimation", "Check collimation of the primary and secondary mirrors.", "检查主镜与副镜的准直。"],
           ["colour", "Change the star's colour setting.", "改变恒星的颜色设置。"],
           ["tracking", "Turn off all tracking.", "关闭所有追踪。"],
           ["aperture", "Make the aperture smaller than the finder scope.", "把口径缩小到比寻星镜还小。"],
+          ["collimation", "Check collimation of the primary and secondary mirrors.", "检查主镜与副镜的准直。"],
         ],
       ),
       question(
@@ -472,10 +472,10 @@ export const QUESTION_FORMS = freezeDeep({
         "牛顿式镜筒底部的大型凹面镜有什么作用？",
         "primary",
         [
-          ["primary", "It gathers incoming light and reflects it toward the secondary mirror.", "它收集入射光，并把光反射向副镜。"],
           ["focus", "It is only used to turn the focuser knob.", "它只用来转动调焦旋钮。"],
           ["finder", "It shows a wider finder view.", "它显示更宽的寻星镜视野。"],
           ["tracking", "It moves the mount with Earth's rotation.", "它随着地球自转移动支架。"],
+          ["primary", "It gathers incoming light and reflects it toward the secondary mirror.", "它收集入射光，并把光反射向副镜。"],
         ],
       ),
       question(
@@ -513,10 +513,10 @@ export const QUESTION_FORMS = freezeDeep({
         "哪组观测条件与图像效果的对应最准确？",
         "conditions",
         [
-          ["conditions", "Cloud reduces incoming light, light pollution brightens the background, and poor seeing makes fine detail dance.", "云层减少入射光，光污染使背景变亮，视宁度差让细节跳动。"],
           ["reverse", "Cloud improves contrast, light pollution sharpens stars, and poor seeing gathers more light.", "云层提高对比度，光污染使恒星变清晰，视宁度差收集更多光。"],
           ["focus", "All three conditions are solved by the focuser alone.", "这三种情况都能仅靠调焦器解决。"],
           ["tracking", "All three conditions are caused by tracking.", "这三种情况都由追踪引起。"],
+          ["conditions", "Cloud reduces incoming light, light pollution brightens the background, and poor seeing makes fine detail dance.", "云层减少入射光，光污染使背景变亮，视宁度差让细节跳动。"],
         ],
       ),
       question(
@@ -525,8 +525,8 @@ export const QUESTION_FORMS = freezeDeep({
         "哪种观测记录能为后续比较提供最有力的证据？",
         "complete-record",
         [
-          ["memory", "A memory that the image looked better tonight.", "记得今晚图像看起来更好。"],
           ["complete-record", "The target, time, instrument settings, exposure, observing conditions, and original image or note.", "目标、时间、仪器设置、曝光、观测条件以及原始图像或记录。"],
+          ["memory", "A memory that the image looked better tonight.", "记得今晚图像看起来更好。"],
           ["title", "Only a decorative title for the image.", "只给图像取一个装饰性标题。"],
           ["guess", "A guess about what caused the change.", "猜测变化的原因。"],
         ],
@@ -552,9 +552,9 @@ export const QUESTION_FORMS = freezeDeep({
         "恒星仍可见，但边缘快速抖动，而天空背景并没有整体变亮。最可能是什么情况？",
         "seeing",
         [
+          ["seeing", "Poor atmospheric seeing.", "大气视宁度差。"],
           ["cloud", "Thick cloud cover.", "浓厚云层。"],
           ["light-pollution", "Light pollution alone.", "仅仅是光污染。"],
-          ["seeing", "Poor atmospheric seeing.", "大气视宁度差。"],
           ["aperture", "A larger aperture.", "更大的口径。"],
         ],
       ),
@@ -564,8 +564,8 @@ export const QUESTION_FORMS = freezeDeep({
         "你想公平比较两个目镜。哪种方法能提高证据质量？",
         "repeat",
         [
-          ["repeat", "Use the same target under noted conditions, record each configuration, and repeat the comparison.", "在记录好的条件下观察同一目标，记录每种配置，并重复比较。"],
           ["switch", "Switch every setting at once and keep no notes.", "一次切换所有设置，不做任何记录。"],
+          ["repeat", "Use the same target under noted conditions, record each configuration, and repeat the comparison.", "在记录好的条件下观察同一目标，记录每种配置，并重复比较。"],
           ["claim", "Choose the eyepiece with the more confident claim.", "选择说法更自信的目镜。"],
           ["social", "Ask which eyepiece has the prettier name.", "询问哪个目镜名字更好看。"],
         ],
@@ -576,8 +576,8 @@ export const QUESTION_FORMS = freezeDeep({
         "一次有记录的调整后，截图变清晰了。什么能使“配置导致图像变化”的结论更可信？",
         "repeatable",
         [
-          ["repeatable", "The same adjustment produces a similar effect in repeat observations with the configuration recorded.", "在记录配置的重复观测中，同样的调整产生相似效果。"],
           ["unrelated", "A different target looked impressive at another time.", "另一个目标在别的时间看起来很壮观。"],
+          ["repeatable", "The same adjustment produces a similar effect in repeat observations with the configuration recorded.", "在记录配置的重复观测中，同样的调整产生相似效果。"],
           ["colour", "The interface colour changed after the screenshot.", "截图后界面颜色改变了。"],
           ["guess", "The observer likes the new setting more.", "观测者更喜欢新设置。"],
         ],
@@ -603,9 +603,9 @@ export const QUESTION_FORMS = freezeDeep({
         "哪一项最不适合作为配置导致图像变化的证据？",
         "memory-only",
         [
-          ["memory-only", "An unrecorded memory that it seemed sharper.", "没有记录的记忆，觉得它似乎更清晰。"],
           ["settings", "A saved list of settings used for the image.", "保存的图像设置列表。"],
           ["conditions", "Notes about target and observing conditions.", "关于目标和观测条件的记录。"],
+          ["memory-only", "An unrecorded memory that it seemed sharper.", "没有记录的记忆，觉得它似乎更清晰。"],
           ["comparison", "A repeatable before-and-after comparison.", "可重复的前后对比。"],
         ],
       ),
@@ -615,9 +615,9 @@ export const QUESTION_FORMS = freezeDeep({
         "为什么观测者在研究图像变化时应避免一次改变许多设置？",
         "confounded",
         [
-          ["confounded", "It becomes hard to tell which configuration change produced the effect.", "这样会很难判断究竟是哪项配置变化产生了效果。"],
           ["brightness", "It makes every target intrinsically brighter.", "它会让每个目标本身更亮。"],
           ["tracking", "It permanently stops Earth rotation.", "它会永久停止地球自转。"],
+          ["confounded", "It becomes hard to tell which configuration change produced the effect.", "这样会很难判断究竟是哪项配置变化产生了效果。"],
           ["colour", "It turns radio data into visible light.", "它会把无线电数据变成可见光。"],
         ],
       ),
@@ -632,8 +632,8 @@ export const QUESTION_FORMS = freezeDeep({
         "哪种配置最适合观测一团暗弱而宽广的星云？",
         "wide-faint",
         [
-          ["wide-faint", "A light-gathering telescope with a wide, low-power field that can contain the nebula.", "具有较强集光能力、并能容纳整团星云的宽广低倍率视野望远镜。"],
           ["tiny-high", "The narrowest possible field at the highest available magnification.", "在最高可用倍率下使用最窄的视野。"],
+          ["wide-faint", "A light-gathering telescope with a wide, low-power field that can contain the nebula.", "具有较强集光能力、并能容纳整团星云的宽广低倍率视野望远镜。"],
           ["finder-only", "Only a finder scope, with no main telescope.", "只使用寻星镜，不使用主望远镜。"],
           ["indoor", "Any telescope pointed at an indoor wall.", "把任意望远镜对准室内墙壁。"],
         ],
@@ -645,8 +645,8 @@ export const QUESTION_FORMS = freezeDeep({
         "mapped-data",
         [
           ["visible-colour", "Exactly the colours a human eye would see at the target.", "人眼在目标处会看到的完全相同的颜色。"],
-          ["mapped-data", "A chosen mapping from infrared filters or intensities into visible display colours.", "把红外滤镜或强度按照选定规则映射为屏幕可见颜色。"],
           ["temperature-only", "Only the target's surface temperature, with no other data choices.", "只代表目标表面温度，不包含其他数据选择。"],
+          ["mapped-data", "A chosen mapping from infrared filters or intensities into visible display colours.", "把红外滤镜或强度按照选定规则映射为屏幕可见颜色。"],
           ["radio", "A record of audio sound from the target.", "目标发出的音频声音记录。"],
         ],
       ),
@@ -656,10 +656,10 @@ export const QUESTION_FORMS = freezeDeep({
         "无线电图与光学图像之间的关键区别是什么？",
         "wavelength",
         [
-          ["wavelength", "The radio map measures radio-wavelength emission, while an optical image measures visible light.", "无线电图测量无线电波段辐射，而光学图像测量可见光。"],
           ["shape", "Radio data can never be shown as an image.", "无线电数据永远不能显示为图像。"],
           ["colour", "Optical images have colour, but radio data have no values to display.", "光学图像有颜色，而无线电数据没有可显示的数值。"],
           ["focus", "Radio observations are only different because they have no focus.", "无线电观测的区别只是没有焦点。"],
+          ["wavelength", "The radio map measures radio-wavelength emission, while an optical image measures visible light.", "无线电图测量无线电波段辐射，而光学图像测量可见光。"],
         ],
       ),
     ),
@@ -671,9 +671,9 @@ export const QUESTION_FORMS = freezeDeep({
         "在大气稳定的夜晚，为观察细小的行星细节，哪种选择最合理？",
         "appropriate-power",
         [
-          ["appropriate-power", "Use an instrument with enough resolving power and an appropriate useful magnification for the conditions.", "选择分辨能力足够的仪器，并在当前条件下使用合适的有效倍率。"],
           ["maximum-only", "Use the maximum magnification printed on any eyepiece regardless of the image.", "不看图像情况，使用任意目镜标注的最大倍率。"],
           ["wide-only", "Use the widest finder view because all planets are wide objects.", "因为所有行星都是宽广目标，所以只用最宽的寻星镜视野。"],
+          ["appropriate-power", "Use an instrument with enough resolving power and an appropriate useful magnification for the conditions.", "选择分辨能力足够的仪器，并在当前条件下使用合适的有效倍率。"],
           ["random", "Choose a telescope by the colour of its tube.", "按镜筒颜色选择望远镜。"],
         ],
       ),
@@ -683,10 +683,10 @@ export const QUESTION_FORMS = freezeDeep({
         "一幅红外图把尘埃区域显示为橙色。观测者在断言尘埃肉眼可见为橙色之前，应先检查什么？",
         "legend",
         [
-          ["legend", "The image legend and which infrared filters or values were assigned to orange.", "图例，以及哪些红外滤镜或数值被分配为橙色。"],
           ["focuser", "Whether the optical focuser is locked.", "光学调焦器是否锁定。"],
           ["tracking", "Whether Earth stopped rotating.", "地球是否停止自转。"],
           ["aperture", "Whether the aperture is completely covered.", "口径是否被完全遮住。"],
+          ["legend", "The image legend and which infrared filters or values were assigned to orange.", "图例，以及哪些红外滤镜或数值被分配为橙色。"],
         ],
       ),
       question(
@@ -710,10 +710,10 @@ export const QUESTION_FORMS = freezeDeep({
         "哪种观测方案更适合紧凑明亮的行星，而不是暗弱扩展的星云？",
         "planet-plan",
         [
-          ["planet-plan", "Use useful moderate or higher magnification when the atmosphere is steady enough to support detail.", "在大气足够稳定、能支持细节时，使用有效的中高倍率。"],
           ["nebula-plan", "Always use the widest possible field with no concern for detail.", "始终使用最宽视野，完全不关注细节。"],
           ["finder-plan", "Use only the finder scope because it has a crosshair.", "只使用带十字线的寻星镜。"],
           ["random-plan", "Choose the setup at random after the image appears.", "图像出现后随机选择配置。"],
+          ["planet-plan", "Use useful moderate or higher magnification when the atmosphere is steady enough to support detail.", "在大气足够稳定、能支持细节时，使用有效的中高倍率。"],
         ],
       ),
       question(
