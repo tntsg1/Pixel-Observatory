@@ -66,17 +66,18 @@ const beforeBaselineSession = await post("/api/research/session", {
 }, { ip: sample.ip });
 assert.equal(Object.hasOwn(beforeBaselineSession.state, "routeArm"), false, "Session cannot reveal an assignment before baseline.");
 
-const assigned = await Promise.all(enrolled.map(async (participant) => {
+const assigned = await Promise.all(enrolled.map(async (participant, index) => {
 	const result = await post("/api/research/submit", {
 		participantId: participant.participantId,
 		token: participant.token,
 		nodeId: "baseline",
 		answers: participant.baselineAnswers,
 		durationSeconds: 45,
-		lateResponse: false,
+		lateResponse: index === 0,
 	}, { ip: participant.ip });
 	assert.equal(result.feedback.nodeId, "baseline");
 	assert.equal(result.rewardOffer.candidates.length, 3, "Baseline completion yields exactly three candidates.");
+	assert.equal(result.state.lateResponseCount, 0, "A timely baseline ignores a client-declared lateResponse hint.");
 	participant.state = result.state;
 	return participant;
 }));
@@ -151,10 +152,20 @@ const timelyFieldA = await post("/api/research/submit", {
 	nodeId: "A",
 	answers: answersFor(fieldParticipant.state),
 	durationSeconds: 50,
-	lateResponse: false,
+	lateResponse: true,
 }, { ip: fieldParticipant.ip });
-assert.equal(timelyFieldA.state.lateResponseCount, 0);
+assert.equal(timelyFieldA.state.lateResponseCount, 0, "A timely field node ignores a client-declared lateResponse hint.");
 assert.equal(timelyFieldA.state.currentNode, null, "Field state waits after A until the Level 11 checkpoint.");
+
+const prematureFieldB = await post("/api/research/submit", {
+	participantId: fieldParticipant.participantId,
+	token: fieldParticipant.token,
+	nodeId: "B",
+	answers: {},
+	durationSeconds: 30,
+	lateResponse: false,
+}, { expectedStatus: 409, ip: fieldParticipant.ip });
+assert.equal(prematureFieldB.error, "research_checkpoint_required");
 
 const level11Checkpoint = await post("/api/research/checkpoint", {
 	participantId: fieldParticipant.participantId,
@@ -389,6 +400,23 @@ const withdrawnRewardChoice = await post("/api/research/reward/choose", {
 	bundleId: offeredBundle,
 }, { expectedStatus: 409, ip: textParticipant.ip });
 assert.equal(withdrawnRewardChoice.error, "research_withdrawn");
+
+const withdrawnExposure = await post("/api/research/exposure", {
+	participantId: textParticipant.participantId,
+	token: textParticipant.token,
+	kind: "ordinary_game",
+}, { expectedStatus: 409, ip: textParticipant.ip });
+assert.equal(withdrawnExposure.error, "research_withdrawn");
+
+const sessionAfterRejectedExposure = await post("/api/research/session", {
+	participantId: textParticipant.participantId,
+	token: textParticipant.token,
+}, { ip: textParticipant.ip });
+assert.deepEqual(
+	sessionAfterRejectedExposure,
+	withdrawnSession,
+	"Rejected post-withdraw exposure leaves the participant state unchanged.",
+);
 
 await post("/api/study/enroll", {
 	consent: true,

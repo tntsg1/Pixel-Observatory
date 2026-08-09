@@ -2097,7 +2097,7 @@ async function handleResearchSubmit(request, env) {
 	const answers = normalizeResearchAnswers(form, body.answers);
 	const { score, maxScore } = scoreAnswers(form, answers);
 	const durationSeconds = researchDurationSeconds(body.durationSeconds);
-	const lateResponse = body.lateResponse === true || researchResponseIsLate(nodeId, evidence);
+	const lateResponse = researchResponseIsLate(nodeId, evidence);
 	const completedNodes = [...priorState.completedNodes, nodeId];
 	const nextNode = researchProjectedCurrentNode(participant.route_arm, completedNodes, evidence);
 	const ownedResult = await env.RESEARCH_DB.prepare(
