@@ -1,3 +1,13 @@
+import {
+	assignRoute,
+	buildRewardCandidates,
+	nextResearchNode,
+	orderedQuestions,
+	publicResearchState,
+	scoreAnswers,
+	selectQuestionForm,
+} from "./research-program.mjs";
+
 const ISOLATION_HEADERS = {
 	"Cross-Origin-Embedder-Policy": "require-corp",
 	"Cross-Origin-Opener-Policy": "same-origin",
@@ -15,29 +25,6 @@ const MAX_MESSAGE_LENGTH = 4_000;
 const MAX_COMMUNITY_BODY = 3_000;
 const MAX_OBSERVATION_SHARE_BYTES = 24_000;
 const OBSERVATION_SHARE_ID_PATTERN = /^OBS-[A-Z0-9]{8,40}$/;
-const STUDY_PARTICIPANT_PATTERN = /^STUDY-[A-Z0-9_-]{8,48}$/;
-const STUDY_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{32,128}$/;
-const STUDY_MIN_GAME_SECONDS = 300;
-const STUDY_PHASES = new Set(["pre", "reading_post", "post", "experience"]);
-const STUDY_PHASE_NEXT_STAGE = {
-	pre: "reading",
-	reading_post: "game",
-	post: "experience",
-	experience: "complete",
-};
-const STUDY_ANSWER_KEY = {
-	workflow: "finder",
-	magnification: "short",
-	focus: "focuser",
-	seeing: "lower",
-	tracking: "rotation",
-	chromatic: "refraction",
-	light: "glow",
-	aperture: "collect",
-	alignment: "agree",
-	deep_sky: "expected",
-};
-const STUDY_QUESTIONNAIRE_VERSION = "foundation_1_24_v1";
 const PUBLIC_SITE_ORIGIN = "https://pixelobservatorygame.com";
 const ONLINE_WINDOW_SECONDS = 120;
 const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
@@ -1831,14 +1818,40 @@ async function handleCommunityReplyCreate(request, env, postId) {
 	return json({ ok: true, replyId: id }, 201);
 }
 
+const LEGACY_STUDY = {
+	participantIdPattern: /^STUDY-[A-Z0-9_-]{8,48}$/,
+	tokenPattern: /^[a-zA-Z0-9_-]{32,128}$/,
+	minimumGameSeconds: 300,
+	phases: new Set(["pre", "reading_post", "post", "experience"]),
+	phaseNextStage: {
+		pre: "reading",
+		reading_post: "game",
+		post: "experience",
+		experience: "complete",
+	},
+	answerKey: {
+		workflow: "finder",
+		magnification: "short",
+		focus: "focuser",
+		seeing: "lower",
+		tracking: "rotation",
+		chromatic: "refraction",
+		light: "glow",
+		aperture: "collect",
+		alignment: "agree",
+		deep_sky: "expected",
+	},
+	questionnaireVersion: "foundation_1_24_v1",
+};
+
 function normalizeStudyParticipantId(value) {
 	const participantId = String(value || "").trim();
-	return STUDY_PARTICIPANT_PATTERN.test(participantId) ? participantId : "";
+	return LEGACY_STUDY.participantIdPattern.test(participantId) ? participantId : "";
 }
 
 function normalizeStudyToken(value) {
 	const token = String(value || "").trim();
-	return STUDY_TOKEN_PATTERN.test(token) ? token : "";
+	return LEGACY_STUDY.tokenPattern.test(token) ? token : "";
 }
 
 function normalizeStudyAnswers(value) {
@@ -1853,10 +1866,10 @@ function normalizeStudyAnswers(value) {
 
 function studyScore(answers) {
 	let score = 0;
-	for (const [key, correctAnswer] of Object.entries(STUDY_ANSWER_KEY)) {
+	for (const [key, correctAnswer] of Object.entries(LEGACY_STUDY.answerKey)) {
 		if (answers[key] === correctAnswer) score += 1;
 	}
-	return { score, maxScore: Object.keys(STUDY_ANSWER_KEY).length };
+	return { score, maxScore: Object.keys(LEGACY_STUDY.answerKey).length };
 }
 
 function studyQualityFlags(answers, durationSeconds) {
@@ -1888,7 +1901,7 @@ function publicStudyState(row) {
 		status: row.status,
 		nextStage: row.next_stage,
 		gameActiveSeconds: Number(row.game_active_seconds || 0),
-		minimumGameSeconds: STUDY_MIN_GAME_SECONDS,
+		minimumGameSeconds: LEGACY_STUDY.minimumGameSeconds,
 		completed: {
 			pretest: Number(row.pretest_completed_at || 0) > 0,
 			reading: Number(row.reading_completed_at || 0) > 0,
@@ -1923,7 +1936,7 @@ async function handleStudyEnroll(request, env) {
 		ok: true,
 		participantId,
 		token,
-		state: { participantId, language, status: "enrolled", nextStage: "pretest", gameActiveSeconds: 0, minimumGameSeconds: STUDY_MIN_GAME_SECONDS, completed: {} },
+		state: { participantId, language, status: "enrolled", nextStage: "pretest", gameActiveSeconds: 0, minimumGameSeconds: LEGACY_STUDY.minimumGameSeconds, completed: {} },
 	}, 201);
 }
 
@@ -1956,8 +1969,8 @@ async function handleStudyAdvance(request, env) {
 			.bind(now, now, participant.id).run();
 	} else if (action === "finish_game") {
 		if (participant.next_stage !== "game") return apiError("The game stage is not currently active.", 409, "invalid_study_stage");
-		if (Number(participant.game_active_seconds || 0) < STUDY_MIN_GAME_SECONDS) {
-			return apiError(`Please keep observing for at least ${Math.ceil(STUDY_MIN_GAME_SECONDS / 60)} active minutes before continuing.`, 409, "insufficient_game_time");
+		if (Number(participant.game_active_seconds || 0) < LEGACY_STUDY.minimumGameSeconds) {
+			return apiError(`Please keep observing for at least ${Math.ceil(LEGACY_STUDY.minimumGameSeconds / 60)} active minutes before continuing.`, 409, "insufficient_game_time");
 		}
 		await env.DB.prepare("UPDATE study_participants SET status = 'post_game', next_stage = 'posttest', game_completed_at = ?, updated_at = ? WHERE id = ?")
 			.bind(now, now, participant.id).run();
@@ -1975,14 +1988,14 @@ async function handleStudySubmit(request, env) {
 	const participant = await studyParticipantForPayload(env, body);
 	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
 	const phase = String(body.phase || "");
-	if (!STUDY_PHASES.has(phase)) return apiError("Unknown study phase.", 400, "invalid_study_phase");
+	if (!LEGACY_STUDY.phases.has(phase)) return apiError("Unknown study phase.", 400, "invalid_study_phase");
 	const allowedStage = { pre: "pretest", reading_post: "reading_posttest", post: "posttest", experience: "experience" }[phase];
 	if (participant.next_stage !== allowedStage) return apiError("That study stage is not available yet.", 409, "invalid_study_stage");
 	const answers = normalizeStudyAnswers(body.answers);
 	const durationSeconds = Math.max(0, Math.min(7_200, Math.floor(Number(body.durationSeconds || 0))));
 	const now = Math.floor(Date.now() / 1000);
 	const knowledgePhase = phase !== "experience";
-	if (knowledgePhase) answers.questionnaire_version = STUDY_QUESTIONNAIRE_VERSION;
+	if (knowledgePhase) answers.questionnaire_version = LEGACY_STUDY.questionnaireVersion;
 	const result = knowledgePhase ? studyScore(answers) : { score: null, maxScore: null };
 	const flags = studyQualityFlags(answers, durationSeconds);
 	const responseId = `SR-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
@@ -2000,7 +2013,7 @@ async function handleStudySubmit(request, env) {
 		post: "posttest_completed_at",
 		experience: "experience_completed_at",
 	}[phase];
-	const nextStage = STUDY_PHASE_NEXT_STAGE[phase];
+	const nextStage = LEGACY_STUDY.phaseNextStage[phase];
 	const status = phase === "experience" ? "completed" : participant.status;
 	await env.DB.prepare(`UPDATE study_participants SET ${completionColumn} = ?, next_stage = ?, status = ?, updated_at = ? WHERE id = ?`)
 		.bind(now, nextStage, status, now, participant.id).run();
@@ -2025,7 +2038,7 @@ async function handleStudyGameEvent(request, env) {
 		env.DB.prepare("INSERT INTO study_events (id, participant_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?, ?)")
 			.bind(`SE-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`, participant.id, `game_${eventType}`, JSON.stringify({ activeSeconds }), now),
 	]);
-	return json({ ok: true, activeSeconds: Number(participant.game_active_seconds || 0) + activeSeconds, minimumGameSeconds: STUDY_MIN_GAME_SECONDS });
+	return json({ ok: true, activeSeconds: Number(participant.game_active_seconds || 0) + activeSeconds, minimumGameSeconds: LEGACY_STUDY.minimumGameSeconds });
 }
 
 async function handleStudyWithdraw(request, env) {

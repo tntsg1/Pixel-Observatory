@@ -86,8 +86,9 @@ assert.doesNotMatch(workflow, /build_study_game_shell\.mjs/);
 assert.doesNotMatch(cloudflareBuilder, /study\/game\/study\.pck/);
 assert.match(cloudflareBuilder, /rel\.startsWith\("\."\)/);
 
-assert.match(worker, /const STUDY_MIN_GAME_SECONDS = 300/);
-assert.match(worker, /STUDY_QUESTIONNAIRE_VERSION = "foundation_1_24_v1"/);
+assert.match(worker, /const LEGACY_STUDY = \{/);
+assert.match(worker, /minimumGameSeconds: 300/);
+assert.match(worker, /questionnaireVersion: "foundation_1_24_v1"/);
 assert.match(worker, /aperture: "collect"/);
 assert.match(worker, /alignment: "agree"/);
 assert.match(worker, /deep_sky: "expected"/);
