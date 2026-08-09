@@ -15,7 +15,7 @@ func _initialize() -> void:
 	if bridge_script == null:
 		_finish(1)
 		return
-	var bridge: Node = bridge_script.new() as Node
+	var bridge: Node = root.get_node_or_null("/root/ResearchBridge")
 	_check(bridge != null, "research bridge instantiates")
 	if bridge == null:
 		_finish(1)
@@ -34,60 +34,70 @@ func _initialize() -> void:
 	if bridge.has_method("offer_after_level"):
 		_check(not bool(bridge.call("offer_after_level", 1, "observatory")), "native gameplay falls through")
 		_check(not bool(bridge.call("offer_after_level", 5, "observatory")), "non-checkpoint gameplay falls through")
-	await _check_research_session_gate(bridge)
-	await _check_level_24_single_consumption(bridge)
+	await _check_browser_permission_gate(bridge)
 	await _check_original_continuation(bridge)
-	bridge.free()
+	await _check_level_24_single_consumption(bridge)
 	_finish(0 if failures == 0 else 1)
 
 
-func _check_research_session_gate(bridge: Node) -> void:
-	_check(bridge.has_method("_is_active_research_context"), "bridge exposes a testable research-session gate")
-	if not bridge.has_method("_is_active_research_context"):
+func _check_browser_permission_gate(bridge: Node) -> void:
+	_check(bridge.has_method("_can_offer_checkpoint"), "bridge exposes a testable browser permission gate")
+	if not bridge.has_method("_can_offer_checkpoint"):
 		return
 	_check(
-		not bool(bridge.call("_is_active_research_context", {})),
-		"ordinary Web context falls through"
+		bool(bridge.call("_can_offer_checkpoint", 1, {"canOfferBaseline": true})),
+		"L1 baseline hook can offer without a participant or token"
 	)
 	_check(
-		not bool(bridge.call("_is_active_research_context", {
-			"participantId": "prestudy-local",
-			"token": "",
-			"routeArm": "",
-			"verified": false,
-		})),
-		"local prestudy session falls through"
+		not bool(bridge.call("_can_offer_checkpoint", 1, {})),
+		"ordinary page without the baseline hook falls through"
 	)
 	_check(
-		not bool(bridge.call("_is_active_research_context", {
+		not bool(bridge.call("_can_offer_checkpoint", 6, {
 			"participantId": "participant-1",
-			"token": "active-token",
+			"token": "forged-token",
 			"routeArm": "field_gameplay",
-			"verified": false,
+			"query": {"token": "forged-token", "research_arm": "field_gameplay"},
 		})),
-		"unverified token and arm fall through"
+		"forged query context cannot unlock a later checkpoint"
 	)
 	_check(
-		bool(bridge.call("_is_active_research_context", {
-			"participantId": "participant-1",
-			"token": "active-token",
-			"routeArm": "field_gameplay",
-			"verified": true,
-		})),
-		"verified active token and arm pass the gate"
+		bool(bridge.call("_can_offer_checkpoint", 6, {"hasVerifiedGameplaySession": true})),
+		"later checkpoint requires and accepts the verified-session hook"
 	)
+	_check(
+		not bool(bridge.call("_can_offer_checkpoint", 6, {"canOfferBaseline": true})),
+		"baseline permission cannot unlock a later checkpoint"
+	)
+	var baseline_detail: Dictionary = bridge.call("_prepare_checkpoint", 1, "observatory", {"canOfferBaseline": true})
+	_check(str(baseline_detail.get("nodeId", "")) == "baseline", "L1 baseline is actually prepared through the permission gate")
+	bridge.call("_on_browser_continue", [JSON.stringify({"nodeId": "baseline"})])
 
 
 func _check_level_24_single_consumption(bridge: Node) -> void:
 	_check(bridge.has_method("_prepare_checkpoint"), "bridge exposes checkpoint preparation state")
 	if not bridge.has_method("_prepare_checkpoint"):
 		return
-	var context := _verified_context()
-	var first_detail: Dictionary = bridge.call("_prepare_checkpoint", 24, "study_graduation", context)
+	var graduation_scene: PackedScene = load("res://scenes/study_graduation.tscn") as PackedScene
+	_check(graduation_scene != null, "study graduation scene loads for one-time consumption")
+	if graduation_scene == null:
+		return
+	var first_detail: Dictionary = bridge.call("_prepare_checkpoint", 24, "study_graduation", _verified_context())
 	_check(str(first_detail.get("nodeId", "")) == "E", "L24 checkpoint is prepared once")
 	bridge.call("_on_browser_continue", [JSON.stringify({"nodeId": "E"})])
-	var second_detail: Dictionary = bridge.call("_prepare_checkpoint", 24, "study_graduation", context)
+	var resume_node_ids: Dictionary = bridge.get("_resume_node_ids") as Dictionary
+	_check(resume_node_ids.has("E"), "bridge marks resolved E for graduation consumption")
+	var graduation: Control = graduation_scene.instantiate() as Control
+	_check(graduation != null, "study graduation instantiates")
+	if graduation == null:
+		return
+	root.add_child(graduation)
+	await process_frame
+	_check(not bool(bridge.call("consume_resolved_checkpoint", "E")), "study graduation consumes the resolved E checkpoint")
+	var second_detail: Dictionary = bridge.call("_prepare_checkpoint", 24, "study_graduation", _verified_context())
 	_check(second_detail.is_empty(), "resolved L24 checkpoint cannot be offered again")
+	graduation.queue_free()
+	await process_frame
 
 
 func _check_original_continuation(bridge: Node) -> void:
@@ -116,17 +126,14 @@ func _check_original_continuation(bridge: Node) -> void:
 	}), "continuation fixture completes L5")
 	_check(str(gm.pending_mission_setup_scene()) == "assembly", "continuation fixture requires L6 assembly")
 	var continuation_state := {"called": false}
-	bridge.checkpoint_resolved.connect(func(action: String, _node_id: String) -> void:
-		if action != "continue":
-			return
+	var continuation := func() -> void:
 		continuation_state["called"] = true
 		learning_card.call("_continue_after_completion", 5, false)
-	, CONNECT_ONE_SHOT)
-	var detail: Dictionary = bridge.call("_prepare_checkpoint", 6, "observatory", _verified_context())
+	var detail: Dictionary = bridge.call("_prepare_checkpoint", 6, "observatory", _verified_context(), continuation)
 	_check(str(detail.get("nodeId", "")) == "A", "continuation checkpoint is prepared")
 	bridge.call("_on_browser_continue", [JSON.stringify({"nodeId": "A"})])
 	await process_frame
-	_check(bool(continuation_state["called"]), "checkpoint callback invokes the original caller continuation")
+	_check(bool(continuation_state["called"]), "bridge callback invokes the saved original continuation")
 	_check(str(gm.current_learning_card_mode()) == "brief", "pending assembly teaching intercept is preserved")
 	gm.complete_current_brief()
 	await process_frame
@@ -137,10 +144,7 @@ func _check_original_continuation(bridge: Node) -> void:
 
 func _verified_context() -> Dictionary:
 	return {
-		"participantId": "participant-1",
-		"token": "active-token",
-		"routeArm": "field_gameplay",
-		"verified": true,
+		"hasVerifiedGameplaySession": true,
 	}
 
 

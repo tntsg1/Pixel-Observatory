@@ -2,7 +2,6 @@ extends Node
 
 signal checkpoint_resolved(action: String, node_id: String)
 
-const RESEARCH_SESSION_KEY := "pixel-observatory:research-session:v2"
 const NODE_BY_COMPLETED_LEVEL := {
 	1: "baseline",
 	6: "A",
@@ -61,23 +60,24 @@ func _install_browser_callbacks() -> void:
 
 func _browser_research_context() -> Dictionary:
 	var value: Variant = JavaScriptBridge.eval(
-		"(()=>{try{const bridge=window.PixelObservatoryResearch;const query=new URLSearchParams(location.search);const session=JSON.parse(localStorage.getItem('%s')||'null')||{};const provided=bridge&&typeof bridge.activeResearchContext==='function'?bridge.activeResearchContext()||{}:{};const token=String(provided.token||query.get('token')||session.token||'');const routeArm=String(provided.routeArm||query.get('routeArm')||query.get('arm')||session.routeArm||'');const participantId=String(provided.participantId||query.get('participantId')||session.participantId||'');const bridgeVerified=!!(bridge&&typeof bridge.hasActiveInvitationOrSession==='function'&&bridge.hasActiveInvitationOrSession());const queryVerified=query.has('token')&&token.length>0&&routeArm==='field_gameplay';return JSON.stringify({participantId:participantId,token:token,routeArm:routeArm,verified:!!provided.verified||(bridgeVerified&&token.length>0&&routeArm==='field_gameplay')||queryVerified});}catch(_){return '{}'}})()" % RESEARCH_SESSION_KEY,
+		"(()=>{try{const bridge=window.PixelObservatoryResearch;if(!bridge)return '{}';const context=typeof bridge.activeResearchContext==='function'?(bridge.activeResearchContext()||{}):{};return JSON.stringify({canOfferBaseline:typeof bridge.canOfferBaseline==='function'&&bridge.canOfferBaseline()===true,hasVerifiedGameplaySession:typeof bridge.hasVerifiedGameplaySession==='function'&&bridge.hasVerifiedGameplaySession()===true,participantId:typeof context.participantId==='string'?context.participantId:'',routeArm:typeof context.routeArm==='string'?context.routeArm:''});}catch(_){return '{}'}})()",
 		true
 	)
 	var context: Variant = JSON.parse_string(str(value))
 	return context if context is Dictionary else {}
 
 
-func _is_active_research_context(context: Dictionary) -> bool:
-	return str(context.get("participantId", "")).length() > 0 \
-		and str(context.get("token", "")).length() > 0 \
-		and str(context.get("routeArm", "")) == "field_gameplay" \
-		and bool(context.get("verified", false))
+func _can_offer_checkpoint(level_number: int, context: Dictionary) -> bool:
+	if node_for_level(level_number).is_empty():
+		return false
+	if level_number == 1:
+		return bool(context.get("canOfferBaseline", false))
+	return bool(context.get("hasVerifiedGameplaySession", false))
 
 
 func _prepare_checkpoint(level_number: int, continue_scene: String, context: Dictionary, continue_action: Callable = Callable()) -> Dictionary:
 	var node_id := node_for_level(level_number)
-	if node_id.is_empty() or _resolved_node_ids.has(node_id) or not _is_active_research_context(context):
+	if node_id.is_empty() or _resolved_node_ids.has(node_id) or not _can_offer_checkpoint(level_number, context):
 		return {}
 	_pending_continue_scene = continue_scene
 	_pending_node_id = node_id
