@@ -39,6 +39,8 @@ func _initialize() -> void:
 	var field_materials: Array = view.get("star_field_psf_materials")
 
 	_check(main != null, "Sirius target sprite exists")
+	_check(main != null and main.texture != null, "Sirius keeps a real authored texture instead of a procedural colour disk")
+	_check(main != null and main.texture.resource_path.contains("star_blue"), "Sirius retains the authored diffraction-spike source asset")
 	_check(point_material != null, "Sirius uses the energy-preserving point-source PSF")
 	var shader_code := point_material.shader.code if point_material != null else ""
 	_check(shader_code.contains("sharp_core_sigma"), "Sirius PSF exposes a dedicated compact sharp core")

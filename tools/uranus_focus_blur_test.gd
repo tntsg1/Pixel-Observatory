@@ -31,6 +31,8 @@ func _initialize() -> void:
 	_check(bool(view.call("_is_solid_body_target", "uranus")), "Uranus uses the opaque solid-body pipeline")
 	var main := view.get("main_sprite") as TextureRect
 	_check(main != null, "Uranus creates a target sprite")
+	_check(main != null and main.texture != null, "Uranus keeps an authored solid-body texture")
+	_check(main != null and not main.texture.resource_path.is_empty(), "Uranus never falls back to a procedural flat-colour circle")
 	if main == null:
 		view.queue_free()
 		_finish()

@@ -1107,7 +1107,7 @@ func _install_main_part(part_type: String) -> void:
 	var selected_part_id := str(selected_part.get("id", ""))
 	if GameManager.install_part(part_type, 0, selected_part_id) < 0:
 		install_animation_active = false
-		status_label.text = GameManager.install_part_block_reason(part_type)
+		status_label.text = GameManager.install_part_block_reason(part_type, selected_part_id)
 		return
 	GameManager.sync_newtonian_installed_equipment()
 	selected_type = ""
@@ -1849,7 +1849,7 @@ func _install_at_slot(slot_type: String) -> void:
 	var selected_part_id := str(selected_part.get("id", ""))
 	if GameManager.install_part(slot_type, 0, selected_part_id) < 0:
 		install_animation_active = false
-		status_label.text = GameManager.install_part_block_reason(slot_type)
+		status_label.text = GameManager.install_part_block_reason(slot_type, selected_part_id)
 		return
 	selected_type = ""
 	if _family() == "fast_radio":

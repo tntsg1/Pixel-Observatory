@@ -738,15 +738,17 @@ func _is_dark_adaptation_target() -> bool:
 	if not requires_focus:
 		return false
 	var requirements: Dictionary = _active_observation_requirements()
-	return _is_diffuse_target() or requirements.has("dark_adaptation_min")
+	return _is_diffuse_target() or requirements.has("dark_adaptation_min") or bool(requirements.get("require_averted_vision", false))
 
 
 func _visual_detection_techniques_available() -> bool:
-	if not requires_focus or not _is_visual_detection_target():
+	if not requires_focus:
 		return false
 	var requirements := _active_observation_requirements()
 	if requirements.has("dark_adaptation_min") or bool(requirements.get("require_averted_vision", false)):
 		return true
+	if not _is_visual_detection_target():
+		return false
 	# Level 18 explicitly teaches these observer techniques. Earlier aperture
 	# lessons must not be bypassed by a bonus the player has not learned yet.
 	var current_number := int(GameManager.current_level().get(
@@ -760,6 +762,8 @@ func _visual_detection_techniques_available() -> bool:
 
 
 func _is_visual_detection_target() -> bool:
+	if bool(_active_observation_requirements().get("require_averted_vision", false)):
+		return true
 	if _is_diffuse_target():
 		return true
 	# M13 is catalogued as a star cluster, not a nebula or galaxy.  When a
@@ -2316,7 +2320,7 @@ func _build_technique_panel() -> void:
 		)
 		add_child(slider)
 		x += 190.0
-	if requirements.has("filter"):
+	if _is_emission_nebula_target():
 		technique_filter_button = _pixel_button(GameManager.text("Filter: Off", "滤镜：关闭"), Vector2(112, 26), 9)
 		technique_filter_button.position = Vector2(x, panel_pos.y + 4)
 		technique_filter_button.tooltip_text = GameManager.text(
@@ -2351,6 +2355,8 @@ func _build_technique_panel() -> void:
 
 func _uses_observation_method(requirements: Dictionary) -> bool:
 	if _visual_detection_techniques_available():
+		return true
+	if _is_emission_nebula_target():
 		return true
 	for key in ["exposure_min", "exposure_max", "filter", "dark_adaptation_min", "require_averted_vision", "seeing_patience"]:
 		if requirements.has(key):

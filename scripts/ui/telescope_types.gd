@@ -115,11 +115,15 @@ func _ready() -> void:
 	# the confirm step for the current lesson's advanced assembly.
 	browse_only = bool(GameManager.get_meta("telescope_types_browse", false))
 	postgraduate_free_build = GameManager.postgraduate_free_build()
-	selected_family = GameManager.assembly_family()
+	selected_family = _recommended_family() if _mission_family_locked() else GameManager.assembly_family()
 	if _entry(selected_family).is_empty() or not _is_unlocked(_entry(selected_family)):
 		selected_family = _recommended_family()
 	_build()
 	InteractionFeedback.page_enter(self)
+
+
+func _mission_family_locked() -> bool:
+	return not browse_only and not postgraduate_free_build
 
 
 func _recommended_family() -> String:
@@ -209,6 +213,7 @@ func _build() -> void:
 func _family_card(entry: Dictionary) -> Button:
 	var id := str(entry["id"])
 	var unlocked := _is_unlocked(entry)
+	var mission_locked := _mission_family_locked() and id != _recommended_family()
 	var button := Button.new()
 	button.custom_minimum_size = Vector2(320, 68)
 	button.focus_mode = Control.FOCUS_NONE
@@ -218,7 +223,9 @@ func _family_card(entry: Dictionary) -> Button:
 	button.text = name + lock_tag
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	button.add_theme_font_size_override("font_size", 16)
-	button.add_theme_color_override("font_color", TEXT if unlocked else LOCK)
+	button.disabled = mission_locked
+	button.tooltip_text = "This lesson uses the recommended telescope family." if mission_locked else ""
+	button.add_theme_color_override("font_color", TEXT if unlocked and not mission_locked else LOCK)
 	button.add_theme_color_override("font_color_hover", GOLD)
 	button.add_theme_stylebox_override("normal", _style(PANEL, GOLD_DIM if unlocked else Color(0.20, 0.24, 0.30), 1))
 	button.add_theme_stylebox_override("hover", _style(Color(0.10, 0.16, 0.26), GOLD, 1))
@@ -229,6 +236,8 @@ func _family_card(entry: Dictionary) -> Button:
 
 
 func _select(id: String) -> void:
+	if _mission_family_locked() and id != _recommended_family():
+		return
 	selected_family = id
 	for family_id in cards.keys():
 		var family_card := cards.get(family_id) as Control
@@ -337,6 +346,8 @@ func _recommendation_reason(id: String) -> String:
 
 
 func _proceed() -> void:
+	if _mission_family_locked():
+		selected_family = _recommended_family()
 	var entry := _entry(selected_family)
 	if entry.is_empty() or not _is_unlocked(entry):
 		return
