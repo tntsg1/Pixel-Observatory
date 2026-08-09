@@ -46,6 +46,12 @@ node tools/study_mini_game_contract_test.mjs
 # Research route state and complete L1-L24 main-game campaign contract passed.
 ```
 
+This is the actual final Node contract result: it exited successfully and printed the line above.
+
+## Runtime Process Incident
+
+Before the watchdog fix, three separately launched headless `study_campaign_runtime_test.gd` processes remained hung for approximately 8, 7, and 7 minutes. They were explicitly terminated externally by the user. No further unbounded runtime launches were made. The subsequent bounded one-process run below completed successfully.
+
 Passed with one process, an internal 20-second test watchdog, and an external 25-second `WaitForExit` bound:
 
 ```powershell
