@@ -12,17 +12,21 @@ const EXPECTED_RESEARCH_NODES: Dictionary = {
 	21: "D",
 	24: "E",
 }
+const TEST_TIMEOUT_SECONDS := 20.0
 var failures := 0
+var _finished := false
 
 
 func _initialize() -> void:
+	var timeout := create_timer(TEST_TIMEOUT_SECONDS)
+	timeout.timeout.connect(_on_timeout)
 	await process_frame
 	var gm := root.get_node_or_null("/root/GameManager")
 	var mm := root.get_node_or_null("/root/MissionManager")
 	var sm := root.get_node_or_null("/root/SaveManager")
 	_check(gm != null and mm != null and sm != null, "main-game autoloads are available")
 	if gm == null or mm == null or sm == null:
-		quit(1)
+		_finish(1)
 		return
 	_check(gm.study_mode_active(), "study mode is active")
 	_check(gm.STUDY_CAMPAIGN_ORDER == EXPECTED_ORDER, "research route contains every level from L1 through L24")
@@ -62,10 +66,10 @@ func _initialize() -> void:
 
 	if failures == 0:
 		print("STUDY CAMPAIGN RUNTIME TEST PASS")
-		quit(0)
+		_finish(0)
 	else:
 		print("STUDY CAMPAIGN RUNTIME TEST FAIL (%d)" % failures)
-		quit(1)
+		_finish(1)
 
 
 func _check(condition: bool, label: String) -> void:
@@ -74,3 +78,17 @@ func _check(condition: bool, label: String) -> void:
 	else:
 		failures += 1
 		push_error("  FAIL: " + label)
+
+
+func _on_timeout() -> void:
+	if _finished:
+		return
+	push_error("STUDY CAMPAIGN RUNTIME TEST TIMEOUT")
+	_finish(1)
+
+
+func _finish(exit_code: int) -> void:
+	if _finished:
+		return
+	_finished = true
+	quit(exit_code)
