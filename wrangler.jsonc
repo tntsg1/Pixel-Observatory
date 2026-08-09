@@ -22,6 +22,12 @@
       "database_name": "pixel-observatory",
       "database_id": "9a40a4cb-7416-4349-83b7-eafb4b9cac88",
       "migrations_dir": "migrations"
+    },
+    {
+      "binding": "RESEARCH_DB",
+      "database_name": "pixel-observatory-research",
+      "database_id": "0aa857bd-127d-4be7-8d14-63d85e62f30f",
+      "migrations_dir": "research_migrations"
     }
   ],
   "vars": {
