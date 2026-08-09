@@ -226,6 +226,7 @@ const baselineState = {
   currentNode: "baseline",
   completedNodes: [],
   deferCounts: {},
+  withdrawn: false,
   questions: questions("zh", "baseline"),
   rewardOffer: null,
 };
@@ -301,7 +302,65 @@ assert.deepEqual(study.calls[5].body, {
   answers: { "A-1": "A-1-1", "A-2": "A-2-1", "A-3": "A-3-1" },
 }, "Retry resends authenticated preserved answers for the current server node.");
 
-const deferredState = { ...fieldAState, currentNode: "B", deferCounts: { B: 1 }, questions: questions("zh", "B") };
+const checkpointWaitingState = {
+  ...fieldWaitingState,
+  participantId: "RSP-3",
+  language: "en",
+};
+const checkpointAState = {
+  ...checkpointWaitingState,
+  currentNode: "A",
+  questions: questions("en", "A"),
+};
+const checkpointAfterAState = {
+  ...checkpointWaitingState,
+  completedNodes: ["baseline", "A"],
+};
+const checkpointBState = {
+  ...checkpointAfterAState,
+  currentNode: "B",
+  questions: questions("en", "B"),
+};
+const checkpointFlow = createHarness({
+  stored: { participantId: "RSP-3", token: "token-3" },
+  responses: [
+    { body: { state: checkpointWaitingState } },
+    { body: { state: checkpointWaitingState } },
+    { body: { state: checkpointAState, checkpoint: { level: 6, nodeId: "A" } } },
+    { body: { state: checkpointAfterAState } },
+    { body: { state: checkpointAfterAState } },
+    { body: { state: checkpointBState, checkpoint: { level: 11, nodeId: "B" } } },
+  ],
+});
+
+await checkpointFlow.window.PixelObservatoryResearch.refreshResearchSession();
+assert.equal(
+  checkpointFlow.window.PixelObservatoryResearch.hasVerifiedGameplaySession(),
+  true,
+  "A server-refreshed, post-baseline field session permits bridge dispatch while currentNode is null.",
+);
+await checkpointFlow.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "A", completedLevel: 6 } });
+assert.deepEqual(checkpointFlow.calls.slice(0, 3), [
+  { url: "/api/research/session", method: "POST", body: { participantId: "RSP-3", token: "token-3" } },
+  { url: "/api/research/session", method: "POST", body: { participantId: "RSP-3", token: "token-3" } },
+  { url: "/api/research/checkpoint", method: "POST", body: { participantId: "RSP-3", token: "token-3", level: 6 } },
+], "Bridge dispatch records an authenticated Level 6 checkpoint after its pre-dispatch session refresh.");
+assert.match(checkpointFlow.document.body.textContent, /English A prompt 1/, "The Level 6 checkpoint response opens node A questions.");
+await answerAll(checkpointFlow.document);
+assert.deepEqual(checkpointFlow.continuations, [JSON.stringify({ nodeId: "A" })], "Submitting A resumes the Level 6 bridge continuation.");
+assert.equal(
+  checkpointFlow.window.PixelObservatoryResearch.hasVerifiedGameplaySession(),
+  true,
+  "The post-A field state still permits Level 11 dispatch while it waits with currentNode null.",
+);
+await checkpointFlow.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "B", completedLevel: 11 } });
+assert.deepEqual(checkpointFlow.calls.slice(4, 6), [
+  { url: "/api/research/session", method: "POST", body: { participantId: "RSP-3", token: "token-3" } },
+  { url: "/api/research/checkpoint", method: "POST", body: { participantId: "RSP-3", token: "token-3", level: 11 } },
+], "The same verified session dispatches an authenticated Level 11 checkpoint after A.");
+assert.match(checkpointFlow.document.body.textContent, /English B prompt 1/, "The Level 11 checkpoint response opens node B questions.");
+
+const deferredState = { ...fieldAState, participantId: "RSP-2", currentNode: "B", deferCounts: { B: 1 }, questions: questions("zh", "B") };
 const deferral = createHarness({ stored: { participantId: "RSP-2", token: "token-2", baselineComplete: true, routeArm: "field_gameplay" }, responses: [
   { body: { state: deferredState } },
   { body: { state: deferredState, checkpoint: { level: 16, nodeId: "C" } } },
@@ -327,6 +386,7 @@ const forged = createHarness({
   locationSearch: "?participantId=forged&token=forged&routeArm=field_gameplay",
   responses: [{ ok: false, status: 401, body: { error: "invalid_research_session" } }],
 });
+assert.equal(forged.window.PixelObservatoryResearch.hasVerifiedGameplaySession(), false, "Local storage and URL values without a successful session refresh cannot pass bridge permission.");
 await forged.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "A", completedLevel: 6 } });
 assert.equal(forged.window.PixelObservatoryResearch.hasVerifiedGameplaySession(), false, "Forged URL and storage values cannot create verified gameplay eligibility.");
 assert.doesNotMatch(forged.document.body.textContent, /English A prompt|Chinese A question/, "Forged browser state cannot unlock questions.");

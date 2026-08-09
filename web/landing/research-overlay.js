@@ -26,7 +26,6 @@
   let activeFlow = null;
   let restoreFocusTo = null;
   let sessionSilenced = false;
-  let verifiedCheckpointLevel = null;
 
   function readStoredState() {
     try {
@@ -109,9 +108,12 @@
   function hasVerifiedGameplaySession() {
     return Boolean(
       serverRefreshedSession &&
+      hasCredentials() &&
+      serverRefreshedSession.participantId === state.participantId &&
       serverRefreshedSession.routeArm === "field_gameplay" &&
-      currentServerNode() &&
-      Number(activeCheckpoint?.completedLevel) === verifiedCheckpointLevel
+      Array.isArray(serverRefreshedSession.completedNodes) &&
+      serverRefreshedSession.completedNodes.includes("baseline") &&
+      serverRefreshedSession.withdrawn === false
     );
   }
 
@@ -135,9 +137,7 @@
   async function recordCheckpoint(checkpoint) {
     const level = Number(checkpoint?.completedLevel);
     const result = await request("/checkpoint", authenticatedBody({ level }));
-    const nextState = updateServerState(result);
-    if (Number(result?.checkpoint?.level) === level) verifiedCheckpointLevel = level;
-    return nextState;
+    return updateServerState(result);
   }
 
   function removeOverlay() {
@@ -428,7 +428,6 @@
 
   async function handleCheckpoint(event) {
     activeCheckpoint = event?.detail || {};
-    verifiedCheckpointLevel = null;
     if (activeNodeId() === "baseline") {
       if (!hasCredentials()) {
         showInvitation();
