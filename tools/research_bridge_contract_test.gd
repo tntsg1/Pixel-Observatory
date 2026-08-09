@@ -49,8 +49,8 @@ func _check_browser_permission_gate(bridge: Node) -> void:
 		"L1 baseline hook can offer without a participant or token"
 	)
 	_check(
-		not bool(bridge.call("_can_offer_checkpoint", 1, {})),
-		"ordinary page without the baseline hook falls through"
+		bool(bridge.call("_can_offer_checkpoint", 1, {})),
+		"L1 dispatch is not blocked by a circular browser baseline precheck"
 	)
 	_check(
 		not bool(bridge.call("_can_offer_checkpoint", 6, {

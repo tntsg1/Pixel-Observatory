@@ -6,18 +6,18 @@
   const FALLBACK_QUESTIONS = [
     {
       id: "clarity",
-      prompt: "The activity goals were clear. / 我清楚理解了活动目标。",
-      options: ["Strongly disagree / 非常不同意", "Disagree / 不同意", "Neutral / 一般", "Agree / 同意", "Strongly agree / 非常同意"],
+      prompt: { en: "The activity goals were clear.", zh: "" },
+      options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"].map((en, index) => ({ id: String(index + 1), en, zh: "" })),
     },
     {
       id: "confidence",
-      prompt: "I felt able to make progress. / 我觉得自己能够取得进展。",
-      options: ["Strongly disagree / 非常不同意", "Disagree / 不同意", "Neutral / 一般", "Agree / 同意", "Strongly agree / 非常同意"],
+      prompt: { en: "I felt able to make progress.", zh: "" },
+      options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"].map((en, index) => ({ id: String(index + 1), en, zh: "" })),
     },
     {
       id: "return",
-      prompt: "I would like to continue this activity. / 我愿意继续这个活动。",
-      options: ["Strongly disagree / 非常不同意", "Disagree / 不同意", "Neutral / 一般", "Agree / 同意", "Strongly agree / 非常同意"],
+      prompt: { en: "I would like to continue this activity.", zh: "" },
+      options: ["Strongly disagree", "Disagree", "Neutral", "Agree", "Strongly agree"].map((en, index) => ({ id: String(index + 1), en, zh: "" })),
     },
   ];
 
@@ -25,10 +25,22 @@
   let activeCheckpoint = null;
   let activeFlow = null;
   let restoreFocusTo = null;
+  let sessionSilenced = false;
+  let verifiedCheckpointLevel = null;
 
   function readStoredState() {
     try {
-      return JSON.parse(window.localStorage.getItem(SESSION_KEY)) || {};
+      const stored = JSON.parse(window.localStorage.getItem(SESSION_KEY)) || {};
+      const state = {};
+      if (typeof stored.participantId === "string" && stored.participantId) state.participantId = stored.participantId;
+      if (typeof stored.token === "string" && stored.token) state.token = stored.token;
+      if (stored.pendingSubmission && typeof stored.pendingSubmission === "object" && !Array.isArray(stored.pendingSubmission)) {
+        const { nodeId, answers } = stored.pendingSubmission;
+        if (typeof nodeId === "string" && answers && typeof answers === "object" && !Array.isArray(answers)) {
+          state.pendingSubmission = { nodeId, answers: { ...answers } };
+        }
+      }
+      return state;
     } catch (_) {
       return {};
     }
@@ -37,65 +49,102 @@
   let state = readStoredState();
 
   function saveState(patch) {
-    state = { ...state, ...patch };
+    const next = { ...state, ...patch };
+    state = {};
+    if (typeof next.participantId === "string" && next.participantId) state.participantId = next.participantId;
+    if (typeof next.token === "string" && next.token) state.token = next.token;
+    if (next.pendingSubmission && typeof next.pendingSubmission === "object") {
+      state.pendingSubmission = {
+        nodeId: String(next.pendingSubmission.nodeId || ""),
+        answers: { ...(next.pendingSubmission.answers || {}) },
+      };
+    }
     try {
       window.localStorage.setItem(SESSION_KEY, JSON.stringify(state));
     } catch (_) {
-      // The research service remains the source of truth if storage is unavailable.
+      // The research service remains authoritative when storage is unavailable.
     }
   }
 
+  function hasCredentials() {
+    return Boolean(state.participantId && state.token);
+  }
+
+  function authenticatedBody(body = {}) {
+    return { participantId: state.participantId, token: state.token, ...body };
+  }
+
+  function activeNodeId() {
+    return String(activeCheckpoint?.nodeId || "");
+  }
+
+  function currentServerNode() {
+    return typeof serverRefreshedSession?.currentNode === "string" ? serverRefreshedSession.currentNode : "";
+  }
+
+  function selectedLanguage() {
+    return activeCheckpoint?.language === "zh" || serverRefreshedSession?.language === "zh" ? "zh" : "en";
+  }
+
+  function localize(value) {
+    if (typeof value === "string") return value;
+    if (!value || typeof value !== "object") return "";
+    const language = selectedLanguage();
+    return String(value[language] || value.en || value.zh || value.label || value.text || "");
+  }
+
+  function updateServerState(result) {
+    const nextState = result?.state;
+    if (!nextState || typeof nextState !== "object" || Array.isArray(nextState)) {
+      throw new Error("Research service returned an invalid session state.");
+    }
+    serverRefreshedSession = nextState;
+    return nextState;
+  }
+
   function canOfferBaseline() {
-    return Boolean(
-      activeCheckpoint &&
-      String(activeCheckpoint.nodeId || activeCheckpoint.node || activeCheckpoint.id || "").toUpperCase() === "L1" &&
-      !state.baselineComplete &&
-      !state.declined &&
-      !serverRefreshedSession?.baselineComplete
-    );
+    return activeNodeId() === "baseline" && !serverRefreshedSession;
   }
 
   function hasVerifiedGameplaySession() {
     return Boolean(
       serverRefreshedSession &&
-      (serverRefreshedSession.hasVerifiedGameplaySession === true ||
-        serverRefreshedSession.verifiedGameplaySession === true ||
-        serverRefreshedSession.gameplaySessionVerified === true)
+      serverRefreshedSession.routeArm === "field_gameplay" &&
+      currentServerNode() &&
+      Number(activeCheckpoint?.completedLevel) === verifiedCheckpointLevel
     );
   }
 
-  async function request(path, method = "GET", body) {
+  async function request(path, body = {}) {
     const response = await fetch(`${API}${path}`, {
-      method,
+      method: "POST",
       credentials: "same-origin",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
-      body: body ? JSON.stringify(body) : undefined,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(payload.error || payload.message || "Research service is unavailable.");
-    }
+    if (!response.ok) throw new Error(payload.error || payload.message || "Research service is unavailable.");
     return payload;
   }
 
   async function refreshResearchSession() {
-    const result = await request("/session");
-    serverRefreshedSession = result.session || result;
-    saveState({ serverSessionSeen: true });
-    return serverRefreshedSession;
+    if (!hasCredentials()) throw new Error("No research session is available.");
+    return updateServerState(await request("/session", authenticatedBody()));
   }
 
   async function recordCheckpoint(checkpoint) {
-    return request("/checkpoint", "POST", { checkpoint });
+    const level = Number(checkpoint?.completedLevel);
+    const result = await request("/checkpoint", authenticatedBody({ level }));
+    const nextState = updateServerState(result);
+    if (Number(result?.checkpoint?.level) === level) verifiedCheckpointLevel = level;
+    return nextState;
   }
 
   function removeOverlay() {
     document.querySelector(".po-research-overlay")?.remove();
     activeFlow = null;
     document.removeEventListener("keydown", trapFocus, true);
-    if (restoreFocusTo && document.contains(restoreFocusTo)) {
-      restoreFocusTo.focus();
-    }
+    if (restoreFocusTo && document.contains(restoreFocusTo)) restoreFocusTo.focus();
     restoreFocusTo = null;
   }
 
@@ -112,7 +161,6 @@
     removeOverlay();
     restoreFocusTo = document.activeElement;
     activeFlow = flow;
-
     const overlay = document.createElement("div");
     overlay.className = "po-research-overlay";
     overlay.setAttribute("role", "presentation");
@@ -184,21 +232,25 @@
 
   async function enroll() {
     try {
-      const result = await request("/enroll", "POST", { consent: true, checkpoint: activeCheckpoint });
-      serverRefreshedSession = result.session || result;
-      saveState({ consented: true, declined: false });
-      showBaseline(result.baselineQuestions || result.questions || FALLBACK_QUESTIONS);
+      const result = await request("/enroll", { consent: true, language: selectedLanguage() });
+      if (typeof result?.participantId !== "string" || typeof result?.token !== "string") {
+        throw new Error("Research service returned invalid credentials.");
+      }
+      saveState({ participantId: result.participantId, token: result.token, pendingSubmission: null });
+      const enrolledState = updateServerState(result);
+      showBaseline(enrolledState.questions || FALLBACK_QUESTIONS);
     } catch (error) {
-      showError(error, () => enroll());
+      showError(error, enroll);
     }
   }
 
   function showBaseline(questions) {
-    showQuestionFlow("baseline", questions, async (answers) => {
-      const result = await request("/submit", "POST", { nodeId: "L1", kind: "baseline", answers });
-      serverRefreshedSession = result.session || result;
-      saveState({ baselineComplete: true, pendingSubmission: null });
-      showAssignment(result.assignment || serverRefreshedSession.assignment || serverRefreshedSession.routeArm);
+    showQuestionFlow("baseline", questions, async (answers, durationSeconds) => {
+      const nodeId = currentServerNode();
+      const result = await request("/submit", authenticatedBody({ nodeId, answers, durationSeconds }));
+      const nextState = updateServerState(result);
+      saveState({ pendingSubmission: null });
+      showAssignment(nextState.routeArm);
       return { keepOpen: true };
     });
   }
@@ -210,18 +262,17 @@
     content.append(heading("Study route ready / 研究路线已准备", route === "archive_text" ? "Continue with the archive reading route. / 继续档案阅读路线。" : "Continue with the field gameplay route. / 继续实地游戏路线。"));
     content.append(makeButton(route === "archive_text" ? "Open archive / 打开档案" : "Continue gameplay / 继续游戏", "po-research-primary", () => {
       removeOverlay();
-      if (route === "archive_text") {
-        exitToArchive();
-      } else {
-        continueGodot(serverRefreshedSession?.seed || serverRefreshedSession?.l1Seed);
-      }
+      if (route === "archive_text") exitToArchive();
+      else continueGodot();
     }));
     showOverlay(content, "assignment");
   }
 
   function showQuestionFlow(kind, receivedQuestions, submit) {
-    const questions = (Array.isArray(receivedQuestions) && receivedQuestions.length >= 3 ? receivedQuestions : FALLBACK_QUESTIONS).slice(0, 3);
-    const answers = { ...(state.pendingSubmission?.kind === kind ? state.pendingSubmission.answers : {}) };
+    const questions = (Array.isArray(receivedQuestions) && receivedQuestions.length ? receivedQuestions : FALLBACK_QUESTIONS).slice(0, 3);
+    const submissionNode = currentServerNode();
+    const answers = { ...(state.pendingSubmission?.nodeId === submissionNode ? state.pendingSubmission.answers : {}) };
+    const startedAt = Date.now();
     let index = 0;
 
     const render = () => {
@@ -235,24 +286,23 @@
       progress.textContent = `${index + 1} of ${questions.length} / 第 ${index + 1} 题，共 ${questions.length} 题`;
       const prompt = document.createElement("h2");
       prompt.className = "po-research-question";
-      prompt.textContent = question.prompt || question.text || "Please choose an answer. / 请选择一个答案。";
+      prompt.textContent = localize(question?.prompt) || "Please choose an answer. / 请选择一个答案。";
       const choices = document.createElement("fieldset");
       choices.className = "po-research-options";
-      const options = question.options || [];
-      options.forEach((option, optionIndex) => {
+      (Array.isArray(question?.options) ? question.options : []).forEach((option, optionIndex) => {
         const label = document.createElement("label");
         label.className = "po-research-option";
         const input = document.createElement("input");
         input.type = "radio";
         input.name = `po-research-${question.id}`;
-        input.value = option.id || option.value || String(optionIndex);
+        input.value = String(option?.id || option?.value || optionIndex);
         input.checked = answers[question.id] === input.value;
         input.addEventListener("change", () => {
           answers[question.id] = input.value;
           next.disabled = false;
         });
         const text = document.createElement("span");
-        text.textContent = option.label || option.text || option;
+        text.textContent = localize(option) || "Option";
         label.append(input, text);
         choices.append(label);
       });
@@ -265,9 +315,9 @@
           render();
           return;
         }
-        saveState({ pendingSubmission: { kind, answers } });
+        saveState({ pendingSubmission: { nodeId: submissionNode, answers } });
         try {
-          const outcome = await submit(answers);
+          const outcome = await submit(answers, Math.max(0, Math.floor((Date.now() - startedAt) / 1000)));
           if (!outcome?.keepOpen) completeResearch();
         } catch (error) {
           showError(error, () => showQuestionFlow(kind, questions, submit), "retry-submission");
@@ -282,9 +332,10 @@
   }
 
   function showGameplayQuestions() {
-    const questions = serverRefreshedSession?.questions || serverRefreshedSession?.checkpointQuestions || FALLBACK_QUESTIONS;
-    showQuestionFlow("gameplay", questions, async (answers) => {
-      await request("/submit", "POST", { nodeId: activeCheckpoint?.nodeId, kind: "gameplay", answers });
+    showQuestionFlow("gameplay", serverRefreshedSession?.questions || FALLBACK_QUESTIONS, async (answers, durationSeconds) => {
+      const nodeId = currentServerNode();
+      const result = await request("/submit", authenticatedBody({ nodeId, answers, durationSeconds }));
+      updateServerState(result);
       saveState({ pendingSubmission: null });
     });
   }
@@ -296,26 +347,47 @@
     const message = document.createElement("p");
     message.className = "po-research-error-message";
     message.textContent = error?.message || "Connection error / 连接错误";
-    content.append(message);
     const actions = document.createElement("div");
     actions.className = "po-research-actions";
     actions.append(makeButton("Retry / 重试", `po-research-primary ${retryClass}`.trim(), retry), makeButton("Later / 稍后", "po-research-secondary", deferResearch));
-    content.append(actions);
+    content.append(message, actions);
     showOverlay(content, "error");
   }
 
+  function showSessionSilenceOffer() {
+    const content = document.createElement("div");
+    content.className = "po-research-settings";
+    content.append(heading("Research reminders / 研究提醒", "You have deferred this questionnaire twice. / 您已两次选择稍后。"));
+    const actions = document.createElement("div");
+    actions.className = "po-research-actions";
+    actions.append(
+      makeButton("Stop reminders for this session / 本次会话不再提醒", "po-research-primary", () => {
+        sessionSilenced = true;
+        completeResearch();
+      }),
+      makeButton("Keep reminders / 保留提醒", "po-research-secondary", completeResearch)
+    );
+    content.append(actions);
+    showOverlay(content, "session-silence");
+  }
+
   async function deferResearch() {
-    try {
-      const result = await request("/defer", "POST", { checkpoint: activeCheckpoint, flow: activeFlow });
-      serverRefreshedSession = result.session || result;
-      const deferrals = Number(serverRefreshedSession.deferralCount ?? serverRefreshedSession.deferrals ?? (state.deferrals || 0) + 1);
-      const silence = deferrals >= 2 || serverRefreshedSession.sessionSilenced === true;
-      saveState({ deferrals, sessionSilenced: silence });
-    } catch (_) {
-      // Deferral is optional; closing still must release the player back to Godot.
+    const nodeId = currentServerNode();
+    if (!hasCredentials() || !nodeId) {
+      completeResearch();
+      return;
     }
-    removeOverlay();
-    continueGodot();
+    try {
+      const result = await request("/defer", authenticatedBody({ nodeId }));
+      const nextState = updateServerState(result);
+      if (Number(result?.deferCount || nextState.deferCounts?.[nodeId] || 0) >= 2) {
+        showSessionSilenceOffer();
+        return;
+      }
+    } catch (_) {
+      // Deferral is optional; an outage must not block the game.
+    }
+    completeResearch();
   }
 
   function completeResearch() {
@@ -323,9 +395,9 @@
     continueGodot();
   }
 
-  function continueGodot(seed) {
+  function continueGodot() {
     if (typeof window.__poResearchContinue === "function") {
-      window.__poResearchContinue(seed);
+      window.__poResearchContinue(JSON.stringify({ nodeId: activeNodeId() }));
     }
   }
 
@@ -340,25 +412,15 @@
   function openSettings() {
     const content = document.createElement("div");
     content.className = "po-research-settings";
-    content.append(heading("Research reminders / 研究提醒", "Reminders are paused after two Later choices. You can re-enable them here. / 两次选择稍后后，提醒将暂停；可在此重新开启。"));
+    content.append(heading("Research reminders / 研究提醒", "Reminder silence lasts only for this browser session. / 提醒静默仅限本次浏览器会话。"));
     const actions = document.createElement("div");
     actions.className = "po-research-actions";
     actions.append(
-      makeButton("Enable reminders / 开启提醒", "po-research-primary", async () => {
-        try {
-          const result = await request("/defer", "POST", { action: "resume_reminders" });
-          serverRefreshedSession = result.session || result;
-          saveState({ sessionSilenced: false, deferrals: 0 });
-          removeOverlay();
-          continueGodot();
-        } catch (error) {
-          showError(error, openSettings);
-        }
+      makeButton("Enable reminders / 开启提醒", "po-research-primary", () => {
+        sessionSilenced = false;
+        completeResearch();
       }),
-      makeButton("Close / 关闭", "po-research-secondary", () => {
-        removeOverlay();
-        continueGodot();
-      })
+      makeButton("Close / 关闭", "po-research-secondary", completeResearch)
     );
     content.append(actions);
     showOverlay(content, "settings");
@@ -366,21 +428,43 @@
 
   async function handleCheckpoint(event) {
     activeCheckpoint = event?.detail || {};
-    try {
-      await recordCheckpoint(activeCheckpoint);
-      await refreshResearchSession();
-    } catch (_) {
-      // A research outage must never block the game session.
-      continueGodot();
+    verifiedCheckpointLevel = null;
+    if (activeNodeId() === "baseline") {
+      if (!hasCredentials()) {
+        showInvitation();
+        return;
+      }
+      try {
+        await refreshResearchSession();
+      } catch (_) {
+        serverRefreshedSession = null;
+        completeResearch();
+        return;
+      }
+      if (currentServerNode() === "baseline") showBaseline(serverRefreshedSession.questions || FALLBACK_QUESTIONS);
+      else completeResearch();
       return;
     }
-    if (canOfferBaseline()) {
-      showInvitation();
-    } else if (!state.sessionSilenced && !serverRefreshedSession.sessionSilenced && hasVerifiedGameplaySession()) {
-      showGameplayQuestions();
-    } else {
-      continueGodot();
+    if (!hasCredentials()) {
+      completeResearch();
+      return;
     }
+    try {
+      await refreshResearchSession();
+      await recordCheckpoint(activeCheckpoint);
+    } catch (_) {
+      completeResearch();
+      return;
+    }
+    if (!sessionSilenced && hasVerifiedGameplaySession()) showGameplayQuestions();
+    else completeResearch();
+  }
+
+  function activeResearchContext() {
+    return {
+      participantId: serverRefreshedSession?.participantId || "",
+      routeArm: serverRefreshedSession?.routeArm || "",
+    };
   }
 
   window.addEventListener("observatory:research-checkpoint", handleCheckpoint);
@@ -390,5 +474,6 @@
     handleCheckpoint,
     canOfferBaseline,
     hasVerifiedGameplaySession,
+    activeResearchContext,
   });
 })();

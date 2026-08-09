@@ -35,7 +35,9 @@ func offer_after_level(level_number: int, continue_scene: String, continue_actio
 	if not action.is_valid():
 		action = func() -> void:
 			GameManager.go(continue_scene)
-	var detail := _prepare_checkpoint(level_number, continue_scene, _browser_research_context(), action)
+	# L1 starts the optional enrollment flow, so it must reach JavaScript before any session exists.
+	var context: Dictionary = {} if level_number == 1 else _browser_research_context()
+	var detail := _prepare_checkpoint(level_number, continue_scene, context, action)
 	if detail.is_empty():
 		return false
 	_install_browser_callbacks()
@@ -71,7 +73,7 @@ func _can_offer_checkpoint(level_number: int, context: Dictionary) -> bool:
 	if node_for_level(level_number).is_empty():
 		return false
 	if level_number == 1:
-		return bool(context.get("canOfferBaseline", false))
+		return true
 	return bool(context.get("hasVerifiedGameplaySession", false))
 
 
