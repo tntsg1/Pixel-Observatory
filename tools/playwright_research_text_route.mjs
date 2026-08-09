@@ -6,51 +6,37 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { QUESTION_FORMS, TEXT_ARCHIVE_MODULES } from "../web/landing/study/research-content.mjs";
+
 const root = dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 const artifactsDir = join(root, "artifacts", "research");
 const sessionName = `research-text-route-${process.pid}`;
 const npxCli = join(dirname(process.execPath), "node_modules", "npm", "bin", "npx-cli.js");
 const sessionStorageKey = "pixel-observatory:research-session:v2";
+const nodeIds = ["A", "B", "C", "D", "E"];
 const apiCalls = [];
-const questions = [
-  {
-    id: "a-wide-view",
-    prompt: { en: "Which view is most useful first?", zh: "开始时最适合使用哪种视野？" },
-    options: [
-      { id: "finder", en: "A wide finder view", zh: "宽广的寻星镜视野" },
-      { id: "narrow", en: "The narrowest view", zh: "最窄的视野" },
-    ],
-  },
-  {
-    id: "a-focus",
-    prompt: { en: "What changes sharpness?", zh: "什么会改变清晰度？" },
-    options: [
-      { id: "focus", en: "The focuser", zh: "调焦器" },
-      { id: "weather", en: "A weather label", zh: "天气标签" },
-    ],
-  },
-  {
-    id: "a-alignment",
-    prompt: { en: "What should share a target?", zh: "什么应该指向同一目标？" },
-    options: [
-      { id: "aligned", en: "Finder and main telescope", zh: "寻星镜和主望远镜" },
-      { id: "unrelated", en: "Two unrelated targets", zh: "两个无关目标" },
-    ],
-  },
-];
+const submissions = [];
+const nodeFixtures = Object.fromEntries(nodeIds.map(nodeId => {
+  const form = QUESTION_FORMS[nodeId]?.[0];
+  assert.ok(form, `Missing public research form fixture for node ${nodeId}.`);
+  assert.equal(form.questions.length, 3, `${nodeId} must expose exactly three questions.`);
+  for (const question of form.questions) {
+    assert.equal(question.options.length, 4, `${nodeId}/${question.id} must expose exactly four options.`);
+  }
+  assert.ok(TEXT_ARCHIVE_MODULES[nodeId], `Missing archive text module for node ${nodeId}.`);
+  return [nodeId, Object.freeze({
+    title: TEXT_ARCHIVE_MODULES[nodeId].title.en,
+    questions: form.questions,
+  })];
+}));
 
 const researchState = {
-  participantId: "RSP-TEXT-ROUTE",
-  language: "en",
-  routeArm: "archive_text",
-  currentNode: "A",
+  activeNodeIndex: 0,
   completedNodes: ["baseline"],
-  deferCounts: { A: 0 },
-  lateResponseCount: 0,
+  deferCounts: Object.fromEntries(nodeIds.map(nodeId => [nodeId, 0])),
   crossExposed: false,
   withdrawn: false,
-  questions,
-  rewardOffer: null,
+  lastRewardOffer: null,
 };
 
 const [pageHtml, studyEntry, studyScript, studyStyles, researchContent] = await Promise.all([
@@ -123,21 +109,13 @@ try {
   await cli("reload");
   await cli("snapshot");
   await pageCode("await page.waitForSelector('[data-view=\"archive-text\"]');");
-  await pageCode(`
-    const state = await page.evaluate(() => ({
-      title: document.querySelector('h1')?.textContent?.trim(),
-      questions: document.querySelectorAll('[data-question]').length,
-      forms: document.querySelectorAll('[data-research-survey]').length,
-      simulations: document.querySelectorAll('canvas, iframe, [class*="mini-game"]').length,
-    }));
-    if (state.title !== 'Finding and Focusing' || state.questions !== 3 || state.forms !== 1 || state.simulations !== 0) {
-      throw new Error('Restored archive route is incomplete: ' + JSON.stringify(state));
-    }
-  `);
+  await pageCode("await page.evaluate(() => { window.__researchRewardOffers = []; window.addEventListener('po:research-reward-offer', event => window.__researchRewardOffers.push(event.detail)); });");
+
+  await assertCurrentNode("A");
   await pageCode(`
     await page.locator('[data-language="zh"]').click();
     const language = await page.evaluate(() => document.documentElement.lang);
-    if (language !== 'zh-CN' || (await page.locator('h1').innerText()) === 'Finding and Focusing') throw new Error('Chinese archive module did not render.');
+    if (language !== 'zh-CN' || (await page.locator('h1').innerText()) === ${JSON.stringify(nodeFixtures.A.title)}) throw new Error('Chinese archive module did not render.');
     await page.locator('[data-language="en"]').click();
   `);
   await pageCode(`await page.screenshot({ path: ${JSON.stringify(join(artifactsDir, "text-route-desktop.png"))}, fullPage: true });`);
@@ -158,10 +136,18 @@ try {
     if (keys !== 'language,noRemindSessionNodes,participantId,token' || !stored.noRemindSessionNodes.includes('A')) {
       throw new Error('No-reminder setting was not persisted narrowly: ' + JSON.stringify(stored));
     }
+    await page.evaluate(() => {
+      window.__researchRealDateNow = Date.now;
+      window.__researchNow = Date.now();
+      Date.now = () => window.__researchNow + 61_000;
+    });
   `);
   await pageCode("await page.locator('.survey-paused [data-action=\"open-settings\"]').click(); await page.locator('.study-settings [data-action=\"enable-reminder\"]').click(); await page.waitForSelector('[data-research-survey]');");
+  await assertCurrentNode("A");
   await pageCode(`
-    if (await page.locator('[data-question]').count() !== 3) throw new Error('Settings did not restore the exact three-question survey.');
+    await page.waitForTimeout(80);
+    const dimensions = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+    if (dimensions.width !== 1024 || dimensions.scrollWidth > dimensions.width + 1) throw new Error('Desktop layout overflow: ' + JSON.stringify(dimensions));
   `);
 
   await cli("resize", "390", "844");
@@ -176,22 +162,20 @@ try {
   await pageCode("await page.locator('[data-action=\"ordinary-game\"]').click(); await page.getByText('primary comparison').waitFor();");
   assert.equal(apiCalls.filter(call => call.path === "/api/research/exposure").length, 1, "Ordinary game exposure must be recorded before the notice.");
 
-  await pageCode("await page.evaluate(() => { window.__researchRewardOffers = []; window.addEventListener('po:research-reward-offer', event => window.__researchRewardOffers.push(event.detail)); });");
-  await pageCode(`
-    const questionFields = page.locator('[data-question]');
-    for (let index = 0; index < await questionFields.count(); index += 1) {
-      await questionFields.nth(index).locator('input[type="radio"]').first().check();
-    }
-    await page.locator('[data-research-survey] button[type="submit"]').click();
-    await page.waitForSelector('[data-view="completed"]');
-    const offers = await page.evaluate(() => window.__researchRewardOffers);
-    if (offers.length !== 1 || offers[0].offerId !== 'RO-TEXT-A' || offers[0].nodeId !== 'A' || offers[0].candidates.length !== 3) {
-      throw new Error('Reward offer event was not emitted with the API payload: ' + JSON.stringify(offers));
-    }
-  `);
-  const submitCall = apiCalls.find(call => call.path === "/api/research/submit");
-  assert.ok(submitCall, "Archive survey must submit a response.");
-  assert.equal(Object.keys(submitCall.body.answers || {}).length, 3, "Archive survey must submit exactly three answers.");
+  await submitCurrentNode("A", 0, 2);
+  await assertCurrentNode("B");
+  await submitCurrentNode("B", 1);
+  await assertCurrentNode("C");
+  await submitCurrentNode("C", 2);
+  await assertCurrentNode("D");
+  await submitCurrentNode("D", 3);
+  await assertCurrentNode("E");
+  await submitCurrentNode("E", 4);
+  await pageCode("await page.waitForSelector('[data-view=\"completed\"]'); await page.evaluate(() => { Date.now = window.__researchRealDateNow; delete window.__researchRealDateNow; delete window.__researchNow; });");
+
+  assert.deepEqual(researchState.completedNodes, ["baseline", "A", "B", "C", "D", "E"], "Mock session must advance strictly through each text node.");
+  assert.equal(submissions.length, 5, "Each A-E archive survey must submit once.");
+  assert.deepEqual(submissions.map(submission => submission.nodeId), nodeIds, "Submissions must preserve A-to-E order.");
 
   await pageCode("await page.locator('[data-action=\"open-withdrawal\"]').click(); await page.waitForSelector('[data-withdrawal-dialog][open]'); await page.locator('[data-action=\"confirm-withdrawal\"]').click(); await page.waitForSelector('[data-view=\"withdrawn\"]');");
   assert.equal(apiCalls.filter(call => call.path === "/api/research/withdraw").length, 1, "Withdrawal must require and send one confirmed request.");
@@ -202,13 +186,80 @@ try {
   await closeServer(server);
 }
 
+async function assertCurrentNode(nodeId) {
+  const fixture = nodeFixtures[nodeId];
+  await pageCode(`
+    await page.waitForSelector('[data-view="archive-text"]');
+    const expectedTitle = ${JSON.stringify(fixture.title)};
+    const state = await page.evaluate(expectedTitle => {
+      const questions = [...document.querySelectorAll('[data-question]')].map(question => ({
+        optionCount: question.querySelectorAll('input[type="radio"]').length,
+        labelCount: question.querySelectorAll('.option').length,
+      }));
+      return {
+        title: document.querySelector('h1')?.textContent?.trim(),
+        formCount: document.querySelectorAll('[data-research-survey]').length,
+        questions,
+        simulations: document.querySelectorAll('canvas, iframe, [class*="mini-game"]').length,
+        overflow: document.documentElement.scrollWidth > innerWidth + 1,
+      };
+    }, expectedTitle);
+    if (state.title !== expectedTitle || state.formCount !== 1 || state.questions.length !== 3 || state.questions.some(question => question.optionCount !== 4 || question.labelCount !== 4) || state.simulations !== 0 || state.overflow) {
+      throw new Error('Four-option archive survey mismatch for ' + ${JSON.stringify(nodeId)} + ': ' + JSON.stringify(state));
+    }
+  `);
+}
+
+async function submitCurrentNode(nodeId, offerIndex, expectedDurationSeconds) {
+  const expectedOffer = `RO-TEXT-${nodeId}`;
+  await pageCode(`
+    const questionFields = page.locator('[data-question]');
+    if (await questionFields.count() !== 3) throw new Error('Expected three questions before keyboard submission for ${nodeId}.');
+    for (let index = 0; index < await questionFields.count(); index += 1) {
+      const options = questionFields.nth(index).locator('input[type="radio"]');
+      if (await options.count() !== 4) throw new Error('Expected four options for ${nodeId} question ' + index + '.');
+      await options.first().focus();
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
+      await page.keyboard.press('ArrowDown');
+      if (!await options.nth(3).isChecked()) throw new Error('Keyboard did not select the fourth option for ${nodeId} question ' + index + '.');
+    }
+    ${expectedDurationSeconds === undefined ? "" : "await page.evaluate(() => { Date.now = () => window.__researchNow + 63_000; });"}
+    await page.locator('[data-research-survey] button[type="submit"]').click();
+    await page.waitForFunction(expectedCount => window.__researchRewardOffers.length === expectedCount, ${offerIndex + 1});
+    const offers = await page.evaluate(() => window.__researchRewardOffers);
+    const offer = offers[${offerIndex}];
+    if (offers.length !== ${offerIndex + 1} || !offer || offer.offerId !== ${JSON.stringify(expectedOffer)} || offer.nodeId !== ${JSON.stringify(nodeId)} || offer.candidates.length !== 3) {
+      throw new Error('Reward offer event mismatch for ${nodeId}: ' + JSON.stringify(offers));
+    }
+  `);
+  const submission = submissions[offerIndex];
+  assert.ok(submission, `Missing recorded submission for ${nodeId}.`);
+  assert.equal(submission.nodeId, nodeId, `Submitted node order is wrong for ${nodeId}.`);
+  assert.equal(Object.keys(submission.answers).length, 3, `${nodeId} must submit exactly three answers.`);
+  if (expectedDurationSeconds !== undefined) {
+    assert.equal(submission.durationSeconds, expectedDurationSeconds, "Paused reminder time must not be included in A's answer duration.");
+  }
+}
+
+function currentNodeId() {
+  return nodeIds[researchState.activeNodeIndex] || null;
+}
+
 function stateResponse() {
+  const nodeId = currentNodeId();
   return {
-    ...researchState,
+    participantId: "RSP-TEXT-ROUTE",
+    language: "en",
+    routeArm: "archive_text",
+    currentNode: nodeId,
     completedNodes: [...researchState.completedNodes],
     deferCounts: { ...researchState.deferCounts },
-    questions: researchState.currentNode === "A" ? questions : [],
-    rewardOffer: researchState.rewardOffer ? { ...researchState.rewardOffer, candidates: [...researchState.rewardOffer.candidates] } : null,
+    lateResponseCount: 0,
+    crossExposed: researchState.crossExposed,
+    withdrawn: researchState.withdrawn,
+    questions: nodeId ? nodeFixtures[nodeId].questions : [],
+    rewardOffer: researchState.lastRewardOffer,
   };
 }
 
@@ -218,27 +269,48 @@ function handleResearchApi(path, body, response) {
   }
   if (path === "/api/research/session") return sendJson(response, 200, { state: stateResponse() });
   if (path === "/api/research/defer") {
-    researchState.deferCounts.A = Math.min(2, Number(researchState.deferCounts.A || 0) + 1);
-    return sendJson(response, 200, { state: stateResponse(), deferCount: researchState.deferCounts.A });
+    const nodeId = currentNodeId();
+    assert.equal(body.nodeId, nodeId, "Defer requests must target the current A-E node.");
+    assert.ok(researchState.deferCounts[nodeId] < 2, "The mock refuses a third reminder.");
+    researchState.deferCounts[nodeId] += 1;
+    return sendJson(response, 200, { state: stateResponse(), deferCount: researchState.deferCounts[nodeId] });
   }
   if (path === "/api/research/exposure") {
+    assert.ok(currentNodeId(), "Exposure cannot be recorded after the A-E route is complete.");
     assert.equal(body.kind, "ordinary_game", "The text route must identify ordinary gameplay exposure.");
     researchState.crossExposed = true;
     return sendJson(response, 200, { state: stateResponse() });
   }
   if (path === "/api/research/submit") {
-    assert.equal(body.nodeId, "A", "The restored archive route must submit its current node.");
-    researchState.currentNode = null;
-    researchState.completedNodes = ["baseline", "A", "B", "C", "D", "E"];
-    researchState.rewardOffer = { offerId: "RO-TEXT-A", nodeId: "A", candidates: ["reward-a", "reward-b", "reward-c"] };
-    return sendJson(response, 200, { state: stateResponse(), feedback: { nodeId: "A", recorded: true }, rewardOffer: researchState.rewardOffer });
+    const nodeId = currentNodeId();
+    assert.ok(nodeId, "The mock refuses a submission after E.");
+    assert.equal(body.nodeId, nodeId, "Submit requests must target the current A-E node.");
+    assertValidAnswers(nodeId, body.answers);
+    const durationSeconds = Number(body.durationSeconds);
+    assert.ok(Number.isFinite(durationSeconds) && durationSeconds >= 1, "Submissions need a positive duration.");
+    submissions.push({ nodeId, answers: { ...body.answers }, durationSeconds });
+    researchState.completedNodes.push(nodeId);
+    researchState.activeNodeIndex += 1;
+    researchState.lastRewardOffer = {
+      offerId: `RO-TEXT-${nodeId}`,
+      nodeId,
+      candidates: [`reward-${nodeId}-a`, `reward-${nodeId}-b`, `reward-${nodeId}-c`],
+    };
+    return sendJson(response, 200, { state: stateResponse(), feedback: { nodeId, recorded: true }, rewardOffer: researchState.lastRewardOffer });
   }
   if (path === "/api/research/withdraw") {
     researchState.withdrawn = true;
-    researchState.currentNode = null;
     return sendJson(response, 200, { state: stateResponse(), eventId: "RE-WITHDRAW-TEXT" });
   }
   return sendJson(response, 404, { message: "Unknown research test endpoint." });
+}
+
+function assertValidAnswers(nodeId, answers) {
+  const questions = nodeFixtures[nodeId].questions;
+  assert.deepEqual(Object.keys(answers || {}).sort(), questions.map(question => question.id).sort(), `${nodeId} answer keys must match the current public form.`);
+  for (const question of questions) {
+    assert.ok(question.options.some(option => option.id === answers[question.id]), `${nodeId}/${question.id} received an option outside the current form.`);
+  }
 }
 
 function send(response, status, contentType, body) {

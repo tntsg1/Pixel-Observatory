@@ -237,10 +237,7 @@
           ? surveyMarkup(nodeId, questions, deferCount)
           : unavailableSurveyMarkup();
 
-      if (!paused && questions.length === 3 && surveyNodeId !== nodeId) {
-        surveyNodeId = nodeId;
-        surveyStartedAt = Date.now();
-      }
+      if (!paused && questions.length === 3 && surveyNodeId !== nodeId) restartSurveyTimer(nodeId);
 
       view(`
         <section class="study-view archive-route" data-view="archive-text">
@@ -496,8 +493,14 @@
     function enableReminders(nodeId) {
       session.noRemindSessionNodes = session.noRemindSessionNodes.filter(savedNodeId => savedNodeId !== nodeId);
       persistSession();
+      restartSurveyTimer(nodeId);
       notice = t("Reminders are enabled for this session.", "本次会话已启用提醒。");
       render();
+    }
+
+    function restartSurveyTimer(nodeId) {
+      surveyNodeId = nodeId;
+      surveyStartedAt = Date.now();
     }
 
     async function markOrdinaryGameExposure() {

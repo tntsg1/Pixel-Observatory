@@ -29,5 +29,15 @@ assert.doesNotMatch(
   /renderMiniGame|miniState|reading_posttest|STUDY_MIN_GAME_SECONDS|pixel-observatory:study-session:v1|so-lang/,
   "The previous sequential mini-game and its stale storage keys must not remain active.",
 );
+assert.match(
+  source,
+  /function enableReminders\(nodeId\) \{[\s\S]*restartSurveyTimer\(nodeId\)/,
+  "Re-enabling a paused survey must restart its answer-duration clock.",
+);
+assert.match(
+  source,
+  /function restartSurveyTimer\(nodeId\) \{[\s\S]*surveyNodeId = nodeId;[\s\S]*surveyStartedAt = Date\.now\(\);/,
+  "The restarted survey timer must bind the current node to a fresh start time.",
+);
 
 console.log("research study page contract: ok");
