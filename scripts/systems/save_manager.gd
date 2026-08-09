@@ -69,6 +69,23 @@ func load_progress(default_progress: Dictionary) -> Dictionary:
 	return _merge_defaults(default_progress, parsed)
 
 
+func seed_research_level_one_complete() -> bool:
+	if not _research_level_one_seed_requested():
+		return false
+	if not _study_mode_requested() or has_save():
+		_clear_research_level_one_seed()
+		return false
+	var game_manager := get_node_or_null("/root/GameManager")
+	if game_manager == null or not game_manager.has_method("_research_level_one_seed_progress"):
+		return false
+	var seed_value: Variant = game_manager.call("_research_level_one_seed_progress")
+	if not seed_value is Dictionary:
+		return false
+	save_progress(seed_value as Dictionary, false)
+	_clear_research_level_one_seed()
+	return has_save()
+
+
 func save_progress(progress: Dictionary, queue_cloud: bool = true, touch_metadata: bool = true) -> void:
 	# A developer jump is a runtime sandbox, not campaign progression. Equipment
 	# preparation calls the normal save path many times, so the guard belongs at
@@ -138,6 +155,11 @@ func _consume_study_reset_request() -> bool:
 
 
 func _study_participant_id() -> String:
+	var game_manager := get_node_or_null("/root/GameManager")
+	if game_manager != null and game_manager.has_method("research_participant_id"):
+		var research_participant_id := str(game_manager.call("research_participant_id"))
+		if not research_participant_id.is_empty():
+			return research_participant_id
 	var raw := "local"
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--participant="):
@@ -151,6 +173,18 @@ func _study_participant_id() -> String:
 		if character in "abcdefghijklmnopqrstuvwxyz0123456789-_":
 			cleaned += character
 	return cleaned.left(48) if not cleaned.is_empty() else "local"
+
+
+func _research_level_one_seed_requested() -> bool:
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return false
+	return bool(JavaScriptBridge.eval("new URL(location.href).searchParams.get('research_seed') === 'l1_complete'", true))
+
+
+func _clear_research_level_one_seed() -> void:
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return
+	JavaScriptBridge.eval("const u=new URL(location.href);u.searchParams.delete('research_seed');history.replaceState(history.state,'',u)", true)
 
 
 func _merge_defaults(default_value: Variant, saved_value: Variant) -> Variant:

@@ -23,6 +23,14 @@ const STUDY_CAMPAIGN_ORDER: Array[int] = [
 	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 ]
+const RESEARCH_NODE_BY_COMPLETED_LEVEL := {
+	1: "baseline",
+	6: "A",
+	11: "B",
+	16: "C",
+	21: "D",
+	24: "E",
+}
 const RETIRED_POST_FAST_LEVEL := 86
 const FREE_OBSERVATION_CREDITS := 5
 const TUTORIAL_ASSIST_FULL := "full"
@@ -203,6 +211,8 @@ func _ready() -> void:
 		if _study_mode_active:
 			mission_manager.use_campaign_order_subset(STUDY_CAMPAIGN_ORDER)
 	progress = SaveManager.load_progress(default_progress())
+	if _study_mode_active and SaveManager.seed_research_level_one_complete():
+		progress = SaveManager.load_progress(default_progress())
 	if _study_mode_active and not STUDY_CAMPAIGN_ORDER.has(int(progress.get("current_level", 0))):
 		progress = default_progress()
 	_normalize_progress()
@@ -574,6 +584,57 @@ func new_game() -> void:
 
 func study_mode_active() -> bool:
 	return _study_mode_active
+
+
+func research_route_arm() -> String:
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return ""
+	var value: Variant = JavaScriptBridge.eval("new URL(location.href).searchParams.get('research_arm') || ''", true)
+	var arm := str(value)
+	if arm == "archive_text" or arm == "field_gameplay":
+		return arm
+	return ""
+
+
+func research_participant_id() -> String:
+	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
+		return ""
+	var value: Variant = JavaScriptBridge.eval("new URL(location.href).searchParams.get('participant') || 'local'", true)
+	var cleaned := ""
+	for character in str(value).to_lower():
+		if character in "abcdefghijklmnopqrstuvwxyz0123456789-_":
+			cleaned += character
+	return cleaned.left(48) if not cleaned.is_empty() else "local"
+
+
+func research_node_for_completed_level(level_number: int) -> String:
+	return str(RESEARCH_NODE_BY_COMPLETED_LEVEL.get(level_number, ""))
+
+
+func _research_level_one_seed_progress() -> Dictionary:
+	var seeded: Dictionary = default_progress()
+	var mission_manager: Variant = _mission_manager()
+	var level_one: Dictionary = {}
+	if mission_manager != null:
+		level_one = mission_manager.get_level(1)
+	seeded["save_initialized"] = true
+	seeded["completed_levels"] = [1]
+	seeded["current_level"] = 2
+	seeded["credits"] = int(level_one.get("reward_credits", 0))
+	for part_id_value in level_one.get("unlock_parts", []):
+		var part_id := str(part_id_value)
+		if part_id != "" and not seeded["unlocked_parts"].has(part_id):
+			seeded["unlocked_parts"].append(part_id)
+	var badge := str(level_one.get("badge", ""))
+	if badge != "" and not seeded["badges"].has(badge):
+		seeded["badges"].append(badge)
+	var concept_card_id := str(level_one.get("required_concept_card", ""))
+	if concept_card_id != "" and not seeded["completed_concept_cards"].has(concept_card_id):
+		seeded["completed_concept_cards"].append(concept_card_id)
+	var equipment_stage := str(level_one.get("unlock_equipment_stage", level_one.get("equipment_stage", "")))
+	if equipment_stage != "" and not seeded["unlocked_equipment_stages"].has(equipment_stage):
+		seeded["unlocked_equipment_stages"].append(equipment_stage)
+	return seeded
 
 
 func study_campaign_complete() -> bool:

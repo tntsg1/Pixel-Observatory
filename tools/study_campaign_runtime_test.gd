@@ -4,6 +4,14 @@ const EXPECTED_ORDER: Array[int] = [
 	1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
 	13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
 ]
+const EXPECTED_RESEARCH_NODES: Dictionary = {
+	1: "baseline",
+	6: "A",
+	11: "B",
+	16: "C",
+	21: "D",
+	24: "E",
+}
 var failures := 0
 
 
@@ -17,11 +25,20 @@ func _initialize() -> void:
 		quit(1)
 		return
 	_check(gm.study_mode_active(), "study mode is active")
+	_check(gm.STUDY_CAMPAIGN_ORDER == EXPECTED_ORDER, "research route contains every level from L1 through L24")
 	_check(mm.campaign_order == EXPECTED_ORDER, "research route uses every foundation level from L1 through L24")
 	_check(mm.campaign_order_issues().is_empty(), "foundation research route is a valid campaign order")
 	for index in range(EXPECTED_ORDER.size() - 1):
 		_check(mm.next_level_number(EXPECTED_ORDER[index]) == EXPECTED_ORDER[index + 1],
 			"L%d advances sequentially to L%d" % [EXPECTED_ORDER[index], EXPECTED_ORDER[index + 1]])
+	for level_value in EXPECTED_RESEARCH_NODES:
+		var level_number: int = int(level_value)
+		_check(gm.research_node_for_completed_level(level_number) == EXPECTED_RESEARCH_NODES[level_value],
+			"L%d maps to research node %s" % [level_number, EXPECTED_RESEARCH_NODES[level_value]])
+	for level_number in EXPECTED_ORDER:
+		if not EXPECTED_RESEARCH_NODES.has(level_number):
+			_check(gm.research_node_for_completed_level(level_number).is_empty(),
+				"L%d does not create a research checkpoint" % level_number)
 
 	gm.progress = gm.default_progress()
 	gm.progress["save_initialized"] = true

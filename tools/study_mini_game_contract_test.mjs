@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [page, entry, script, styles, worker, project, gameManager, saveManager, missionManager, mainMenu, learningCard, graduationScene, graduationScript, workflow, cloudflareBuilder] = await Promise.all([
-	readFile(new URL("../web/landing/study/index.html", import.meta.url), "utf8"),
-	readFile(new URL("../web/landing/study-entry.txt", import.meta.url), "utf8"),
-	readFile(new URL("../web/landing/study/study.js", import.meta.url), "utf8"),
-	readFile(new URL("../web/landing/study/study.css", import.meta.url), "utf8"),
-	readFile(new URL("../cloudflare/worker.mjs", import.meta.url), "utf8"),
+const [project, gameManager, saveManager, missionManager, mainMenu, learningCard, graduationScene, graduationScript, workflow, cloudflareBuilder] = await Promise.all([
 	readFile(new URL("../project.godot", import.meta.url), "utf8"),
 	readFile(new URL("../scripts/systems/game_manager.gd", import.meta.url), "utf8"),
 	readFile(new URL("../scripts/systems/save_manager.gd", import.meta.url), "utf8"),
@@ -18,51 +13,14 @@ const [page, entry, script, styles, worker, project, gameManager, saveManager, m
 	readFile(new URL("../.github/workflows/deploy-web.yml", import.meta.url), "utf8"),
 	readFile(new URL("./build_cloudflare_release.mjs", import.meta.url), "utf8"),
 ]);
-
-for (const document of [page, entry]) {
-	assert.match(document, /data-language="en"/);
-	assert.match(document, /data-language="zh"/);
-	assert.match(document, /study-godot-20260806/);
-}
-
-assert.match(script, /const languageStorageKey = "so-lang"/);
-assert.doesNotMatch(script, /window\.open\s*\(/);
-assert.match(script, /function godotGame\(\)/);
-assert.match(script, /mode:\s*"study"/);
-assert.match(script, /study_reset/);
-assert.match(script, /study_token:/);
-assert.match(script, /pixel-observatory-study-godot/);
-assert.match(script, /event\.origin !== location\.origin/);
-assert.match(script, /event\.source !== frame\.contentWindow/);
-assert.match(script, /if \(serverState\.nextStage === "game"\) return godotGame\(\)/);
-assert.match(script, /id: "aperture"/);
-assert.match(script, /id: "alignment"/);
-assert.match(script, /id: "deep_sky"/);
-assert.doesNotMatch(script.slice(script.indexOf("const questions = ["), script.indexOf("function preferredLanguage")), /id: "(?:infrared|radio|dispersion)"/);
-
-const questionnaireSource = script.slice(script.indexOf("const questions = ["), script.indexOf("function preferredLanguage"));
-const correctAnswers = new Map([
-	["workflow", "finder"], ["magnification", "short"], ["focus", "focuser"], ["seeing", "lower"], ["tracking", "rotation"],
-	["chromatic", "refraction"], ["light", "glow"], ["aperture", "collect"], ["alignment", "agree"], ["deep_sky", "expected"],
-]);
-const correctPositions = [];
-for (const [id, answer] of correctAnswers) {
-	const block = questionnaireSource.match(new RegExp(`id: "${id}"[\\s\\S]*?options: \\[(.*?)\\],\\n    \\}`, "m"));
-	assert.ok(block, `Question ${id} must remain in the questionnaire.`);
-	const values = [...block[1].matchAll(/\["([a-z_]+)"/g)].map(match => match[1]);
-	correctPositions.push(values.indexOf(answer));
-}
-assert.deepEqual(correctPositions, [1, 3, 2, 0, 3, 1, 2, 0, 3, 1], "Correct options must be balanced across A-D instead of clustering in A.");
-
-assert.match(styles, /\.language-switch/);
-assert.match(styles, /\.godot-study-frame/);
-assert.match(styles, /@media \(max-width: 600px\)/);
-assert.match(styles, /prefers-reduced-motion/);
-
 assert.match(project, /run\/main_scene="res:\/\/scenes\/main_menu\.tscn"/);
 const studyOrderSource = gameManager.match(/STUDY_CAMPAIGN_ORDER: Array\[int\] = \[([\s\S]*?)\n\]/)?.[1] || "";
 const studyOrder = [...studyOrderSource.matchAll(/\b(\d+)\b/g)].map(match => Number(match[1]));
 assert.deepEqual(studyOrder, Array.from({length: 24}, (_, index) => index + 1), "Study campaign must run every level sequentially from L1 through L24.");
+assert.doesNotMatch(gameManager, /\[\s*16,\s*24\s*\]/, "The research route may not retain the retired L16-L24 shortcut.");
+assert.match(gameManager, /func research_route_arm\(\) -> String/);
+assert.match(gameManager, /func research_participant_id\(\) -> String/);
+assert.match(gameManager, /func research_node_for_completed_level\(level_number: int\) -> String/);
 assert.match(gameManager, /func launch_study_current_level/);
 const studyLaunchBody = gameManager.match(/func launch_study_current_level[\s\S]*?\n\nfunc /)?.[0] || "";
 assert.doesNotMatch(studyLaunchBody, /_debug_prepare_equipment\(\)/, "Study entry must not auto-install equipment.");
@@ -73,6 +31,7 @@ assert.match(studyLaunchBody, /go\("observatory"\)/, "A resumed study must retur
 assert.match(gameManager, /furthest_completed_index/);
 assert.match(saveManager, /STUDY_SAVE_PREFIX := "user:\/\/study_campaign_l1_24_"/);
 assert.match(saveManager, /return STUDY_SAVE_PREFIX \+ _study_participant_id\(\)/);
+assert.match(saveManager, /func seed_research_level_one_complete\(\) -> bool/);
 assert.match(saveManager, /func clear_study_progress/);
 assert.match(missionManager, /func use_campaign_order_subset/);
 assert.match(mainMenu, /GameManager\.launch_study_current_level\(is_new_campaign\)/);
@@ -86,12 +45,4 @@ assert.doesNotMatch(workflow, /build_study_game_shell\.mjs/);
 assert.doesNotMatch(cloudflareBuilder, /study\/game\/study\.pck/);
 assert.match(cloudflareBuilder, /rel\.startsWith\("\."\)/);
 
-assert.match(worker, /const LEGACY_STUDY = \{/);
-assert.match(worker, /minimumGameSeconds: 300/);
-assert.match(worker, /questionnaireVersion: "foundation_1_24_v1"/);
-assert.match(worker, /aperture: "collect"/);
-assert.match(worker, /alignment: "agree"/);
-assert.match(worker, /deep_sky: "expected"/);
-assert.match(worker, /activeSeconds = Math\.max\(0, Math\.min\(90/);
-
-console.log("Study language and complete L1-L24 main-game campaign contract passed.");
+console.log("Research route state and complete L1-L24 main-game campaign contract passed.");

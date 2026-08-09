@@ -22,6 +22,13 @@ func use_campaign_order_subset(order: Array[int]) -> bool:
 		validated.append(level_number)
 	if validated.is_empty():
 		return false
+	if validated[0] != 1:
+		push_error("Study campaign must begin at level 1.")
+		return false
+	for index in range(1, validated.size()):
+		if validated[index] != validated[index - 1] + 1:
+			push_error("Study campaign levels must remain sequential.")
+			return false
 	campaign_order = validated
 	campaign_order_is_subset = true
 	return true
