@@ -22,6 +22,18 @@ const DIM := Color("8391a6")
 const BG := Color("05070f")
 const PANEL := Color("0b1424")
 const LOCK := Color("4a5568")
+const PREVIEW_PANEL_POS := Vector2(362, 116)
+const PREVIEW_PANEL_SIZE := Vector2(634, 306)
+const DETAIL_GRID_POS := Vector2(370, 438)
+
+const FAMILY_BLUEPRINTS := {
+	"refractor": "res://assets/learning_diagrams/refractor_light_path.png",
+	"newtonian": "res://assets/assembly/newtonian_main_blueprint.png",
+	"dobsonian": "res://assets/assembly/dobsonian_main_blueprint.png",
+	"cassegrain": "res://assets/assembly/cassegrain_main_blueprint_cropped.png",
+	"space_segmented": "res://assets/assembly/space_segmented_blueprint_cropped.png",
+	"fast_radio": "res://assets/assembly/fast_blueprint_center_cropped.png",
+}
 
 # Family unlock levels come from the campaign's first level of each family
 # block (advanced_levels.json). refractor is the L1 starter tuning bench.
@@ -105,9 +117,16 @@ var browse_only := false
 var postgraduate_free_build := false
 var selected_family := ""
 var cards: Dictionary = {}
-var detail_container: VBoxContainer
+var detail_container: GridContainer
 var proceed_button: Button
 var title_label: Label
+var preview_panel: Panel
+var preview_texture: TextureRect
+var preview_title: Label
+var preview_status: Label
+var preview_reason: Label
+var preview_meta: Label
+var detail_tween: Tween
 
 
 func _ready() -> void:
@@ -150,6 +169,7 @@ func _is_unlocked(entry: Dictionary) -> bool:
 func _build() -> void:
 	for child in get_children():
 		child.queue_free()
+	cards.clear()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	var bg := ColorRect.new()
 	bg.color = BG
@@ -157,10 +177,11 @@ func _build() -> void:
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
 
-	title_label = _label(GameManager.text("SELECT A TELESCOPE TYPE", "选择望远镜类型"), Vector2(40, 22), Vector2(944, 40), 26, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(GameManager.text("INSTRUMENT CATALOG  /  06 DESIGNS", "仪器目录  /  06 种设计"), Vector2(28, 14), Vector2(968, 20), 10, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
+	title_label = _label(GameManager.text("SELECT A TELESCOPE TYPE", "选择望远镜类型"), Vector2(28, 31), Vector2(968, 38), 25, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var subtitle := GameManager.text(
-		"Browse every design. Unlocked types can be built now; the mission's recommendation is marked.",
-		"浏览每一种设计。已解锁的类型现在就能装配；任务推荐的类型已标出。")
+		"Choose the instrument whose physics match the target. Mission recommendations are guidance, not a restriction.",
+		"按目标所需的物理特性选择仪器。任务推荐只是提示，不会限制你的选择。")
 	if postgraduate_free_build:
 		subtitle = GameManager.text(
 			"Your unlocked optical telescopes are personal equipment. Space and FAST remain remote research facilities.",
@@ -168,12 +189,19 @@ func _build() -> void:
 	if browse_only:
 		subtitle = GameManager.text("Reference catalog of every telescope family you can unlock.",
 			"你可以解锁的所有望远镜家族参考手册。")
-	_label(subtitle, Vector2(40, 62), Vector2(944, 26), 14, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	_label(subtitle, Vector2(40, 70), Vector2(944, 22), 13, DIM, HORIZONTAL_ALIGNMENT_CENTER)
+	var divider := ColorRect.new()
+	divider.position = Vector2(28, 101)
+	divider.size = Vector2(968, 1)
+	divider.color = Color(GOLD_DIM, 0.65)
+	divider.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(divider)
 
 	# ---- left: family list ----
 	var list := VBoxContainer.new()
-	list.position = Vector2(40, 104)
-	list.size = Vector2(320, 620)
+	list.name = "FamilyRail"
+	list.position = Vector2(28, 116)
+	list.size = Vector2(314, 548)
 	list.add_theme_constant_override("separation", 8)
 	add_child(list)
 	for entry_value in FAMILIES:
@@ -183,23 +211,56 @@ func _build() -> void:
 		list.add_child(card)
 		cards[id] = card
 
-	# ---- right: detail panel ----
-	var detail_panel := Panel.new()
-	detail_panel.position = Vector2(384, 104)
-	detail_panel.size = Vector2(600, 560)
-	detail_panel.add_theme_stylebox_override("panel", _style(PANEL, GOLD, 2))
-	add_child(detail_panel)
-	detail_container = VBoxContainer.new()
-	detail_container.position = Vector2(404, 122)
-	detail_container.size = Vector2(564, 524)
-	detail_container.add_theme_constant_override("separation", 10)
+	# ---- right: blueprint preview ----
+	preview_panel = Panel.new()
+	preview_panel.name = "BlueprintPreview"
+	preview_panel.position = PREVIEW_PANEL_POS
+	preview_panel.size = PREVIEW_PANEL_SIZE
+	preview_panel.clip_contents = true
+	preview_panel.add_theme_stylebox_override("panel", _style(Color("071224"), GOLD, 2))
+	add_child(preview_panel)
+
+	preview_texture = TextureRect.new()
+	preview_texture.name = "BlueprintTexture"
+	preview_texture.position = Vector2(8, 8)
+	preview_texture.size = PREVIEW_PANEL_SIZE - Vector2(16, 16)
+	preview_texture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	preview_texture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	preview_texture.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	preview_texture.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview_panel.add_child(preview_texture)
+
+	var preview_scrim := ColorRect.new()
+	preview_scrim.position = Vector2(0, 214)
+	preview_scrim.size = Vector2(PREVIEW_PANEL_SIZE.x, 92)
+	preview_scrim.color = Color(0.015, 0.027, 0.055, 0.94)
+	preview_scrim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview_panel.add_child(preview_scrim)
+
+	preview_meta = _panel_label(preview_panel, "", Vector2(18, 222), Vector2(380, 18), 10, CYAN)
+	preview_title = _panel_label(preview_panel, "", Vector2(18, 239), Vector2(420, 30), 22, TEXT)
+	preview_reason = _panel_label(preview_panel, "", Vector2(18, 270), Vector2(596, 28), 12, DIM)
+	preview_reason.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	preview_status = _panel_label(preview_panel, "", Vector2(456, 232), Vector2(158, 32), 11, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+	preview_status.add_theme_stylebox_override("normal", _style(Color(0.03, 0.10, 0.11, 0.94), GREEN, 1))
+
+	# ---- right: compact facts ----
+	detail_container = GridContainer.new()
+	detail_container.name = "InstrumentFacts"
+	detail_container.position = DETAIL_GRID_POS
+	detail_container.size = Vector2(626, 222)
+	detail_container.columns = 2
+	detail_container.add_theme_constant_override("h_separation", 18)
+	detail_container.add_theme_constant_override("v_separation", 8)
 	add_child(detail_container)
 
 	# ---- bottom buttons ----
-	proceed_button = _button("", Vector2(624, 684), Vector2(360, 48), GOLD)
+	proceed_button = _button("", Vector2(614, 686), Vector2(382, 48), GOLD)
+	proceed_button.name = "ProceedButton"
 	proceed_button.pressed.connect(_proceed)
 	add_child(proceed_button)
-	var back := _button(GameManager.text("Back", "返回"), Vector2(384, 684), Vector2(220, 48), Color(0.16, 0.20, 0.30))
+	var back := _button(GameManager.text("Back", "返回"), Vector2(362, 686), Vector2(232, 48), Color(0.16, 0.20, 0.30))
+	back.name = "BackButton"
 	back.pressed.connect(_go_back)
 	add_child(back)
 
@@ -210,17 +271,38 @@ func _family_card(entry: Dictionary) -> Button:
 	var id := str(entry["id"])
 	var unlocked := _is_unlocked(entry)
 	var button := Button.new()
-	button.custom_minimum_size = Vector2(320, 68)
+	button.name = "Family_" + id
+	button.custom_minimum_size = Vector2(314, 84)
 	button.focus_mode = Control.FOCUS_NONE
 	button.toggle_mode = false
 	var name := GameManager.dict_text(entry, "name")
-	var lock_tag := "" if unlocked else GameManager.text("  [LOCKED]", "  [未解锁]")
-	button.text = name + lock_tag
-	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	button.add_theme_font_size_override("font_size", 16)
-	button.add_theme_color_override("font_color", TEXT if unlocked else LOCK)
-	button.add_theme_color_override("font_color_hover", GOLD)
-	button.add_theme_stylebox_override("normal", _style(PANEL, GOLD_DIM if unlocked else Color(0.20, 0.24, 0.30), 1))
+	var state := GameManager.text("READY TO BUILD", "可装配")
+	if not unlocked:
+		state = GameManager.text("LOCKED · LEVEL %d" % int(entry.get("unlock", 0)), "未解锁 · 第 %d 关" % int(entry.get("unlock", 0)))
+	elif id == _recommended_family() and not browse_only:
+		state = GameManager.text("MISSION MATCH", "符合本关任务")
+	elif postgraduate_free_build and GameManager.is_player_optical_family(id):
+		state = GameManager.text("OWNED · FREE BUILD", "已拥有 · 自由组装")
+	button.text = ""
+	button.tooltip_text = name + " — " + state
+	button.clip_contents = true
+	var blueprint_path := str(FAMILY_BLUEPRINTS.get(id, ""))
+	var thumbnail := TextureRect.new()
+	thumbnail.position = Vector2(10, 10)
+	thumbnail.size = Vector2(64, 64)
+	thumbnail.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	thumbnail.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	thumbnail.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	thumbnail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	if blueprint_path != "" and ResourceLoader.exists(blueprint_path):
+		thumbnail.texture = load(blueprint_path) as Texture2D
+	thumbnail.modulate = Color.WHITE if unlocked else Color(0.38, 0.42, 0.48)
+	button.add_child(thumbnail)
+	var name_label := _panel_label(button, name, Vector2(88, 17), Vector2(210, 27), 15, TEXT if unlocked else LOCK)
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var state_label := _panel_label(button, state, Vector2(88, 45), Vector2(210, 20), 10, GOLD if unlocked else LOCK)
+	state_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	button.add_theme_stylebox_override("normal", _style(PANEL, GOLD_DIM if unlocked else Color(0.20, 0.24, 0.30), 1, 12))
 	button.add_theme_stylebox_override("hover", _style(Color(0.10, 0.16, 0.26), GOLD, 1))
 	button.add_theme_stylebox_override("pressed", _style(Color(0.10, 0.16, 0.26), GOLD, 2))
 	button.pressed.connect(_select.bind(id))
@@ -237,46 +319,68 @@ func _select(id: String) -> void:
 	var entry := _entry(id)
 	if entry.is_empty():
 		return
+	if detail_tween != null and detail_tween.is_valid():
+		detail_tween.kill()
 	for child in detail_container.get_children():
+		detail_container.remove_child(child)
 		child.queue_free()
 	var unlocked := _is_unlocked(entry)
-
-	var header := _free_label(GameManager.dict_text(entry, "name"), 22, GOLD)
-	detail_container.add_child(header)
-
-	var status_text := ""
+	var status_text := GameManager.text("READY TO BUILD", "可装配")
 	var status_color := GREEN
+	var reason_text := GameManager.text(
+		"Unlocked and ready for the assembly bench.",
+		"已经解锁，可以进入装配台。")
 	if not unlocked:
-		status_text = GameManager.text("Locked - reach campaign level %d to unlock." % int(entry.get("unlock", 0)),
-			"未解锁——推进到第 %d 关即可解锁。" % int(entry.get("unlock", 0)))
+		status_text = GameManager.text("LOCKED · LEVEL %d" % int(entry.get("unlock", 0)),
+			"未解锁 · 第 %d 关" % int(entry.get("unlock", 0)))
 		status_color = LOCK
+		reason_text = GameManager.text(
+			"Continue the campaign to unlock this instrument and its assembly bench.",
+			"继续推进课程，即可解锁这台仪器及其装配台。")
 	elif postgraduate_free_build:
 		if GameManager.is_player_optical_family(id):
-			status_text = GameManager.optical_equipment_ownership_label(id) + "\n" + GameManager.text(
-				"Free rebuild enabled. This family's configuration is saved separately.",
-				"已开放自由改装，这一家族的配置会单独保存。")
+			status_text = GameManager.text("OWNED · FREE BUILD", "已拥有 · 自由组装")
 			status_color = GREEN
+			reason_text = GameManager.text(
+				"Your personal telescope. Its configuration is saved separately for free observation.",
+				"这是你的个人望远镜；自由观测配置会单独保存。")
 		else:
-			status_text = GameManager.optical_equipment_ownership_label(id) + "\n" + GameManager.text(
-				"You may assemble its training model and request remote observing time; the facility is not personal equipment.",
-				"你可以组装教学模型并申请远程观测时间；该设施不属于个人设备。")
+			status_text = GameManager.text("REMOTE FACILITY", "远程科研设施")
 			status_color = CYAN
+			reason_text = GameManager.text(
+				"Build its training model, then request remote observing time. The facility is not personal equipment.",
+				"先组装教学模型，再申请远程观测时间；该设施不属于个人设备。")
 	elif not browse_only and id == _recommended_family():
-		status_text = GameManager.text("Recommended for tonight's mission.", "今晚任务推荐使用。")
+		status_text = GameManager.text("MISSION MATCH", "符合本关任务")
 		status_color = GOLD
-	else:
-		status_text = GameManager.optical_equipment_ownership_label(id) if GameManager.is_player_optical_family(id) else GameManager.text("Unlocked - ready to build.", "已解锁——可以装配。")
-	detail_container.add_child(_free_label(status_text, 14, status_color))
+		reason_text = _recommendation_reason(id)
 
-	if not postgraduate_free_build and not browse_only and id == _recommended_family():
-		var why := _recommendation_reason(id)
-		if why != "":
-			detail_container.add_child(_wrapped(why, 13, CYAN))
+	var blueprint_path := str(FAMILY_BLUEPRINTS.get(id, ""))
+	preview_texture.texture = load(blueprint_path) as Texture2D if ResourceLoader.exists(blueprint_path) else null
+	preview_meta.text = GameManager.text(
+		"INSTRUMENT %02d  /  UNLOCK LEVEL %02d" % [_family_index(id), int(entry.get("unlock", 0))],
+		"仪器 %02d  /  第 %02d 关解锁" % [_family_index(id), int(entry.get("unlock", 0))])
+	preview_title.text = GameManager.dict_text(entry, "name")
+	preview_status.text = status_text
+	preview_status.add_theme_color_override("font_color", status_color)
+	preview_status.add_theme_stylebox_override("normal", _style(Color(0.03, 0.07, 0.10, 0.94), status_color, 1))
+	preview_reason.text = reason_text
 
-	detail_container.add_child(_section(GameManager.text("How it works", "工作原理"), GameManager.dict_text(entry, "principle")))
-	detail_container.add_child(_section(GameManager.text("Strengths", "优点"), GameManager.dict_text(entry, "pros")))
-	detail_container.add_child(_section(GameManager.text("Trade-offs", "缺点"), GameManager.dict_text(entry, "cons")))
-	detail_container.add_child(_section(GameManager.text("Best targets", "适合目标"), GameManager.dict_text(entry, "targets")))
+	detail_container.add_child(_fact_block(GameManager.text("HOW IT WORKS", "工作原理"), GameManager.dict_text(entry, "principle")))
+	detail_container.add_child(_fact_block(GameManager.text("STRENGTHS", "优点"), GameManager.dict_text(entry, "pros")))
+	detail_container.add_child(_fact_block(GameManager.text("TRADE-OFFS", "局限"), GameManager.dict_text(entry, "cons")))
+	detail_container.add_child(_fact_block(GameManager.text("BEST TARGETS", "适合目标"), GameManager.dict_text(entry, "targets")))
+
+	preview_panel.position = PREVIEW_PANEL_POS + Vector2(8, 0)
+	preview_panel.modulate.a = 0.45
+	detail_container.position = DETAIL_GRID_POS + Vector2(8, 0)
+	detail_container.modulate.a = 0.45
+	detail_tween = create_tween().set_parallel(true)
+	detail_tween.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	detail_tween.tween_property(preview_panel, "position", PREVIEW_PANEL_POS, 0.18)
+	detail_tween.tween_property(preview_panel, "modulate:a", 1.0, 0.14)
+	detail_tween.tween_property(detail_container, "position", DETAIL_GRID_POS, 0.18)
+	detail_tween.tween_property(detail_container, "modulate:a", 1.0, 0.14)
 
 	# proceed button reflects selection state
 	if not _is_unlocked(entry):
@@ -300,7 +404,7 @@ func _select(id: String) -> void:
 		var e := _entry(card_id)
 		var active: bool = card_id == id
 		var border := GOLD if active else (GOLD_DIM if _is_unlocked(e) else Color(0.20, 0.24, 0.30))
-		card.add_theme_stylebox_override("normal", _style(Color(0.10, 0.16, 0.26) if active else PANEL, border, 2 if active else 1))
+		card.add_theme_stylebox_override("normal", _style(Color(0.10, 0.16, 0.26) if active else PANEL, border, 2 if active else 1, 12))
 
 
 func _recommendation_reason(id: String) -> String:
@@ -367,33 +471,50 @@ func _entry(id: String) -> Dictionary:
 	return {}
 
 
-func _section(heading: String, body: String) -> VBoxContainer:
-	var box := VBoxContainer.new()
-	box.add_theme_constant_override("separation", 2)
-	box.add_child(_free_label(heading, 14, GOLD))
-	box.add_child(_wrapped(body, 13, TEXT))
-	return box
+func _family_index(id: String) -> int:
+	for index in range(FAMILIES.size()):
+		if str(FAMILIES[index]["id"]) == id:
+			return index + 1
+	return 1
 
 
-func _free_label(value: String, font_size: int, color: Color) -> Label:
-	# Unparented label for container content (the _label helper adds to self,
-	# which would error on a second add_child into a container).
+func _fact_block(heading: String, body: String) -> PanelContainer:
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(304, 104)
+	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_theme_stylebox_override("panel", _style(Color("091426"), Color(0.22, 0.34, 0.49), 1, 12))
+	var content := VBoxContainer.new()
+	content.add_theme_constant_override("separation", 4)
+	panel.add_child(content)
+	var heading_label := Label.new()
+	heading_label.text = heading
+	heading_label.add_theme_font_size_override("font_size", 11)
+	heading_label.add_theme_color_override("font_color", GOLD)
+	heading_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(heading_label)
+	var body_label := Label.new()
+	body_label.text = body
+	body_label.custom_minimum_size = Vector2(280, 68)
+	body_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	body_label.add_theme_font_size_override("font_size", 11)
+	body_label.add_theme_color_override("font_color", TEXT)
+	body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
+	body_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	content.add_child(body_label)
+	return panel
+
+
+func _panel_label(parent: Control, value: String, pos: Vector2, label_size: Vector2, font_size: int, color: Color, align := HORIZONTAL_ALIGNMENT_LEFT) -> Label:
 	var label := Label.new()
 	label.text = value
-	label.custom_minimum_size = Vector2(560, 0)
+	label.position = pos
+	label.size = label_size
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", color)
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	return label
-
-
-func _wrapped(value: String, font_size: int, color: Color) -> Label:
-	var label := Label.new()
-	label.text = value
-	label.custom_minimum_size = Vector2(560, 0)
-	label.add_theme_font_size_override("font_size", font_size)
-	label.add_theme_color_override("font_color", color)
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.horizontal_alignment = align
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(label)
 	return label
 
 
@@ -425,14 +546,14 @@ func _button(value: String, pos: Vector2, button_size: Vector2, tint: Color) -> 
 	return button
 
 
-func _style(fill: Color, border: Color, width: int) -> StyleBoxFlat:
+func _style(fill: Color, border: Color, width: int, horizontal_margin: int = 12) -> StyleBoxFlat:
 	var style := StyleBoxFlat.new()
 	style.bg_color = fill
 	style.border_color = border
 	style.set_border_width_all(width)
 	style.set_corner_radius_all(6)
-	style.content_margin_left = 12
-	style.content_margin_right = 12
+	style.content_margin_left = horizontal_margin
+	style.content_margin_right = horizontal_margin
 	style.content_margin_top = 6
 	style.content_margin_bottom = 6
 	return style

@@ -141,6 +141,7 @@ func _test_drag_does_not_equip(gm: Node) -> void:
 	if target == null:
 		_check(false, "4. found a card with an enabled Equip button")
 		return
+	await _ensure_card_visible(target)
 	var button := target.get_node_or_null("EquipButton") as Button
 	var part_type := str(gm.get_part(str(target.get_meta("part_id", ""))).get("type", ""))
 	var equipped_before := str(gm.equipped_part_id(part_type))
@@ -170,6 +171,7 @@ func _test_equip_still_works(gm: Node) -> void:
 	if target == null:
 		_check(false, "5. found a card with an enabled Equip button")
 		return
+	await _ensure_card_visible(target)
 	var part_id := str(target.get_meta("part_id", ""))
 	var part_type := str(gm.get_part(part_id).get("type", ""))
 	var button := target.get_node_or_null("EquipButton") as Button
@@ -298,6 +300,14 @@ func _card_with_active_equip() -> Control:
 		if button != null and not button.disabled and button.get_global_rect().size.x > 0.0:
 			return card
 	return null
+
+
+func _ensure_card_visible(card: Control) -> void:
+	if scroll == null or card == null:
+		return
+	scroll.ensure_control_visible(card)
+	await process_frame
+	await process_frame
 
 
 func _point_on_first_card() -> Vector2:

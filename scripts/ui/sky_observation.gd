@@ -3627,8 +3627,8 @@ func _fade_edge_target_indicator_to_object(object_id: String) -> void:
 
 
 func _target_feedback_ring_size(target_diameter: float) -> float:
-	var ring_minimum := 42.0 if view_mode == "naked_eye" else (42.0 if view_mode == "finder" else 48.0)
-	var ring_maximum := 42.0 if view_mode == "naked_eye" else (64.0 if view_mode == "finder" else 88.0)
+	var ring_minimum := 40.0 if view_mode == "naked_eye" else (44.0 if view_mode == "finder" else 48.0)
+	var ring_maximum := 40.0 if view_mode == "naked_eye" else (64.0 if view_mode == "finder" else 88.0)
 	var ring_padding := maxf(8.0, target_diameter * 0.18)
 	return clampf(target_diameter + ring_padding, ring_minimum, ring_maximum)
 

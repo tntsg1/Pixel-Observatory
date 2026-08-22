@@ -15,6 +15,7 @@ const REPRESENTATIVES := [
 
 var gm: Node
 var capture_failures := 0
+var active_capture_node: Node
 
 
 func _initialize() -> void:
@@ -28,7 +29,6 @@ func _initialize() -> void:
 		quit(2)
 		return
 	await process_frame
-	root.size = Vector2i(1024, 768)
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUTPUT))
 	gm = root.get_node("/root/GameManager")
 	gm.new_game()
@@ -63,7 +63,7 @@ func _capture_target(object_id: String, file_name: String, state: String) -> voi
 	gm.selected_object_id = object_id
 	var view := load("res://scenes/telescope_view.tscn").instantiate() as Control
 	root.add_child(view)
-	current_scene = view
+	active_capture_node = view
 	await _settle(0.26)
 	if view.get("quiz_brief_overlay") != null:
 		view.call("_dismiss_pre_quiz_guide")
@@ -96,10 +96,8 @@ func _capture_target(object_id: String, file_name: String, state: String) -> voi
 		_:
 			view.call("_set_focus_value", target_focus)
 	await _settle(0.22)
-	_save(file_name)
-	current_scene = null
-	view.queue_free()
-	await process_frame
+	await _save(file_name)
+	await _dispose_capture_node()
 
 
 func _capture_focus_result(object_id: String, file_name: String) -> void:
@@ -123,19 +121,17 @@ func _capture_focus_result(object_id: String, file_name: String) -> void:
 	teaching.active_card_mode = "complete"
 	var card := load("res://scenes/learning_card.tscn").instantiate() as Control
 	root.add_child(card)
-	current_scene = card
+	active_capture_node = card
 	await _settle(0.28)
-	_save(file_name)
-	current_scene = null
-	card.queue_free()
-	await process_frame
+	await _save(file_name)
+	await _dispose_capture_node()
 
 
 func _capture_field_backdrop(object_id: String, backdrop: Color, file_name: String) -> void:
 	var stage := Control.new()
 	stage.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	root.add_child(stage)
-	current_scene = stage
+	active_capture_node = stage
 	var background := ColorRect.new()
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	background.color = backdrop
@@ -176,10 +172,8 @@ void fragment() {
 	)
 	stage.add_child(title)
 	await _settle(0.18)
-	_save(file_name)
-	current_scene = null
-	stage.queue_free()
-	await process_frame
+	await _save(file_name)
+	await _dispose_capture_node()
 
 
 func _suppress_tutorials() -> void:
@@ -201,6 +195,15 @@ func _settle(seconds: float) -> void:
 	await process_frame
 	await create_timer(seconds).timeout
 	await process_frame
+	await RenderingServer.frame_post_draw
+
+
+func _dispose_capture_node() -> void:
+	if active_capture_node != null and is_instance_valid(active_capture_node):
+		active_capture_node.queue_free()
+	active_capture_node = null
+	await process_frame
+	await process_frame
 
 
 func _save(file_name: String) -> void:
@@ -219,9 +222,39 @@ func _save(file_name: String) -> void:
 		capture_failures += 1
 		push_error("Viewport image was empty for " + file_name)
 		return
+	if not _image_has_visible_content(image):
+		capture_failures += 1
+		push_error("Viewport image was blank or nearly uniform for " + file_name)
+		return
 	var path := ProjectSettings.globalize_path(OUTPUT + "/" + file_name)
 	if image.save_png(path) != OK:
 		capture_failures += 1
 		push_error("Could not save " + path)
 	else:
 		print("CAPTURE ", path)
+
+
+func _image_has_visible_content(image: Image) -> bool:
+	# Sample the full viewport on a stable grid. A real game frame has strong
+	# luminance variation from brass borders, text, stars and target media;
+	# the failed capture path produced one uniform clear colour.
+	var samples := 0
+	var sum := 0.0
+	var sum_squared := 0.0
+	var minimum := 1.0
+	var maximum := 0.0
+	var step_x := maxi(1, image.get_width() / 32)
+	var step_y := maxi(1, image.get_height() / 24)
+	for y in range(step_y / 2, image.get_height(), step_y):
+		for x in range(step_x / 2, image.get_width(), step_x):
+			var luminance := image.get_pixel(x, y).get_luminance()
+			samples += 1
+			sum += luminance
+			sum_squared += luminance * luminance
+			minimum = minf(minimum, luminance)
+			maximum = maxf(maximum, luminance)
+	if samples == 0:
+		return false
+	var mean := sum / float(samples)
+	var variance := maxf(0.0, sum_squared / float(samples) - mean * mean)
+	return maximum - minimum >= 0.04 and variance >= 0.00005

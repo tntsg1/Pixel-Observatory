@@ -50,6 +50,8 @@ func _initialize() -> void:
 		_check(true, "3. (Sirius already up at home this run - relocation not needed, skipped)")
 
 	# --- 4. Location persists through save/reload; Return Home resets it ---
+	# Leave the developer-jump sandbox before testing real save persistence.
+	gm.new_game()
 	var away := {"id": "atacama_paranal", "name_en": "Paranal", "name_zh": "帕瑞纳", "lat": -24.6, "lon": -70.4, "bortle": 1}
 	gm.set_observing_location(away)
 	gm.save()

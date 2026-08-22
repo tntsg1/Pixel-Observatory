@@ -329,7 +329,7 @@
     "quality": 86,
     "unlock_level": 48,
     "is_placeholder": false,
-    "icon_path": "res://assets/telescope_parts/cassegrain/cassegrain_12mm_eyepiece.png"
+    "icon_path": "res://assets/telescope_parts/cassegrain/cassegrain_40mm_eyepiece.png"
   },
   {
     "id": "gregorian_equatorial_mount",

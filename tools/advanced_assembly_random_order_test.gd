@@ -16,7 +16,7 @@ func _initialize() -> void:
 	gm.new_game()
 	await _test_dobsonian(gm)
 	await _test_flat_family(gm, 66, "space_segmented")
-	await _test_flat_family(gm, 76, "fast_radio")
+	await _test_fast_dependency_order(gm)
 	await _test_foundation_order(gm)
 	print("ADVANCED ASSEMBLY RANDOM ORDER TEST %s" % ("PASS" if failures == 0 else "FAIL"))
 	_finish(0 if failures == 0 else 1)
@@ -72,6 +72,54 @@ func _test_flat_family(gm: Node, level_number: int, expected_family: String) -> 
 	bench.call("_select_flat_part", deferred_part)
 	bench.call("_install_at_slot", deferred_part)
 	_check(gm.missing_parts().is_empty(), "%s completes in reverse install order" % expected_family)
+	bench.queue_free()
+	await process_frame
+
+
+func _test_fast_dependency_order(gm: Node) -> void:
+	gm.debug_jump_to_level(76, true)
+	gm.reset_assembly()
+	var bench: Node = load("res://scenes/advanced_assembly.tscn").instantiate()
+	root.add_child(bench)
+	current_scene = bench
+	await process_frame
+	_check(str(gm.assembly_family()) == "fast_radio", "L76 opens fast_radio assembly")
+	var available: Array = (bench.get("order") as Array).duplicate()
+	available.reverse()
+	_check(available.size() > 1, "fast_radio exposes multiple installable components")
+
+	bench.call("_select_flat_part", "control_terminal")
+	bench.call("_install_at_slot", "control_terminal")
+	var terminal_state: Dictionary = gm.progress.get("assembly_state", {}).get("control_terminal", {})
+	_check(not bool(terminal_state.get("installed", false)), "FAST blocks a terminal whose physical dependencies are missing")
+
+	var install_order: Array[String] = []
+	var pending: Array = available.duplicate()
+	while not pending.is_empty():
+		var next_index := -1
+		for index in range(pending.size()):
+			var candidate := str(pending[index])
+			var blocked := false
+			for dependency in AssemblyDependencyGraph.prerequisites_for("fast_radio", "main", candidate):
+				if available.has(dependency) and not install_order.has(dependency):
+					blocked = true
+					break
+			if not blocked:
+				next_index = index
+				break
+		if next_index < 0:
+			break
+		install_order.append(str(pending.pop_at(next_index)))
+	_check(pending.is_empty(), "FAST dependency graph resolves every component available in this lesson")
+	var deferred_part := str(install_order.pop_back())
+	for part_value in install_order:
+		var part_type := str(part_value)
+		bench.call("_select_flat_part", part_type)
+		bench.call("_install_at_slot", part_type)
+	_check(not gm.missing_parts().is_empty(), "fast_radio cannot finish with one required component missing")
+	bench.call("_select_flat_part", deferred_part)
+	bench.call("_install_at_slot", deferred_part)
+	_check(gm.missing_parts().is_empty(), "fast_radio completes in dependency-safe flexible order")
 	bench.queue_free()
 	await process_frame
 

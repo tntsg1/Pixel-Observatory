@@ -57,7 +57,7 @@ func _check_assembly_family_selector() -> void:
 	var constants: Dictionary = (selector.get_script() as Script).get_script_constant_map()
 	for entry_value in constants.get("FAMILIES", []):
 		ids.append(str((entry_value as Dictionary).get("id", "")))
-	for expected in ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian", "space_segmented", "fast_radio"]:
+	for expected in ["refractor", "newtonian", "dobsonian", "cassegrain", "space_segmented", "fast_radio"]:
 		_check(ids.has(expected), "assembly selector includes " + expected)
 	_check(str(selector.get("selected_family")) == "refractor", "mission recommendation starts selected")
 	selector.queue_free()

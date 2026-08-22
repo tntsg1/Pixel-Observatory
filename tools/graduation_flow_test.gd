@@ -36,6 +36,8 @@ func _initialize() -> void:
 
 func _test_final_completion_and_ceremony(gm: Node, sm: Node) -> void:
 	gm.new_game()
+	gm.language_mode = "en"
+	gm.progress["language_mode"] = "en"
 	gm.debug_jump_to_level(85, true)
 	var mission_manager: Node = root.get_node_or_null("/root/MissionManager")
 	if mission_manager != null:

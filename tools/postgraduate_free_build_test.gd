@@ -61,7 +61,7 @@ func _initialize() -> void:
 	var proceed := selector.get('proceed_button') as Button
 	_check(proceed != null and not proceed.disabled, 'unlocked graduate family can open its bench')
 	_check(proceed != null and ('free' in proceed.text.to_lower() or '自由组装' in proceed.text), 'family screen labels the bench as free build')
-	_check(_collect_text(selector).contains('keep a separate build for each') or _collect_text(selector).contains('分别保存每套装配'), 'family screen explains per-family saved builds')
+	_check(_collect_text(selector).contains('configuration is saved separately') or _collect_text(selector).contains('配置会单独保存'), 'family screen explains per-family saved builds')
 	selector.queue_free()
 	await process_frame
 

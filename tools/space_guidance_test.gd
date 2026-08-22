@@ -71,6 +71,8 @@ func _test_exposure(gm: Node) -> void:
 	gm.progress["space_intro_seen"] = true
 	gm.progress["space_deployed"] = true
 	gm.debug_jump_to_level(66, true)
+	for part_type in gm.space_segmented_install_types():
+		gm.install_part(part_type, 0)
 	var scene: Node = load("res://scenes/space_observation.tscn").instantiate()
 	root.add_child(scene)
 	for _i in range(6):
@@ -78,22 +80,29 @@ func _test_exposure(gm: Node) -> void:
 	var m: SpaceObservationModel = scene.get("model")
 	# jump to the exposure stage
 	m.instrument = "nircam"; m.filter = "near_infrared"; m.exposure_time = 400.0; m.integrations = 4
-	scene.call("_confirm_plan"); await process_frame
+	scene.call("_confirm_plan")
+	await _wait_for_stage_ready(scene, "thermal")
 	m.rotate_to(m.thermal_target_deg)
 	for _i in range(600):
 		m.step_thermal(1.0 / 60.0)
 		if m.thermal_locked:
 			break
-	scene.call("_confirm_thermal"); await process_frame
+	scene.call("_confirm_thermal")
+	await _wait_for_stage_ready(scene, "guide")
 	var usable_guide := _first_usable_guide(m.guide_stars)
 	_check(usable_guide >= 0, "C. this mission has a usable guide candidate")
 	m.choose_guide_star(usable_guide)
 	for _i in range(240):
 		m.step_guiding(1.0 / 60.0)
-	scene.call("_confirm_guide"); await process_frame
-	for _i in range(12):
-		m.align_step(0.09)
-	scene.call("_confirm_wavefront"); await process_frame
+	scene.call("_confirm_guide")
+	await _wait_for_stage_ready(scene, "wavefront")
+	for bank_index in range(3):
+		m.coarse_adjust_group(bank_index)
+	for segment_index in m.wavefront_anomaly_segments():
+		m.adjust_segment_phase(segment_index, -m.segment_phase_error(segment_index))
+	await scene.call("_play_wavefront_convergence")
+	scene.call("_confirm_wavefront")
+	await _wait_for_stage_ready(scene, "expose")
 	_check(str(scene.call("_key")) == "expose", "C. reached the exposure stage")
 
 	# before: Start enabled, Process disabled
@@ -138,7 +147,8 @@ func _test_exposure(gm: Node) -> void:
 	_check(text.to_lower().contains("photon"), "C. exposure explains what exposure IS (photons)")
 
 	# E. processing stage explains each step
-	scene.call("_confirm_expose"); await process_frame
+	scene.call("_confirm_expose")
+	await _wait_for_stage_ready(scene, "process")
 	_check(str(scene.call("_key")) == "process", "E. reached processing")
 	var raw := _all_text(scene)
 	_check(raw.contains("cosmic") or raw.contains("Cosmic"), "E. processing explains the cosmic-ray state")
@@ -214,6 +224,24 @@ func _all_text(node: Node) -> String:
 			out += (child as Button).text + "\n"
 		out += _all_text(child)
 	return out
+
+
+func _wait_for_stage_ready(scene: Node, expected_stage: String, timeout_seconds := 3.0) -> bool:
+	var elapsed := 0.0
+	while is_instance_valid(scene) and elapsed < timeout_seconds:
+		if str(scene.call("_key")) == expected_stage and not bool(scene.get("stage_transition_active")):
+			return true
+		await create_timer(0.05).timeout
+		elapsed += 0.05
+	var actual := "<freed>"
+	var transitioning := false
+	if is_instance_valid(scene):
+		actual = str(scene.call("_key"))
+		transitioning = bool(scene.get("stage_transition_active"))
+	_check(false, "stage handoff. expected %s, got %s (transition=%s)" % [
+		expected_stage, actual, str(transitioning)
+	])
+	return false
 
 
 func _check(condition: bool, label: String) -> void:

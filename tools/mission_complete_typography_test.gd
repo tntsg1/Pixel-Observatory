@@ -60,10 +60,17 @@ func _initialize() -> void:
 	_expect_button_size(card, "打开观测日志", 16)
 	_expect_minimum_cjk_size(card, 12)
 
-	var output_dir := OUTPUT.get_base_dir()
-	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output_dir))
-	var error := root.get_texture().get_image().save_png(ProjectSettings.globalize_path(OUTPUT))
-	_expect(error == OK, "saved Chinese Mission Complete reference image")
+	if DisplayServer.get_name() == "headless":
+		print("  ok: reference image capture is deferred to the windowed visual check")
+	else:
+		var output_dir := OUTPUT.get_base_dir()
+		DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(output_dir))
+		var viewport_texture := root.get_texture()
+		var image := viewport_texture.get_image() if viewport_texture != null else null
+		_expect(image != null, "windowed renderer exposes the Mission Complete reference image")
+		if image != null:
+			var error := image.save_png(ProjectSettings.globalize_path(OUTPUT))
+			_expect(error == OK, "saved Chinese Mission Complete reference image")
 
 	if failures == 0:
 		print("MISSION COMPLETE TYPOGRAPHY TEST PASS")

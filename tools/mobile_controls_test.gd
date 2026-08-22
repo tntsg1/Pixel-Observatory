@@ -33,7 +33,10 @@ func _initialize() -> void:
 	room.call("_update_nearby")
 	_check(str(room.get("nearby_id")) == "mission", "2a. player stands near the mission board")
 	room.call("_interact_with_nearby")
-	await process_frame
+	for _i in range(90):
+		if room.get("mission_board_popup") != null:
+			break
+		await process_frame
 	_check(room.get("mission_board_popup") != null, "2b. Interact opens the mission board like E")
 	room.call("_close_mission_board", false)
 	var overlay: Control = room.get("mobile_overlay")

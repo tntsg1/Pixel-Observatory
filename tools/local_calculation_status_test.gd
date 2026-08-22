@@ -7,7 +7,7 @@ func _initialize() -> void:
 	await process_frame
 	var gm: Node = root.get_node("/root/GameManager")
 	gm.language_mode = "en"
-	_check(gm.position_source_label("online") == "Live calculation", "online ephemeris is labelled Live calculation")
+	_check(gm.position_source_label("online") == "AstronomyAPI live", "online ephemeris names its live provider")
 	_check(gm.position_source_label("calculated") == "Local calculation", "local astronomy is not labelled offline")
 	_check(gm.position_source_label("planet_ephemeris") == "Local calculation", "local planet ephemeris is labelled Local calculation")
 	_check(gm.position_source_label("fallback") == "Teaching simulation", "catalog teaching coordinates are labelled Teaching simulation")
@@ -25,4 +25,3 @@ func _check(condition: bool, label: String) -> void:
 	else:
 		failures += 1
 		print("  FAIL: " + label)
-

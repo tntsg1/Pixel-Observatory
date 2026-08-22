@@ -23,6 +23,9 @@ func _initialize() -> void:
 	gm.debug_jump_to_level(131, false)
 	_check(int(gm.progress.get("current_level", 0)) == 85, "direct debug jump beyond FAST clamps to L85")
 
+	# The migration case must behave like a real loaded save, not like the
+	# disposable developer sandbox exercised above.
+	gm.new_game()
 	gm.progress = gm.default_progress()
 	gm.progress["campaign_version"] = 93
 	gm.progress["current_level"] = 100

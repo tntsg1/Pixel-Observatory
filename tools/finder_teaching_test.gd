@@ -14,6 +14,8 @@ func _initialize() -> void:
 
 	# --- 1. A finder story exists for L6 and plays before assembly/observation ---
 	gm.new_game()
+	gm.language_mode = "en"
+	gm.progress["language_mode"] = "en"
 	gm.debug_jump_to_level(6, false)
 	var event_id := str(story.event_for_trigger("before_observation", 6))
 	_check(event_id == "level_6_before", "1. L6 has a before-observation story event")

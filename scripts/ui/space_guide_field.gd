@@ -34,6 +34,15 @@ func _ready() -> void:
 	set_process(true)
 
 
+func _localized(en: String, zh: String) -> String:
+	var main_loop := Engine.get_main_loop()
+	if main_loop is SceneTree:
+		var manager := (main_loop as SceneTree).root.get_node_or_null("GameManager")
+		if manager != null and manager.has_method("text"):
+			return str(manager.call("text", en, zh))
+	return en
+
+
 func set_stars(value: Array) -> void:
 	guide_stars = value
 	queue_redraw()
@@ -153,7 +162,7 @@ func _draw() -> void:
 		draw_line(Vector2(x, 68), Vector2(x, size.y - 82), Color(0.12, 0.12, 0.12), 1.0)
 	for y in range(84, int(size.y) - 82, 28):
 		draw_line(Vector2(28, y), Vector2(size.x - 28, y), Color(0.12, 0.12, 0.12), 1.0)
-	draw_string(ThemeDB.fallback_font, Vector2(28, 50), GameManager.text(
+	draw_string(ThemeDB.fallback_font, Vector2(28, 50), _localized(
 		"DRAG SEARCH BOX ACROSS THE SENSOR FIELD", "拖动搜索框扫描传感器星场"),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 12, MID)
 
@@ -248,7 +257,7 @@ func _draw_drift_graph(rect: Rect2) -> void:
 	draw_string(
 		ThemeDB.fallback_font,
 		rect.position + Vector2(7, 14),
-		GameManager.text("GUIDANCE DRIFT", "导星漂移"),
+		_localized("GUIDANCE DRIFT", "导星漂移"),
 		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, MID)
 	draw_string(
 		ThemeDB.fallback_font,

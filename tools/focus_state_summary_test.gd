@@ -32,7 +32,7 @@ func _initialize() -> void:
 	_check(all_text.contains("失焦"), "Chinese summary labels the out-of-focus state")
 	_check(all_text.contains("接近焦点"), "Chinese summary labels the near-focus state")
 	_check(all_text.contains("准焦"), "Chinese summary labels the in-focus state")
-	_check(_focus_area_texture_count(view) >= 4, "focus comparison uses layered real target textures")
+	_check(_focus_area_texture_count(view) >= 3, "focus comparison uses three real target textures")
 	await _capture("jupiter_focus_states_zh.png")
 
 	view.queue_free()

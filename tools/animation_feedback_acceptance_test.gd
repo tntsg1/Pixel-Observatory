@@ -125,7 +125,8 @@ func _test_observation_motion() -> void:
 	root.add_child(view)
 	await process_frame
 	await process_frame
-	view.call("_set_view_mode", "finder")
+	var transition_mode := "naked_eye" if str(view.get("view_mode")) == "finder" else "finder"
+	view.call("_set_view_mode", transition_mode)
 	var view_layer := view.get("view_layer") as Control
 	var optical_transition := view.get("optical_mode_transition") as Control
 	_check(view_layer != null and optical_transition != null and optical_transition.visible, "Eye/Finder/Scope switching starts a visible optical transition")

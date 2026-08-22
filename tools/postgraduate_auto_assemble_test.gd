@@ -73,8 +73,9 @@ func _initialize() -> void:
 	await process_frame
 	_check(fast_bench.find_child("AutoAssembleButton", true, false) != null, "graduation exposes Auto Assemble on the FAST bench")
 	fast_bench.call("_on_auto_assemble_pressed")
-	await create_timer(2.5).timeout
-	for part_type in ["radio_dish", "receiver", "signal_processor"]:
+	await _wait_for_auto_complete(fast_bench, 12.0)
+	for part_type_value in gm.call("_effective_required_parts"):
+		var part_type := str(part_type_value)
 		_check(bool(gm.progress.get("assembly_state", {}).get(part_type, {}).get("installed", false)), "FAST auto assembly installs %s" % part_type)
 	_check(not bool(fast_bench.get("auto_assemble_running")), "FAST auto assembly releases its input lock")
 	fast_bench.queue_free()

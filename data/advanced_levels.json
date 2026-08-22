@@ -3366,6 +3366,7 @@
     "practice_step": 6,
     "variation": "",
     "waveband": "infrared",
+    "evidence_band": "infrared",
     "teaching_steps": [],
     "drift_enabled": false,
     "hold_seconds": 0
@@ -3492,6 +3493,7 @@
     "space_profile": {
       "target_id": "betelgeuse",
       "kind": "star",
+      "science_image_path": "res://assets/telescope_view/space_infrared/betelgeuse_herschel.jpg",
       "best_instrument": "miri",
       "best_filter": "dust",
       "science": "old_stellar",
@@ -3559,6 +3561,7 @@
     "space_profile": {
       "target_id": "orion_nebula",
       "kind": "nebula",
+      "science_image_path": "res://assets/telescope_view/space_infrared/orion_bar_miri.jpg",
       "best_instrument": "nircam",
       "best_filter": "emission_line",
       "science": "hot_gas",

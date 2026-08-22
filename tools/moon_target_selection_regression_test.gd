@@ -112,7 +112,10 @@ func _test_free_observation_separation() -> void:
 
 func _test_below_horizon_route() -> void:
 	gm.new_game()
-	gm.progress["current_level"] = 1
+	# Foundation lessons intentionally use a scheduled teaching sky so a new
+	# player cannot be blocked by the real horizon. Exercise relocation on the
+	# first post-foundation Moon mission instead.
+	gm.debug_jump_to_level(26, false)
 	gm.publish_sky_positions({"moon": {"altitude": -4.0, "azimuth": 80.0, "visible": false, "below_horizon": true, "source": "calculated"}})
 	_check(gm.target_requires_relocation(), "below-horizon Moon requests the world map")
 

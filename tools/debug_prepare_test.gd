@@ -11,7 +11,14 @@ func _initialize() -> void:
 	await process_frame
 	var gm: Node = root.get_node_or_null("/root/GameManager")
 	gm.new_game()
-	var cases := [[4, ""], [27, "newtonian"], [37, "dobsonian"], [47, "cassegrain"], [57, "gregorian"]]
+	var cases := [
+		[4, ""],
+		[27, "newtonian"],
+		[37, "dobsonian"],
+		[47, "cassegrain"],
+		[67, "space_segmented"],
+		[77, "fast_radio"]
+	]
 	for case_value in cases:
 		var level_number: int = int(case_value[0])
 		var family := str(case_value[1])

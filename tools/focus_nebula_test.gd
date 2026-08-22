@@ -16,6 +16,8 @@ func _initialize() -> void:
 		quit(1)
 		return
 	gm.new_game()
+	gm.language_mode = "en"
+	gm.progress["language_mode"] = "en"
 	gm.progress["current_level"] = 7
 	gm.call("_unlock_parts_for_current_level")
 	gm.call("reset_assembly")

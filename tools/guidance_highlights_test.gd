@@ -58,6 +58,8 @@ func _test_disabled_tutorial_spotlights(feedback: Node) -> void:
 
 func _test_lobby_guidance_visibility(feedback: Node, gm: Node) -> void:
 	gm.new_game()
+	gm.language_mode = "en"
+	gm.progress["language_mode"] = "en"
 	gm.update_room_guidance_for_level()
 	var room: Node = load("res://scenes/observatory_room.tscn").instantiate()
 	root.add_child(room)

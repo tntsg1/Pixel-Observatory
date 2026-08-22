@@ -115,8 +115,9 @@ func _initialize() -> void:
 	if not repeated_ok:
 		print("FAIL repeat final: completed mission should be acknowledged")
 		failures += 1
-	if str(gm.room_guidance_target) != "journal":
-		print("FAIL repeat final: expected journal guidance, got ", gm.room_guidance_target)
+	var expected_next_route := str(gm.current_room_route().get("target", ""))
+	if str(gm.room_guidance_target) != expected_next_route:
+		print("FAIL repeat final: expected next unfinished lesson route ", expected_next_route, ", got ", gm.room_guidance_target)
 		failures += 1
 	if gm.progress.get("journal_entries", []).size() != journal_count_before:
 		print("FAIL repeat final: duplicate journal entry added")

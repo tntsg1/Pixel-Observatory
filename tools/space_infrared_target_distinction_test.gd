@@ -38,6 +38,13 @@ func _initialize() -> void:
 		return str(missions.get_level(number).get("target_object_id", "")) == "orion_nebula"),
 		"the infrared target lessons no longer reuse the optical Orion Nebula mission")
 
+	for number in [73, 74]:
+		var level: Dictionary = missions.get_level(number)
+		var profile: Dictionary = level.get("space_profile", {})
+		var image_path := str(profile.get("science_image_path", ""))
+		_check(image_path != "" and ResourceLoader.exists(image_path),
+			"L%d resolves a dedicated infrared science image instead of geometric fallback" % number)
+
 	var target: Dictionary = gm.get_object("carina_cosmic_cliffs")
 	_check(not target.is_empty(), "Cosmic Cliffs celestial data exists")
 	_check(str(target.get("name_en", "")).contains("Cosmic Cliffs"), "English target name is specific")

@@ -30,17 +30,22 @@ func _initialize() -> void:
 	_check(str(route.get("target", "")) == "assembly", "L6 route points to the Assembly Table")
 	_check(not bool(route.get("ready", true)), "L6 route is blocked until installation")
 	_check((route.get("missing", []) as Array).has("finder_scope"), "route names finder scope as missing")
-	_check(str(gm.pending_mission_setup_scene()) == "assembly", "mission Continue resolves to the install screen")
+	_check(str(gm.pending_mission_setup_scene()) == "assembly", "mandatory setup identifies the Assembly Table")
 
 	var gate: Dictionary = gm.can_enter_observation()
 	_check(not bool(gate.get("ok", true)), "observation is blocked before finder installation")
 	_check(str(gate.get("reason_en", "")).contains("Finder Scope"), "observation gate explains the missing finder")
-	_check(gm.go_to_pending_mission_setup(), "mission Continue consumes the mandatory setup route")
-	await process_frame
-	_check(str(gm.current_learning_card_mode()) == "brief", "first-time finder explanation appears before installation")
-	gm.complete_current_brief()
+	_check(gm.go_to_pending_mission_setup(), "mission Continue returns to the guided observatory route")
 	await process_frame
 	var current_scene_path := current_scene.scene_file_path if current_scene != null else ""
+	_check(current_scene_path.ends_with("observatory_room.tscn"), "Continue returns to the room instead of teleporting to Assembly")
+	_check(str(gm.room_guidance_target) == "assembly", "room guidance keeps the Assembly Table highlighted")
+	_check(gm.try_teaching_intercept("before_assembly", "assembly"), "walking to the Assembly Table opens the finder explanation")
+	await process_frame
+	_check(str(gm.current_learning_card_mode()) == "brief", "first-time finder explanation appears after interacting with Assembly")
+	gm.complete_current_brief()
+	await process_frame
+	current_scene_path = current_scene.scene_file_path if current_scene != null else ""
 	_check(current_scene_path.ends_with("telescope_assembly.tscn"), "finder explanation continues directly to the install screen")
 
 	var finder_score: int = gm.install_part("finder_scope", 0, "basic_finder_scope")

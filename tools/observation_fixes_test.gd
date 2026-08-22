@@ -53,7 +53,9 @@ func _initialize() -> void:
 
 	# --- ISSUE 7: observing location + selection persist across save/reload ---
 	gm.new_game()
-	gm.debug_jump_to_level(6, false)
+	# Persistence must be exercised outside the developer jump sandbox, whose
+	# save guard intentionally prevents QA sessions from overwriting a campaign.
+	gm.progress["current_level"] = 6
 	var away := {"id": "siding_spring", "name_en": "Siding Spring", "name_zh": "赛丁泉", "lat": -31.27, "lon": 149.06, "bortle": 3}
 	gm.set_observing_location(away)
 	gm.selected_object_id = "sirius"

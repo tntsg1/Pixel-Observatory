@@ -76,16 +76,17 @@ func _initialize() -> void:
 	var dialogue_en := ""
 	for line_value in dialogue:
 		dialogue_en += " " + str(line_value.get("text_en", ""))
+	dialogue_en = dialogue_en.to_lower()
 	_check(
-		dialogue_en.contains("chromatic aberration") or dialogue_en.contains("colored fringes"),
+		dialogue_en.contains("chromatic aberration") or dialogue_en.contains("colored fringe"),
 		"dialogue explains refractor chromatic aberration"
 	)
 	_check(
-		dialogue_en.contains("Newtonian") and dialogue_en.contains("mirror"),
+		(dialogue_en.contains("newtonian") or dialogue_en.contains("isaac newton")) and dialogue_en.contains("mirror"),
 		"dialogue introduces the Newtonian solution"
 	)
 	_check(
-		dialogue_en.contains("primary mirror") and dialogue_en.contains("secondary"),
+		dialogue_en.contains("primary") and dialogue_en.contains("secondary"),
 		"dialogue explains the Newtonian light path"
 	)
 

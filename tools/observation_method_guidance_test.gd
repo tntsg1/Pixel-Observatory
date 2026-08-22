@@ -2,15 +2,25 @@ extends SceneTree
 
 var failures := 0
 var gm: Node
+var feedback: Node
+var previous_guidance_enabled := true
+var previous_tutorial_seen: Dictionary = {}
 
 
 func _initialize() -> void:
 	await process_frame
 	gm = root.get_node_or_null("/root/GameManager")
-	if gm == null:
+	feedback = root.get_node_or_null("/root/InteractionFeedback")
+	if gm == null or feedback == null:
 		_fail("GameManager autoload is missing")
 		quit(1)
 		return
+	previous_guidance_enabled = bool(feedback.get("guidance_highlights"))
+	previous_tutorial_seen = (feedback.get("_tutorial_seen") as Dictionary).duplicate(true)
+	feedback.set("guidance_highlights", true)
+	var clean_seen := previous_tutorial_seen.duplicate(true)
+	clean_seen.erase("first_nebula_filter")
+	feedback.set("_tutorial_seen", clean_seen)
 	gm.new_game()
 	gm.language_mode = "zh"
 	gm.progress["language_mode"] = "zh"
@@ -18,6 +28,9 @@ func _initialize() -> void:
 	_check_learning_order()
 	await _check_filter_first_use()
 	await _check_noninteractive_requirements()
+	feedback.set("guidance_highlights", previous_guidance_enabled)
+	feedback.set("_tutorial_seen", previous_tutorial_seen)
+	feedback.call("_save_settings")
 
 	if failures == 0:
 		print("OBSERVATION METHOD GUIDANCE TEST PASS")

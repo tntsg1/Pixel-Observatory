@@ -90,6 +90,7 @@ func _initialize() -> void:
 	_check(str(packet.get("candidate_model", "")) == str(report.get("candidate_model", "")) and not sky.is_empty(), "target model and sky position stay on the same data packet")
 
 	model.trial_period_ms = model.true_period_ms * 0.8
+	scene.call("_reset_fold_capture_validation", true)
 	scene.call("_refresh_fold")
 	gm.language_mode = "en"
 	scene.call("_refresh_fold")

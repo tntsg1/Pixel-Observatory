@@ -144,7 +144,8 @@ func _check_headless_material_response(
 		var source := FileAccess.get_file_as_string("res://scripts/ui/telescope_view.gd")
 		_check(
 			not source.contains("max(source_tint.rgb")
-			and source.contains("source_core = smoothstep"),
+			and source.contains("source_art_alpha = smoothstep")
+			and source.contains("vec3 star_color = source_tint.rgb"),
 			"point-source shader removes baked halo edges without forcing a pink channel floor"
 		)
 	var sharp_defocus := 1.0

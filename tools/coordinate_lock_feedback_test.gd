@@ -24,6 +24,11 @@ func _initialize() -> void:
 	gm.language_mode = "zh"
 	gm.progress["language_mode"] = "zh"
 	gm.last_sky_aim = {"valid": false}
+	# This capture validates the target-state rings, not the separate one-time
+	# Finder tutorial card. Keep that tutorial covered by its own flow tests.
+	var interaction_feedback := root.get_node_or_null("/root/InteractionFeedback")
+	if interaction_feedback != null:
+		interaction_feedback.call("mark_tutorial_seen", "first_finder")
 
 	var view: Control = load("res://scenes/sky_observation.tscn").instantiate()
 	root.add_child(view)
@@ -32,6 +37,12 @@ func _initialize() -> void:
 	var target_id := str(view.get("target_id"))
 	var target: Dictionary = (view.get("sky_data") as Dictionary).get(target_id, {})
 	_check(target_id == "mars", "level 14 targets Mars")
+	# Mars moves with the real date. Keep this ring-specific regression above
+	# the low-altitude site-change threshold so horizon guidance cannot mask the
+	# coordinate-acquisition copy under test.
+	target["altitude"] = 45.0
+	target["below_horizon"] = false
+	target["visible"] = true
 	var mission_hint := str(view.call("_mission_hint", gm.get_object(target_id)))
 	_check(
 		mission_hint.contains("方位角") and mission_hint.contains("俯仰角"),

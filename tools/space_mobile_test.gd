@@ -25,6 +25,8 @@ func _initialize() -> void:
 	gm.progress["space_intro_seen"] = true
 	gm.progress["space_deployed"] = false
 	gm.debug_jump_to_level(66, true)
+	for part_type in gm.space_segmented_install_types():
+		gm.install_part(part_type, 0)
 
 	var scene: Node = load("res://scenes/space_observation.tscn").instantiate()
 	root.add_child(scene)
@@ -58,6 +60,7 @@ func _initialize() -> void:
 	_check(cont != null, "2. deployment-complete continue button is present")
 	if cont != null:
 		await _tap_button(cont)
+	await _wait_for_stage_ready(scene, "plan")
 	_check(str(scene.call("_key")) == "plan", "2. touch advanced to planning")
 
 	# 3. tap an instrument choice
@@ -75,7 +78,7 @@ func _initialize() -> void:
 	# 4. attitude slider can be driven by touch (drag changes the value)
 	m.exposure_time = 400.0; m.integrations = 5; m.instrument = "nircam"; m.filter = "near_infrared"
 	scene.call("_confirm_plan")
-	await process_frame
+	await _wait_for_stage_ready(scene, "thermal")
 	_check(str(scene.call("_key")) == "thermal", "4. reached the thermal stage")
 	var before := m.attitude_deg
 	var rot := _find_button_containing(scene, "+10")
@@ -94,7 +97,7 @@ func _initialize() -> void:
 		if m.thermal_locked:
 			break
 	scene.call("_confirm_thermal")
-	await process_frame
+	await _wait_for_stage_ready(scene, "guide")
 	var usable_guide := -1
 	for guide_index in range(m.guide_stars.size()):
 		if bool((m.guide_stars[guide_index] as Dictionary).get("usable", false)):
@@ -104,10 +107,14 @@ func _initialize() -> void:
 	m.choose_guide_star(usable_guide)
 	for _i in range(240): m.step_guiding(1.0/60.0)
 	scene.call("_confirm_guide")
-	await process_frame
-	for _i in range(12): m.align_step(0.09)
+	await _wait_for_stage_ready(scene, "wavefront")
+	for bank_index in range(3):
+		m.coarse_adjust_group(bank_index)
+	for segment_index in m.wavefront_anomaly_segments():
+		m.adjust_segment_phase(segment_index, -m.segment_phase_error(segment_index))
+	await scene.call("_play_wavefront_convergence")
 	scene.call("_confirm_wavefront")
-	await process_frame
+	await _wait_for_stage_ready(scene, "expose")
 	_check(str(scene.call("_key")) == "expose", "5. reached the exposure stage")
 	var start := _find_button_containing(scene, "Start Exposure")
 	_check(start != null, "5. Start Exposure button is tappable")
@@ -187,6 +194,24 @@ func _drag_slider(slider: HSlider) -> void:
 	root.push_input(release)
 	await process_frame
 	await process_frame
+
+
+func _wait_for_stage_ready(scene: Node, expected_stage: String, timeout_seconds := 3.0) -> bool:
+	var elapsed := 0.0
+	while is_instance_valid(scene) and elapsed < timeout_seconds:
+		if str(scene.call("_key")) == expected_stage and not bool(scene.get("stage_transition_active")):
+			return true
+		await create_timer(0.05).timeout
+		elapsed += 0.05
+	var actual := "<freed>"
+	var transitioning := false
+	if is_instance_valid(scene):
+		actual = str(scene.call("_key"))
+		transitioning = bool(scene.get("stage_transition_active"))
+	_check(false, "stage handoff. expected %s, got %s (transition=%s)" % [
+		expected_stage, actual, str(transitioning)
+	])
+	return false
 
 
 func _check(condition: bool, label: String) -> void:

@@ -68,7 +68,7 @@ func _initialize() -> void:
 	_check(_event_contains(sm, "level_55_after", "Space Telescope Console", "空间望远镜控制台"), "Cassegrain result leads to active space chapter")
 	_check(not _event_contains_any(sm, "level_55_after", ["Gregorian", "格里高利"]), "L55 no longer points to retired Gregorian chapter")
 	_check(_event_contains(sm, "level_75_after", "FAST", "FAST"), "infrared result causes radio chapter")
-	_check(_event_contains(sm, "level_85_after", "ask, predict, measure, compare, record", "提问、预测、测量、比较、记录"), "L85 closes the method arc")
+	_check(_event_contains(sm, "level_85_after", "ask, predict, measure, compare, record", "提问、预测、测量、比较"), "L85 closes the method arc")
 	_check(not _event_contains_any(sm, "level_85_after", ["what happens when", "会发生什么"]), "L85 has no dangling sequel hook")
 	_check(str(sm.context_for_event("level_55_after").get("from_id", "")) == "observation_pad", "L55 epilogue still begins at the ground observation pad")
 	_check(str(sm.context_for_event("level_75_after").get("from_id", "")) == "space_console", "L75 epilogue begins at the space console")

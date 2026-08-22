@@ -38,12 +38,17 @@ func _initialize() -> void:
 			await process_frame
 
 	_check(bool(cabinet.get("reassembly_route_ready")), "equipping a part arms assembly continuation")
-	var route_button := _route_button(cabinet, str(gm.assembly_scene_key()))
-	_check(route_button != null, "assembly continuation button exists after equip")
+	var route_button := _route_button(cabinet, "observatory")
+	_check(route_button != null, "room-return button exists after equip")
 	if route_button != null:
-		_check(route_button.text == "前往组装台", "button clearly says 前往组装台")
-		_check(str(route_button.get_meta("destination_scene", "")) == str(gm.assembly_scene_key()), "route targets the current family's assembly scene")
-		_check(str(route_button.get_meta("destination_scene", "")) not in ["sky", "telescope", "observatory"], "route cannot fall through to observation")
+		_check(route_button.text == "返回大厅", "button clearly returns the player to the room")
+		_check(str(route_button.get_meta("destination_scene", "")) == "observatory", "cabinet never teleports directly to Assembly")
+		_check(str(gm.room_guidance_target) == "assembly", "Assembly Table is the highlighted next destination")
+		route_button.pressed.emit()
+		for _i in range(4):
+			await process_frame
+		var scene_path := current_scene.scene_file_path if current_scene != null else ""
+		_check(scene_path.ends_with("observatory_room.tscn"), "player returns to the room and must walk to Assembly")
 
 	if failures == 0:
 		print("PARTS ASSEMBLY CONTINUATION TEST PASS")
