@@ -98,6 +98,7 @@ var _touch_index := -1
 var _touch_start := Vector2.ZERO
 var _touch_start_scroll := 0
 var _touch_dragged := false
+var _touch_equip_button: Button
 # Touch emulation raises a mouse click right after the finger lifts; a gesture
 # that turned into a scroll must not let that click reach an Equip button.
 var _suppress_emulated_click := false
@@ -149,17 +150,11 @@ func _draw_title_bar() -> void:
 	var title := _label_to(self, GameManager.text("Parts Cabinet", "零件柜"), Vector2(252, 24), Vector2(520, 32), 24, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
 
-	var back_text := GameManager.text("Continue to Assembly", "前往组装台") if reassembly_route_ready else GameManager.text("Back to Base", "返回基地")
+	var back_text := GameManager.text("Return to Hall", "返回大厅")
 	var back := _button(back_text, Vector2(842, 22), Vector2(144, 40))
 	back.name = "CabinetPrimaryRouteButton"
-	back.set_meta("destination_scene", GameManager.assembly_scene_key() if reassembly_route_ready else "observatory")
-	back.pressed.connect(func() -> void:
-		if reassembly_route_ready:
-			_go_to_assembly_after_equipping()
-		else:
-			GameManager.set_observatory_spawn("cabinet")
-			GameManager.go("observatory")
-	)
+	back.set_meta("destination_scene", "observatory")
+	back.pressed.connect(_return_to_room_after_equipping)
 	add_child(back)
 
 	if GameManager.current_equipment_stage() != "eye":
@@ -225,10 +220,18 @@ func _show_auto_equip_preview() -> void:
 		var applied: int = GameManager.apply_auto_equip(plan)
 		auto_equip_popup.queue_free()
 		auto_equip_popup = null
-		reassembly_route_ready = applied > 0
+		GameManager.update_room_guidance_for_level()
+		reassembly_route_ready = str(GameManager.current_room_route().get("target", "")) == "assembly"
+		var message := GameManager.text(
+			"Equipped %d parts. Continue with the next highlighted mission part.",
+			"已更换 %d 件零件。请继续选择下一件高亮任务零件。"
+		) % applied
 		if reassembly_route_ready:
-			GameManager.set_room_guidance_for_scene("assembly")
-		_show_feedback(GameManager.text("Equipped %d parts. Reassemble at the Assembly Table.", "已更换 %d 件零件。请回组装台重新安装。") % applied, GREEN)
+			message = GameManager.text(
+				"Equipped %d parts. Return to the hall and follow the Assembly Table highlight.",
+				"已更换 %d 件零件。返回大厅，跟随高亮前往组装台。"
+			) % applied
+		_show_feedback(message, GREEN)
 	)
 	panel.add_child(confirm)
 	var cancel := _button(GameManager.text("Cancel", "取消"), Vector2(300, height - 56), Vector2(140, 38))
@@ -369,8 +372,10 @@ func _category_header(text: String) -> Control:
 func _part_card(part: Dictionary) -> Control:
 	var part_type := str(part.get("type", ""))
 	var part_id := str(part.get("id", ""))
+	var part_family := str(part.get("telescope_family", ""))
 	var type_info: Dictionary = {"en": _type_label(part_type, "en"), "zh": _type_label(part_type, "zh"), "role": _type_label(part_type, "role")}
 	var unlocked := _is_unlocked(part_id)
+	var compatible_family := part_family == "" or part_family == GameManager.assembly_context_family()
 	var equipped := GameManager.equipped_part_id(part_type) == part_id
 	var exact_required_id := _required_id_for_type(part_type)
 	var exact_required := exact_required_id == part_id
@@ -451,7 +456,7 @@ func _part_card(part: Dictionary) -> Control:
 	desc_label.max_lines_visible = 2
 
 	_draw_stat_chips(root, part, Vector2(18, 132), unlocked)
-	_draw_action_column(root, part, unlocked, equipped, incompatible_equipped)
+	_draw_action_column(root, part, unlocked, equipped, incompatible_equipped, compatible_family)
 
 	# Tap-selection marker: an inner outline, so the equipped / locked / required
 	# border colours above stay exactly as they are.
@@ -467,7 +472,7 @@ func _part_card(part: Dictionary) -> Control:
 	return root
 
 
-func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipped: bool, incompatible_equipped: bool) -> void:
+func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipped: bool, incompatible_equipped: bool, compatible_family: bool) -> void:
 	var part_id := str(part.get("id", ""))
 	var part_type := str(part.get("type", ""))
 	var column_x := CARD_SIZE.x - 174.0
@@ -479,6 +484,9 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 	elif equipped:
 		badge_text = GameManager.text("Equipped", "已装备")
 		badge_color = GREEN
+	elif unlocked and not compatible_family:
+		badge_text = GameManager.text("Other family", "其他家族")
+		badge_color = MUTED
 	elif unlocked:
 		badge_text = GameManager.text("Available", "可装备")
 		badge_color = GOLD
@@ -495,8 +503,8 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 		button.disabled = true
 		button.add_theme_stylebox_override("disabled", _style(Color(0.18, 0.075, 0.045), WARNING, 2, 3) if incompatible_equipped else _style(Color(0.07, 0.14, 0.10), GREEN, 2, 3))
 		button.add_theme_color_override("font_disabled_color", Color(1.0, 0.78, 0.48) if incompatible_equipped else Color(0.72, 1.0, 0.76))
-	elif not unlocked:
-		button.text = GameManager.text("Locked", "未解锁")
+	elif not unlocked or not compatible_family:
+		button.text = GameManager.text("Locked", "未解锁") if not unlocked else GameManager.text("Switch family", "请切换家族")
 		button.disabled = true
 		button.add_theme_stylebox_override("disabled", _style(Color(0.05, 0.055, 0.065), Color(0.16, 0.17, 0.19), 2, 3))
 		button.add_theme_color_override("font_disabled_color", Color(0.42, 0.44, 0.48))
@@ -508,11 +516,20 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 		button.pressed.connect(func() -> void:
 			if GameManager.equip_part(part_id):
 				feedback_color = GREEN
-				feedback_text = GameManager.text("Equipped %s. Reassembly required." % str(part.get("name_en", part_id)), "已装备%s。请回组装台重新安装。" % _safe_zh_name(part, str(part_type)))
-				reassembly_route_ready = true
-				GameManager.set_room_guidance_for_scene("assembly")
+				GameManager.update_room_guidance_for_level()
+				reassembly_route_ready = str(GameManager.current_room_route().get("target", "")) == "assembly"
+				if reassembly_route_ready:
+					feedback_text = GameManager.text(
+						"Equipped %s. Return to the hall and follow the Assembly Table highlight." % str(part.get("name_en", part_id)),
+						"已装备%s。返回大厅，跟随高亮前往组装台。" % _safe_zh_name(part, str(part_type))
+					)
+				else:
+					feedback_text = GameManager.text(
+						"Equipped %s. Choose the next highlighted mission part." % str(part.get("name_en", part_id)),
+						"已装备%s。请继续选择下一件高亮任务零件。" % _safe_zh_name(part, str(part_type))
+					)
 				_build()
-				call_deferred("_scroll_to_part_type", part_type)
+				call_deferred("_scroll_to_next_step")
 		)
 	root.add_child(button)
 
@@ -520,10 +537,10 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 	_label_to(root, lock_note, Vector2(column_x - 2, 110), Vector2(154, 28), 10, MUTED if unlocked else Color(0.45, 0.47, 0.50), HORIZONTAL_ALIGNMENT_CENTER)
 
 
-func _go_to_assembly_after_equipping() -> void:
-	GameManager.set_room_guidance_for_scene("assembly")
-	GameManager.set_observatory_spawn("assembly")
-	GameManager.go(GameManager.assembly_scene_key())
+func _return_to_room_after_equipping() -> void:
+	GameManager.update_room_guidance_for_level()
+	GameManager.set_observatory_spawn("cabinet")
+	GameManager.go("observatory")
 
 
 func _draw_stat_chips(parent: Control, part: Dictionary, pos: Vector2, unlocked: bool) -> void:
@@ -724,6 +741,13 @@ func _array_has_string(values: Variant, needle: String) -> bool:
 
 
 func _next_step_part_type() -> String:
+	var route := GameManager.current_room_route()
+	var required_id := str(route.get("required_part_id", ""))
+	if required_id != "":
+		var required_part := GameManager.get_part(required_id)
+		var routed_type := str(required_part.get("type", ""))
+		if routed_type != "":
+			return routed_type
 	var required: Array[String] = GameManager.required_part_types_for_current_level()
 	var state: Dictionary = GameManager.progress.get("assembly_state", {})
 	for value in required:
@@ -751,6 +775,7 @@ func _input(event: InputEvent) -> void:
 func _handle_touch(touch: InputEventScreenTouch) -> void:
 	if touch.pressed:
 		_suppress_emulated_click = false
+		_touch_equip_button = null
 		if not list_viewport_rect().has_point(touch.position):
 			return
 		_touch_active = true
@@ -758,18 +783,29 @@ func _handle_touch(touch: InputEventScreenTouch) -> void:
 		_touch_start = touch.position
 		_touch_start_scroll = parts_scroll.scroll_vertical
 		_touch_dragged = false
+		_touch_equip_button = _enabled_equip_button_at(touch.position)
+		if _touch_equip_button != null:
+			# Own this touch from press to release. Otherwise Button may consume the
+			# press before the custom scroll detector knows whether it is a tap.
+			get_viewport().set_input_as_handled()
 		return
 	if not _touch_active or touch.index != _touch_index:
 		return
 	var was_drag := _touch_dragged
+	var equip_button := _touch_equip_button
 	_touch_active = false
 	_touch_index = -1
 	_touch_dragged = false
+	_touch_equip_button = null
 	if was_drag:
 		# A scroll must never equip anything or open another screen: swallow the
 		# release, and the emulated click that follows it.
 		_suppress_emulated_click = true
 		get_viewport().set_input_as_handled()
+		return
+	if equip_button != null and is_instance_valid(equip_button) and equip_button.get_global_rect().has_point(touch.position):
+		get_viewport().set_input_as_handled()
+		equip_button.pressed.emit()
 		return
 	_tap_select(touch.position)
 
@@ -831,6 +867,16 @@ func _tap_select(pos: Vector2) -> void:
 	if equip != null and equip.get_global_rect().has_point(pos):
 		return
 	select_part(str(card.get_meta("part_id", "")))
+
+
+func _enabled_equip_button_at(pos: Vector2) -> Button:
+	var card := card_at(pos)
+	if card == null:
+		return null
+	var equip := card.get_node_or_null("EquipButton") as Button
+	if equip == null or equip.disabled or not equip.get_global_rect().has_point(pos):
+		return null
+	return equip
 
 
 func card_at(pos: Vector2) -> Control:

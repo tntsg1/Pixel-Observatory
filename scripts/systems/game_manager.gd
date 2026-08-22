@@ -2294,16 +2294,11 @@ func go_to_pending_mission_setup() -> bool:
 	var scene_key := pending_mission_setup_scene()
 	if scene_key == "":
 		return false
-	if scene_key == "assembly":
-		set_observatory_spawn("assembly")
-		# The concept brief is part of learning how to install the new component;
-		# after the card, TeachingFlowManager returns straight to the bench.
-		if try_teaching_intercept("before_assembly", scene_key):
-			return true
-	elif scene_key == "parts":
-		set_observatory_spawn("cabinet")
-	clear_room_guidance()
-	go(scene_key)
+	# A result screen only hands control back to the physical observatory route.
+	# The player follows the room highlight and deliberately interacts with the
+	# cabinet or Assembly Table; that interaction owns any teaching card.
+	update_room_guidance_for_level()
+	go("observatory")
 	return true
 
 
@@ -2991,10 +2986,23 @@ func install_part(part_type: String, wrong_attempts: int, part_id: String = "") 
 	var resolved_id := part_id
 	if resolved_id == "":
 		resolved_id = equipped_part_id(part_type)
+		var equipped_part := get_part(resolved_id)
+		if (
+			resolved_id != ""
+			and (
+				equipped_part.is_empty()
+				or not progress.get("unlocked_parts", []).has(resolved_id)
+				or not is_part_compatible_with_current_level(equipped_part)
+			)
+		):
+			resolved_id = ""
 	if resolved_id == "":
 		var options := unlocked_parts_by_type(part_type)
-		if not options.is_empty():
-			resolved_id = str(options[options.size() - 1].get("id", ""))
+		for option_index in range(options.size() - 1, -1, -1):
+			var option: Dictionary = options[option_index]
+			if is_part_compatible_with_current_level(option):
+				resolved_id = str(option.get("id", ""))
+				break
 	if resolved_id != "" and equipped_part_id(part_type) != resolved_id:
 		equip_part(resolved_id)
 	if not can_install_part_type(part_type, resolved_id):

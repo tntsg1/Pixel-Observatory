@@ -2752,13 +2752,14 @@ func _maybe_show_unlock_popup() -> void:
 	unlock_popup.add_child(later)
 
 	var equip_now := Button.new()
-	equip_now.text = GameManager.text("Open Observation Pad", "打开观星台") if opens_observation_pad else GameManager.text("Open Parts Cabinet", "打开零件柜")
+	equip_now.name = "UnlockRouteButton"
+	equip_now.text = GameManager.text("Open Observation Pad", "打开观星台") if opens_observation_pad else GameManager.text("Show Route", "显示路线")
 	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
 	equip_now.size = Vector2(220, 38)
 	equip_now.add_theme_font_size_override("font_size", 13)
 	equip_now.pressed.connect(func() -> void:
-		_close_unlock_popup(false)
 		if opens_observation_pad:
+			_close_unlock_popup(false)
 			_handle_interaction("telescope")
 			return
 		GameManager.set_room_guidance(
@@ -2769,7 +2770,7 @@ func _maybe_show_unlock_popup() -> void:
 				"在零件柜选择刚解锁的部件；装备后，引导会继续带你前往组装台安装。"
 			)
 		)
-		GameManager.go("parts")
+		_close_unlock_popup(true)
 	)
 	unlock_popup.add_child(equip_now)
 
