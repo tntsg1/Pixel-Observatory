@@ -28,7 +28,6 @@ AudioManager="*res://scripts/audio_manager.gd"
 BulletManager="*res://scripts/systems/bullet_manager.gd"
 InteractionFeedback="*res://scripts/ui/interaction_feedback.gd"
 TouchInput="*res://scripts/systems/touch_input.gd"
-_mcp_game_helper="*res://addons/godot_ai/runtime/game_helper.gd"
 
 [display]
 
@@ -102,9 +101,8 @@ info={
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
-renderer/rendering_method.web="gl_compatibility"
-textures/vram_compression/import_etc2_astc=true
 textures/canvas_textures/default_texture_filter=0
 rendering_device/driver.windows="d3d12"
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
+textures/vram_compression/import_etc2_astc=true

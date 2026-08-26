@@ -1,6 +1,7 @@
 extends Control
 
 const FurnitureAnimator = preload("res://scripts/ui/observatory_furniture_animator.gd")
+const AmbientAnimator = preload("res://scripts/ui/observatory_ambient_animator.gd")
 const MayaHallNPCScript = preload("res://scripts/ui/maya_hall_npc.gd")
 const W := 1024.0
 const H := 768.0
@@ -209,6 +210,7 @@ var control_bar: Panel
 var control_bar_toggle: Button
 var control_bar_expanded := false
 var control_bar_manual_revision := 0
+var ambient_animator: ObservatoryAmbientAnimator
 var furniture_animator: ObservatoryFurnitureAnimator
 var furniture_occluders: Array[Dictionary] = []
 var interactables: Array[Dictionary] = []
@@ -582,6 +584,10 @@ func _draw_official_remote_terminal() -> void:
 
 
 func _draw_furniture_animation_overlays() -> void:
+	ambient_animator = AmbientAnimator.new()
+	ambient_animator.name = "AmbientAnimator"
+	add_child(ambient_animator)
+	ambient_animator.setup()
 	furniture_animator = FurnitureAnimator.new()
 	furniture_animator.name = "FurnitureAnimator"
 	add_child(furniture_animator)

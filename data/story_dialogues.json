@@ -60,13 +60,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Moon first—no telescope yet. It's bright enough for your own eyes.",
-      "text_zh": "先找月球吧~这么亮，今晚用眼睛就够了。"
+      "text_zh": "先别碰望远镜~抬头找月球就好，它靠眼睛就能轻松找到啦！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Center it, then take your time. Shape first, dark patches second.",
-      "text_zh": "移到中央后别急着点完。先看轮廓，再找那些暗色区域。"
+      "text_zh": "找到啦？那就把月球慢慢移到准星中央~先看看它整体的轮廓，再仔细找找表面那些暗色区域，记住现在能看清多少哦！"
     }
   ],
   "level_1_after": [
@@ -74,31 +74,31 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "There we go—your first naked-eye record! Moonlight entered your eye and formed an image on your retina.",
-      "text_zh": "有啦，第一份肉眼记录！月光钻进眼睛，最后在视网膜上成了像。"
+      "text_zh": "很好~第一份肉眼观测就算完成啦！你刚才看到的月光进入眼睛后，会被聚焦到视网膜上成像，我们就是这样看见月球的呀~"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You caught the round disc and dark maria, but the smaller terrain still blurred together. That's normal.",
-      "text_zh": "圆盘和暗色月海看见了，小地形却还糊在一起。很正常，不是你眼神不好。"
+      "text_zh": "你已经能看出月球是圆的，也能认出那些暗色的月海啦~不过再小一点的地形，现在还是会糊成一片，这就是肉眼的极限了"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Those dark maria are ancient lava plains. The little pits are impact craters—some have been sitting there for billions of years.",
-      "text_zh": "那些暗色月海，其实是古老的熔岩平原。小坑是撞击留下的环形山，有些已经待了几十亿年。"
+      "text_zh": "看到那些暗色的一大片了吗？它们叫月海，其实是很古老的平原~旁边那些小坑就是岩石撞出来的环形山，有些已经安安静静留在那里几十亿年啦"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "With almost no air or running water, the Moon barely erases those scars. That's why ancient craters can still look so crisp.",
-      "text_zh": "月球几乎没有大气和流水，没什么能磨掉这些伤痕。所以很老的环形山也能留到今天。"
+      "text_zh": "月球上几乎没有大气，也没有流水一直去冲刷地面，所以那些撞出来的环形山很难被慢慢磨平~有些几十亿年前留下的痕迹，到今天居然还看得到呢"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Your eyes got us this far. Next time, we let a telescope pull those missing edges back out.",
-      "text_zh": "肉眼先走到这里。下一晚，我们让望远镜把丢掉的边缘捞回来~"
+      "text_zh": "今天先看到这里吧，小观测员~把肉眼能看见的样子记好，下一次我们就搬出望远镜，把刚才糊掉的那些细节一点点找回来~"
     }
   ],
   "level_2_before": [
@@ -106,19 +106,19 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "New target tonight: a star. Bright ones meet your eyes halfway; faint ones really don't.",
-      "text_zh": "今晚换颗恒星。亮星还肯配合，暗一点的就很会躲呀。"
+      "text_zh": "今晚我们换颗恒星看看吧~亮一点的星星，肉眼很快就能找到，可要是再暗一些，就没那么容易啦，盯久了都不一定看得见呢"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "That tiny point is a huge ball of hot gas, making its own light through fusion in the core. Tiny in our sky, not tiny in reality.",
-      "text_zh": "等会儿那个小光点，其实是团巨大的炽热气体，核心靠核聚变自己发光。只是离我们太远啦。"
+      "text_zh": "别看它在天上只是个小光点呀~恒星其实是一大团炽热的气体，主要是氢和氦，核心一直在进行核聚变，把氢慢慢变成氦，同时放出大量能量，所以你等下看到的那颗星可不是在反射谁的光，它自己就在发光哦！而且恒星的颜色也藏着温度，偏蓝的一般更热，偏红的会凉一些，我们的太阳其实也只是其中很普通的一颗恒星啦~"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Look north for Polaris. Don't wait for a giant sparkle—it will stay a very small point.",
-      "text_zh": "朝北找北极星。它不会突然变成大光球，只是一个很小的星点哦。"
+      "text_zh": "朝北边慢慢找北极星吧~别期待看见一个小圆球哦，离我们实在太远了，肉眼里它就只是一个很小的亮点，能把它认出来就很好啦！"
     }
   ],
   "level_2_after": [
@@ -166,13 +166,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Now compare: the maria separate from the bright highlands, and the crater rims finally have readable edges.",
-      "text_zh": "快对比一下：月海和明亮高地分开了，环形山边缘也终于站出来了。"
+      "text_zh": "看到了吧~这次月海和明亮高地已经能明显分开，连环形山的边缘都清楚多了！你刚才肉眼看不见的那些细节，就是被望远镜一点点补回来的呀~"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Keep both sessions in the Club Logbook. The pair tells us more than either pretty view could alone.",
-      "text_zh": "两次都别删，放进观测日志一起看。这样望远镜帮了多少，一眼就明白。"
+      "text_zh": "这两次可都要好好记下来哦~等会儿把前后的观测日志放在一起比一比，你一眼就能看出来，望远镜到底替我们多看见了多少东西！"
     }
   ],
   "level_4_before_focus": [
@@ -180,13 +180,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Built doesn't always mean sharp. If the image is blurry, wait—don't blame the telescope yet.",
-      "text_zh": "装好了也可能会糊。等等，先别怪望远镜，多半只是焦点还没碰上。"
+      "text_zh": "望远镜都装好啦，画面还是糊糊的？先别急~大多数时候只是焦点还没对上，轻轻调一调，说不定下一秒月球就清楚啦！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Use Q/E gently. Watch the target's edge tighten; if it gets worse, turn back.",
-      "text_zh": "用 Q/E 慢慢调。盯着目标边缘，越紧实就越接近；更糊了就反向。"
+      "text_zh": "用 Q/E 慢慢转调焦旋钮就好~别盯着整颗月球，先看边缘，哪边越来越清楚就继续往哪边调，很快就能找到最清晰的位置啦！"
     }
   ],
   "level_4_after": [
@@ -194,7 +194,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "There it is! The crater edge just snapped into place—that's the focal plane.",
-      "text_zh": "就是这里！环形山边缘一下咬住了，这才是焦平面。"
+      "text_zh": "对，就是这个感觉~焦点一旦对准，原本软乎乎的边缘会一下子利落起来！看到最清楚的那一刻就停手，别一高兴又给它拧过去啦~"
     }
   ],
   "level_5_before": [
@@ -202,19 +202,19 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "New observers love the biggest magnification number. I did too. The sky cured me of that pretty fast.",
-      "text_zh": "新人最爱追最高倍率，我以前也一样。然后被天空很快教育了一顿，哼。"
+      "text_zh": "很多新人一上来就想把倍率拉满，可倍率越高，付出的代价也越多，可不是越大就一定看得越清楚哦！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Jupiter is mostly hydrogen and helium, with no solid ground to stand on. Its volume could fit more than 1,300 Earths.",
-      "text_zh": "木星主要由氢和氦组成，没有能站上去的地面，体积能塞下 1300 多个地球。"
+      "text_zh": "木星可是个大家伙哦~它是一颗气态巨行星，里全是厚厚的氢和氦。它距离太阳大约 7.8 亿公里，体积更夸张，塞下 1300 多个地球都没问题！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "If the view holds, look for the Great Red Spot: a storm bigger than Earth, raging for at least 190 years.",
-      "text_zh": "画面稳得住，就找找大红斑。那场风暴比地球还大，至少刮了 190 年。"
+      "text_zh": "要是画面够清楚，记得找找木星的大红斑哦~那可是一场比地球还大的超级风暴，已经在木星上刮了至少 190 年，到现在都没停下来呢！"
     }
   ],
   "level_5_after": [
@@ -222,7 +222,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You found the limit: bigger helped only until Jupiter stopped giving you new detail.",
-      "text_zh": "你摸到界线了：木星还有新细节时，放大才算有用。"
+      "text_zh": "记住啦，小观测员~倍率高不高其实没那么重要，只有放大以后画面还能稳稳保持清楚，那些倍率才真的有用，不然就只是把一团糊糊的东西放得更大而已~"
     }
   ],
   "level_6_before": [
@@ -268,7 +268,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "There—Sirius stayed put in both views. Wide to find, narrow to study.",
-      "text_zh": "这次天狼星在两边都没跑。宽视野找路，窄视野看细节~"
+      "text_zh": "记住啦~宽视野是拿来找目标的，窄视野才负责盯细节！先找到，再看清，这样就不会在一小片黑漆漆的天空里迷路啦~~"
     }
   ],
   "level_26_before_assembly": [
@@ -299,13 +299,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Tonight's nebula is faint, and our 60 mm objective is running out of light before you are running out of skill.",
-      "text_zh": "今晚的星云太淡，60mm 物镜先到极限了。不是你不会看，是它收的光不够。"
+      "text_zh": "今晚这个星云可实在太暗了，我们这块 60mm 物镜已经快收不到足够的光了，再这么下去，就看不到什么了！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Swap in the 100 mm objective; it gathers nearly three times as much light. Rebuild the refractor, then take it toward Orion.",
-      "text_zh": "换上 100mm 物镜吧，它能收近三倍的光。重新装好折射镜，再去找猎户座。"
+      "text_zh": "那就给望远镜换个100mm 物镜，能收集接近三倍的光！把它装上，重新组好望远镜，然后我们去瞄准猎户座~"
     }
   ],
   "level_7_after": [
@@ -313,7 +313,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "That brighter patch is the aperture at work. Faint targets need more collected light, not empty magnification.",
-      "text_zh": "那团更亮的淡光，就是大口径的功劳。暗目标缺的是光，不是一个更大的模糊影子。"
+      "text_zh": "换成镜面结构以后，我们就能做出更大的集光口径啦~碰上这种又暗又难找的目标时，多收进来一点光，往往比放大更重要！"
     }
   ],
   "level_8_before": [
@@ -321,19 +321,19 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "A nebula is a huge cloud of gas and dust—sometimes glowing, sometimes blocking light. Orion is a stellar nursery about 1,344 light-years away.",
-      "text_zh": "星云是大片气体和尘埃，有的发光，有的挡光。猎户座大星云离我们约 1344 光年，还是座恒星育婴房。"
+      "text_zh": "来，先复习一下呀~星云就是一大片气体和尘埃云，有的自己会发光，有的则会把后面的光挡住。我们等会儿要看的猎户座大星云，就是一座巨大的“恒星育婴房”，离我们大约 1344 光年，直径差不多有 24 光年呢！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "It won't behave like the Moon. Keep the field wide and feed your eyes light; don't bully it with magnification.",
-      "text_zh": "它可不像月亮那么大方。视野留宽一点，多收光，别拿高倍率吓它呀。"
+      "text_zh": "不过猎户座大星云可不像月亮那么亮呀~它暗得多，所以这次别把倍率拉高，我们缺更多的光，得先想办法把那些微弱的光收集进来才行！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "New stars are forming inside that faint glow right now. Soft-looking, yes. Empty, absolutely not.",
-      "text_zh": "新的恒星正在那团淡光里出生呢。看着轻飘飘，里面可一点都不空。"
+      "text_zh": "看见那团淡淡的紫光了吗？新的恒星正在里面一点点诞生呢~"
     }
   ],
   "level_8_after": [
@@ -341,7 +341,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You gave it enough light, and Orion's faint shape finally came out. Save that view.",
-      "text_zh": "光收够以后，猎户座星云的淡轮廓真的冒出来了。快记进日志，我要留着比~"
+      "text_zh": "就是这样呀~只有收进来的光够多，那团黑暗的星云才会露出来~"
     }
   ],
   "level_9_before": [
@@ -349,25 +349,25 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Andromeda sits far beyond the Milky Way. Through this telescope, it may greet you as one very shy smudge.",
-      "text_zh": "仙女座远在银河系外。进了目镜，也可能只肯露一团很害羞的淡光。"
+      "text_zh": "仙女座可是在银河系外面呢~不过别期待它一上来就特别震撼，刚找到的时候，往往只是一团很不起眼的微光呀"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Don't chase a poster image. Finding that honest faint glow is tonight's real job.",
-      "text_zh": "别等海报级大旋涡。能认出那团真实的微光，今晚就做对了。"
+      "text_zh": "能在这么暗的天区里把它一点点找出来，已经很厉害啦~别小看这团微光，你可是亲手找到了一整个星系呢！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "A galaxy is a whole city of stars held together by gravity. Andromeda may contain roughly a trillion of them.",
-      "text_zh": "星系像一整座被引力拢住的恒星城。仙女座这一座，可能就有约一万亿颗恒星。"
+      "text_zh": "你可以把星系想成一座被引力聚在一起的“恒星城市”~像仙女座这么大的家伙，里面可是住着大约一万亿颗恒星呢！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "It's about 2.5 million light-years away and moving toward us. In roughly 4 billion years, Andromeda and the Milky Way are expected to merge.",
-      "text_zh": "它离我们约 250 万光年，却还在慢慢靠近。大约 40 亿年后，它和银河系预计会合并。"
+      "text_zh": "它离我们大概有 250 万光年，不过最有意思的是——仙女座其实一直在朝银河系靠近哦~再过大约 40 亿年，这两个大家伙很可能会撞到一起，最后慢慢合并成一个新的星系！"
     }
   ],
   "level_9_after": [
@@ -375,13 +375,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You pulled Andromeda out of that dark field. All right—now your name really belongs in the Club Logbook.",
-      "text_zh": "你把仙女座从暗空里捞出来了。好啦，现在你的名字真的该写进观测日志。"
+      "text_zh": "今晚你正式加入天文社啦~从现在开始，你也要把自己的名字写进我们的观测日志里了！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Welcome aboard, little observer. Keep a pen near the log desk—you'll need it.",
-      "text_zh": "欢迎入队，小观测员~日志桌旁那支笔，以后可要常用了。"
+      "text_zh": "欢迎你呀，小观测员~以后这片星空，我们就一起看啦！"
     }
   ],
   "level_10_before": [
@@ -389,13 +389,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Jupiter again, but with a sneaky question: when does more power stop helping?",
-      "text_zh": "又是木星，不过问题有点坏：倍率加到哪里，会开始帮倒忙？"
+      "text_zh": "今晚还是看木星~不过别急着把倍率一下子拧上去呀，慢慢加，看看从什么时候开始，木星虽然变大了，细节反而越来越糊，那差不多就是今晚的极限啦~"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Raise the magnification step by step. Watch brightness, steadiness, and detail—not just size.",
-      "text_zh": "一档档往上加吧。别只看大小，也盯住亮度、稳定和细节。",
+      "text_zh": "已经找到木星啦？那就来点刺激的~把倍率一往上推，别只盯着它变大，看看亮度、清晰度和细节。",
       "image": "res://assets/learning_diagrams/magnification_tradeoff.png"
     }
   ],
@@ -413,33 +413,33 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Mars again—but tonight it's skimming the horizon, right through the messiest air.",
-      "text_zh": "又见火星，不过今晚它贴着地平线，正泡在最乱的那层空气里。"
+      "text_zh": "又是火星呀~不过今晚它离地平线太近了，位置低想看清楚可没那么容易哦。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Mars is a rocky world about half Earth's size. That rusty color comes from iron-oxide dust.",
-      "text_zh": "火星是颗岩石行星，大小约为地球一半。那身铁锈红，来自氧化铁尘埃。"
+      "text_zh": "火星其实是颗岩石行星，个头差不多只有地球的一半，离太阳大约有2.28亿公里~你看到那红色了吗？那是地表大量的氧化铁尘埃，简单来说呀……这个整个星球有很多铁，这些铁正在生锈！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Tonight, watch the seeing. Turbulent air bends the light around, like the shimmer above a hot road.",
-      "text_zh": "今晚盯的是视宁度。空气一乱，光就像隔着热浪一样晃呀晃。",
+      "text_zh": "今晚还要注意一个东西——视宁度~要是高空的空气不安分，星光就会跟隔着一层热浪似的抖来抖去",
       "image": "res://assets/learning_diagrams/seeing_turbulence.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "A low Mars sends its light through much more atmosphere. If it looks mushy, don't accuse the optics yet—the air is the troublemaker.",
-      "text_zh": "火星这么低，光要穿过更厚的大气。画面发软先别拆镜子，捣乱的是空气。",
+      "text_zh": "火星今晚的位置太低啦~所以画面有点糊很正常，先别怀疑镜子，十有八九是空气呢！",
       "image": "res://assets/learning_diagrams/seeing_turbulence.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "If the image boils instead of staying steadily blurry, lower the magnification and wait for a calmer moment.",
-      "text_zh": "如果画面一阵清楚一阵沸腾，就先降倍率，等空气安分一点。"
+      "text_zh": "画面一直抖的话，就先把倍率降下来一点~"
     }
   ],
   "level_11_after": [
@@ -447,20 +447,20 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You caught it: low Mars was swimming in thick air. Lower power gave you the steadier view.",
-      "text_zh": "判断对啦：低空火星泡在厚空气里。倍率退一点，画面反而稳住了。"
+      "text_zh": "低空的目标要隔着厚厚的大气看呀~这种时候倍率稍微降一点，画面反而更稳。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Unsteady air puts a hard ceiling on useful magnification. Push past it and you only enlarge the blur.",
-      "text_zh": "空气不稳时，有效倍率就有硬上限。再往上推，放大的只是模糊。",
+      "text_zh": "大气乱流来了倍率其实就已经有上限啦~再硬往上加也不会多出细节 ，小观测员可别被倍率骗啦！",
       "image": "res://assets/learning_diagrams/magnification_tradeoff.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Keep tonight's boiling edge in mind. Next time a low target does this, check the sky before blaming your hands.",
-      "text_zh": "记住今晚这种沸腾的边缘。以后低空目标又这样，先看天况，别先怪自己。"
+      "text_zh": "看到边缘一抖一抖的了吗？以后碰到低空目标又开始晃，先抬头看看天况，别急着怀疑自己是不是哪里做错了。"
     }
   ],
   "level_12_before": [
@@ -468,13 +468,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Back to the Moon. It's bright enough to make high magnification earn its dinner.",
-      "text_zh": "回到月球~它够亮，高倍率这次终于有饭吃了。"
+      "text_zh": "好啦，回头看月亮吧~看看那些刚才还糊成一片的细节！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Change eyepieces as you climb, but refocus every time. The old focal point won't follow along politely.",
-      "text_zh": "换目镜往上加倍率吧，不过每换一次都要重调焦。旧焦点才不会乖乖跟过来。"
+      "text_zh": "月亮够亮，高倍率也不怕~不过记住哦，每次换完目镜都得重新对焦，别看到一片糊就急着怪镜子呀！"
     },
     {
       "speaker": "Maya",
@@ -486,276 +486,276 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The Moon has almost no atmosphere to burn up incoming rocks. Even small impactors can reach the ground and leave a crater.",
-      "text_zh": "月球几乎没有大气替它烧掉来袭岩石。小撞击体也能直达地面，留下环形山。",
+      "text_en": "Most of those craters formed because the Moon has no atmosphere to burn up incoming rocks—even small ones can slam straight into the surface.",
+      "text_zh": "月球没有大气替来袭岩石挡一挡，小石块也会直撞地表；这些环形山大多就是这么来的。",
       "image": "res://assets/learning_diagrams/moon_crater_impact.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Now raise the power and refocus. Let's see which crater rims the Moon is willing to give back.",
-      "text_zh": "现在加倍率，再重新调焦。看看月球肯把哪些环形山边缘交出来。"
+      "text_en": "Bump up the power, then focus again. The Moon is bright enough to take it.",
+      "text_zh": "倍率往上加，再重新对焦。月亮够亮，撑得住。"
     }
   ],
   "level_12_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Those crater rims really did sharpen. Same rule, different target: brightness paid for the power.",
-      "text_zh": "环形山边缘真的更清楚了。还是那条规则：亮度替高倍率买了单。"
+      "text_en": "You pushed the power and still pulled out the detail—same rule as before: brightness buys magnification.",
+      "text_zh": "倍率推上去还能看清吧？还是那条：目标够亮，才有本钱上高倍率。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "A faint target under the same seeing would have fallen apart. The Moon's brightness is what kept the detail alive.",
-      "text_zh": "换成暗目标，同样的视宁度早就糊掉了。是月球的亮度把细节撑住了。"
+      "text_en": "Try that same high power on a faint target in tonight's average seeing and it would fall apart. The Moon's brightness is what let you see the detail.",
+      "text_zh": "要是换成暗目标，今晚这点晃动早把高倍率拖垮了。是月亮够亮，才让你看清细节。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Bright lunar detail likes power; a faint galaxy often wants the opposite. Pocket that trade-off—we'll need it soon.",
-      "text_zh": "亮月球喜欢倍率，暗星系往往正相反。这条权衡先揣好，后面马上要用。"
+      "text_en": "With the same aperture, the Moon can take high power; a faint galaxy needs the opposite. Tuck that tradeoff away for later.",
+      "text_zh": "同一口径下，月亮适合高倍率，暗星系却正相反。记住这笔取舍，之后用得上。"
     }
   ],
   "level_13_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Your call tonight: choose the target and the power. I'll be back in the hall waiting for your log.",
-      "text_zh": "今晚你说了算：目标和倍率都自己选。我回大厅等你的观测日志~"
+      "text_en": "Your call tonight: choose the target and the power. I won't step in.",
+      "text_zh": "今晚你做主：目标和倍率都由你选。我不插手。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The seeing is average: no drama, just that small shimmer you already know how to read.",
-      "text_zh": "今晚视宁度一般，没新花样，就是你已经认得的那点小晃动。"
+      "text_en": "The air's its usual average self tonight—nothing dramatic, just that little shimmer you know by now.",
+      "text_zh": "今晚大气还是老样子，一般般，只有你已经熟悉的那点轻微晃动。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "No hint circle this time. Make a plan, trust your eyes, and change course if the evidence says so.",
-      "text_zh": "这次没有提示圈。先定个计划，信自己的眼睛；证据不对，就换策略。"
+      "text_en": "No hint circle making the call this time, either. Just your eyes and your own plan.",
+      "text_zh": "这次也没有提示圈替你判断，只看你的眼睛和你的打算。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Planet, Moon, or star—start low, hold the target steady, then add only as much power as the view can support.",
-      "text_zh": "行星、月球还是恒星都一样：先低倍率稳住，再一点点加到画面能承受的位置。"
+      "text_en": "Whether you choose a banded planet, the cratered Moon, or a hydrogen-burning star light-years away, start low. Once the view settles, raise the power bit by bit and see what the target can support.",
+      "text_zh": "不管选行星、月球还是恒星，都先从低倍率看起；画面稳了再慢慢加，看看它究竟撑得住多少。"
     }
   ],
   "level_13_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "That choice had a reason behind it. Now you're observing, not just trying buttons.",
-      "text_zh": "你这次的选择有理由，不是在碰运气按按钮。嗯，真的开始像观测者了。"
+      "text_en": "That was an observer's choice, not a beginner's. Nice—this chapter's in the log.",
+      "text_zh": "这次选得漂亮，已经是观测者的判断了。好，这一章记下啦。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Magnification Mastery is yours. Next problem: a perfect view is useless if the target never enters it.",
-      "text_zh": "「倍率掌握」徽章归你。下一题：画面再好，找不到目标也白搭呀。"
+      "text_en": "The Magnification Mastery badge is yours! Next up: learning how to find the target in the first place.",
+      "text_zh": "「倍率掌握」徽章到手！下一课，学怎么先把目标找出来。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Whatever you chose, the rule held: match the power to the object and the sky, not your ambition.",
-      "text_zh": "不管你选了谁，规则都一样：倍率要配目标和天况，不是配野心~"
+      "text_en": "Whichever target you chose, your logic was solid: use only as much power as the object can actually support.",
+      "text_zh": "不管你选了谁，刚才的思路都对：倍率得配得上目标本身能承受的程度。"
     }
   ],
   "level_14_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Third visit to Mars. This time, no lucky sweeping—we're giving the sky an address.",
-      "text_zh": "第三次找火星。这回不靠乱扫碰运气，我们给天空写个地址。"
+      "text_en": "Third time finding Mars! Tonight we're following the numbers, not crossing our fingers.",
+      "text_zh": "第三次找火星啦。今晚不碰运气，我们跟着数字走。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Azimuth tells you which way around; altitude tells you how high. Follow both and Mars has nowhere to hide.",
-      "text_zh": "方位角管朝哪边，俯仰角管抬多高。两个数都跟上，火星就躲不掉。"
+      "text_en": "No guessing tonight. Two numbers will lead you straight to Mars: azimuth and altitude.",
+      "text_zh": "今晚别猜，方位角和俯仰角这两个数会把你带到火星。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The air is calm, so navigation gets the whole stage tonight. Very considerate of the sky, honestly.",
-      "text_zh": "今晚空气很安分，导航可以独占舞台。难得天空这么给面子~"
+      "text_en": "Good news: the air's nice and steady tonight. No turbulence to wrestle with—just you practicing navigation.",
+      "text_zh": "好消息，今晚空气很稳，不用对付扰动，专心练导航吧。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Mars also has two tiny, lumpy moons: Phobos and Deimos. They may be captured asteroids, though their origin is still debated.",
-      "text_zh": "火星还有两颗小小的卫星：火卫一和火卫二。它们可能是被捕获的小行星，不过来源还在争论。"
+      "text_en": "Fun Mars fact: its tiny, lumpy moons, Phobos and Deimos, may be captured asteroids—or debris left by an ancient giant impact. Their origin is still a mystery.",
+      "text_zh": "顺带一提，火卫一和火卫二又小又坑洼。它们可能是火星抓来的小行星，也可能来自远古撞击留下的碎屑——身世到现在还是个谜~"
     }
   ],
   "level_14_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You walked the numbers straight to Mars. Coordinates really do turn the sky into an address book.",
-      "text_zh": "你顺着数字直接走到火星了。坐标真的能把天空变成地址簿呀。"
+      "text_en": "There you go—you just turned the whole sky into an address book with coordinates.",
+      "text_zh": "漂亮！你用坐标给整片天空都编上地址了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "No luck and no turbulence to hide behind—just the numbers and your steady corrections. Clean work.",
-      "text_zh": "没靠运气，也没拿空气当借口，只有坐标和你那几下稳稳的修正。漂亮。"
+      "text_en": "That was all you—no shimmering air to blame and no lucky break. Just the numbers and your steady hand on the dials.",
+      "text_zh": "这次可全是你的本事：读准数字，稳稳转好旋钮，和运气没关系。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Once Az/Alt makes sense, even an empty patch of sky has directions. Keep that skill close.",
-      "text_zh": "读懂方位角和俯仰角以后，再空的天区也有路标。这招收好，会常用的。"
+      "text_en": "Now that you can read azimuth and altitude, even a shy target can't hide where you should look.",
+      "text_zh": "会读方位角和仰角后，就算目标不显眼，你也知道该往哪儿找啦。"
     }
   ],
   "level_15_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "A fresh finder tells tiny lies. Let's teach it to agree with the main scope.",
-      "text_zh": "刚装上的寻星镜会撒点小谎。来，教它和主镜说同一句实话。"
+      "text_en": "A finder fresh out of the box likes to fib a little. Let's teach this one to point straight.",
+      "text_zh": "新装的寻星镜总爱撒点小谎，来教它老实指准。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Center a bright star in the main scope first, then nudge the finder onto that exact same star.",
-      "text_zh": "先让亮星在主镜居中，再微调寻星镜，让它也压住同一颗星。"
+      "text_en": "First center a bright star in the main scope. Then adjust the finder until it's pointing at the exact same spot.",
+      "text_zh": "先用主镜把亮星放正中央，再微调寻星镜，让它也瞄准同一点。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The sky is calm enough that any remaining offset belongs to the finder. One problem at a time—my favorite kind.",
-      "text_zh": "今晚天况够稳，剩下的偏差就归寻星镜。一次只处理一个问题，我最喜欢这种夜晚。"
+      "text_en": "The sky's calm tonight, with perfectly average seeing. Nothing atmospheric to fight—give the calibration your full attention.",
+      "text_zh": "今晚很平静，视宁度一般，但不碍事；把注意力都放在校准上吧。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Even half a degree of error can send a high-power view into the wrong neighborhood. Small offset, huge annoyance.",
-      "text_zh": "哪怕只偏半度，高倍率也会把你送去隔壁天区。小误差，超级烦。"
+      "text_en": "Even half a degree of finder error can send you searching the wrong patch of sky once you switch to high power.",
+      "text_zh": "寻星镜只偏半度，换到高倍后都可能让你在错误天区白找半天。"
     }
   ],
   "level_15_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Both crosshairs landed on the same star. Your wide eye and narrow eye finally agree.",
-      "text_zh": "两副准星都压住同一颗星啦。宽眼睛和窄眼睛，终于不吵架了。"
+      "text_en": "Nice work—your wide-field eye and narrow-field eye are finally looking at the same spot.",
+      "text_zh": "校得真准！现在宽视野和窄视野终于看向同一点了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Do that once at the start of a session and the finder earns your trust for the night.",
-      "text_zh": "每晚开工前校准一次，之后寻星镜才值得你信任。"
+      "text_en": "Calibrate once at the start of each session, and you can trust the finder all night. A finder that fibs wastes more time than it saves.",
+      "text_zh": "每次开观测前校准一次，整晚都能放心用；不准的寻星镜只会更费时间。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Skip it, and you can spend an hour searching the right pattern around the wrong center. Ask me how I know.",
-      "text_zh": "跳过它，你可能围着错误中心找一小时。别问我怎么知道的，哼。"
+      "text_en": "Skip that calibration and you could spend all night combing the finder's wide view for a target that isn't where it says.",
+      "text_zh": "跳过校准，你可能整晚都在宽视野里找一个根本不在指向处的目标。"
     }
   ],
   "level_16_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Feeling confident, little observer? Try the main scope alone first.",
-      "text_zh": "很有自信嘛，小观测员？先试试只靠主镜找它。"
+      "text_en": "Feeling confident? All right—try finding it with the main scope alone this time.",
+      "text_zh": "信心满满了？那这次只用主望远镜找到它试试。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The air is calm, so this one is purely about workflow. If the target slips away, you already know the recovery route.",
-      "text_zh": "今晚空气很稳，难点只在流程。目标丢了也别慌，你已经知道回哪一步。"
+      "text_en": "The air's just as calm and average as last time, so this is all about your workflow. If you lose the target, start over with the finder.",
+      "text_zh": "今晚空气还是很稳，专心练流程就好。要是丢了目标，就从寻星镜那步重来。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Six degrees feels enormous when you don't know where you're aimed. Give it one honest solo try.",
-      "text_zh": "不知道朝哪儿时，6 度视野也能大得吓人。先自己认真试一次吧。"
+      "text_en": "Six degrees of sky feels enormous when you don't know where you're pointing. Go on—give it a solo try first.",
+      "text_zh": "不知道镜筒指向哪儿时，六度天空大得吓人。去吧，先自己试试。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "No finder and no hint circle on that first attempt. If you get lost, stop sweeping wildly and come back for the wide-field step.",
-      "text_zh": "第一次先不用寻星镜和提示圈。真迷路了就停手，别乱扫，再回到宽视野那一步。"
+      "text_en": "No finder, no hint circle tonight—just a six-degree eyepiece field and the confidence you brought with you.",
+      "text_zh": "寻星镜和提示圈都没有。就凭这6度视野，还有你的底气啦。"
     }
   ],
   "level_16_mid": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Lost? Of course—you tried to navigate through a keyhole. Reset: wide first, narrow last.",
-      "text_zh": "迷路了吧？拿钥匙孔当地图，谁都会丢。重来：先宽后窄。"
+      "text_en": "Lost? Everyone takes a wrong turn in a six-degree field. Remember: wide first, narrow later.",
+      "text_zh": "迷路啦？6度视野里谁都绕过弯。记住，先宽后窄。"
     }
   ],
   "level_16_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "There it is—Jupiter back in the main view. Narrow shows detail; wide shows the way.",
-      "text_zh": "看，木星回到主镜里了！窄视野看细节，宽视野负责认路。"
+      "text_en": "The narrow field brought out the detail; the wide field showed you the way. Nice teamwork.",
+      "text_zh": "窄视野看细节，宽视野认路。刚才配合得很漂亮。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Jupiter has more than 100 officially recognized moons. The big four—Io, Europa, Ganymede, and Callisto—can appear as tiny points beside it.",
-      "text_zh": "木星已有 100 多颗获正式确认的卫星。最大的四颗——木卫一、二、三、四——会像小光点排在旁边。",
+      "text_en": "One more Jupiter fact: it has more than 100 known moons. Tonight you may spot Io, Europa, Ganymede, and Callisto lined up beside it like tiny points of light.",
+      "text_zh": "再送你一个木星知识：它有100多颗已知卫星。今晚也许能看到木卫一、木卫二、木卫三和木卫四，像小光点排在它身旁。",
       "image": "res://assets/learning_diagrams/jupiter_anatomy.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Everybody gets lost this way once. Now you know how to recover without turning the whole telescope inside out.",
-      "text_zh": "这种迷路谁都经历过。现在你会自己找回来，不用把整台镜子拆了泄愤啦。"
+      "text_en": "Everyone fumbles through this once. Practice it a few more times tonight, and the next hard-to-find target won't throw you.",
+      "text_zh": "刚才那阵手忙脚乱，大家都经历过。今晚多练几回，下次找难目标就稳啦。"
     }
   ],
   "level_17_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Tonight, the sky is yours. I'll be in the hall pretending not to worry about the clouds.",
-      "text_zh": "今晚天空交给你。我在大厅里，假装一点都不担心外面的云。"
+      "text_en": "I'll stay by the door tonight—no leading the way. The whole sky is yours.",
+      "text_zh": "今晚我守在门口，不给你带路。整片天空，交给你啦。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Thin cloud is drifting through. The target will dim and brighten as each patch passes—that's weather, not a loose cable.",
-      "text_zh": "薄云正在飘。目标会跟着云块忽暗忽亮——这是天气，不是哪根线松了。",
+      "text_en": "There's thin cloud drifting through tonight. As each patch crosses, the target will dim and brighten—don't let that fool you.",
+      "text_zh": "今晚多了层薄云。云块飘过时，目标会忽暗忽亮，别被它骗啦。",
       "image": "res://assets/learning_diagrams/cloud_waiting.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Waiting for a cloud gap is observing, not failing. Sometimes the smartest adjustment is leaving the controls alone.",
-      "text_zh": "等云缝也是观测，不叫失败。有时最聪明的操作，就是先别碰控制器。",
+      "text_en": "If cloud covers the target, wait for a gap before you observe. Astrophotographers spend half the night watching the sky and half watching clouds—waiting well is a real skill.",
+      "text_zh": "云挡住先别按，等云缝露出来再观测。天文摄影常有半晚看天、半晚看云，会等也是本事。",
       "image": "res://assets/learning_diagrams/cloud_waiting.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The seeing is average and the hint circle is gone. Use the finder, focus, then wait for a clean window.",
-      "text_zh": "今晚视宁度一般，提示圈也撤掉了。寻星、调焦，再等一个干净窗口。"
+      "text_en": "The seeing is only average tonight, and there's no hint circle. Finding, focusing, waiting—time to use everything Chapter Four taught you.",
+      "text_zh": "今晚视宁度一般，也没有提示圈。找星、调焦、等云缝——第四章的真本事都用上吧。"
     }
   ],
   "level_17_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You found the target without a trail of hints. That badge is properly earned.",
-      "text_zh": "没铺提示路，你还是把目标找到了。这个徽章拿得很踏实。"
+      "text_en": "I didn't lead you, and you still found it on your own. You truly earned this badge.",
+      "text_zh": "我没带路，你也独自找到了。这枚徽章，拿得真踏实。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Better yet, you waited for the cloud gap instead of mistaking dimming for broken gear. That patience matters on faint targets.",
-      "text_zh": "更重要的是，你没把云遮造成的变暗怪到设备头上，还等到了云缝。暗目标就需要这份耐心。"
+      "text_en": "You learned to read the gaps instead of quitting when cloud crossed the target. That patience will matter even more when we start hunting faint deep-sky objects.",
+      "text_zh": "你还学会了等云缝，而不是一被遮住就放弃。以后追暗弱的深空天体，这份耐心更管用。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Sky Navigator, logged. Next we go after the shy, faint stuff—bring patience.",
-      "text_zh": "「星空导航」记进日志。接下来追那些害羞的暗目标，耐心也要带上哦。"
+      "text_en": "Sky Navigator is in the log. Next stop: the faint deep-sky objects.",
+      "text_zh": "「星空导航」记进日志啦。下一站，去追更暗弱的深空天体。"
     }
   ],
   "level_18_before": [
@@ -810,250 +810,250 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Orion again—this time we treat it like a proper experiment.",
-      "text_zh": "第三次看猎户座星云。这回认真做个对照实验~"
+      "text_en": "Third visit to the Orion Nebula—and this time, we're making it a controlled experiment.",
+      "text_zh": "第三次看猎户座星云——这回，我们做个对照实验。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Same nebula, same kind of sky. Change only the aperture, or the comparison tells us nothing.",
-      "text_zh": "星云和天况都尽量不变，只换口径。变量一多，结果就说不清啦。"
+      "text_en": "Same sky, same nebula. Tonight, we change just one thing: how much light you collect.",
+      "text_zh": "天空没变，星云也没变。今晚只改一件事：收集多少光。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The forecast gave us a cloud-free window with similar seeing. Perfect: a fair test changes one variable at a time.",
-      "text_zh": "预报刚好给了无云窗口，视宁度也和上次接近。很配合嘛，一次只改一个变量。"
+      "text_en": "I chose a cloudless window with the same average seeing as last time. That keeps the comparison fair: one variable at a time.",
+      "text_zh": "今晚特意选了无云时段，视宁度和上次差不多。这样才公平：一次只改一个变量。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Fit the larger objective, then bring back what changed. We're testing collected light, not wishful thinking.",
-      "text_zh": "先换上大口径物镜，再把变化带回来。我们测的是集光，不是愿望呀。"
+      "text_en": "Before you observe, fit the larger objective. The difference here comes from light-gathering power.",
+      "text_zh": "观测前先换上大口径物镜。这里比的不是放大，而是谁能收进更多光。"
     }
   ],
   "level_19_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Last time, a smudge; this time, a shape. That extra structure is aperture at work.",
-      "text_zh": "上次是一团斑，这次已经有形状了。多出来的结构，就是口径在干活。"
+      "text_en": "Last time it was a smudge; tonight it has shape. That's what aperture changes.",
+      "text_zh": "上次还是一团斑，今晚已经看得出形状了。这就是口径带来的差别。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Magnification and sky stayed comparable; only the objective changed. That's why this result actually means something.",
-      "text_zh": "倍率和天况都可比，只换了物镜。所以这次变亮，才真的能说明问题。"
+      "text_en": "We didn't touch the magnification or change the sky—just swapped in the larger objective, and the improvement is obvious. That's how you find what actually worked.",
+      "text_zh": "倍率和天空都没变，只换了大口径物镜，提升却一眼可见。这就找到了真正起作用的变量。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Put this in the log: when a target is light-starved, check aperture before chasing focus or power.",
-      "text_zh": "写进日志：目标缺光时，先查口径，别急着追倍率和焦点。"
+      "text_en": "Keep this one handy: when a target is starved for light, the answer is almost always more aperture—not more magnification or another turn of the focus knob.",
+      "text_zh": "记住这条：目标缺光时，通常该加大口径，不是加倍率，也不是反复调焦。"
     }
   ],
   "level_20_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Andromeda again. Tonight the trouble is streetlight glow, not your telescope and definitely not your hands.",
-      "text_zh": "又见仙女座。今晚捣乱的是城市灯光，不是望远镜，更不是你的手。"
+      "text_en": "Andromeda again—but tonight, the enemy isn't distance. It's the streetlights.",
+      "text_zh": "又见仙女座。不过今晚的对手不是距离，是街灯。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Andromeda is huge, but the bright city background swallows its faint outer glow.",
-      "text_zh": "仙女座其实很大，可明亮的城市背景会吞掉它暗淡的外缘。"
+      "text_en": "Andromeda is enormous, but the city's glow is swallowing nearly all of it.",
+      "text_zh": "仙女座星系其实大得很，可城市灯光正把它一点点吞掉。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "It's like looking for fireflies in a fully lit room. They're still there; the bright background steals the contrast.",
-      "text_zh": "就像在灯全开的房间里找萤火虫。它们没消失，只是背景太亮，微光没了对比。",
+      "text_en": "Light pollution is like looking for fireflies in a room with every lamp on. They're still there; their faint glow just gets lost in all that background light.",
+      "text_zh": "光污染就像开着满屋灯找萤火虫。它们还在，只是微光被明亮背景淹没了。",
       "image": "res://assets/learning_diagrams/light_pollution_compare.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Andromeda spans about six full-Moon widths in our sky, but most of it is too faint here. City glow leaves only the bright core.",
-      "text_zh": "仙女座在天空中约有六个满月那么宽，可大部分太暗。城市光一压，只剩明亮核心。",
+      "text_en": "Andromeda actually stretches across about six full Moons in our sky. Most of it is so faint that city glow leaves you only that small, bright core.",
+      "text_zh": "仙女座在天空中铺开约六个满月宽，只是外层太暗，城市天光一压，就只剩那个小亮核啦。",
       "image": "res://assets/learning_diagrams/light_pollution_compare.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "So stop chasing the focuser. If the core is sharp but the galaxy is missing, the sky is the limit.",
-      "text_zh": "所以先别追着调焦。核心清楚、外缘却不见时，限制来自天空背景。"
+      "text_en": "Don't keep chasing the focus tonight; that glow won't get much sharper. The sky background is the problem, not your gear.",
+      "text_zh": "今晚别再追着调焦了，这团光不会清楚多少。问题在天空背景，不在设备。"
     }
   ],
   "level_20_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Nothing was broken. You diagnosed a bright background and recorded the small visible core honestly.",
-      "text_zh": "设备没坏。你认出了明亮背景，也老实记下了那个小核心，这就对了。"
+      "text_en": "Nothing was broken tonight—the sky itself got in the way. Log exactly what you saw; poor conditions are part of observing too.",
+      "text_zh": "设备没坏，是今晚的天空不配合。按实记录吧，差天气也是观测的一部分。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "More aperture can win back some light, but it can't make the city background dark.",
-      "text_zh": "大口径能抢回一点光，却没法把城市背景变黑。"
+      "text_en": "Even a huge aperture can't cure a bright sky. It can only win back some of what light pollution stole.",
+      "text_zh": "再大的口径也治不好亮天空，只能抢回被光污染吞掉的一部分。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "For every faint target from now on: check the sky before you put the gear on trial.",
-      "text_zh": "以后碰到暗目标，先检查天空，再把设备拉来审问，记住啦。"
+      "text_en": "From now on, when a faint target won't show, check the sky before you blame the gear.",
+      "text_zh": "以后暗弱目标看不清，先看看天况，别急着怪设备。"
     }
   ],
   "level_21_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "We hauled the same gear beyond the hills. Darker sky, same Andromeda—let's compare.",
-      "text_zh": "我们把同一套设备搬到山那边啦。天更暗，仙女座没变——再比一次。"
+      "text_en": "The club drove past the hills tonight. Same gear, darker sky—let's try that again.",
+      "text_zh": "今晚社团开到了山外。设备没变，天更暗了——再试一次。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Remember those fireflies in a lit room? Out here the background is dark enough for the same faint galaxy to separate from it.",
-      "text_zh": "还记得亮房间里的萤火虫吗？这里背景够黑，同一个暗星系终于能和天空分开了。"
+      "text_en": "Remember trying to spot fireflies in a lit room back in the city? Tonight the lamps are off, and that same faint galaxy can finally stand out from the dark background.",
+      "text_zh": "还记得在亮房间找萤火虫吗？今晚灯关了，同一个暗星系终于从背景里浮出来啦。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Give your eyes a few quiet minutes. Dark adaptation makes them more sensitive; one bright screen can send that progress backward.",
-      "text_zh": "也给眼睛几分钟暗适应。它会越来越敏感，但一眼亮屏就可能倒退哦。",
+      "text_en": "Give your eyes a few minutes. They'll grow more sensitive in the dark—that's dark adaptation. City lights keep interrupting it; out here, they won't.",
+      "text_zh": "先让眼睛适应几分钟。暗处会渐渐变敏锐，这叫暗适应；城里的灯总会把它打断。",
       "image": "res://assets/learning_diagrams/dark_adaptation_curve.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Same telescope, eyepiece, and target. Only the background light changes—so the comparison stays honest.",
-      "text_zh": "望远镜、目镜和目标都一样，只改背景光。这样对照才干净。"
+      "text_en": "Same telescope, same eyepiece, same target. Only the background light changed—and look how much changed with it.",
+      "text_zh": "望远镜、目镜、目标都没变，只换了背景光，看到的却完全不同。"
     }
   ],
   "level_21_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "There are Andromeda's outer hints! The telescope didn't improve overnight; the sky did.",
-      "text_zh": "看见仙女座外缘的淡结构了吗？望远镜没一夜升级，升级的是天空。"
+      "text_en": "There it is! Your telescope didn't improve overnight—the sky did.",
+      "text_zh": "看见了吧！不是望远镜一夜升级，是天空变好了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Same aperture and eyepiece; the upgrade was leaving city glow behind. Dark sky is wonderfully unfair to expensive gear.",
-      "text_zh": "口径和目镜都没变，只是离开城市辉光。暗空这项升级，便宜得有点犯规呀。"
+      "text_en": "Same aperture, same eyepiece—the only upgrade was leaving the city glow behind. A dark sky is the cheapest telescope upgrade there is.",
+      "text_zh": "口径、目镜都没换，只是离开了城市灯光。暗夜就是最便宜的望远镜升级。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Deep Sky Observer, logged. Next question: why won't the sky sit still for us?",
-      "text_zh": "「深空观测者」记进日志。下一题：天空为什么就是不肯坐好？"
+      "text_en": "Deep-Sky Observer: logged! Next up—why the sky never seems to sit still.",
+      "text_zh": "「深空观测者」记入日志！接着聊聊，天空为什么总在转。"
     }
   ],
   "level_22_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "That star looks like it's escaping. It isn't—the Earth is turning underneath us.",
-      "text_zh": "那颗星像在逃跑？其实不是，是地球在我们脚下转。"
+      "text_en": "Watch closely. That star is slipping away—or rather, Earth is turning beneath your feet.",
+      "text_zh": "盯紧喽。星星在溜走——其实，是地球在你脚下转。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Every centered star has always drifted. Low power hides it; high power makes the same motion impossible to ignore.",
-      "text_zh": "每颗居中的星其实一直在漂。低倍率把它藏住了，高倍率会让这点移动特别显眼。",
+      "text_en": "Every star you've centered was drifting all along. At low power you barely notice; raise the magnification, and it races across the view.",
+      "text_zh": "以前对准的星其实一直在漂。低倍率不明显，倍率一高，它就飞快穿过视野。",
       "image": "res://assets/learning_diagrams/earth_rotation_drift.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Earth turns once in about 24 hours, so the sky appears to move roughly 15 degrees per hour. Tonight, your tracking corrections cancel that apparent drift.",
-      "text_zh": "地球约 24 小时自转一圈，天空看起来每小时移动约 15 度。今晚用追踪修正抵消这段漂移。",
+      "text_en": "Earth turns once every 24 hours, so the sky appears to sweep by at about 15 degrees per hour. The telescope won't follow one star on its own—tonight, you'll counter that spin by hand.",
+      "text_zh": "地球每24小时自转一圈，天空看起来每小时移动约15度。望远镜不会自己跟星，今晚得手动追踪。",
       "image": "res://assets/learning_diagrams/earth_rotation_drift.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The seeing is average, so focus on Sirius: correct gently and keep it inside the holding zone.",
-      "text_zh": "今晚视宁度一般。轻轻修正，把天狼星留在保持范围里就好。"
+      "text_en": "The air is only average tonight, but there's no extra trouble. Put all your attention into following Sirius and keeping it centered.",
+      "text_zh": "今晚空气稳定度一般，不过没别的干扰。专心跟着天狼星漂移，把它留在中央。"
     }
   ],
   "level_22_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You kept Sirius centered against Earth's apparent sky motion. Your hands noticed, didn't they?",
-      "text_zh": "你把天狼星稳在地球自转造成的视运动里了。手是不是已经有意见啦？"
+      "text_en": "You kept Sirius centered by fighting Earth's spin with your own hands. Quite a workout, huh?",
+      "text_zh": "你真的徒手把天狼星留在中央了！对抗地球自转，够累吧？"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "That's why long exposures use tracking motors. Human hands tire and pulse; a good drive keeps making tiny corrections.",
-      "text_zh": "所以长曝光要用追踪电机。人手会累、会抖，好的驱动却会一直做小修正。",
+      "text_en": "That's exactly why long-exposure astrophotography uses a motor to track the sky. Hands get tired; motors don't.",
+      "text_zh": "所以长曝光天文摄影要用电机追踪天空呀——人手会累，电机可不会。",
       "image": "res://assets/learning_diagrams/tracking_mount_idea.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Next time a target drifts, don't call it random. Read the direction, tune the rate, and let the mount share the work.",
-      "text_zh": "以后目标再漂，别当随机故障。看方向、调速率，让支架替你分担。"
+      "text_en": "From here on, every drifting target you chase by hand is this same lesson in a new disguise.",
+      "text_zh": "往后每次手动追漂移目标，练的其实都是这一课。"
     }
   ],
   "level_23_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Tonight the tracking mount holds Vega steady, so your eyes can investigate its edge instead of chasing it.",
-      "text_zh": "今晚让追踪支架稳住织女星，你的眼睛就能专心检查它的边缘。"
+      "text_en": "Tonight, let the tracking mount hold the target steady. You just watch—there's a detail on Vega I want you to catch.",
+      "text_zh": "今晚让追踪支架稳住目标。你只管看，我想让你留意织女星的一处细节。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Focus as carefully as you can, then inspect the edge. If the center is sharp but color remains, don't blame your hands.",
-      "text_zh": "先调到最佳焦点，再看边缘。中心清楚、彩边还在，就别怪自己的手。"
+      "text_en": "Focus as precisely as you can, then watch the star's edge. If something looks odd, don't blame yourself—remember it.",
+      "text_zh": "先尽量调准焦，再盯住星点边缘。看到异样也别怪自己，把它记下来。"
     }
   ],
   "level_23_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Red on one side, blue on the other—and best focus didn't remove it. That's lens chromatic aberration.",
-      "text_zh": "一边红、一边蓝，最佳焦点也赶不走。确认了，这是透镜的色差。"
+      "text_en": "The focus is as tight as we can make it, but that violet-blue fringe still clings to the star. It looks like chromatic aberration—the lens isn't bringing every color to the same focus.",
+      "text_zh": "焦点已经尽量调准了，星点外那圈紫蓝彩边还是不肯走。很像色差——透镜没把不同颜色的光收在同一个焦点。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Keep that Vega record. Later we'll compare it with a different optical path and see what changes.",
-      "text_zh": "这份织女星记录别删。以后换条光路，我们拿它回来做对照。"
+      "text_en": "Finish tonight's training first, and keep that observation in your log. Later, we'll compare it through a different kind of telescope.",
+      "text_zh": "先完成今晚的训练，别删观测记录。以后换种望远镜，我们再拿它比较。"
     }
   ],
   "level_24_before": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "One last refractor challenge. Andromeda rewards patience, not frantic corrections.",
-      "text_zh": "折射镜最后一关啦。仙女座奖励耐心，可不奖励乱拧控制器。"
+      "text_en": "One last lesson: deep-sky detail comes to the patient. Stay with her.",
+      "text_zh": "最后一课：深空只肯慢慢显出细节，耐心守住她。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Aperture, dark sky, focus, tracking—tonight they finally work as one observing plan.",
-      "text_zh": "口径、暗空、调焦、追踪，今晚终于要合成一套完整观测计划。"
+      "text_en": "Tonight, aperture, dark skies, and tracking all come into play. Time to put everything you've learned together.",
+      "text_zh": "今晚，口径、暗空和追踪要一起上场。把学过的本事都串起来吧。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The seeing is average and there is no new trick. Use what you already know and bring back an honest result.",
-      "text_zh": "今晚视宁度一般，没有新招。把已经会的用好，再带一份真实结果回来。"
+      "text_en": "The air is calm and the seeing is average, so there are no new obstacles tonight. This is about using what you already know.",
+      "text_zh": "空气很平静，视宁度普通，今晚没有新难题。这一关只看你能否用好已经学会的一切。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Andromeda will drift with Earth's apparent sky motion. Keep it centered; if it slips out too long, settle it again instead of overcorrecting.",
-      "text_zh": "仙女座也会随天空视运动漂移。偏出去太久就稳稳拉回，别一着急又修过头。"
+      "text_en": "Earth's rotation will keep Andromeda drifting. Centering is strict tonight: stay off-center too long and the timer runs backward. Focus, and be patient.",
+      "text_zh": "地球自转会让仙女座持续漂移。今晚居中判定更严，离开中心太久，计时会倒退；专注，也耐心。"
     }
   ],
   "level_24_after": [

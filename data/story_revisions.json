@@ -6,7 +6,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "You made it! People have watched this sky for ages. Tonight, you join that long chain with a record of your own.",
-      "text_zh": "你终于来啦！我是玛雅。人们看这片天空已经很久了，今晚该轮到你写下第一笔啦~"
+      "text_zh": "你终于来啦！我是玛雅，也是天文社的学姐~从今天开始，你也算正式加入我们天文社这个大家庭啦！人们仰望这片天空已经很久很久了，不过今晚嘛，就该轮到我们的小观测员，亲手写下自己的第一笔啦~"
     },
     {
       "speaker": "Maya",
@@ -15,7 +15,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Hands off the telescope for one minute. Start with the Moon and your own eyes—shape, dark patches, and all the detail that refuses to show itself.",
-      "text_zh": "先忍住，别碰望远镜呀。看看月球的轮廓和暗斑，也记住哪些细节怎么都看不清。"
+      "text_zh": "小观测员~望远镜待会儿再碰！先用眼睛看看月球的轮廓和那些暗斑，也记住哪些地方怎么盯都看不清，等会儿你就知道望远镜到底做什么用啦~"
     },
     {
       "speaker": "Maya",
@@ -24,7 +24,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Our routine is simple: take the question from the board, choose parts at the Parts Cabinet, build at the Assembly Table, observe, then keep the evidence in the Club Logbook.",
-      "text_zh": "流程很简单：任务板领题，零件柜挑部件，组装台装好，再去观测，最后写进观测日志。"
+      "text_zh": "流程其实很简单啦~先去任务板领题，再到零件柜挑部件，组装台把望远镜装好，接着就能去观测啦！看完记得回来把结果写进观测日志哦~"
     },
     {
       "speaker": "Maya",
@@ -32,7 +32,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "The round platform in the middle is our Observation Pad. The green terminal can wait; tonight, your eyes get the first shift.",
-      "text_zh": "中间的圆台就是观测台。右边那台绿屏终端先晾着，今晚让眼睛先上班~"
+      "text_zh": "看到中间那个望远镜了吗？那就是我们的观测台啦~右下角那台绿屏终端先别管它！~"
     },
     {
       "speaker": "You",
@@ -47,15 +47,23 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Exactly. Record the shape and dark patches first; on our second Moon visit, a refractor will show us the crater rims for comparison.",
-      "text_zh": "对呀，先记轮廓和暗斑。第二次再用折射镜找环形山边缘，两份日志正好对照。"
+      "text_zh": "对对，就先把现在肉眼能看到的样子记下来~"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
-      "text_en": "Our first ten lessons stay here at the club, so you can learn the routine without rushing. Walk over with WASD, press E at the Observation Pad, then center the Moon with A/D and W/S. I'll wait for your notes in the hall.",
-      "text_zh": "前十节基础课都在俱乐部，慢慢把流程练熟。用 WASD 走到观测台按 E，再用 A/D、W/S 居中月球。我在大厅等你的日志~"
+      "text_en": "We'll do the first ten lessons here at the club. Use WASD to walk to the Observation Pad and press E to enter, then use A/D and W/S to center the Moon. I'll stay in the hall and wait for your observing log.",
+      "text_zh": "前十节基础课都在社团里完成。你先用 WASD 走到观测台，按 E 进入，再用 A/D 和 W/S 把月球移到中央。我会留在大厅等你的观测日志。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "beat_en": "HANDOFF",
+      "beat_zh": "交给你",
+      "text_en": "Keep tonight's naked-eye record. Next time we'll use a refractor to see the crater rims and compare the two~",
+      "text_zh": "今晚这份肉眼记录要留好哦。下次换折射镜看环形山边缘，两份日志正好对照~"
     }
   ],
   "level_2_after": [
@@ -63,13 +71,13 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Polaris showed you north, but not much structure. That's your eyes reaching their limit—not you doing anything wrong.",
-      "text_zh": "北极星替你指了北，可细节还是少得可怜。不是你没看好，是肉眼到极限啦。"
+      "text_zh": "北极星认出来啦？它可是夜空里很好用的“方向标”~不过光靠肉眼，还是只能看到一个小亮点，细节该轮到望远镜上场了！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "So let's build a bigger eye. Check the Mission Board, collect the parts, and meet me at the Assembly Table.",
-      "text_zh": "那就给眼睛加个外挂吧~先看任务板，再拿齐零件，我们组装台见。"
+      "text_zh": "先去任务板看看今晚要观测什么吧~再到零件柜把该拿的部件都找齐，准备好了就来组装台找我，我在这边等你！"
     }
   ],
   "level_3_before_assembly": [
@@ -79,7 +87,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Your first Moon record caught the outline and maria, but the crater rims stayed hidden. Good—that gives our refractor a fair challenge.",
-      "text_zh": "第一份月球记录有轮廓和月海，环形山却糊成一片。正好，让折射镜来接这一棒。"
+      "text_zh": "还记得第一份月球记录吧？轮廓和月海都有了，可那些小环形山还是糊糊的~这次就换折射望远镜上场，把之前没看清的细节一点点补回来！"
     },
     {
       "speaker": "Maya",
@@ -88,7 +96,7 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Galileo didn't invent the telescope, but in the early 1600s he improved one and aimed it upward. Suddenly the Moon wasn't a smooth disc; it had real, uneven ground.",
-      "text_zh": "伽利略不是望远镜的发明者，但他在 17 世纪初改进了它，还把它举向天空。月球这才露出高低起伏。"
+      "text_zh": "17 世纪初，伽利略把望远镜改得更好用，还真的把它指向了天空~望远镜不是他发明的，不过从那以后，月球在人们眼里就不只是一个亮圆盘啦，山脉、凹坑和那些起伏的地形，第一次变得清清楚楚了"
     },
     {
       "speaker": "Maya",
@@ -96,7 +104,7 @@
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Build the refractor in optical order, then revisit the same Moon. Compare those crater rims with your first entry—that difference is the whole point.",
-      "text_zh": "按光路顺序装好折射镜，再去看同一个月球。记得对照旧记录，看环形山边缘多清楚了多少。"
+      "text_zh": "接下来该让望远镜上场啦~按着光路顺序把折射镜一点点装好，再去看看月球！记得拿第一份日志出来对照一下，看看这次是不是连环形山的边缘都冒出了好多新细节呀~"
     }
   ],
   "level_6_before": [
@@ -106,7 +114,7 @@
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "That main-scope view is a keyhole. Experienced observers lose targets too, so don't blame your eyes—the patch of sky really is that tiny.",
-      "text_zh": "主镜像一扇小钥匙孔，找丢很正常，老手也会丢。先别怪眼睛，是视野真的太窄啦。"
+      "text_zh": "主镜的视野本来就窄得可怜，找不到目标真的太正常啦，连老手都会一不留神把它弄丢~所以先别怀疑自己的眼神，视野确实就这么大呀！"
     },
     {
       "speaker": "Maya",
@@ -115,23 +123,23 @@
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "That's why we add a little wide-field finder. It gives no planet detail; it just gets the target through that keyhole.",
-      "text_zh": "所以才要加一支宽视场寻星镜。它不看行星细节，只负责把目标送进主镜。"
+      "text_zh": "所以主镜旁边还会带一支宽视场的寻星镜呀~它先帮我们把目标找进来，再交给主镜慢慢看！"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
-      "text_en": "But line it up with the main scope first. Otherwise it will point to the wrong patch of sky with impressive confidence.",
-      "text_zh": "不过要先和主镜对齐。不然它会特别自信地，把你指到隔壁天区去。"
+      "text_en": "First, use Sirius to align the finder with the main telescope. When you observe, follow this order: get your bearings with your eyes, catch the target in the finder, then switch to the main telescope for the details.",
+      "text_zh": "先用天狼星把寻星镜和主镜对齐。观测时按这个顺序来：先用肉眼认方向，再用寻星镜捕捉目标，最后切到主镜看细节。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
-      "text_en": "Align both views on Sirius, then remember the rhythm: eyes for direction, finder to capture, then switch to the main telescope for detail.",
-      "text_zh": "先用天狼星对齐两边。以后就按这个节奏：肉眼认方向，寻星镜抓目标，主镜看细节。"
+      "text_en": "But line it up with the main scope first. Otherwise it will point to the wrong patch of sky with impressive confidence.",
+      "text_zh": "先拿天狼星把寻星镜和主镜对齐好~以后就记住这个顺序呀：肉眼先找出方向，寻星镜负责把目标对准到差不多，等它在视野里了，再交给主镜看细节！"
     }
   ],
   "level_10_after": [
@@ -139,27 +147,27 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "You can build, aim, and focus the refractor now. Nice. From here on, the telescope isn't the only thing with opinions.",
-      "text_zh": "折射镜会装、会瞄、也会调焦了。不错嘛~接下来，有脾气的是天空。"
+      "text_zh": "折射镜这边你已经很熟练啦~接下来可不是望远镜了……这片天空。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Dark adaptation, clouds, shaky air, Earth's rotation—the gear stays familiar, but the sky won't. Time to learn when to adjust and when to wait.",
-      "text_zh": "暗适应、云层、大气扰动、地球自转，都要登场了。该动手时动手，该等的时候可别乱拧呀。"
+      "text_zh": "后面的夜晚可就没这么省心啦~暗适应、云层、大气抖动，还有地球自己在转，都会来添点麻烦。望远镜还是那一台，但你得慢慢等一等。"
     }
   ],
   "level_18_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You read the clouds, drift, and seeing instead of fighting everything at once. You corrected what you could and waited when touching the controls would only hurt.",
-      "text_zh": "云层、漂移、视宁度，你已经会分开判断了。能修的就修，越动越糟的时候就稳稳等着。"
+      "text_en": "You've learned to read the sky instead of taking clouds, drift, and bad seeing as random punishment. Fix what you can; when fiddling would only make it worse, wait it out.",
+      "text_zh": "你已经会读天空了：能修的就修，越动越糟时就耐心等。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "From now on, the Mission Board gives you the result, not every move. You choose the gear, read the sky, and bring the evidence back.",
-      "text_zh": "接下来，任务板只告诉你要看到什么。怎么配设备、怎么等天况，就由小观测员自己决定啦。"
+      "text_en": "No more practicing one control at a time. The Mission Board gives you the goal; how to set up the observatory and when to wait on the weather are your calls.",
+      "text_zh": "接下来不拆成单项练习啦。任务板给目标，设备怎么配、天气怎么等，都由你安排。"
     }
   ],
   "level_18_before": [
@@ -168,8 +176,8 @@
       "portrait": "maya",
       "beat_en": "BEFORE",
       "beat_zh": "此前",
-      "text_en": "Planets announce themselves. Deep-sky objects whisper, and that can make even a careful observer doubt their own eyes.",
-      "text_zh": "行星亮得很爽快，深空天体却只肯小声说话。刚开始，真的可能只有一团淡光。"
+      "text_en": "Bright planets answer at a glance. Deep-sky objects can begin as almost nothing, so don't be too quick to doubt your eyes.",
+      "text_zh": "亮行星一眼就有回应，深空天体却常淡得像什么都没有。别急着怀疑自己的眼睛。"
     },
     {
       "speaker": "Maya",
@@ -177,30 +185,30 @@
       "image": "res://assets/learning_diagrams/nebula_nursery.png",
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
-      "text_en": "Our older notebooks all say the same thing: enough aperture, dark-adapted eyes, a dark sky, and patience. Faint structure arrives little by little.",
-      "text_zh": "俱乐部旧日志翻来覆去都写这句：口径要够，眼睛要暗适应，天空要黑，还得耐心。淡结构会慢慢冒出来。"
+      "text_en": "The club's older notebooks say it again and again: more aperture, dark-adapted eyes, darker skies, and patience. Faint structure reveals itself bit by bit.",
+      "text_zh": "社团旧日志反复写着：大口径、暗适应、暗天空，再加耐心，淡结构才会一点点显出来。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
-      "text_en": "Keep Orion steady and give your eyes a quiet moment. That soft glow crossed about 1,300 years to reach you; it doesn't owe us sharp edges.",
-      "text_zh": "把猎户座星云稳住，安静多看一会儿。那团柔光跑了约 1300 年才到你眼前，不会自带锐利边框呀。"
+      "text_en": "Hold the Orion Nebula steady and give it a quiet moment. That soft glow traveled about 1,300 years to reach us; it doesn't need to shout to count as evidence.",
+      "text_zh": "稳住猎户座星云，安静多看一会儿。那团微光走了约1300年才抵达我们，柔柔亮着就已经是证据。"
     }
   ],
   "level_24_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You planned that whole refractor session and brought back the result on your own. I didn't have to step in once—that's real independence.",
-      "text_zh": "从选设备到带回结果，全是你自己完成的。我一次都没插手——这才叫真的会了。"
+      "text_en": "You chose the gear, set it up, and made the observation all on your own. You've proved you can run the full refractor workflow.",
+      "text_zh": "选设备、架设、观测，全是你独立完成。折射镜这套流程，你已经稳稳走通了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "So tomorrow, no victory lap. We'll aim at a bright star and find a refractor flaw that focusing can't cure. I tucked the next optical clue in the storeroom—no peeking early~",
-      "text_zh": "所以明晚不绕场庆祝啦。我们找颗亮星，看看折射镜有个连调焦都救不了的毛病。线索在储藏室，先别偷看~"
+      "text_en": "One look at Vega's color fringe isn't enough to call it. Tomorrow we'll return to the same star, change nothing, and refocus carefully to see whether it stays. The next optical clue is in the club storeroom~",
+      "text_zh": "织女星那圈彩边，光看一回还不能下结论。明晚再看同一颗星，什么都别乱换，只认真调焦核对一次。下一份光学线索在储藏室~"
     }
   ],
   "level_25_before": [
