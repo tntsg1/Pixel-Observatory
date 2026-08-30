@@ -2,16 +2,30 @@
 
 importer="texture"
 type="CompressedTexture2D"
+<<<<<<<< HEAD:assets/assembly/fast_blueprint_reference.png.import
 uid="uid://ckhrgiwapwsoi"
 path="res://.godot/imported/fast_blueprint_reference.png-0665662a965c034614d8efe63bbaa312.ctex"
 metadata={
 "vram_texture": false
+========
+uid="uid://br3rf0u4bxs67"
+path.s3tc="res://.godot/imported/muzzle_flash.png-76f32da9c156828d76d9778c168d356c.s3tc.ctex"
+path.etc2="res://.godot/imported/muzzle_flash.png-76f32da9c156828d76d9778c168d356c.etc2.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
+>>>>>>>> origin/main:Weapons/Images/muzzle_flash.png.import
 }
 
 [deps]
 
+<<<<<<<< HEAD:assets/assembly/fast_blueprint_reference.png.import
 source_file="res://assets/assembly/fast_blueprint_reference.png"
 dest_files=["res://.godot/imported/fast_blueprint_reference.png-0665662a965c034614d8efe63bbaa312.ctex"]
+========
+source_file="res://Weapons/Images/muzzle_flash.png"
+dest_files=["res://.godot/imported/muzzle_flash.png-76f32da9c156828d76d9778c168d356c.s3tc.ctex", "res://.godot/imported/muzzle_flash.png-76f32da9c156828d76d9778c168d356c.etc2.ctex"]
+>>>>>>>> origin/main:Weapons/Images/muzzle_flash.png.import
 
 [params]
 

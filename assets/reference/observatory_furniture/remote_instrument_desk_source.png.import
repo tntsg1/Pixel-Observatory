@@ -2,16 +2,30 @@
 
 importer="texture"
 type="CompressedTexture2D"
+<<<<<<<< HEAD:assets/reference/observatory_furniture/remote_instrument_desk_source.png.import
 uid="uid://c74qy2kphfl3o"
 path="res://.godot/imported/remote_instrument_desk_source.png-e2a570d4e1ef9cfc2385835a9a78d005.ctex"
 metadata={
 "vram_texture": false
+========
+uid="uid://dxr8mkw5fyekc"
+path.s3tc="res://.godot/imported/texture_08.png-79bf840b6f685a13d530bb8aa55b33b3.s3tc.ctex"
+path.etc2="res://.godot/imported/texture_08.png-79bf840b6f685a13d530bb8aa55b33b3.etc2.ctex"
+metadata={
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
+>>>>>>>> origin/main:Arts/Textures/kenney_prototype_textures/dark/texture_08.png.import
 }
 
 [deps]
 
+<<<<<<<< HEAD:assets/reference/observatory_furniture/remote_instrument_desk_source.png.import
 source_file="res://assets/reference/observatory_furniture/remote_instrument_desk_source.png"
 dest_files=["res://.godot/imported/remote_instrument_desk_source.png-e2a570d4e1ef9cfc2385835a9a78d005.ctex"]
+========
+source_file="res://Arts/Textures/kenney_prototype_textures/dark/texture_08.png"
+dest_files=["res://.godot/imported/texture_08.png-79bf840b6f685a13d530bb8aa55b33b3.s3tc.ctex", "res://.godot/imported/texture_08.png-79bf840b6f685a13d530bb8aa55b33b3.etc2.ctex"]
+>>>>>>>> origin/main:Arts/Textures/kenney_prototype_textures/dark/texture_08.png.import
 
 [params]
 
