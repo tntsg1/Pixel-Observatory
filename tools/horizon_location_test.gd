@@ -50,6 +50,11 @@ func _initialize() -> void:
 		_check(true, "3. (Sirius already up at home this run - relocation not needed, skipped)")
 
 	# --- 4. Location persists through save/reload; Return Home resets it ---
+	# Leave the developer sandbox that section 1's debug_jump_to_level() turned
+	# on: SaveManager.save_progress() intentionally refuses to write while a
+	# sandbox jump is active, so persistence asserted from inside it was
+	# checking the one mode where saving is disabled by design.
+	gm.new_game()
 	var away := {"id": "atacama_paranal", "name_en": "Paranal", "name_zh": "帕瑞纳", "lat": -24.6, "lon": -70.4, "bortle": 1}
 	gm.set_observing_location(away)
 	gm.save()

@@ -25,6 +25,7 @@ const BUTTON_RECTS_ZH := {
 var feedback_label: Label
 var button_visuals: Dictionary = {}
 var settings_panel: Panel
+var settings_scrim: ColorRect
 var _continue_available := false
 
 
@@ -81,8 +82,25 @@ func _build() -> void:
 	custom_minimum_size = SCREEN_SIZE
 
 	_draw_background()
+	_draw_ambient()
 	_build_hotspots()
 	_build_feedback()
+
+
+func _draw_ambient() -> void:
+	# The title screen was completely still - the first thing a player sees was a
+	# flat picture. A slow drift of star-dust across the backdrop makes the menu
+	# feel like a window onto the sky rather than a poster. It sits above the
+	# background art but below every button, and never takes input.
+	var life := AmbientLife.new()
+	life.name = "AmbientLife"
+	life.configure({
+		"bounds": Rect2(Vector2.ZERO, SCREEN_SIZE),
+		"motes": 46,
+		"mote_tint": Color(0.82, 0.88, 1.0),
+		"seed": 8801,
+	})
+	add_child(life)
 
 
 func _draw_background() -> void:
@@ -236,18 +254,29 @@ func _on_settings() -> void:
 	if settings_panel != null and is_instance_valid(settings_panel):
 		settings_panel.queue_free()
 		settings_panel = null
+		if settings_scrim != null and is_instance_valid(settings_scrim):
+			settings_scrim.queue_free()
+		settings_scrim = null
 		return
+	# A dimming scrim: without it the painted title bled straight through the
+	# panel and the dialogue read as a transparent overlay rather than a card.
+	var scrim := ColorRect.new()
+	scrim.name = "SettingsScrim"
+	scrim.color = Color(0.0, 0.0, 0.02, 0.62)
+	scrim.position = Vector2.ZERO
+	scrim.size = SCREEN_SIZE
+	scrim.z_index = 99
+	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(scrim)
+
 	settings_panel = Panel.new()
 	settings_panel.position = Vector2(302, 248)
 	settings_panel.size = Vector2(420, 494)
 	settings_panel.z_index = 100
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.025, 0.040, 0.070, 0.98)
-	style.border_color = Color(0.96, 0.72, 0.30)
-	style.set_border_width_all(2)
-	style.set_corner_radius_all(5)
-	settings_panel.add_theme_stylebox_override("panel", style)
+	settings_panel.add_theme_stylebox_override("panel", UiKit.panel_box())
 	add_child(settings_panel)
+	UiKit.add_corner_brackets(settings_panel)
+	settings_scrim = scrim
 
 	var title := Label.new()
 	title.text = GameManager.text("SETTINGS", "设置")
@@ -405,8 +434,12 @@ func _on_settings() -> void:
 		if settings_panel != null:
 			settings_panel.queue_free()
 			settings_panel = null
+		if settings_scrim != null and is_instance_valid(settings_scrim):
+			settings_scrim.queue_free()
+		settings_scrim = null
 	)
 	settings_panel.add_child(close)
+	_style_settings_widgets()
 	InteractionFeedback.page_enter(settings_panel, Vector2(0, 6))
 
 
@@ -460,6 +493,9 @@ func _on_settings_legacy() -> void:
 	if settings_panel != null and is_instance_valid(settings_panel):
 		settings_panel.queue_free()
 		settings_panel = null
+		if settings_scrim != null and is_instance_valid(settings_scrim):
+			settings_scrim.queue_free()
+		settings_scrim = null
 		return
 	settings_panel = Panel.new()
 	settings_panel.position = Vector2(322, 376)
@@ -544,8 +580,12 @@ func _on_settings_legacy() -> void:
 		if settings_panel != null:
 			settings_panel.queue_free()
 			settings_panel = null
+		if settings_scrim != null and is_instance_valid(settings_scrim):
+			settings_scrim.queue_free()
+		settings_scrim = null
 	)
 	settings_panel.add_child(close)
+	_style_settings_widgets()
 	InteractionFeedback.page_enter(settings_panel, Vector2(0, 6))
 
 
@@ -661,3 +701,22 @@ func _on_cloud_sync_status_changed(status: String, _detail: String) -> void:
 		"merge_required": GameManager.text("Local progress is ready to merge from your account panel.", "游客进度等待在账号面板中一键合并。"),
 	}
 	_show_feedback(str(messages.get(status, "")))
+
+func _style_settings_widgets() -> void:
+	# Godot's default theme made this dialogue look like an editor overlay on top
+	# of the painted menu. Restyle in place - the nodes stay CheckButton /
+	# OptionButton so accessibility and the existing tests still see real toggles.
+	if settings_panel == null or not is_instance_valid(settings_panel):
+		return
+	for child in settings_panel.get_children():
+		if child is CheckButton:
+			UiKit.style_check(child as CheckButton)
+		elif child is OptionButton:
+			UiKit.style_option(child as OptionButton)
+		elif child is Button:
+			UiKit.style_button(child as Button, true)
+		elif child is Label:
+			var lbl := child as Label
+			# headings keep their accent colour; body copy gets a calmer tone
+			if lbl.get_theme_font_size("font_size") < 14:
+				lbl.add_theme_color_override("font_color", UiKit.MUTED)

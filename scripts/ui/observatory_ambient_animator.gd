@@ -71,6 +71,48 @@ class AmbientFlame extends Control:
 		draw_rect(Rect2(center + Vector2(x, -1), Vector2(2, 3)), Color(1.0, 0.98, 0.80, alpha * 0.70))
 
 
+class AmbientSpectrumBars extends Control:
+	## A live-looking bar graph for the small green console screen - reads as
+	## real incoming data rather than a static painted readout.
+	const BAR_COUNT := 9
+	var tint := Color(0.30, 1.0, 0.58)
+	var levels: Array = []
+	var reduced_motion := false
+
+	func _draw() -> void:
+		if levels.is_empty():
+			return
+		var w := size.x / float(BAR_COUNT)
+		for i in range(BAR_COUNT):
+			var level: float = levels[i]
+			var bar_h: float = maxf(1.0, level * size.y)
+			var rect := Rect2(Vector2(i * w + 1.0, size.y - bar_h), Vector2(maxf(1.0, w - 1.5), bar_h))
+			var alpha := 0.30 + level * 0.55
+			draw_rect(rect, Color(tint.r, tint.g, tint.b, alpha))
+			if level > 0.7:
+				draw_rect(Rect2(rect.position, Vector2(rect.size.x, 1.0)), Color(1.0, 1.0, 1.0, (level - 0.7) * 1.6))
+
+
+class AmbientBlueprintScan extends Control:
+	## A small highlight that hops between a few points on the blueprint, as
+	## if the console were stepping through a checklist of measurements -
+	## motion with a purpose, instead of a bar sliding for its own sake.
+	const WAYPOINTS := [Vector2(8, 10), Vector2(30, 14), Vector2(20, 30), Vector2(38, 30)]
+	var tint := Color(0.55, 0.82, 1.0)
+	var settle := 0.0   # 0 = mid-travel, 1 = arrived and pulsing
+	var pos := Vector2.ZERO
+
+	func _draw() -> void:
+		var ring_alpha := 0.30 + settle * 0.35
+		draw_circle(pos, 1.6 + settle * 2.2, Color(tint.r, tint.g, tint.b, ring_alpha * 0.4))
+		draw_circle(pos, 1.0, Color(1.0, 1.0, 1.0, 0.55 + settle * 0.35))
+		if settle > 0.05:
+			var arm := 3.5 * settle
+			var fc := Color(tint.r, tint.g, tint.b, settle * 0.5)
+			draw_line(pos - Vector2(arm, 0), pos + Vector2(arm, 0), fc, 0.6)
+			draw_line(pos - Vector2(0, arm), pos + Vector2(0, arm), fc, 0.6)
+
+
 class AmbientWorkbenchActivity extends Control:
 	const GLINT_SPECS := [
 		{"from": Vector2(770, 411), "to": Vector2(791, 430), "phase": 0.0, "period": 8.7},
@@ -148,14 +190,21 @@ func _process(delta: float) -> void:
 	for rig in light_rigs:
 		var wave := 0.5 + 0.5 * sin(elapsed * float(rig["speed"]) + float(rig["phase"]))
 		var fine := 0.5 + 0.5 * sin(elapsed * (float(rig["speed"]) * 2.17) + float(rig["phase"]) * 1.73)
-		var strength := (0.86 + wave * 0.16 + fine * 0.07) * intensity_scale
+		# An occasional deeper dip - like a draft catching the flame - on top of
+		# the steady breathing, so the lamps read as real fire, not a metronome.
+		var gust_period := 7.0 + fposmod(float(rig["phase"]) * 3.1, 5.0)
+		var gust_phase := fposmod(elapsed + float(rig["phase"]) * 2.0, gust_period)
+		var gust := 0.0
+		if gust_phase < 0.9:
+			gust = sin(gust_phase / 0.9 * PI) * 0.22
+		var strength := (0.62 + wave * 0.30 + fine * 0.10 - gust * motion_scale) * intensity_scale
 		var halo := rig["halo"] as AmbientHalo
 		halo.strength = strength
-		halo.scale = Vector2(1.0 + wave * 0.025 * motion_scale, 1.0 - wave * 0.014 * motion_scale)
+		halo.scale = Vector2(1.0 + wave * 0.05 * motion_scale, 1.0 - wave * 0.03 * motion_scale)
 		halo.queue_redraw()
 		var flame := rig["flame"] as AmbientFlame
 		flame.strength = strength
-		flame.sway = (sin(elapsed * 2.31 + float(rig["phase"])) * 0.85 + sin(elapsed * 4.07 + float(rig["phase"]) * 2.0) * 0.25) * motion_scale
+		flame.sway = (sin(elapsed * 2.31 + float(rig["phase"])) * 0.85 + sin(elapsed * 4.07 + float(rig["phase"]) * 2.0) * 0.25 + gust * 3.0) * motion_scale
 		flame.queue_redraw()
 	for rig in screen_rigs:
 		var root := rig["root"] as Control
@@ -177,6 +226,39 @@ func _process(delta: float) -> void:
 			var pixel := (rig["status_pixels"] as Array)[index] as ColorRect
 			var pixel_wave := 0.5 + 0.5 * sin(elapsed * (1.1 + index * 0.23) + phase + index * 1.7)
 			pixel.color.a = (0.10 + pixel_wave * 0.24) * intensity_scale
+		if rig.has("bars"):
+			var bars := rig["bars"] as AmbientSpectrumBars
+			bars.reduced_motion = reduced_motion
+			var levels: Array = []
+			for i in range(AmbientSpectrumBars.BAR_COUNT):
+				if reduced_motion:
+					levels.append(0.30)
+				else:
+					# Each bar rides its own sine plus a faster jitter term, so the
+					# graph never looks like one wave scaled per column.
+					var slow := 0.5 + 0.5 * sin(elapsed * (0.9 + i * 0.31) + phase + i * 1.3)
+					var fast := 0.5 + 0.5 * sin(elapsed * (3.1 + i * 0.7) + i * 2.1)
+					levels.append(clampf((slow * 0.7 + fast * 0.3) * intensity_scale, 0.05, 1.0))
+			bars.levels = levels
+			bars.queue_redraw()
+		if rig.has("scan"):
+			var scan := rig["scan"] as AmbientBlueprintScan
+			var hop_period := 2.2
+			var cycle := fposmod(elapsed + phase, hop_period * AmbientBlueprintScan.WAYPOINTS.size())
+			var leg := int(cycle / hop_period)
+			var leg_t := fposmod(cycle, hop_period) / hop_period
+			var from_point: Vector2 = AmbientBlueprintScan.WAYPOINTS[leg]
+			var to_point: Vector2 = AmbientBlueprintScan.WAYPOINTS[(leg + 1) % AmbientBlueprintScan.WAYPOINTS.size()]
+			if reduced_motion:
+				scan.pos = from_point
+				scan.settle = 1.0
+			else:
+				# Ease-in-then-hold: most of the leg is travel, the last slice is a
+				# settled pause so the eye can actually register "it arrived".
+				var travel_t := clampf(leg_t / 0.6, 0.0, 1.0)
+				scan.pos = from_point.lerp(to_point, 1.0 - pow(1.0 - travel_t, 3.0))
+				scan.settle = clampf((leg_t - 0.6) / 0.4, 0.0, 1.0) if leg_t > 0.6 else 0.0
+			scan.queue_redraw()
 		root.queue_redraw()
 	for rig in dust_rigs:
 		var mote := rig["node"] as ColorRect
@@ -258,7 +340,28 @@ func _build_screens() -> void:
 			pixel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			root.add_child(pixel)
 			status_pixels.append(pixel)
-		screen_rigs.append({"id": str(spec["id"]), "root": root, "rect": rect, "trail": refresh_trail, "scanline": scanline, "status_pixels": status_pixels, "phase": float(spec["phase"]), "period": float(spec["period"])})
+		var rig := {"id": str(spec["id"]), "root": root, "rect": rect, "trail": refresh_trail, "scanline": scanline, "status_pixels": status_pixels, "phase": float(spec["phase"]), "period": float(spec["period"])}
+		if str(spec["id"]) == "remote_screen":
+			scanline.visible = false
+			var bars := AmbientSpectrumBars.new()
+			bars.name = "SpectrumBars"
+			bars.position = Vector2(3, 9)
+			bars.size = rect.size - Vector2(6, 12)
+			bars.tint = spec["color"]
+			bars.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			root.add_child(bars)
+			rig["bars"] = bars
+		elif str(spec["id"]) == "workbench_screen":
+			scanline.visible = false
+			var scan := AmbientBlueprintScan.new()
+			scan.name = "BlueprintScan"
+			scan.position = Vector2.ZERO
+			scan.size = rect.size
+			scan.tint = spec["color"]
+			scan.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			root.add_child(scan)
+			rig["scan"] = scan
+		screen_rigs.append(rig)
 
 
 func _build_dust() -> void:

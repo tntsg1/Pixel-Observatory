@@ -51,24 +51,33 @@ func _build_tutorial_mode() -> void:
 	panel.offset_top = -194.0
 	panel.offset_right = 180.0
 	panel.offset_bottom = 194.0
-	$Panel/Title.position = Vector2(20, 10)
-	$Panel/Title.size = Vector2(320, 32)
-	$Panel/Title.text = GameManager.text("PAUSED", "暂停")
+	panel.add_theme_stylebox_override("panel", UiKit.panel_box())
+	UiKit.add_corner_brackets(panel)
+	var overlay := get_node_or_null("Overlay") as ColorRect
+	if overlay != null:
+		overlay.color = Color(0.01, 0.015, 0.03, 0.74)
+
+	$Panel/Title.free()
+	UiKit.header_plate(panel, Rect2(10, 10, 340, 34), GameManager.text("PAUSED", "暂停"), 16)
+
 	$Panel/ResumeBtn.position = Vector2(30, 232)
 	$Panel/ResumeBtn.size = Vector2(300, 34)
 	$Panel/ResumeBtn.text = GameManager.text("Resume", "继续")
+	UiKit.style_button($Panel/ResumeBtn, true)
 	$Panel/RestartBtn.position = Vector2(30, 274)
 	$Panel/RestartBtn.size = Vector2(300, 34)
 	$Panel/RestartBtn.text = GameManager.text("Restart Scene", "重新开始当前场景")
+	UiKit.style_button($Panel/RestartBtn, false)
 	$Panel/MenuBtn.position = Vector2(30, 316)
 	$Panel/MenuBtn.size = Vector2(300, 34)
 	$Panel/MenuBtn.text = GameManager.text("Main Menu", "返回主菜单")
+	UiKit.style_button($Panel/MenuBtn, false)
 
 	var tutorial_label := Label.new()
 	tutorial_label.text = GameManager.text("Tutorial assistance", "教程辅助")
-	tutorial_label.position = Vector2(24, 50)
+	tutorial_label.position = Vector2(24, 54)
 	tutorial_label.size = Vector2(312, 24)
-	tutorial_label.add_theme_color_override("font_color", Color(0.48, 0.86, 1.0))
+	tutorial_label.add_theme_color_override("font_color", UiKit.BRASS_HI)
 	panel.add_child(tutorial_label)
 
 	var selector := OptionButton.new()
@@ -81,6 +90,7 @@ func _build_tutorial_mode() -> void:
 		if mode == GameManager.tutorial_assistance_mode():
 			selector.select(selector.item_count - 1)
 	panel.add_child(selector)
+	UiKit.style_option(selector)
 
 	var description := Label.new()
 	description.name = "TutorialDescription"
@@ -88,7 +98,7 @@ func _build_tutorial_mode() -> void:
 	description.size = Vector2(312, 54)
 	description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	description.add_theme_font_size_override("font_size", 11)
-	description.add_theme_color_override("font_color", Color(0.72, 0.78, 0.86))
+	description.add_theme_color_override("font_color", UiKit.MUTED)
 	panel.add_child(description)
 	var help := Button.new()
 	help.text = GameManager.text("Mission / Help", "任务记录 / 帮助")
@@ -96,6 +106,7 @@ func _build_tutorial_mode() -> void:
 	help.size = Vector2(300, 36)
 	help.pressed.connect(_show_mission_help)
 	panel.add_child(help)
+	UiKit.style_button(help, false)
 	selector.item_selected.connect(_on_tutorial_mode_selected.bind(selector))
 	_refresh_tutorial_description()
 

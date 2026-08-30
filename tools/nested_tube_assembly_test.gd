@@ -24,6 +24,12 @@ func _initialize() -> void:
 	_check(gm.advanced_tube_completed(), "completed tube state is recognized")
 	_check(not gm.telescope_is_ready(), "completed tube still needs main-assembly installation")
 	gm.reset_assembly()
+	# The player's "mount" slot still holds whatever was equipped on the last
+	# bench (the refractor's basic_mount by default) - install_part() only
+	# falls back to auto-picking an unlocked part when nothing is equipped,
+	# not when the equipped one is family-incompatible. A real player swaps
+	# it in the Parts Cabinet first; do the same here.
+	gm.equip_part("reflector_mount")
 	gm.install_part("tripod", 0)
 	gm.install_part("mount", 0)
 	gm.install_part("optical_tube_assembly", 0)
@@ -38,12 +44,17 @@ func _initialize() -> void:
 		var family_config: Dictionary = gm.tube_subassembly_config()
 		_check(not family_config.is_empty(), "L%d has a tube sub-blueprint config" % level_number)
 		_check((family_config.get("order", []) as Array).size() >= 6, "L%d sub-blueprint has ordered optical parts" % level_number)
-	gm.debug_jump_to_level(56, true)
+	# The Gregorian family (L56-65) was retired from the active campaign: its
+	# levels are flagged deprecated and dropped from campaign_order, and
+	# telescope_types.gd no longer offers it as a bench choice. Its parts and
+	# art stay in the data for history, but there is no reachable "Gregorian
+	# lesson" to equip them in anymore - debug_jump_to_level(56, ...) now
+	# resolves to the nearest live level instead (L55, Cassegrain).
 	var greg_mount: Dictionary = gm.get_part("gregorian_equatorial_mount")
 	var greg_eye: Dictionary = gm.get_part("gregorian_18mm_eyepiece")
 	_check(ResourceLoader.exists(str(greg_mount.get("icon_path", ""))), "Gregorian mount PNG is registered")
 	_check(ResourceLoader.exists(str(greg_eye.get("icon_path", ""))), "Gregorian eyepiece PNG is registered")
-	_check(gm.equip_part("gregorian_equatorial_mount"), "Gregorian mount equips in Gregorian lesson")
+	_check(not gm.available_level_numbers().has(56), "Gregorian levels are retired from the active campaign")
 	gm.debug_jump_to_level(46, false)
 	gm.progress["unlocked_parts"].append("gregorian_equatorial_mount")
 	gm.progress["unlocked_parts"].append("gregorian_18mm_eyepiece")

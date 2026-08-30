@@ -2028,7 +2028,6 @@ func _build_observation_panel() -> void:
 		GameManager.go("observatory")
 	)
 	bottom.add_child(back)
-	_add_change_equipment_button()
 
 	if quiz_brief_dismissed:
 		_set_identify_choices_visible(true)
@@ -2082,23 +2081,6 @@ func _build_free_observation_panel() -> void:
 	back.name = "FreeObservationBackButton"
 	back.pressed.connect(func() -> void: GameManager.go("sky"))
 	bottom.add_child(back)
-	_add_change_equipment_button(658.0, 30.0)
-
-
-func _add_change_equipment_button(y := 650.0, height := 34.0) -> void:
-	if observation_mode == "naked_eye":
-		return
-	var equipment := _pixel_button(GameManager.text("Change Equipment", "更换装备"), Vector2(CONTENT_W, height), 12)
-	equipment.position = Vector2(CONTENT_X, y)
-	equipment.tooltip_text = GameManager.text(
-		"Open the Parts Cabinet. Reassemble after changing a component.",
-		"打开零件柜。更换零件后需要重新组装。"
-	)
-	equipment.pressed.connect(func() -> void:
-		GameManager.set_observatory_spawn("cabinet")
-		GameManager.go("parts")
-	)
-	add_child(equipment)
 
 
 func _return_to_mission_target() -> void:

@@ -75,25 +75,49 @@ func _test_exposure(gm: Node) -> void:
 	root.add_child(scene)
 	for _i in range(6):
 		await process_frame
+	# Each stage confirm now kicks off an animated handoff (StageHandoffTransitionScript)
+	# that blocks the next _advance() with stage_transition_active until it finishes.
+	# Reduced motion shortens that from 1.02s to 0.17s; still real time, so poll
+	# rather than assume one process_frame is enough.
+	var feedback: Node = root.get_node_or_null("/root/InteractionFeedback")
+	var was_reduced: bool = feedback != null and bool(feedback.call("is_reduced_motion"))
+	if feedback != null:
+		feedback.call("set_reduced_motion", true)
 	var m: SpaceObservationModel = scene.get("model")
 	# jump to the exposure stage
 	m.instrument = "nircam"; m.filter = "near_infrared"; m.exposure_time = 400.0; m.integrations = 4
-	scene.call("_confirm_plan"); await process_frame
+	# The science instrument used to need installing by hand here: prepare only
+	# covered the four hull parts, so plan confirm rejected with "equip it
+	# first". _debug_prepare_equipment() now installs every unlocked bench slot,
+	# so a prepared rig arrives instrument-ready - asserted rather than patched
+	# around, since this is exactly what the developer console promises.
+	_check(gm.space_instrument_is_installed("nircam"),
+		"C. a prepared space rig arrives with its science instrument installed")
+	scene.call("_confirm_plan"); await _await_stage_ready(scene)
+	_check(str(scene.call("_key")) == "thermal", "C. plan confirm reaches the thermal stage")
 	m.rotate_to(m.thermal_target_deg)
 	for _i in range(600):
 		m.step_thermal(1.0 / 60.0)
 		if m.thermal_locked:
 			break
-	scene.call("_confirm_thermal"); await process_frame
+	scene.call("_confirm_thermal"); await _await_stage_ready(scene)
 	var usable_guide := _first_usable_guide(m.guide_stars)
 	_check(usable_guide >= 0, "C. this mission has a usable guide candidate")
 	m.choose_guide_star(usable_guide)
 	for _i in range(240):
 		m.step_guiding(1.0 / 60.0)
-	scene.call("_confirm_guide"); await process_frame
+	scene.call("_confirm_guide"); await _await_stage_ready(scene)
 	for _i in range(12):
 		m.align_step(0.09)
-	scene.call("_confirm_wavefront"); await process_frame
+	# Wavefront lock is a two-phase confirm: the first call only arms the
+	# phase-retrieval animation (call_deferred + a timer), the second - once
+	# the timer has actually fired - is what advances the stage.
+	scene.call("_confirm_wavefront")
+	for _i in range(30):
+		await process_frame
+		if bool(scene.get("wavefront_convergence_complete")):
+			break
+	scene.call("_confirm_wavefront"); await _await_stage_ready(scene)
 	_check(str(scene.call("_key")) == "expose", "C. reached the exposure stage")
 
 	# before: Start enabled, Process disabled
@@ -138,7 +162,7 @@ func _test_exposure(gm: Node) -> void:
 	_check(text.to_lower().contains("photon"), "C. exposure explains what exposure IS (photons)")
 
 	# E. processing stage explains each step
-	scene.call("_confirm_expose"); await process_frame
+	scene.call("_confirm_expose"); await _await_stage_ready(scene)
 	_check(str(scene.call("_key")) == "process", "E. reached processing")
 	var raw := _all_text(scene)
 	_check(raw.contains("cosmic") or raw.contains("Cosmic"), "E. processing explains the cosmic-ray state")
@@ -146,8 +170,21 @@ func _test_exposure(gm: Node) -> void:
 	m.align_frames(); scene.call("_build_stage"); await process_frame
 	_check(_all_text(scene).contains("Remove") or _all_text(scene).contains("cosmic"),
 		"E. after frame review and alignment it tells the player to remove events")
+	if feedback != null:
+		feedback.call("set_reduced_motion", was_reduced)
 	scene.queue_free()
 	await process_frame
+
+
+# Stage confirms hand off through StageHandoffTransitionScript, which holds
+# stage_transition_active until its packet animation finishes; a second
+# _advance() call while it is still active is silently dropped. Poll instead
+# of assuming a single frame covers it.
+func _await_stage_ready(scene: Node) -> void:
+	for _i in range(60):
+		await process_frame
+		if not bool(scene.get("stage_transition_active")):
+			return
 
 
 func _first_usable_guide(stars: Array) -> int:

@@ -73,7 +73,12 @@ func _initialize() -> void:
 	await process_frame
 	_check(fast_bench.find_child("AutoAssembleButton", true, false) != null, "graduation exposes Auto Assemble on the FAST bench")
 	fast_bench.call("_on_auto_assemble_pressed")
-	await create_timer(2.5).timeout
+	# Poll instead of waiting a fixed 2.5 s. FAST queues 14 components and the
+	# auto-assemble loop deliberately awaits ~0.51 s per part for its install
+	# animation, so a real run takes ~6.7 s - the fixed wait was checking the
+	# input lock while assembly was still legitimately in progress. Every other
+	# family in this test already polls; FAST was the odd one out.
+	await _wait_for_auto_complete(fast_bench, 20.0)
 	for part_type in ["radio_dish", "receiver", "signal_processor"]:
 		_check(bool(gm.progress.get("assembly_state", {}).get(part_type, {}).get("installed", false)), "FAST auto assembly installs %s" % part_type)
 	_check(not bool(fast_bench.get("auto_assemble_running")), "FAST auto assembly releases its input lock")

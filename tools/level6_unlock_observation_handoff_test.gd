@@ -1,5 +1,10 @@
 extends SceneTree
 
+# L6's equipment-unlock notice used to carry an "Open Observation Pad" button
+# that teleported the player straight there. That shortcut was removed - the
+# notice now only acknowledges, and its copy still correctly points the
+# player at the Observation Pad (walking there is on them).
+
 var failures := 0
 
 
@@ -23,15 +28,17 @@ func _initialize() -> void:
 	for _i in range(6):
 		await process_frame
 
-	var action := _find_button(room, "打开观星台")
-	_check(action != null, "L6 unlock action opens the Observation Pad")
 	_check(_labels_contain(room, "返回观星台继续"), "L6 unlock copy matches the observation handoff")
 	_check(not _labels_contain(room, "到零件柜装备"), "L6 unlock copy no longer sends the player to the Parts Cabinet")
+
+	var action := _find_button(room, "确定")
+	_check(action != null, "the notice offers a single acknowledgement button")
+	_check(_find_button(room, "打开观星台") == null, "no button teleports straight into the Observation Pad")
 	if action != null:
 		action.pressed.emit()
 		await process_frame
-		_check(str(gm.observatory_spawn_id) == "telescope", "unlock handoff targets the central telescope pad")
-		_check(current_scene != room, "unlock action leaves the lobby for the observation flow")
+		_check(str(gm.observatory_spawn_id) != "telescope", "acknowledging the notice does not spawn the player at the telescope")
+		_check(current_scene == room, "acknowledging the notice keeps the player in the lobby - it must be walked to")
 
 	_finish()
 

@@ -155,11 +155,40 @@ func _build() -> void:
 	var mode: String = GameManager.current_learning_card_mode()
 	if mode == "brief":
 		_build_concept_brief(GameManager.current_brief_card())
+		_draw_ambient_margins()
 	elif mode == "complete" or not GameManager.last_learning_card.is_empty():
 		TeachingFlowManager.acknowledge_card_shown()
 		_build_mission_complete(GameManager.last_learning_card)
+		_draw_ambient_margins()
 	else:
 		GameManager.call_deferred("go", "observatory")
+
+
+func _draw_ambient_margins() -> void:
+	# This card is shown after every observation and every concept brief, so it
+	# is one of the most-seen frames in the game - but its painted backdrop
+	# (which includes a starfield) never moved.
+	#
+	# Two deliberate constraints:
+	#  * added AFTER the content, because that backdrop art is drawn full-screen
+	#    and opaque - a layer added before it is simply covered and does nothing.
+	#  * confined to the left/right margins, clear of the centred parchment. This
+	#    is a stop-and-read results screen; twinkling behind the body text would
+	#    fight the reading rather than support it.
+	var margins := [
+		{"rect": Rect2(6, 58, 178, 540), "seed": 20260827},
+		{"rect": Rect2(840, 58, 178, 540), "seed": 20260919},
+	]
+	for margin_value in margins:
+		var margin: Dictionary = margin_value
+		var life := AmbientLife.new()
+		life.name = "AmbientLife"
+		life.configure({
+			"twinkle_zone": margin.get("rect", Rect2()),
+			"twinkle_count": 9,
+			"seed": int(margin.get("seed", 0)),
+		})
+		add_child(life)
 
 
 func _build_concept_brief(card: Dictionary) -> void:

@@ -141,14 +141,20 @@ func _test_drag_does_not_equip(gm: Node) -> void:
 	if target == null:
 		_check(false, "4. found a card with an enabled Equip button")
 		return
+	# The first genuinely equippable card in "All" is not guaranteed to sit
+	# near the top (most early Support slots already equip a family-specific
+	# part on entry) - scroll it into view first so the interaction point
+	# below lands inside the actual window instead of off past the bottom.
+	await _scroll_card_into_view(target)
 	var button := target.get_node_or_null("EquipButton") as Button
 	var part_type := str(gm.get_part(str(target.get_meta("part_id", ""))).get("type", ""))
 	var equipped_before := str(gm.equipped_part_id(part_type))
+	var scroll_before := scroll.scroll_vertical
 	var point := button.get_global_rect().get_center()
 	await _swipe(point, -140.0)
 	_check(str(gm.equipped_part_id(part_type)) == equipped_before,
 		"4a. dragging from the Equip button scrolls without equipping")
-	_check(scroll.scroll_vertical > 0, "4b. that same drag did scroll the list (%d)" % scroll.scroll_vertical)
+	_check(scroll.scroll_vertical > scroll_before, "4b. that same drag did scroll the list (%d -> %d)" % [scroll_before, scroll.scroll_vertical])
 	_check(bool(cabinet.get("_suppress_emulated_click")),
 		"4c. the emulated click after a drag is suppressed, so release cannot equip")
 
@@ -170,6 +176,7 @@ func _test_equip_still_works(gm: Node) -> void:
 	if target == null:
 		_check(false, "5. found a card with an enabled Equip button")
 		return
+	await _scroll_card_into_view(target)
 	var part_id := str(target.get_meta("part_id", ""))
 	var part_type := str(gm.get_part(part_id).get("type", ""))
 	var button := target.get_node_or_null("EquipButton") as Button
@@ -298,6 +305,18 @@ func _card_with_active_equip() -> Control:
 		if button != null and not button.disabled and button.get_global_rect().size.x > 0.0:
 			return card
 	return null
+
+
+# The first genuinely equippable card in "All" (78 parts across every family)
+# is not guaranteed to be near the top - most of the early Support-category
+# slots equip a family-specific part on entry, so the first card whose Equip
+# button is actually enabled can sit well past the ~768px viewport. Bring it
+# to the top of the scroll before computing any interaction point from its
+# rect, or the synthetic touch/mouse event lands outside the window entirely.
+func _scroll_card_into_view(card: Control) -> void:
+	scroll.scroll_vertical = clampi(int(card.position.y), 0, int(cabinet.call("max_scroll_offset")))
+	await process_frame
+	await process_frame
 
 
 func _point_on_first_card() -> Vector2:

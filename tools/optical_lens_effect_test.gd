@@ -145,12 +145,15 @@ func _test_averted_vision_ui() -> void:
 	)
 	_check(str(view.call("_target_render_mode", "sombrero_galaxy")) == "extended_subject", "deep-sky registry art uses a true-alpha science subject behind the fixed lens mask")
 	_check(str(view.call("_target_render_mode", "jupiter")) == "transparent_sprite", "planet sprites keep transparent-sprite rendering")
+	# "Change Equipment" used to teleport straight into the Parts Cabinet from
+	# mid-observation; that shortcut was removed - swapping gear now always
+	# means walking back to the cabinet like any other destination.
 	var equipment_button: Button
 	for node in view.find_children("*", "Button", true, false):
 		if str((node as Button).text).contains("Change Equipment"):
 			equipment_button = node as Button
 			break
-	_check(equipment_button != null, "detailed telescope view exposes a direct Change Equipment route")
+	_check(equipment_button == null, "detailed telescope view no longer offers a direct Change Equipment shortcut")
 	view.queue_free()
 	await process_frame
 

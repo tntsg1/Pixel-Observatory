@@ -396,9 +396,31 @@ func _debug_prepare_equipment() -> void:
 	reset_assembly()
 	for required_type_value in _effective_required_parts():
 		install_part(str(required_type_value), 0)
+	# The developer sandbox promises a rig that is actually ready to test. The
+	# space observatory's campaign contract is only four hull parts, but its
+	# bench exposes every unlocked spacecraft and science module - preparing
+	# just the four left ten slots reading "Tap to select", which looks like
+	# prepare silently failed, and left the science instruments uninstalled so
+	# the observation console rejected the plan with "equip it first".
+	for optional_type_value in _debug_optional_install_types():
+		var optional_type := str(optional_type_value)
+		var slot: Dictionary = progress["assembly_state"].get(optional_type, {})
+		if not bool(slot.get("installed", false)):
+			install_part(optional_type, 0)
 	progress["finder_offset"] = {"az": 0.0, "alt": 0.0}
 	progress["finder_offset_seeded"] = false
 	progress["tracking_rate"] = 1.0 if has_tracking_mount_equipped() else 0.0
+
+
+func _debug_optional_install_types() -> Array[String]:
+	# Bench slots that are installable but deliberately NOT mission-required,
+	# so _effective_required_parts() must keep excluding them (they must never
+	# become mission blockers - see the space_segmented branch there). Only the
+	# space observatory has these today; every other family's bench slots are
+	# exactly its required parts, so this returns nothing for them.
+	if assembly_context_family() == "space_segmented":
+		return space_segmented_install_types()
+	return []
 
 
 func prepared_readiness_report() -> Dictionary:

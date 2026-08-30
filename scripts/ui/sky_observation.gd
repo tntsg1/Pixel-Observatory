@@ -83,6 +83,12 @@ const BAND_BG := Color(0.020, 0.034, 0.062, 1.0)
 const TEXT := Color(0.96, 0.92, 0.82)
 const GOLD := Color(0.96, 0.72, 0.30)
 const CYAN := Color(0.30, 0.84, 1.0)
+# Secondary accent for "not the mission target" panels/badges. These used to
+# share CYAN with the in-viewport aiming/calibration feedback, which reads as
+# a stray sci-fi blue against the rest of the game's brass-and-parchment
+# panels. A muted bronze keeps the same "this is the non-primary state"
+# distinction from GOLD without introducing an off-palette color.
+const FREE_ACCENT := Color(0.80, 0.66, 0.42)
 const GREEN := Color(0.42, 0.95, 0.50)
 const MUTED := Color(0.72, 0.78, 0.84)
 const WARNING := Color(1.0, 0.72, 0.35)
@@ -558,10 +564,25 @@ func _apply_star_and_icon_shading(clouds_active: bool) -> void:
 		if clouds_active:
 			shading = 1.0 - 0.75 * _cloud_alpha_at(star.position + star.size * 0.5)
 		var twinkle := 1.0
-		if severity > 0.0 and twinkle_budget > 0:
+		if twinkle_budget > 0:
 			twinkle_budget -= 1
 			var phase: float = twinkle_seed + float(i) * 0.7
-			twinkle = 1.0 + 0.125 * (severity / 0.8) * sin(t * (2.0 + severity * 2.5) + phase)
+			# Scintillation never actually stops: excellent seeing means LESS
+			# twinkle, not none. The amplitude used to scale straight off
+			# severity, so a clear night (severity 0.06) shimmered by under 1%
+			# alpha - i.e. the starfield read as frozen exactly when conditions
+			# were at their best. A floor keeps a clear sky alive while poor
+			# seeing still twinkles ~3x harder, so the view goes on teaching
+			# seeing quality at a glance.
+			var amplitude: float = 0.035 + 0.09 * (severity / 0.8)
+			var rate: float = 2.0 + severity * 2.5
+			# Two out-of-phase sines (as this function's header already
+			# describes) break the metronome look that one shared sine gives a
+			# whole field of stars.
+			twinkle = 1.0 + amplitude * (
+				0.65 * sin(t * rate + phase)
+				+ 0.35 * sin(t * rate * 1.73 + phase * 2.1)
+			)
 		star.color = Color(base_color.r, base_color.g, base_color.b, clampf(base_color.a * twinkle * shading, 0.0, 1.0))
 	if not clouds_active:
 		return
@@ -2535,10 +2556,10 @@ func _draw_action_hitboxes() -> void:
 	details_btn.size = Vector2(56, 19)
 	details_btn.tooltip_text = GameManager.text("Object details", "天体详情")
 	details_btn.add_theme_font_size_override("font_size", 11)
-	details_btn.add_theme_color_override("font_color", CYAN)
+	details_btn.add_theme_color_override("font_color", MUTED)
 	var ds := StyleBoxFlat.new()
-	ds.bg_color = Color(0.04, 0.09, 0.14, 0.9)
-	ds.border_color = CYAN
+	ds.bg_color = Color(0.09, 0.08, 0.06, 0.9)
+	ds.border_color = MUTED
 	ds.set_border_width_all(1)
 	ds.set_corner_radius_all(3)
 	details_btn.add_theme_stylebox_override("normal", ds)
@@ -3543,7 +3564,7 @@ func _update_edge_target_indicator(object_id: String) -> void:
 	edge_target_indicator.set_meta("fading", false)
 	edge_target_indicator.position = desired if not was_visible else edge_target_indicator.position.lerp(desired, 0.34)
 	var is_mission := object_id == target_id
-	var accent := GOLD if is_mission else CYAN
+	var accent := GOLD if is_mission else FREE_ACCENT
 	_apply_edge_indicator_style(accent)
 	edge_target_arrow.rotation = direction.angle()
 	edge_target_arrow.color = accent
@@ -3691,14 +3712,14 @@ func _source_text() -> String:
 func _update_aim_text() -> void:
 	var config: Dictionary = VIEW_MODES[view_mode]
 	var mode_name := _single(str(config.get("en", view_mode)), str(config.get("zh", view_mode)))
-	# Position source is already shown above. Keep the live pointing readout to
-	# two rows so the free-observation action never collides with panel dividers.
-	aim_label.text = "View  Az %s · Alt %s\n%s · FOV %s x %s" % [
-		_format_dms(display_azimuth),
-		_format_dms(display_altitude),
+	# The current view's Az/Alt duplicated the object's own Az/Alt shown just
+	# above (they read as near-identical once anything is centered), and FOV
+	# never needs arcsecond precision - these three view modes are fixed
+	# 120/28/6 degree widths, not a continuously dialed-in value.
+	aim_label.text = "%s · FOV %d° x %d°" % [
 		mode_name,
-		_format_dms(display_fov_x),
-		_format_dms(display_fov_y)
+		roundi(display_fov_x),
+		roundi(display_fov_y)
 	]
 
 
@@ -3813,7 +3834,7 @@ func _open_detail_panel() -> void:
 		return
 	var detail: Dictionary = GameManager.object_detail(object_id)
 	var is_mission := bool(detail.get("is_mission_target", false))
-	var accent := GOLD if is_mission else CYAN
+	var accent := GOLD if is_mission else FREE_ACCENT
 
 	detail_panel = Control.new()
 	detail_panel.name = "ObjectDetailsPanel"
@@ -4159,7 +4180,7 @@ func _update_selected_text() -> void:
 	var obj: Dictionary = GameManager.get_object(display_id)
 	var item: Dictionary = _sky_item(display_id)
 	var is_mission := display_id == target_id and not GameManager.is_local_optical_free_observation()
-	var accent := GOLD if is_mission else CYAN
+	var accent := GOLD if is_mission else FREE_ACCENT
 	if selected_badge != null:
 		selected_badge.text = _observation_badge_text(is_mission)
 		selected_badge.add_theme_color_override("font_color", accent)
@@ -4177,30 +4198,25 @@ func _update_selected_text() -> void:
 	if display_id == target_id:
 		prefix = "★ "
 	selected_title.text = prefix + GameManager.dict_text(obj, "name").replace("\n", " · ")
-	# Always show the selected object's true angles AND how far the current aim
-	# is from it. Mission and free observation use the exact same coordinate math.
-	var delta_az := shortest_angle_degrees(telescope_azimuth, float(item.get("azimuth", 0.0)))
-	var delta_alt := float(item.get("altitude", 0.0)) - telescope_altitude
+	# The object's true Az/Alt is useful context; how far the current aim is
+	# from it is not shown a second time here - the "Hold A: turn west..."
+	# hint below already says the same thing in the more actionable phrasing.
 	if GameManager.is_maya_companion_observation():
 		var instrument_name := GameManager.text(
 			str(GameManager.local_optical_observation_context.get("companion_instrument_name_en", "Maya's telescope")),
 			str(GameManager.local_optical_observation_context.get("companion_instrument_name_zh", "玛雅的望远镜"))
 		)
-		selected_detail.text = "%s\nAz %s · Alt %s\nΔAz %s · ΔAlt %s" % [
+		selected_detail.text = "%s\nAz %s · Alt %s" % [
 			instrument_name,
 			_format_dms(float(item.get("azimuth", 0.0))),
-			_format_dms(float(item.get("altitude", 0.0))),
-			_format_dms(delta_az, true),
-			_format_dms(delta_alt, true)
+			_format_dms(float(item.get("altitude", 0.0)))
 		]
 	else:
-		selected_detail.text = "%s · Az %s (%s)\nAlt %s\nΔAz %s · ΔAlt %s" % [
+		selected_detail.text = "%s · Az %s (%s)\nAlt %s" % [
 			GameManager.text(str(obj.get("type_en", item.get("type", "Object"))), str(obj.get("type_zh", "天体"))),
 			_format_dms(float(item.get("azimuth", 0.0))),
 			str(item.get("direction_text", "Estimate")),
-			_format_dms(float(item.get("altitude", 0.0))),
-			_format_dms(delta_az, true),
-			_format_dms(delta_alt, true)
+			_format_dms(float(item.get("altitude", 0.0)))
 		]
 	if mission_target_button != null:
 		mission_target_button.visible = not is_mission

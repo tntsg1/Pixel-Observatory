@@ -33,7 +33,16 @@ func _initialize() -> void:
 	room.call("_update_nearby")
 	_check(str(room.get("nearby_id")) == "mission", "2a. player stands near the mission board")
 	room.call("_interact_with_nearby")
-	await process_frame
+	# The mission furniture plays a real open animation (observatory_furniture_
+	# animator.gd's tween, ~0.44-0.78s of WALL-CLOCK time, not engine frames)
+	# before the popup actually appears. A fixed frame count is a proxy for
+	# that wall time and only as good as the frame rate holds up - a busier
+	# ambient scene can lengthen real time per frame without changing the
+	# frame count needed, so wait generously rather than tune this number.
+	for _i in range(300):
+		await process_frame
+		if room.get("mission_board_popup") != null:
+			break
 	_check(room.get("mission_board_popup") != null, "2b. Interact opens the mission board like E")
 	room.call("_close_mission_board", false)
 	var overlay: Control = room.get("mobile_overlay")

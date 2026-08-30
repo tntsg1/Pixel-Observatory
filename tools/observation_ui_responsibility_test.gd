@@ -57,8 +57,12 @@ func _check_assembly_family_selector() -> void:
 	var constants: Dictionary = (selector.get_script() as Script).get_script_constant_map()
 	for entry_value in constants.get("FAMILIES", []):
 		ids.append(str((entry_value as Dictionary).get("id", "")))
-	for expected in ["refractor", "newtonian", "dobsonian", "cassegrain", "gregorian", "space_segmented", "fast_radio"]:
+	# Gregorian was retired from the active campaign (its levels are marked
+	# deprecated and dropped from campaign_order.json) and telescope_types.gd
+	# no longer lists it as a bench choice - it must not reappear here.
+	for expected in ["refractor", "newtonian", "dobsonian", "cassegrain", "space_segmented", "fast_radio"]:
 		_check(ids.has(expected), "assembly selector includes " + expected)
+	_check(not ids.has("gregorian"), "assembly selector does not offer the retired Gregorian family")
 	_check(str(selector.get("selected_family")) == "refractor", "mission recommendation starts selected")
 	selector.queue_free()
 	await process_frame

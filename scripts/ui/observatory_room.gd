@@ -17,6 +17,15 @@ const PLAYER_TEXTURE: Texture2D = preload("res://assets/characters/player_observ
 const ASSEMBLY_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_occluders/assembly_table_clean.png")
 const COMPUTER_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_furniture/remote_instrument_desk_official.png")
 const COMPUTER_VISUAL_RECT := Rect2(764, 520, 172, 172.0 * 210.0 / 274.0)
+# The corkboard + desk's combined painted footprint, sampled directly from the
+# hall art (board frame ~y96-212, desk ~y212-301, both ~x670-886).
+# INTERACTION_RECTS["mission"] is taller still (it starts at y84, under the
+# HUD bar, so the walk-up zone reaches the floor in front of the desk) - the
+# highlight bracket needs this tighter rect or it floats above the board
+# instead of framing it. Do not reuse this for the desk occluder below: that
+# one intentionally covers only the desk's collision footprint, not the
+# wall-mounted board, which the player can never walk behind.
+const MISSION_BOARD_VISUAL_RECT := Rect2(672, 96, 214, 205)
 const PLAYER_FRAME_SIZE := Vector2(64, 96)
 # The supplied frames keep their original pixels. A single uniform scale makes
 # their visible 77 px character match the previous ~66 px in-room height.
@@ -114,6 +123,8 @@ const MAYA_CENTRAL_PLATFORM_RADII := Vector2(156, 116)
 const FURNITURE_OCCLUDER_SPECS := [
 	{
 		"id": "mission",
+		# Desk-only footprint: the board above is wall-mounted and the player
+		# never walks behind it, so only the desk needs occlusion collision.
 		"rect": Rect2(684, 218, 202, 85),
 		"front_y": 296.0,
 		"polygons": [
@@ -452,10 +463,51 @@ func _build() -> void:
 	_draw_player()
 	_draw_maya_npc()
 	_draw_furniture_occluders()
+	_draw_ambient_life()
 	_draw_hud()
 	_set_player_position(player_pos)
 	_update_nearby()
 	_update_hud()
+
+
+func _draw_ambient_life() -> void:
+	# Complements ObservatoryAmbientAnimator (wall lights, CRT refresh, glints,
+	# dust) rather than repeating it: this layer adds only what that one has no
+	# concept of - a status lamp on each DEVICE showing it is powered and busy
+	# with its own rhythm, the mount still tracking the sky, and the occasional
+	# meteor across the doorway. Dust is left to the existing animator.
+	var life := AmbientLife.new()
+	life.name = "AmbientLife"
+	life.configure({
+		"bounds": ROOM_RECT,
+		"motes": 0,
+		"seed": 20260724,
+		"indicators": [
+			# the console is the busiest thing in the room
+			{"rect": INTERACTION_RECTS["computer"], "style": "data",
+				"tint": Color(0.52, 0.95, 0.68), "ax": 0.80, "ay": 0.22, "phase": 0.0},
+			# assembly bench: powered, waiting for work
+			{"rect": INTERACTION_RECTS["assembly"], "style": "standby",
+				"tint": Color(1.0, 0.72, 0.34), "ax": 0.86, "ay": 0.20, "phase": 1.7},
+			# mission board: an unread-notice blip
+			{"rect": INTERACTION_RECTS["mission"], "style": "pulse",
+				"tint": Color(1.0, 0.86, 0.45), "ax": 0.84, "ay": 0.12, "phase": 0.6},
+			# the mount is still following the sky
+			{"rect": INTERACTION_RECTS["telescope"], "style": "track",
+				"tint": Color(0.60, 0.84, 1.0), "ax": 0.72, "ay": 0.22, "phase": 2.3},
+			{"rect": INTERACTION_RECTS["cabinet"], "style": "idle",
+				"tint": Color(0.70, 0.82, 1.0), "ax": 0.88, "ay": 0.14, "phase": 3.1},
+			{"rect": INTERACTION_RECTS["journal"], "style": "idle",
+				"tint": Color(1.0, 0.80, 0.55), "ax": 0.90, "ay": 0.10, "phase": 4.4},
+		],
+		# A twinkling star field on the observation pad's dome glass, standing
+		# in for the sweeping radar line the pad used to have (cut - it read as
+		# a cheap scanning effect rather than part of the room).
+		"twinkle_zone": Rect2(355, 330, 300, 198),
+		# the doorway looks out at the sky: let a meteor cross it now and then
+		"streak_zone": INTERACTION_RECTS["door"],
+	})
+	add_child(life)
 
 
 func _draw_maya_npc() -> void:
@@ -725,7 +777,7 @@ func _draw_space_console_overlay() -> void:
 func _register_hitboxes() -> void:
 	_register_interactable("cabinet", GameManager.text("Parts Cabinet", "零件柜"), GameManager.text("Review unlocked telescope parts.", "查看已解锁的望远镜零件。"), INTERACTION_RECTS["cabinet"])
 	_register_interactable("door", GameManager.text("Observatory Dome", "圆顶观星站"), GameManager.text("The ridge dome: wind-shielded formal station with its own control room. Same sky as the pad - steadier housing.", "山脊圆顶：挡风的正式观测站，带控制室。和露天观测台看同一片天空，但圆顶更稳、更抗风。"), INTERACTION_RECTS["door"])
-	_register_interactable("mission", GameManager.text("Mission Board", "任务公告板"), GameManager.text("Read the current level goal here.", "在此查看当前关卡目标。"), INTERACTION_RECTS["mission"])
+	_register_interactable("mission", GameManager.text("Mission Board", "任务公告板"), GameManager.text("Read the current level goal here.", "在此查看当前关卡目标。"), INTERACTION_RECTS["mission"], MISSION_BOARD_VISUAL_RECT)
 	_register_interactable("assembly", GameManager.text("Assembly Table", "组装台"), GameManager.text("Build and align the telescope.", "组装和校准望远镜。"), INTERACTION_RECTS["assembly"])
 	if GameManager.postgraduate_free_build():
 		var active_family := GameManager.active_optical_telescope_family()
@@ -751,16 +803,23 @@ func _register_hitboxes() -> void:
 		"computer",
 		GameManager.text("Remote Instrument Console", "远程仪器控制台"),
 		GameManager.text("Control the space infrared observatory and FAST radio array.", "控制空间红外天文台与 FAST 射电阵列。"),
-		INTERACTION_RECTS["computer"])
+		INTERACTION_RECTS["computer"],
+		COMPUTER_VISUAL_RECT)
 
 	# Foot blockers preserve the top-down walkable floor while preventing the
 	# player from standing inside furniture, the telescope base, or stools.
 	obstacles.append_array(OBSTACLE_RECTS)
 
 
-func _register_interactable(id: String, display_name: String, hint: String, rect: Rect2) -> void:
+func _register_interactable(id: String, display_name: String, hint: String, rect: Rect2, visual_rect := Rect2()) -> void:
+	# `rect` is the forgiving walk-up interaction zone (also used for the E
+	# hint and click target) - it is deliberately larger than the furniture's
+	# painted footprint so the player does not have to stand pixel-precise.
+	# The highlight bracket must NOT use that loose zone directly, or it reads
+	# as boxing empty floor instead of framing the actual console/board.
+	var frame_rect := visual_rect if visual_rect.size != Vector2.ZERO else rect
 	var frame_color := BRASS if _is_ready_observation_target(id) else CYAN
-	var frame := _thin_highlight_frame(rect, frame_color)
+	var frame := _thin_highlight_frame(frame_rect, frame_color)
 	frame.modulate.a = 0.0
 	var click_target := _transparent_click_target(rect, id)
 	interactables.append({
@@ -2174,8 +2233,9 @@ func _open_mission_board() -> void:
 	panel.name = "MissionBoardPanel"
 	panel.position = Vector2(36, 60)
 	panel.size = Vector2(952, 650)
-	panel.add_theme_stylebox_override("panel", _style(Color(0.035, 0.050, 0.090, 0.98), BRASS, 3, 5))
+	panel.add_theme_stylebox_override("panel", _depth_style(Color(0.035, 0.050, 0.090, 0.98), BRASS, 3, 5))
 	mission_board_popup.add_child(panel)
+	UiKit.add_bevel(mission_board_popup, Rect2(panel.position, panel.size))
 	_corner_pins(panel)
 
 	_board_label(panel, GameManager.text("CLUB MISSION", "俱乐部任务"), Vector2(22, 16), Vector2(220, 18), 12, BRASS)
@@ -2232,8 +2292,9 @@ func _open_graduated_mission_board() -> void:
 	panel.name = "GraduatedMissionBoardPanel"
 	panel.position = Vector2(112, 82)
 	panel.size = Vector2(800, 602)
-	panel.add_theme_stylebox_override("panel", _style(Color(0.035, 0.050, 0.090, 0.99), BRASS, 3, 5))
+	panel.add_theme_stylebox_override("panel", _depth_style(Color(0.035, 0.050, 0.090, 0.99), BRASS, 3, 5))
 	mission_board_popup.add_child(panel)
+	UiKit.add_bevel(mission_board_popup, Rect2(panel.position, panel.size))
 	_corner_pins(panel)
 
 	_board_label(panel, GameManager.text("ASTRONOMY CLUB RECORD", "天文俱乐部记录"), Vector2(28, 20), Vector2(744, 24), 13, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
@@ -2655,8 +2716,9 @@ func _board_section(parent: Control, pos: Vector2, section_size: Vector2, title:
 	var section := Panel.new()
 	section.position = pos
 	section.size = section_size
-	section.add_theme_stylebox_override("panel", _style(Color(0.025, 0.040, 0.072, 0.94), Color(0.22, 0.34, 0.50, 0.92), 1, 3))
+	section.add_theme_stylebox_override("panel", _depth_style(Color(0.025, 0.040, 0.072, 0.94), Color(0.22, 0.34, 0.50, 0.92), 1, 3))
 	parent.add_child(section)
+	UiKit.add_bevel(section, Rect2(Vector2.ZERO, section_size))
 	_board_label(section, title, Vector2(14, 10), Vector2(section_size.x - 28, 18), 12, BRASS)
 	_rect_to(section, Vector2(12, 28), Vector2(section_size.x - 24, 1), Color(0.30, 0.40, 0.55, 0.70))
 	return section
@@ -2669,8 +2731,8 @@ func _board_button(parent: Control, text: String, pos: Vector2, button_size: Vec
 	button.size = button_size
 	button.add_theme_font_size_override("font_size", 14)
 	button.add_theme_color_override("font_color", WARM_TEXT)
-	button.add_theme_stylebox_override("normal", _style(normal_color, border_color, 2, 4))
-	button.add_theme_stylebox_override("hover", _style(normal_color.lightened(0.12), border_color.lightened(0.12), 2, 4))
+	button.add_theme_stylebox_override("normal", _depth_style(normal_color, border_color, 2, 4))
+	button.add_theme_stylebox_override("hover", _depth_style(normal_color.lightened(0.12), border_color.lightened(0.12), 2, 4))
 	button.add_theme_stylebox_override("pressed", _style(normal_color.darkened(0.12), border_color, 2, 4))
 	parent.add_child(button)
 	return button
@@ -2747,37 +2809,20 @@ func _maybe_show_unlock_popup() -> void:
 		Vector2(x_text, y), Vector2(360, 40), 11, Color(0.78, 0.86, 0.92))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	var later := Button.new()
-	later.text = GameManager.text("Later", "稍后")
-	later.position = Vector2(350, panel.position.y + panel_height - 52.0)
-	later.size = Vector2(132, 38)
-	later.add_theme_font_size_override("font_size", 13)
-	later.pressed.connect(func() -> void:
+	# A single acknowledgement button. This used to also offer "Open Parts
+	# Cabinet" / "Open Observation Pad" shortcuts that teleported the player
+	# straight into the other screen - skipping the walk defeats the point of
+	# a room you move around in. Confirming here only dismisses the notice;
+	# getting there is on foot, like every other destination in the lobby.
+	var confirm := Button.new()
+	confirm.text = GameManager.text("OK", "确定")
+	confirm.position = Vector2(panel.position.x + (panel.size.x - 160.0) * 0.5, panel.position.y + panel_height - 52.0)
+	confirm.size = Vector2(160, 38)
+	confirm.add_theme_font_size_override("font_size", 13)
+	confirm.pressed.connect(func() -> void:
 		_close_unlock_popup(true)
 	)
-	unlock_popup.add_child(later)
-
-	var equip_now := Button.new()
-	equip_now.text = GameManager.text("Open Observation Pad", "打开观星台") if opens_observation_pad else GameManager.text("Open Parts Cabinet", "打开零件柜")
-	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
-	equip_now.size = Vector2(220, 38)
-	equip_now.add_theme_font_size_override("font_size", 13)
-	equip_now.pressed.connect(func() -> void:
-		_close_unlock_popup(false)
-		if opens_observation_pad:
-			_handle_interaction("telescope")
-			return
-		GameManager.set_room_guidance(
-			"cabinet",
-			GameManager.text("Maya: Equip the New Parts", "玛雅：装备新零件"),
-			GameManager.text(
-				"Choose the newly unlocked parts here. After equipping them, the route continues to the Assembly Table.",
-				"在零件柜选择刚解锁的部件；装备后，引导会继续带你前往组装台安装。"
-			)
-		)
-		GameManager.go("parts")
-	)
-	unlock_popup.add_child(equip_now)
+	unlock_popup.add_child(confirm)
 
 
 func _close_unlock_popup(resume_guidance: bool) -> void:
@@ -3357,6 +3402,17 @@ func _style(color: Color, border: Color, border_width: int, radius: int) -> Styl
 	style.border_color = border
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(radius)
+	return style
+
+
+# Same as _style() but lifted off the background with a drop shadow - used
+# where a card needs to read as a real object sitting on the desk/console
+# rather than a flat rectangle painted onto the scene.
+func _depth_style(color: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:
+	var style := _style(color, border, border_width, radius)
+	style.shadow_color = Color(0, 0, 0, 0.45)
+	style.shadow_size = 10
+	style.shadow_offset = Vector2(0, 3)
 	return style
 
 

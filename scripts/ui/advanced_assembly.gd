@@ -224,6 +224,17 @@ func _build() -> void:
 		list.add_child(_part_card(part_type))
 
 	var board_panel := _panel(Vector2(316, 88), Vector2(448, 614), _flat_board_title())
+	# Added before `blueprint` so the diagram always draws on top of it - the
+	# space/FAST board otherwise sat on a completely still dark backdrop
+	# around whatever hardware is currently drawn.
+	var board_life := AmbientLife.new()
+	board_life.name = "BoardAmbientLife"
+	board_life.configure({
+		"twinkle_zone": Rect2(10, 38, 428, 500),
+		"twinkle_count": 16,
+		"seed": 20260827,
+	})
+	board_panel.add_child(board_life)
 	blueprint = Control.new()
 	blueprint.position = Vector2(10, 38)
 	blueprint.size = Vector2(428, 500)
@@ -1714,9 +1725,22 @@ func _draw_space_blueprint_slot(part_type: String, target_rect: Rect2, label_rec
 	)
 	target.add_child(target_frame)
 	if installed:
-		var ok := _label("OK", Vector2(target_rect.size.x - 28, 2), Vector2(24, 16), 10, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+		# A bare "OK" string floating on the diagram disappears against a busy
+		# background - a small filled chip keeps it legible over any artwork.
+		var ok_chip := Panel.new()
+		ok_chip.position = Vector2(target_rect.size.x - 30, 2)
+		ok_chip.size = Vector2(26, 15)
+		ok_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		var ok_chip_style := StyleBoxFlat.new()
+		ok_chip_style.bg_color = Color(0.03, 0.13, 0.07, 0.88)
+		ok_chip_style.border_color = GREEN
+		ok_chip_style.set_border_width_all(1)
+		ok_chip_style.set_corner_radius_all(3)
+		ok_chip.add_theme_stylebox_override("panel", ok_chip_style)
+		target.add_child(ok_chip)
+		var ok := _label("OK", Vector2(0, -1), Vector2(26, 15), 10, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
 		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		target.add_child(ok)
+		ok_chip.add_child(ok)
 	var target_hit := Button.new()
 	target_hit.flat = true
 	target_hit.position = Vector2.ZERO
@@ -1728,7 +1752,7 @@ func _draw_space_blueprint_slot(part_type: String, target_rect: Rect2, label_rec
 	label_panel.name = "SpaceSlotLabel_%s" % part_type
 	label_panel.position = label_rect.position
 	label_panel.size = label_rect.size
-	label_panel.add_theme_stylebox_override("panel", _style(Color(0.025, 0.055, 0.09, 0.94), color, 1))
+	label_panel.add_theme_stylebox_override("panel", _depth_style(Color(0.025, 0.055, 0.09, 0.94), color, 1))
 	blueprint.add_child(label_panel)
 	var label_text := _short_type(part_type)
 	if installed:
@@ -2379,7 +2403,7 @@ func _panel(pos: Vector2, size_value: Vector2, title: String) -> Panel:
 	var panel := Panel.new()
 	panel.position = pos
 	panel.size = size_value
-	panel.add_theme_stylebox_override("panel", _style(PANEL, GOLD, 2))
+	panel.add_theme_stylebox_override("panel", _depth_style(PANEL, GOLD, 2))
 	add_child(panel)
 	panel.add_child(_label(title, Vector2(12, 8), Vector2(size_value.x - 24, 22), 15, GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	return panel
@@ -2431,6 +2455,14 @@ func _style(background: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.corner_radius_top_right = 4
 	style.corner_radius_bottom_left = 4
 	style.corner_radius_bottom_right = 4
+	return style
+
+
+func _depth_style(background: Color, border: Color, width: int) -> StyleBoxFlat:
+	var style := _style(background, border, width)
+	style.shadow_color = Color(0, 0, 0, 0.42)
+	style.shadow_size = 6
+	style.shadow_offset = Vector2(0, 2)
 	return style
 
 

@@ -125,6 +125,14 @@ func _test_observation_motion() -> void:
 	root.add_child(view)
 	await process_frame
 	await process_frame
+	# L15 is the finder-calibration lesson: the scene now deliberately opens
+	# already in "finder" mode (so the player lands straight on the thing they
+	# need to calibrate), so switching TO "finder" from here is a same-mode
+	# no-op, not a transition - _set_view_mode() correctly skips it. Force a
+	# real starting mode first so the switch below is a genuine change.
+	_check(str(view.get("view_mode")) == "finder", "L15 opens directly in finder mode for calibration")
+	view.call("_set_view_mode", "naked_eye")
+	await process_frame
 	view.call("_set_view_mode", "finder")
 	var view_layer := view.get("view_layer") as Control
 	var optical_transition := view.get("optical_mode_transition") as Control

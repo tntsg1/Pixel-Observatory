@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "packs": [
+    {
+      "id": "audio",
+      "version": "4d3e736d70e8bb43dcd2",
+      "sha256": "4d3e736d70e8bb43dcd20e4bc44ce56c5652cdbcae01028e32621e9b1f77f221",
+      "size": 30472768,
+      "url": "resource-packs/audio/4d3e736d70e8bb43dcd2.pck",
+      "mountPath": "/resource-packs/audio.pck"
+    },
+    {
+      "id": "astronomy-media",
+      "version": "83024e2530a0a27a6b3f",
+      "sha256": "83024e2530a0a27a6b3f1a5fd3689661d5bbf00a92d3ec30289da5cc638e1a93",
+      "size": 50048704,
+      "url": "resource-packs/astronomy-media/83024e2530a0a27a6b3f.pck",
+      "mountPath": "/resource-packs/astronomy-media.pck"
+    },
+    {
+      "id": "star-catalog",
+      "version": "eab964b55c1a003dc941",
+      "sha256": "eab964b55c1a003dc94109d8816447e75ef765a1234e2a82c40a634ba778ba82",
+      "size": 927104,
+      "url": "resource-packs/star-catalog/eab964b55c1a003dc941.pck",
+      "mountPath": "/resource-packs/star-catalog.pck"
+    }
+  ]
+}

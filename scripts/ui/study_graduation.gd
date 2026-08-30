@@ -16,6 +16,17 @@ func _build() -> void:
 	background.color = Color(0.008, 0.018, 0.035)
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(background)
+	# Between the background fill and the panel below, so the panel still draws
+	# on top. This is a milestone screen the player reads at the end of a study
+	# chapter; a faint starfield suits the moment better than a flat slab.
+	var life := AmbientLife.new()
+	life.name = "AmbientLife"
+	life.configure({
+		"twinkle_zone": Rect2(0, 0, 1024, 768),
+		"twinkle_count": 20,
+		"seed": 20260827,
+	})
+	add_child(life)
 
 	var panel := Panel.new()
 	panel.position = Vector2(112, 78)

@@ -187,7 +187,11 @@ func _build() -> void:
 	var detail_panel := Panel.new()
 	detail_panel.position = Vector2(384, 104)
 	detail_panel.size = Vector2(600, 560)
-	detail_panel.add_theme_stylebox_override("panel", _style(PANEL, GOLD, 2))
+	var detail_style := _style(PANEL, GOLD, 2)
+	detail_style.shadow_color = Color(0, 0, 0, 0.50)
+	detail_style.shadow_size = 14
+	detail_style.shadow_offset = Vector2(0, 5)
+	detail_panel.add_theme_stylebox_override("panel", detail_style)
 	add_child(detail_panel)
 	detail_container = VBoxContainer.new()
 	detail_container.position = Vector2(404, 122)
@@ -220,9 +224,7 @@ func _family_card(entry: Dictionary) -> Button:
 	button.add_theme_font_size_override("font_size", 16)
 	button.add_theme_color_override("font_color", TEXT if unlocked else LOCK)
 	button.add_theme_color_override("font_color_hover", GOLD)
-	button.add_theme_stylebox_override("normal", _style(PANEL, GOLD_DIM if unlocked else Color(0.20, 0.24, 0.30), 1))
-	button.add_theme_stylebox_override("hover", _style(Color(0.10, 0.16, 0.26), GOLD, 1))
-	button.add_theme_stylebox_override("pressed", _style(Color(0.10, 0.16, 0.26), GOLD, 2))
+	UiKit.style_list_card(button, false, unlocked)
 	button.pressed.connect(_select.bind(id))
 	InteractionFeedback.bind_button(button)
 	return button
@@ -299,8 +301,7 @@ func _select(id: String) -> void:
 		var card: Button = cards[card_id]
 		var e := _entry(card_id)
 		var active: bool = card_id == id
-		var border := GOLD if active else (GOLD_DIM if _is_unlocked(e) else Color(0.20, 0.24, 0.30))
-		card.add_theme_stylebox_override("normal", _style(Color(0.10, 0.16, 0.26) if active else PANEL, border, 2 if active else 1))
+		UiKit.style_list_card(card, active, _is_unlocked(e))
 
 
 func _recommendation_reason(id: String) -> String:
@@ -417,10 +418,9 @@ func _button(value: String, pos: Vector2, button_size: Vector2, tint: Color) -> 
 	button.size = button_size
 	button.add_theme_font_size_override("font_size", 16)
 	button.add_theme_color_override("font_color", TEXT)
-	button.add_theme_stylebox_override("normal", _style(tint.darkened(0.5), tint, 2))
-	button.add_theme_stylebox_override("hover", _style(tint.darkened(0.3), tint.lightened(0.2), 2))
-	button.add_theme_stylebox_override("pressed", _style(tint.darkened(0.6), tint, 2))
-	button.add_theme_stylebox_override("disabled", _style(Color(0.08, 0.10, 0.14), Color(0.30, 0.34, 0.40), 1))
+	# gold tint marks the recommended/primary action; everything else is an
+	# outline control, so the screen has one obvious "do this" button.
+	UiKit.style_button(button, tint.r > 0.5 and tint.g > 0.4)
 	InteractionFeedback.bind_button(button)
 	return button
 
