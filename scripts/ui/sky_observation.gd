@@ -2168,8 +2168,11 @@ func _build_mode_buttons() -> void:
 	# icons. Labels and availability remain dynamic in both languages.
 	_rect(self, MODE_BUTTONS_OVERLAY_RECT.position, MODE_BUTTONS_OVERLAY_RECT.size, PANEL_COVER)
 
-	view_mode_caption = _label(self, "", Vector2(VIEW_RECT.position.x + 200, VIEW_RECT.position.y + VIEW_RECT.size.y + 53), Vector2(230, 18), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	view_mode_caption.z_index = Z_GUIDANCE + 2
+	# Keep the mode caption in the same clipped, screen-space utility strip as
+	# the live guidance. Its own row remains below the control legend and it
+	# follows the strip safely through collapse/expand transitions.
+	view_mode_caption = _label(guidance_utility_root, "", Vector2(200, 53), Vector2(230, 18), 12, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
+	view_mode_caption.z_index = 2
 	var icon_paths := {
 		"naked_eye": OBS_UI_DIR + "mode_eye_icon.png",
 		"finder": OBS_UI_DIR + "mode_finder_icon.png",
@@ -3648,8 +3651,11 @@ func _fade_edge_target_indicator_to_object(object_id: String) -> void:
 
 
 func _target_feedback_ring_size(target_diameter: float) -> float:
-	var ring_minimum := 42.0 if view_mode == "naked_eye" else (42.0 if view_mode == "finder" else 48.0)
-	var ring_maximum := 42.0 if view_mode == "naked_eye" else (64.0 if view_mode == "finder" else 88.0)
+	# Small stars need a readable mode-specific floor, while larger bodies still
+	# derive their frame from the rendered target. Eye stays most compact;
+	# Finder gains a little acquisition room; Scope preserves fine feedback.
+	var ring_minimum := 40.0 if view_mode == "naked_eye" else (44.0 if view_mode == "finder" else 48.0)
+	var ring_maximum := 40.0 if view_mode == "naked_eye" else (64.0 if view_mode == "finder" else 88.0)
 	var ring_padding := maxf(8.0, target_diameter * 0.18)
 	return clampf(target_diameter + ring_padding, ring_minimum, ring_maximum)
 

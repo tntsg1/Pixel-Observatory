@@ -104,19 +104,20 @@ func _test_assets_and_layers() -> void:
 		_check((view.get("cloud_layer") as Control).z_index < first_icon.z_index, "atmosphere artwork stays below celestial targets")
 	_check((view.get("cloud_layer") as Control).z_index < reticle.z_index, "atmosphere remains below aiming artwork")
 	_check(reticle.z_index < (view.get("az_readout") as Label).z_index, "dynamic readouts remain above aiming artwork")
-	_check((view.get("az_readout") as Label).z_index < (view.get("guidance_banner") as Label).z_index, "bottom guidance remains above the frame artwork")
+	var utility_strip := view.get("guidance_utility_root") as Control
+	_check(utility_strip != null and (view.get("az_readout") as Label).z_index < utility_strip.z_index, "bottom guidance remains above the frame artwork")
 	var controls := view.get("controls_help") as Label
 	var guidance := view.get("guidance_banner") as Label
 	var guidance_bg := view.get("guidance_banner_bg") as ColorRect
 	var sky_rect := view.get("VIEW_RECT") as Rect2
-	_check(guidance.get_parent() == view and controls.get_parent() == view, "guidance is hosted in screen space rather than inside the clipped sky canvas")
-	_check(guidance.get_rect().position.y >= sky_rect.end.y, "live centering guidance sits below the visible sky")
-	_check(controls.get_rect().position.y >= guidance.get_rect().end.y - 2.0, "the lower-priority control legend sits below live guidance")
-	_check(not guidance_bg.get_rect().intersects(sky_rect), "utility-strip background never covers the horizon or celestial view")
-	_check(guidance_bg.get_rect().end.y <= 768.0, "utility strip remains inside the 1024x768 frame")
+	_check(utility_strip != null and utility_strip.get_parent() == view and guidance.get_parent() == utility_strip and controls.get_parent() == utility_strip, "guidance is hosted in screen space rather than inside the clipped sky canvas")
+	_check(guidance.get_global_rect().position.y >= sky_rect.end.y, "live centering guidance sits below the visible sky")
+	_check(controls.get_global_rect().position.y >= guidance.get_global_rect().end.y - 2.0, "the lower-priority control legend sits below live guidance")
+	_check(not guidance_bg.get_global_rect().intersects(sky_rect), "utility-strip background never covers the horizon or celestial view")
+	_check(guidance_bg.get_global_rect().end.y <= 768.0, "utility strip remains inside the 1024x768 frame")
 	var mode_caption := view.get("view_mode_caption") as Label
-	_check(mode_caption.get_rect().position.y >= controls.get_rect().end.y - 1.0, "view-mode caption occupies its own bottom row")
-	_check(mode_caption.get_rect().end.y <= guidance_bg.get_rect().end.y, "view-mode caption remains inside the utility strip")
+	_check(mode_caption.get_parent() == utility_strip and mode_caption.get_global_rect().position.y >= controls.get_global_rect().end.y - 1.0, "view-mode caption occupies its own bottom row")
+	_check(guidance_bg.get_global_rect().encloses(mode_caption.get_global_rect()), "view-mode caption remains inside the utility strip")
 
 
 func _first_visible_tick_position(property_name: String) -> Vector2:
