@@ -81,14 +81,14 @@ func _initialize() -> void:
 	# --- 5. Level 4 brief before focus ----------------------------------------
 	gm.debug_jump_to_level(4, false)
 	_check(int(gm.progress.get("current_level", 0)) == 4, "at level 4")
-	gm.selected_object_id = "jupiter"
+	gm.selected_object_id = "betelgeuse"
 	_check(gm.try_teaching_intercept("before_focus", "telescope"), "L4 before_focus intercepts")
 	_check(str(tfm.active_card_id) == "focus_focal_plane", "L4 brief is focus_focal_plane")
-	_check(gm.selected_object_id == "jupiter", "L4 intercept preserves jupiter selection")
+	_check(gm.selected_object_id == "betelgeuse", "L4 intercept preserves betelgeuse selection")
 	gm.complete_current_brief()
 	await process_frame
 	_check(_scene_is("telescope_view"), "L4 focus brief continues straight to telescope view")
-	_check(gm.selected_object_id == "jupiter", "selection survives the whole brief round trip")
+	_check(gm.selected_object_id == "betelgeuse", "selection survives the whole brief round trip")
 	_check(not gm.try_teaching_intercept("before_focus", "telescope"), "L4 brief does not repeat")
 
 	# --- 6. multi-step level: triggers are independent ------------------------

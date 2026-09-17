@@ -180,21 +180,27 @@
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "The telescope is built, but the image may still be blurry. That doesn't mean it's broken.",
-      "text_zh": "望远镜装好了，画面却可能还是糊的。别担心，多半只是焦点没对上。"
+      "text_zh": "望远镜装好了，画面却可能还是糊的。这不代表它坏了。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Turning the focus knob moves the eyepiece until the image lines up with your eye.",
-      "text_zh": "用 Q/E 慢慢转调焦旋钮。看着目标边缘，朝越来越清楚的方向调。"
+      "text_en": "Tonight's target is Betelgeuse - a star. Don't wait for a surface to appear; no telescope on Earth can show you one. Just turn the knob until the blob shrinks to a point.",
+      "text_zh": "今晚的目标是参宿四——一颗恒星。不要等着看到表面，地面上任何望远镜都做不到。你要做的只是转动旋钮，直到光斑收缩成一个点。"
     }
   ],
   "level_4_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "There it is. You didn't just look - you adjusted the instrument.",
-      "text_zh": "就是这样。焦点一咬住，图像会突然利落很多。"
+      "text_en": "That's it - the smallest it will ever get. For a star, that tight point is what perfect focus looks like.",
+      "text_zh": "就是这样——它不可能再小了。对恒星来说，那个紧实的光点就是完美合焦的样子。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "And notice the color: that orange tells you Betelgeuse is a cool star, even though it is enormous.",
+      "text_zh": "还要注意它的颜色：那种橙红告诉你，参宿四虽然体积巨大，却是一颗温度偏低的恒星。"
     }
   ],
   "level_5_before": [
@@ -388,14 +394,14 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Same Jupiter, new question: how much power is too much?",
-      "text_zh": "还是木星。今晚别只顾着放大，看看倍率升到哪里开始得不偿失。"
+      "text_en": "New planet tonight: Saturn. And it brings a structure that will punish you for over-magnifying - the ring.",
+      "text_zh": "今晚换一颗行星：土星。它带着一个会惩罚你过度放大的结构——光环。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You can see Jupiter now. Push the power higher - and watch what it costs.",
-      "text_zh": "你已经能看到木星了。把倍率推高试试——看看代价是什么。",
+      "text_en": "Work through all three eyepieces: 32mm, then 10mm, then back to 20mm. One of them shows the ring best. It is not the strongest one.",
+      "text_zh": "把三枚目镜都试一遍：先 32mm，再 10mm，最后回到 20mm。其中一枚能把光环显示得最好——而且不是倍率最高的那一枚。",
       "image": "res://assets/learning_diagrams/magnification_tradeoff.png"
     }
   ],
@@ -403,9 +409,14 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Bigger is not clearer. You proved it yourself tonight.",
-      "text_zh": "更大不等于更清楚。今晚你亲手证明了。",
-      "image": "res://assets/learning_diagrams/magnification_tradeoff.png"
+      "text_en": "The 20mm won, didn't it? Enough power to split the ring from the disk, little enough that the image stayed bright and still.",
+      "text_zh": "是 20mm 胜出，对吧？倍率刚好够把光环和星体分开，又低到足以让画面保持明亮和稳定。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Saturn's rings are mostly water ice, and they are astonishingly thin - tens of metres, across a span wider than Earth to the Moon.",
+      "text_zh": "土星环主要由水冰构成，而且薄得惊人——厚度只有几十米，跨度却比地球到月球的距离还大。"
     }
   ],
   "level_11_before": [
@@ -521,34 +532,28 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Your call tonight. Pick a target, pick the power. I'm just watching.",
-      "text_zh": "今晚你说了算。选目标，选倍率。我只旁观。"
+      "text_en": "Your call tonight. This one is an assessment, not a lesson - pick the target yourself, then pick the power for it.",
+      "text_zh": "今晚你说了算。这一关是考核，不是教学——你自己选目标，再为它选倍率。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Same average air as usual tonight - nothing dramatic, just the normal little shimmer you've gotten used to by now.",
-      "text_zh": "今晚还是那种一般水平的空气——没什么特别的，就是你已经习惯的那点小晃动。"
+      "text_en": "Three on the board: the Moon, Saturn, the Pleiades. Each one wants a different power, and I'm not telling you which.",
+      "text_zh": "任务板上有三个：月球、土星、昴星团。每个适合的倍率都不一样，而我不会告诉你答案。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "No hint circle judgment tonight either, just your own eye and your own plan.",
-      "text_zh": "今晚也没有提示圈来评判——只有你自己的眼睛和自己的计划。"
-    },
-    {
-      "speaker": "Maya",
-      "portrait": "maya",
-      "text_en": "Whatever you pick - a planet with real cloud bands, a scarred old moon, or a star burning hydrogen light-years away - the same question applies: what power actually serves this object?",
-      "text_zh": "不管你选行星、月球还是恒星，都先从低倍率看起。画面稳了，再一点点往上加。"
+      "text_en": "Same average air as usual - nothing dramatic. Any of the three can complete the night. Matching power to target is the whole test.",
+      "text_zh": "今晚空气还是一般水平，没什么特别的。三个目标中任何一个都能完成今晚的任务。把倍率和目标匹配起来，就是全部考点。"
     }
   ],
   "level_13_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You chose like an observer, not a beginner. Chapter logged.",
-      "text_zh": "你的选择像个观测者，而不是新手了。本章记入日志。"
+      "text_en": "You picked the target and matched the power to it yourself. That is what an observer does.",
+      "text_zh": "你自己选定了目标，也自己为它匹配了倍率。观测者就是这样工作的。"
     },
     {
       "speaker": "Maya",
@@ -559,8 +564,8 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Whichever target you picked, the logic held: match the power to what the object can actually support.",
-      "text_zh": "不管你选了哪个目标，逻辑都成立：倍率要匹配目标本身能撑住的程度。"
+      "text_en": "Whichever one you chose, the logic held: detail wants power, a ring wants balance, a cluster wants room.",
+      "text_zh": "不管你选了哪一个，逻辑都成立：细节需要倍率，光环需要平衡，星团需要空间。"
     }
   ],
   "level_14_before": [
@@ -659,55 +664,49 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Feeling confident? Try finding it with the main scope alone.",
-      "text_zh": "自信满满？那就试试只用主望远镜找它。"
+      "text_en": "Feeling confident? Tonight's target is the Pleiades - and I'd like you to try the main scope alone first.",
+      "text_zh": "自信满满？今晚的目标是昴星团——我想让你先只用主望远镜试一次。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Tonight's air is the same calm average as last time - the challenge is entirely about the workflow, not the atmosphere.",
-      "text_zh": "今晚空气很稳，可以专心练操作。要是丢了目标，就从寻星镜那一步重新来。"
+      "text_en": "Tonight's air is calm, so this is entirely about the workflow, not the atmosphere.",
+      "text_zh": "今晚空气很稳，所以今晚考的完全是操作流程，而不是大气条件。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Six degrees of sky looks huge when you don't know where you're pointed. Go on, try it solo first.",
-      "text_zh": "不知道自己指向哪里时，6 度的天空看起来大得吓人。去吧，先自己试试。"
-    },
-    {
-      "speaker": "Maya",
-      "portrait": "maya",
-      "text_en": "No finder, no hint circle mentioned yet - just you, the 6-degree eyepiece, and whatever confidence you walked in with.",
-      "text_zh": "没有寻星镜，也还没提示圈——只有你、6 度的目镜视野，还有你走进来时的那点自信。"
+      "text_en": "Fair warning: the cluster is wider than a degree. Your eyepiece shows six. Go on - try it solo first.",
+      "text_zh": "先提醒一句：这个星团展布超过一度，而你的目镜视野只有 6 度。去吧，先自己试试。"
     }
   ],
   "level_16_mid": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Lost? Everyone gets lost in six degrees. Wide first, narrow last.",
-      "text_zh": "迷路了吧？在 6 度的视野里谁都会迷路。先宽后窄。"
+      "text_en": "Lost? Everyone gets lost in six degrees - especially when the target has no single bright core. Wide first, narrow last.",
+      "text_zh": "找不到了吧？在 6 度视野里谁都会迷路——尤其是目标没有一个明亮核心的时候。先宽后窄。"
     }
   ],
   "level_16_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The narrow field shows detail. The wide field shows the way.",
-      "text_zh": "窄视野看细节，宽视野认路。"
+      "text_en": "A narrow field shows detail. A wide field shows the whole object. The Pleiades only exist in the wide one.",
+      "text_zh": "窄视野看细节，宽视野看全貌。昴星团只有在宽视野里才成其为昴星团。"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Small extra fact since Jupiter keeps showing up: it has 95 known moons. Through your telescope tonight you might catch a few of the big four - Io, Europa, Ganymede, Callisto - as tiny points lined up beside it.",
-      "text_zh": "木星总是反复出现，补个小知识：它已知有 95 颗卫星。今晚透过望远镜，你也许能看到那四颗最大的——木卫一、木卫二、木卫三、木卫四——像几个小光点排在它旁边。",
-      "image": "res://assets/learning_diagrams/jupiter_anatomy.png"
+      "text_en": "Those stars really are related - a few hundred young blue stars born from one cloud about 100 million years ago, still travelling together.",
+      "text_zh": "那些恒星确实是一家人——几百颗年轻的蓝色恒星在大约一亿年前诞生自同一片气体云，至今仍在一起穿行。",
+      "image": "res://assets/learning_diagrams/magnification_tradeoff.png"
     },
     {
       "speaker": "Maya",
       "portrait": "maya",
       "text_en": "Everyone learns this the hard way once. Better tonight, in practice, than during a real observation you cared about.",
-      "text_zh": "这一步谁都会手忙脚乱。趁今晚多试几次，以后遇到难找的目标就不慌了。"
+      "text_zh": "这一课谁都要吃一次亏。趁今晚练手时吃亏，总好过在你真正在意的那次观测里吃亏。"
     }
   ],
   "level_17_before": [
@@ -1108,8 +1107,8 @@
       "zh": "该动手组装了。物镜收集光，目镜放大图像。"
     },
     "4": {
-      "en": "Blurry is not broken. Turn the knob until it's sharp.",
-      "zh": "模糊不等于坏了。转动旋钮直到清晰。"
+      "en": "A star is only ever a point. Focus until Betelgeuse shrinks to its smallest.",
+      "zh": "恒星永远只是一个点。调焦，直到参宿四收缩到最小。"
     },
     "5": {
       "en": "More power is not always more detail.",
@@ -1132,8 +1131,8 @@
       "zh": "最后一个目标。让观测日志为你骄傲。"
     },
     "10": {
-      "en": "Same Jupiter, new question: how much power is too much?",
-      "zh": "还是木星。这次多换几枚目镜，看看倍率加到哪一档开始得不偿失。"
+      "en": "Saturn, three eyepieces. Find the power that shows the ring best - it is not the strongest one.",
+      "zh": "土星，三枚目镜。找出把光环显示得最好的那一档倍率——不是最高的那一档。"
     },
     "11": {
       "en": "Mars again - but tonight it hugs the horizon. Low power, steadier view: thick low-altitude air punishes high magnification hardest.",
@@ -1144,8 +1143,8 @@
       "zh": "回到月亮——够亮能扛高倍率，但要先重新调焦。今晚只是一般视宁度，几乎感觉不到。"
     },
     "13": {
-      "en": "Your call tonight. Pick a target, pick the power. No hints, just average air.",
-      "zh": "今晚你说了算。选目标，选倍率。没有提示，只有一般水平的空气。"
+      "en": "Assessment night. Choose one of three targets yourself, then choose the power it deserves.",
+      "zh": "考核之夜。自己从三个目标中选一个，再为它选择配得上的倍率。"
     },
     "14": {
       "en": "Mars a third time - but tonight you navigate by numbers, not by luck. Calm air, pure navigation practice.",
@@ -1156,8 +1155,8 @@
       "zh": "先教会寻星镜指准，再信任它。今晚天空平静——把注意力放在校准上。"
     },
     "16": {
-      "en": "Tempted to skip the finder? Six degrees is a big place to get lost in.",
-      "zh": "想跳过寻星镜？6 度视野足够让人迷路。"
+      "en": "The Pleiades are wider than your eyepiece. Eye, then Finder, then scope - and keep the power low.",
+      "zh": "昴星团比你的目镜视野还宽。先肉眼，再寻星镜，最后主镜——而且倍率要低。"
     },
     "17": {
       "en": "No hints tonight. Navigate the whole workflow alone - and learn to wait out a passing cloud.",
@@ -1184,8 +1183,8 @@
       "zh": "地球一直在你脚下转动。星星漂移时持续把它保持居中。"
     },
     "23": {
-      "en": "Jupiter, fourth time - but tonight the tracking mount does the work. Dial the rate close to 1x.",
-      "zh": "第四次看木星——但今晚由追踪支架代劳。把速率调到接近 1 倍。"
+      "en": "Vega again - but tonight the tracking mount does the work. Dial the rate close to 1x.",
+      "zh": "又是织女星——但今晚由追踪支架代劳。把速率调到接近 1 倍。"
     },
     "24": {
       "en": "The final watch. Hold Andromeda steady and finish the whole path.",
@@ -1292,8 +1291,8 @@
       "zh": "火星很小。折叠光路给了你放大倍数——大气决定你能不能保住它。"
     },
     "50": {
-      "en": "High power amplifies every ripple of air. Wait for the still moments; drop power if they never come.",
-      "zh": "高倍率会放大每一丝大气抖动。等待平静的瞬间；等不到就降低倍率。"
+      "en": "Venus, low in the twilight. Sun safely down first. Low power, low exposure, and patience.",
+      "zh": "暮色低空中的金星。必须先确认太阳已安全落下。低倍率、低曝光，外加耐心。"
     },
     "51": {
       "en": "At high magnification the sky drifts FAST across the narrow field. Keep Mars centered.",
@@ -1304,16 +1303,16 @@
       "zh": "把折叠焦距对准月球：单个环形山就能填满目镜。"
     },
     "53": {
-      "en": "Same Jupiter, two mirrors: the Newtonian showed a wide bright disk, the Cassegrain a large detailed one. Neith",
-      "zh": "同一颗木星，两种镜子：牛顿镜给出宽而亮的圆面，卡塞格林给出大而细的圆面。没有谁全面更好。"
+      "en": "Same ice giant, two mirrors: the Newtonian found it easily, the Cassegrain shows it bigger. Neither is simply better.",
+      "zh": "同一颗冰巨星，两种镜子：牛顿镜容易找到它，卡塞格林能把它放得更大。没有谁全面更好。"
     },
     "54": {
       "en": "Clouds cross a narrow field quickly and completely. Time your observation between them.",
       "zh": "云穿过窄视场又快又彻底。在云缝之间安排你的观测。"
     },
     "55": {
-      "en": "Master the folded path under real conditions. Then Maya brings out an even stranger fold - centuries older.",
-      "zh": "在真实条件下驾驭折叠光路。然后 Maya 拿出一种更奇特的折叠——它还要古老几个世纪。"
+      "en": "Cassegrain graduation: find Neptune, prove it is a disk, then confirm Triton beside it.",
+      "zh": "卡塞格林结业：找到海王星，证明它是圆面，再在旁边确认海卫一。"
     },
     "56": {
       "en": "Build the Gregorian: light passes through a real focus BEFORE the concave secondary. Alignment must be stricte",
@@ -1332,8 +1331,8 @@
       "zh": "小目标，严苛光学。每一角秒的对准误差都会显现在火星上。"
     },
     "60": {
-      "en": "Study Jupiter's cloud bands: the Gregorian's clean contrast is its quiet strength.",
-      "zh": "研究木星云带：干净的对比度是格里高利镜低调的强项。"
+      "en": "Mars stays small. Contrast, not size, is what the Gregorian defends.",
+      "zh": "火星始终很小。格里高利镜守护的是对比度，而不是尺寸。"
     },
     "61": {
       "en": "Can the two-mirror fold handle a faint nebula? Find out on Orion.",
@@ -2106,16 +2105,28 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Study Jupiter's cloud bands tonight. Contrast - not size - is what this design defends.",
-      "text_zh": "今晚研究木星云带。这个设计守护的不是大小，是对比度。"
+      "text_en": "Mars tonight. It stays small no matter what you do - so this is not a size exercise, it is a contrast exercise.",
+      "text_zh": "今晚看火星。不管你怎么做它都很小——所以这不是一次关于尺寸的练习，而是一次关于对比度的练习。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Set a steady power and leave it. Fine-tune the focus, then keep watching: the dark markings only surface when the air goes still.",
+      "text_zh": "选定一档稳定的倍率就别再动它。细调焦点，然后持续注视：只有大气平静下来时，暗色纹理才会浮现。"
     }
   ],
   "level_60_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "The bands separated cleanly. Contrast is a quality you feel before you can measure it.",
-      "text_zh": "云带分得干干净净。对比度是一种先感觉到、后测量到的品质。"
+      "text_en": "Contrast - not size - is what this design defends. You found markings that magnification alone would have washed away.",
+      "text_zh": "这个设计守护的是对比度，而不是尺寸。你看到的那些纹理，单靠放大只会把它们冲淡。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Those dark patches are bare rock where the wind has swept the bright dust away. They shift from year to year.",
+      "text_zh": "那些暗色区域是被风吹走了明亮尘埃、露出的裸岩。它们会年复一年地变化。"
     }
   ],
   "level_59_before": [
@@ -2198,11 +2209,35 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Cassegrain final: folded optics under real conditions. Everything counts tonight.",
-      "text_zh": "卡塞格林结业考：真实条件下的折叠光学。今晚每一项都算分。"
+      "text_en": "Cassegrain final. Neptune tonight - the outermost planet, and it will look like nothing much: a tiny blue disk among field stars.",
+      "text_zh": "卡塞格林结业考。今晚的目标是海王星——最外侧的行星，而它看上去并不起眼：背景恒星之间一个微小的蓝色圆面。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Find it by coordinates, confirm it is a disk and not a star, hold it steady. Then look just off its edge.",
+      "text_zh": "按坐标找到它，确认它是圆面而不是恒星，稳定地追踪它。然后看向它边缘外侧一点的地方。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "There is a moon there. Triton. Faint, but it is within reach of this telescope - and finding it turns a planet into a system.",
+      "text_zh": "那里有一颗卫星，叫海卫一。它很暗，但这台望远镜够得着——找到它，你记录的就从一颗行星变成了一个系统。"
     }
   ],
   "level_55_after": [
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Neptune and Triton, both confirmed. That is a system-level observation, and it is a proper way to graduate.",
+      "text_zh": "海王星和海卫一，两个都确认了。这是一次系统级的观测，也是一种像样的结业方式。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Triton orbits backwards - the only large moon in the Solar System that does. It was very likely captured, not born there.",
+      "text_zh": "海卫一是逆行的——太阳系中唯一一颗这样运行的大型卫星。它极有可能是被捕获的，而不是在那里诞生的。"
+    },
     {
       "speaker": "Maya",
       "portrait": "maya",
@@ -2242,16 +2277,28 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Same Jupiter, two mirrors. Compare your Newtonian log with tonight - honestly.",
-      "text_zh": "同一颗木星，两种镜子。把牛顿镜的记录和今晚的对比——要诚实。"
+      "text_en": "Same ice giant, two mirrors. You logged Uranus through the Newtonian on Night 32 - compare tonight against that record, honestly.",
+      "text_zh": "同一颗冰巨星，两种镜子。你在第 32 晚用牛顿镜记录过天王星——今晚就和那份记录诚实地比一比。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "The Newtonian found it easily in a wide field. The Cassegrain will make it bigger, but you will have to work to get it there.",
+      "text_zh": "牛顿镜凭宽视野很容易就能找到它。卡塞格林能把它放得更大，但你得费点功夫才能把它送进视野。"
     }
   ],
   "level_53_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "Wide and bright versus large and detailed. Neither wins everywhere - instruments are choices, not upgrades.",
-      "text_zh": "宽而亮对阵大而细。没有全场获胜者——仪器是选择，不是升级。"
+      "text_en": "Wide field finds it; long focus resolves it. Neither mirror is simply better - they answer different questions.",
+      "text_zh": "宽视野负责找到它，长焦距负责分辨它。两种镜子没有谁全面更好——它们回答的是不同的问题。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "A small blue-green disk is all a ground telescope gives you. The rings and that sideways tilt come from Voyager 2 and from space observatories.",
+      "text_zh": "地面望远镜能给你的就只是一个蓝绿色小圆面。那些光环和它奇特的横躺姿态，是旅行者 2 号和空间望远镜带回来的。"
     }
   ],
   "level_52_before": [
@@ -2290,16 +2337,34 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "High power is a deal with the atmosphere. Tonight the air is against you - negotiate.",
-      "text_zh": "高倍率是和大气做的交易。今晚大气不配合——去谈判吧。"
+      "text_en": "Before anything else: the Sun is already fully below the horizon. That is the only reason we are pointing west at all.",
+      "text_zh": "先说最重要的一件事：太阳已经完全落到地平线以下了。这是我们今晚敢于指向西边的唯一前提。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Never aim a telescope at or near the Sun while it is up. Focused sunlight blinds permanently, and it takes less than a second.",
+      "text_zh": "太阳还在地平线以上时，绝不能把望远镜指向太阳或它附近。被聚焦的阳光会造成永久失明，而且用不了一秒钟。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "Venus is low in the twilight, and low air boils. Keep the 40mm on, pull the exposure down until the crescent edge comes back, and wait for the still moments.",
+      "text_zh": "金星低悬在暮色里，而低空的大气正在翻涌。保持 40mm 目镜，把曝光调低直到弯月边缘重新出现，然后等待那些稳定的瞬间。"
     }
   ],
   "level_50_after": [
     {
       "speaker": "Maya",
       "portrait": "maya",
-      "text_en": "You waited for the still moments and they came. High power rewards patience, not force.",
-      "text_zh": "你等到了平静的瞬间。高倍率回报的是耐心，不是蛮力。"
+      "text_en": "You waited for the still moments and they came. Altitude decides how much the air will give you - power cannot buy that back.",
+      "text_zh": "你等到了稳定的瞬间，它们也确实来了。目标的高度决定了大气愿意给你多少——倍率买不回这一点。"
+    },
+    {
+      "speaker": "Maya",
+      "portrait": "maya",
+      "text_en": "And what you saw was a phase, not a surface. Venus is wrapped in cloud; nobody sees its ground in visible light.",
+      "text_zh": "而且你看到的是相位，不是表面。金星被厚厚的云层包裹，可见光下没有人能看到它的地面。"
     }
   ],
   "level_49_before": [

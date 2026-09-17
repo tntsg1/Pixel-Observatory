@@ -183,7 +183,13 @@ void fragment() {
 	// perceptual peak for bright guide stars while still reducing brightness
 	// and spreading the footprint as focus error grows.
 	float energy_peak = mix(1.0, 0.58, pow(optical_error, 0.78));
-	vec3 star_color = max(source_tint.rgb, vec3(0.70, 0.76, 0.88));
+	// Lift the star to a readable brightness WITHOUT changing its hue. A
+	// per-channel floor used to clamp the green and blue channels up, which
+	// turned every warm star pink - and a red supergiant's colour is exactly
+	// what the observer is meant to read off it. Scale by the peak channel
+	// instead, so Betelgeuse stays orange and Sirius stays blue-white.
+	float tint_peak = max(source_tint.r, max(source_tint.g, source_tint.b));
+	vec3 star_color = source_tint.rgb * (max(tint_peak, 0.88) / max(tint_peak, 0.0001));
 	// Some catalog star masters contain a very small, deliberately dim core.
 	// Always retain an analytical diffraction core so the selected white star
 	// cannot disappear between two chromatic images while the knob is moving.
@@ -496,6 +502,13 @@ var averted_vision_guide: AvertedVisionGuide
 var dark_adaptation_label: Label
 var averted_vision_label: Label
 var exposure_value := 0.5
+# --- secondary target (L55 Neptune + Triton). Empty dict on every other level,
+# so nothing below this line runs for single-target missions.
+var secondary_data: Dictionary = {}
+var secondary_sprite: TextureRect
+var secondary_button: Button
+var secondary_hint_label: Label
+var secondary_found := false
 var active_filter := "none"
 var observation_elapsed := 0.0
 var technique_reevaluate_timer := 0.0
@@ -588,6 +601,9 @@ func _ready() -> void:
 	# every optical mechanic but never runs the identify quiz or completes the
 	# mission.
 	is_free_observation = GameManager.is_free_observation()
+	if not is_free_observation:
+		secondary_data = GameManager.current_secondary_target()
+		secondary_found = GameManager.secondary_target_found()
 	observation_mode = GameManager.current_observation_mode()
 	requires_focus = observation_mode == "telescope" and GameManager.current_requires_focus()
 	allow_focus_input = _focus_knob_installed()
@@ -603,7 +619,9 @@ func _ready() -> void:
 
 func _active_observation_requirements() -> Dictionary:
 	if not is_free_observation:
-		return GameManager.current_level().get("observation_requirements", {})
+		# Choice levels fold the chosen target's own requirements over the
+		# level's, so "the right power" differs per target.
+		return GameManager.active_observation_requirements()
 	var free_requirements = selected_object.get("free_observation_requirements", {})
 	if free_requirements is Dictionary:
 		return (free_requirements as Dictionary).duplicate(true)
@@ -833,6 +851,10 @@ func _target_sky_lift() -> float:
 	match sky_key:
 		"city":
 			return 1.0
+		"twilight":
+			# Not light pollution: the sky itself is still lit. The background
+			# is bright and warm, so faint field stars simply are not there yet.
+			return 0.86
 		"suburban":
 			return 0.5
 	return 0.0
@@ -847,6 +869,15 @@ func _light_pollution_profile() -> Dictionary:
 				"faint_suppression": 0.82,
 				"contrast_loss": 0.72,
 				"desaturation": 0.32,
+			}
+		"twilight":
+			# Venus is far brighter than the twilight background, so the
+			# planet survives while everything faint around it does not.
+			return {
+				"sky_lift": 0.86,
+				"faint_suppression": 0.94,
+				"contrast_loss": 0.30,
+				"desaturation": 0.10,
 			}
 		"suburban":
 			return {
@@ -912,6 +943,8 @@ func _sky_tier_label() -> Dictionary:
 	match sky_key:
 		"city":
 			return {"en": "City", "zh": "城市"}
+		"twilight":
+			return {"en": "Twilight", "zh": "暮光"}
 		"suburban":
 			return {"en": "Suburban", "zh": "郊区"}
 	return {"en": "Dark", "zh": "暗夜"}
@@ -923,6 +956,8 @@ func _contrast_label() -> Dictionary:
 	var rank := 2  # 0=Low 1=Medium 2=High
 	match sky_key:
 		"city":
+			rank = 0
+		"twilight":
 			rank = 0
 		"suburban":
 			rank = 1
@@ -1268,6 +1303,8 @@ func _advance_visual_smoothing(delta: float) -> void:
 		moving = true
 	if moving:
 		_update_target_visuals()
+	if not secondary_data.is_empty():
+		_update_secondary_visuals()
 
 
 func _target_blur_weight() -> float:
@@ -1827,6 +1864,8 @@ func _build() -> void:
 		_build_technique_panel()
 	if drift_enabled:
 		_build_drift_panel()
+	if not secondary_data.is_empty():
+		_build_secondary_target_hint()
 	if requires_focus and allow_focus_input:
 		_build_focus_novice_guide()
 	if requires_focus:
@@ -2414,6 +2453,21 @@ func _refresh_technique_status() -> void:
 		return
 	technique_status_label.text = " · ".join(ready)
 	technique_status_label.add_theme_color_override("font_color", Color(0.48, 0.96, 0.60))
+
+
+func _build_secondary_target_hint() -> void:
+	# One line directly under the scope circle. The drift panel already owns
+	# the wide strip at y=664, so this sits just above it and never overlaps.
+	secondary_hint_label = _plabel(
+		"",
+		Vector2(DRIFT_PANEL_POS.x + 2.0, DRIFT_PANEL_POS.y - 20.0),
+		Vector2(DRIFT_PANEL_SIZE.x - 4.0, 16),
+		10,
+		Color(1.0, 0.82, 0.40)
+	)
+	secondary_hint_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	secondary_hint_label.clip_text = true
+	_refresh_secondary_hint()
 
 
 func _build_drift_panel() -> void:
@@ -3026,6 +3080,17 @@ func _identify(choice_id: String) -> void:
 			"还没完成：" + GameManager.dict_text(pending_step, "label")
 		)
 		return
+	# A system-level mission needs both objects. Say so explicitly instead of
+	# letting the completion call fail silently.
+	if not secondary_data.is_empty() and not secondary_found:
+		feedback_label.text = GameManager.text(
+			"The planet is confirmed. Now find " + GameManager.dict_text(secondary_data, "name") + " beside it.",
+			"行星已确认。现在去找它旁边的" + GameManager.dict_text(secondary_data, "name") + "。"
+		)
+		feedback_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.40))
+		if secondary_sprite != null and is_instance_valid(secondary_sprite):
+			InteractionFeedback.pulse(secondary_sprite, Color(1.2, 1.2, 1.4, 1.0), 0.5)
+		return
 	# Observation confirmation is visual only; mission conditions and the
 	# completion call remain unchanged.
 	identify_transition_active = true
@@ -3085,6 +3150,7 @@ func _scope_visual() -> Control:
 		_add_sky_background(root, center)
 	_add_scope_stars(root, center)
 	_add_target_visual(root, center)
+	_add_secondary_target_visual(root)
 	if observation_mode != "naked_eye":
 		_add_cloud_layer(root, center)
 	_add_quality_noise(root, center)
@@ -3337,6 +3403,151 @@ func _add_target_visual(parent: Control, scope_center: Vector2) -> void:
 	_update_target_visuals()
 
 
+# ------------------------------------------------------- secondary target
+#
+# L55 logs Neptune AND Triton. The moon is a real, separately confirmed object
+# sitting at its own offset - not decoration painted into the planet's sprite -
+# so the player has to find and claim it before the night counts as complete.
+
+
+func _secondary_offset() -> Vector2:
+	# Position angle is measured the way it is in the sky: 0 deg is "up",
+	# increasing eastward (counter-clockwise on screen).
+	var separation := float(secondary_data.get("separation_px", 96.0))
+	var angle := deg_to_rad(float(secondary_data.get("position_angle_deg", 135.0)))
+	return Vector2(sin(angle), -cos(angle)) * separation
+
+
+func _secondary_detect_radius() -> float:
+	return maxf(18.0, float(secondary_data.get("detect_radius_px", 34.0)))
+
+
+# Faint objects only emerge once the primary view is actually usable: a
+# defocused or failed field must not give Triton away for free.
+func _secondary_is_revealed() -> bool:
+	if secondary_data.is_empty() or observation_mode == "naked_eye":
+		return false
+	if requires_focus and not is_focus_acceptable():
+		return false
+	if target_off_center:
+		return false
+	return str(observation.get("quality", "Unknown")) in ["Fair", "Good", "Excellent"]
+
+
+func _add_secondary_target_visual(parent: Control) -> void:
+	secondary_sprite = null
+	secondary_button = null
+	if secondary_data.is_empty() or observation_mode == "naked_eye":
+		return
+	var object_id := str(secondary_data.get("object_id", ""))
+	if object_id == "":
+		return
+	var path := OpticalMediaRegistry.master_path(object_id)
+	if path == "":
+		path = str(GameManager.get_object(object_id).get("sprite_path", ""))
+	if path == "" or not ResourceLoader.exists(path):
+		return
+	var texture: Texture2D = _load_target_texture(path)
+	if texture == null:
+		return
+
+	var position := target_center + _secondary_offset()
+	secondary_sprite = _add_sprite(parent, texture, position, 0.0, 0.62)
+	secondary_sprite.name = "SecondaryTargetSprite"
+
+	# A real click target rather than a pixel hunt: the hit area is far larger
+	# than the spark itself, and it works with touch input unchanged.
+	var radius := _secondary_detect_radius()
+	secondary_button = Button.new()
+	secondary_button.name = "SecondaryTargetButton"
+	secondary_button.flat = true
+	secondary_button.focus_mode = Control.FOCUS_NONE
+	secondary_button.size = Vector2(radius * 2.0, radius * 2.0)
+	secondary_button.position = position - Vector2(radius, radius)
+	secondary_button.tooltip_text = GameManager.dict_text(secondary_data, "name")
+	secondary_button.add_theme_stylebox_override("normal", StyleBoxEmpty.new())
+	secondary_button.add_theme_stylebox_override("hover", StyleBoxEmpty.new())
+	secondary_button.add_theme_stylebox_override("pressed", StyleBoxEmpty.new())
+	secondary_button.pressed.connect(_on_secondary_target_pressed)
+	parent.add_child(secondary_button)
+	_update_secondary_visuals()
+
+
+func _update_secondary_visuals() -> void:
+	if secondary_sprite == null or not is_instance_valid(secondary_sprite):
+		return
+	var position := target_center + _secondary_offset()
+	secondary_sprite.position = position - secondary_sprite.size * secondary_sprite.scale * 0.5
+	var revealed := _secondary_is_revealed()
+	var alpha := 0.0
+	if secondary_found:
+		alpha = 0.95
+	elif revealed:
+		# Deliberately faint. It is findable, not obvious.
+		alpha = 0.55
+	secondary_sprite.modulate = Color(0.86, 0.90, 0.98, alpha)
+	if secondary_button != null and is_instance_valid(secondary_button):
+		var radius := _secondary_detect_radius()
+		secondary_button.position = position - Vector2(radius, radius)
+		secondary_button.disabled = secondary_found or not revealed
+		secondary_button.mouse_filter = (
+			Control.MOUSE_FILTER_IGNORE if secondary_button.disabled else Control.MOUSE_FILTER_STOP
+		)
+	_refresh_secondary_hint()
+
+
+func _refresh_secondary_hint() -> void:
+	if secondary_hint_label == null or not is_instance_valid(secondary_hint_label):
+		return
+	if secondary_found:
+		secondary_hint_label.text = GameManager.text(
+			str(secondary_data.get("found_en", "Secondary target confirmed.")),
+			str(secondary_data.get("found_zh", "次要目标已确认。"))
+		)
+		secondary_hint_label.add_theme_color_override("font_color", Color(0.48, 0.96, 0.60))
+		return
+	if not _secondary_is_revealed():
+		secondary_hint_label.text = GameManager.text(
+			"Steady and focus the planet first - the moon is far too faint to show yet.",
+			"先把行星稳住并调焦——卫星太暗，现在还显不出来。"
+		)
+		secondary_hint_label.add_theme_color_override("font_color", Color(0.72, 0.78, 0.90))
+		return
+	secondary_hint_label.text = GameManager.text(
+		"%s: %s" % [
+			GameManager.dict_text(secondary_data, "name"),
+			str(secondary_data.get("hint_en", "Look just off the planet's edge and click the faint point."))
+		],
+		"%s：%s" % [
+			GameManager.dict_text(secondary_data, "name"),
+			str(secondary_data.get("hint_zh", "在行星边缘外侧寻找并点击那个微弱光点。"))
+		]
+	)
+	secondary_hint_label.add_theme_color_override("font_color", Color(1.0, 0.82, 0.40))
+
+
+func _on_secondary_target_pressed() -> void:
+	if secondary_found or not _secondary_is_revealed():
+		return
+	_confirm_secondary_target()
+
+
+# Also the entry point used by automated tests and capture tooling.
+func _confirm_secondary_target() -> void:
+	if secondary_data.is_empty() or secondary_found:
+		return
+	secondary_found = true
+	GameManager.mark_secondary_target_found()
+	_update_secondary_visuals()
+	if feedback_label != null:
+		feedback_label.text = GameManager.text(
+			str(secondary_data.get("found_en", "Secondary target confirmed.")),
+			str(secondary_data.get("found_zh", "次要目标已确认。"))
+		)
+	if secondary_sprite != null and is_instance_valid(secondary_sprite):
+		InteractionFeedback.success(secondary_sprite)
+
+
 func _has_blur_variant(id: String) -> bool:
 	return (
 		(STATE_TEXTURES.has(id) or OpticalMediaRegistry.master_path(id) != "")
@@ -3453,7 +3664,18 @@ func _solid_body_brightness(quality: String, effect: String) -> float:
 			luminance = 0.50
 	if effect == "dim":
 		luminance *= 0.82
-	if str(selected_object.get("id", "")) == "saturn":
+	var resolved_id := str(selected_object.get("id", ""))
+	if resolved_id == "venus":
+		# The Venus master is a real crescent-phase photograph: mostly unlit
+		# limb, with the lit crescent only ~17% of the disk. Lift it so that
+		# crescent reads at eyepiece scale instead of sinking into black.
+		luminance *= 1.60
+	var exposure_requirements := _active_observation_requirements()
+	if exposure_requirements.has("exposure_min") or exposure_requirements.has("exposure_max"):
+		# Under-exposed loses the crescent in the dark; over-exposed washes the
+		# terminator out. Both directions are visible, which is the lesson.
+		luminance *= lerpf(0.58, 1.60, exposure_value)
+	if resolved_id == "saturn":
 		# The official Saturn master is intentionally restrained, but at eyepiece
 		# scale its rings and globe must remain readable without making the body
 		# translucent. Lift RGB only; alpha remains fully opaque on the globe.
@@ -3461,7 +3683,7 @@ func _solid_body_brightness(quality: String, effect: String) -> float:
 	# Clouds and low quality attenuate photons, but never turn an opaque
 	# planetary surface into a translucent decal over the star field.
 	luminance *= lerpf(1.0, 0.55, cond_cloud_atten)
-	return clampf(luminance, 0.28, 1.20)
+	return clampf(luminance, 0.28, 1.40 if resolved_id == "venus" else 1.20)
 
 
 func _solid_body_defocus_screen_radius(weight: float, object_id := "") -> float:
@@ -3479,6 +3701,8 @@ func _solid_body_defocus_screen_radius(weight: float, object_id := "") -> float:
 			maximum_radius = 42.0
 		"uranus", "neptune":
 			maximum_radius = 32.0
+		"triton":
+			maximum_radius = 22.0
 	# Keep tiny seeing/collimation residuals from softening a correctly focused
 	# planet, while preserving the full broad disk at genuine defocus.
 	return lerpf(0.0, maximum_radius, pow(clampf(weight, 0.0, 1.0), 1.05))
@@ -3535,7 +3759,10 @@ func _object_view_scale(id: String) -> float:
 		"jupiter":
 			return 0.60
 		"mars":
-			return 0.46
+			# Even near opposition, Mars remains a modest disk in a club scope.
+			# Surface contrast should be earned through focus and steadiness, not
+			# presented as a full-frame spacecraft photograph.
+			return 0.12
 		"andromeda":
 			return 0.62
 		"orion_nebula":
@@ -3544,10 +3771,16 @@ func _object_view_scale(id: String) -> float:
 		# scale the measured opaque subject, not the canvas, so distant planets
 		# remain small resolved discs instead of large photographic decals.
 		"mercury": return 0.09
-		"venus": return 0.11
+		# Unlike the other licensed planet masters, the Venus phase art already
+		# fills its source canvas. It uses a 1:1 UV mapping below, so its display
+		# scale is correspondingly smaller.
+		"venus": return 0.030
 		"saturn": return 0.14
-		"uranus": return 0.075
-		"neptune": return 0.07
+		"uranus": return 0.030
+		"neptune": return 0.027
+		# Triton is a moon of a distant ice giant: a near-stellar spark, and
+		# deliberately smaller than the planet it sits beside.
+		"triton": return 0.045
 		"moon_crater_copernicus", "moon_mare_tranquillitatis", "moon_terminator": return 0.92
 		"albireo": return 0.46
 		"pleiades": return 0.90
@@ -3589,7 +3822,7 @@ func _naked_eye_scale(id: String) -> float:
 	match id:
 		"moon":
 			return 0.34
-		"mars", "jupiter":
+		"mars", "jupiter", "venus", "uranus", "neptune":
 			return 0.28
 		"orion_nebula", "andromeda":
 			return 0.45
@@ -3823,7 +4056,12 @@ func _setup_turbulence_materials() -> void:
 		solid_material.set_shader_parameter("blur_radius_px", 0.0)
 		solid_material.set_shader_parameter("defocus_amount", 0.0)
 		solid_material.set_shader_parameter("brightness", 1.0)
-		solid_material.set_shader_parameter("source_uv_scale", SOLID_BODY_OPTICAL_CANVAS_SCALE)
+		# Most planet masters sit tightly inside a transparent canvas that is
+		# expanded for the defocus PSF. Venus already fills its source image;
+		# applying the same 2.2x source crop would cut away the bright crescent
+		# and leave only the dark hemisphere.
+		var source_uv_scale := 1.0 if str(selected_object.get("id", "")) == "venus" else SOLID_BODY_OPTICAL_CANVAS_SCALE
+		solid_material.set_shader_parameter("source_uv_scale", source_uv_scale)
 		main_sprite.material = solid_material
 		turbulence_material_main = solid_material
 	elif _is_star_target() and observation_mode != "naked_eye" and main_sprite != null:
@@ -4172,6 +4410,15 @@ func _distractors_for(id: String) -> Array[String]:
 		"moon": return ["jupiter", "sirius"]
 		"mars": return ["jupiter", "betelgeuse"]
 		"jupiter": return ["mars", "moon"]
+		# Planets that are genuinely confusable with each other in an eyepiece.
+		"saturn": return ["jupiter", "mars"]
+		"venus": return ["mercury", "mars"]
+		"uranus": return ["neptune", "saturn"]
+		"neptune": return ["uranus", "saturn"]
+		# A red supergiant against another warm star and a blue-white one:
+		# the choice is decided by colour, which is the lesson.
+		"betelgeuse": return ["arcturus", "sirius", "vega"]
+		"pleiades": return ["orion_nebula", "andromeda"]
 		"orion_nebula": return ["andromeda", "betelgeuse"]
 		"andromeda": return ["orion_nebula", "sirius"]
 		# Star vs star confusions teach color/context identification.
@@ -4195,7 +4442,7 @@ func _mystery_description(obj: Dictionary) -> Dictionary:
 					"zh": "能分辨暗色月海与明亮撞击坑边缘的月面圆盘"
 				}
 			return {"en": "bright round object", "zh": "明亮圆形目标"}
-		"mars", "jupiter":
+		"mars", "jupiter", "venus", "uranus", "neptune":
 			return {"en": "small disk-like object", "zh": "小圆盘状目标"}
 		"orion_nebula":
 			return {"en": "faint cloud-like object", "zh": "淡淡云雾状目标"}

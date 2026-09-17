@@ -1723,20 +1723,69 @@ func _open_mission_board() -> void:
 	var title := _board_label(panel, GameManager.dict_text(level, "title"), Vector2(22, 38), Vector2(660, 34), 24, WARM_TEXT)
 	title.max_lines_visible = 1
 	var target_name := GameManager.dict_text(target, "name")
+	if GameManager.level_requires_target_choice() and not GameManager.has_chosen_level_target():
+		target_name = GameManager.text("your choice (%d options)", "由你决定（%d 选 1）") % GameManager.target_choices().size()
 	_board_label(panel, GameManager.text("Target: ", "目标：") + target_name, Vector2(22, 78), Vector2(430, 22), 15, Color(0.96, 0.84, 0.46))
 	_board_label(panel, GameManager.text("Mode: ", "模式：") + _mission_observation_mode_text(), Vector2(462, 78), Vector2(228, 22), 14, CYAN)
 	_board_label(panel, _mission_readiness_text(route), Vector2(688, 78), Vector2(240, 22), 12, _mission_readiness_color(route), HORIZONTAL_ALIGNMENT_RIGHT)
 	_rect_to(panel, Vector2(20, 110), Vector2(912, 1), Color(0.35, 0.45, 0.62, 0.72))
 
-	var route_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("MISSION ROUTE", "任务路线"))
-	_build_mission_checklist(route_panel, route)
+	# An assessment level hands the decision to the player. Until a target is
+	# picked the route is meaningless, so the choice replaces it outright.
+	var choice_pending := GameManager.level_requires_target_choice() and not GameManager.has_chosen_level_target()
+	if choice_pending:
+		var choice_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("CHOOSE YOUR TARGET", "选择你的目标"))
+		_build_target_choice_panel(choice_panel)
+	else:
+		var route_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("MISSION ROUTE", "任务路线"))
+		_build_mission_checklist(route_panel, route)
+		if GameManager.level_requires_target_choice():
+			var change_button := _board_button(
+				panel,
+				GameManager.text("Change\nTarget", "更换目标"),
+				Vector2(24, 582),
+				Vector2(136, 42),
+				Color(0.10, 0.14, 0.26),
+				Color(0.52, 0.62, 0.86)
+			)
+			change_button.name = "ChangeTargetButton"
+			change_button.add_theme_font_size_override("font_size", 12)
+			change_button.pressed.connect(_reopen_target_choice)
 
 	var info_panel := _board_section(panel, Vector2(550, 128), Vector2(382, 326), GameManager.text("MAYA'S NOTE", "玛雅的提示"))
 	_build_mission_info_panel(info_panel, level, route)
 	_build_mission_reward_preview(panel, level)
 
-	var route_label := _board_label(panel, "", Vector2(26, 536), Vector2(900, 30), 14, Color(1.0, 0.82, 0.34), HORIZONTAL_ALIGNMENT_CENTER)
-	route_label.text = GameManager.text("Next: ", "下一步：") + str(route.get("action", ""))
+	# A level that involves pointing anywhere near the Sun's part of the sky
+	# carries a standing safety warning. It is never optional and never hidden
+	# behind a scroll, so it takes its own line above the route.
+	var safety_text := GameManager.dict_text(level, "safety_notice")
+	var route_y := 536.0
+	if safety_text != "":
+		var safety_strip := _rect_to(panel, Vector2(20, 518), Vector2(912, 22), Color(0.34, 0.16, 0.06, 0.85))
+		safety_strip.name = "SafetyNoticeStrip"
+		var safety_label := _board_label(
+			panel,
+			"⚠ " + safety_text,
+			Vector2(26, 521),
+			Vector2(900, 18),
+			10,
+			Color(1.0, 0.76, 0.42)
+		)
+		safety_label.name = "SafetyNoticeLabel"
+		safety_label.clip_text = true
+		route_y = 548.0
+
+	var route_label := _board_label(panel, "", Vector2(26, route_y), Vector2(900, 26), 14, Color(1.0, 0.82, 0.34), HORIZONTAL_ALIGNMENT_CENTER)
+	if choice_pending:
+		# The placeholder target must not be announced as the next action - the
+		# player has not picked anything yet.
+		route_label.text = GameManager.text(
+			"Next: choose one of the three targets above",
+			"下一步：从上面三个目标中选择一个"
+		)
+	else:
+		route_label.text = GameManager.text("Next: ", "下一步：") + str(route.get("action", ""))
 	route_label.clip_text = true
 
 	var go_button := _board_button(panel, GameManager.text("Show Route", "显示路线"), Vector2(168, 582), Vector2(250, 42), Color(0.08, 0.28, 0.22), Color(0.56, 0.90, 0.54))
@@ -1851,6 +1900,8 @@ func _mission_observation_mode_text() -> String:
 
 
 func _mission_readiness_text(route: Dictionary) -> String:
+	if bool(route.get("choice_pending", false)):
+		return GameManager.text("CHOOSE A TARGET", "请先选择目标")
 	if bool(route.get("ready", false)):
 		return GameManager.text("READY TO OBSERVE", "可以观测")
 	var missing_names := _mission_missing_names()
@@ -1938,18 +1989,30 @@ func _mission_special_rows(level: Dictionary) -> Array:
 	var rows: Array = []
 	match variation:
 		"eyepiece_comparison":
+			# Driven by the level's own mission_steps so the checklist always
+			# names the eyepieces the mission actually asks for, and the tick
+			# marks track the real step ids. (This used to hardcode a two-pass
+			# 20mm/10mm comparison, which silently went stale when the mission
+			# changed.)
 			var steps_done := GameManager.completed_mission_steps()
+			var all_done := true
+			for step_value in GameManager.mission_steps():
+				if not step_value is Dictionary:
+					continue
+				var step: Dictionary = step_value
+				var step_id := str(step.get("id", ""))
+				var step_done: bool = steps_done.has(step_id)
+				all_done = all_done and step_done
+				rows.append({
+					"label": GameManager.dict_text(step, "label"),
+					"done": step_done
+				})
 			rows.append({
-				"label": GameManager.text("Low power: use 20mm, focus, observe " + target_name, "低倍率：使用 20mm，对焦后观测" + target_name),
-				"done": steps_done.has("low_power")
-			})
-			rows.append({
-				"label": GameManager.text("High power: switch to 10mm, refocus, observe again", "高倍率：换 10mm，重新调焦后再观测"),
-				"done": steps_done.has("high_power")
-			})
-			rows.append({
-				"label": GameManager.text("Compare image size, brightness, and steadiness", "比较图像大小、亮度和稳定性"),
-				"done": steps_done.has("low_power") and steps_done.has("high_power")
+				"label": GameManager.text(
+					"Compare all three, then go back to the eyepiece that showed it best",
+					"比较三档倍率，再换回显示效果最好的那枚目镜"
+				),
+				"done": all_done
 			})
 		"low_altitude_seeing":
 			rows.append({"label": GameManager.text("Use low or medium power near the horizon", "低空目标使用低倍率或中倍率"), "done": false})
@@ -2062,7 +2125,13 @@ func _build_mission_info_panel(parent: Control, level: Dictionary, route: Dictio
 	var readiness := _mission_readiness_text(route)
 	var readiness_label := _board_label(parent, readiness, Vector2(14, 240), Vector2(354, 28), 12, _mission_readiness_color(route))
 	readiness_label.max_lines_visible = 2
-	var target_line := _board_label(parent, GameManager.text("Why this mission: ", "本关重点：") + GameManager.dict_text(level, "description"), Vector2(14, 276), Vector2(354, 38), 10, Color(0.73, 0.81, 0.90))
+	# Comparison missions are judged against an earlier night's record, so the
+	# board shows that baseline rather than repeating the description.
+	var baseline := GameManager.dict_text(level, "comparison_baseline")
+	var why_text := GameManager.text("Why this mission: ", "本关重点：") + GameManager.dict_text(level, "description")
+	if baseline != "":
+		why_text = GameManager.text("Compare against: ", "对照基线：") + baseline
+	var target_line := _board_label(parent, why_text, Vector2(14, 276), Vector2(354, 38), 10, Color(0.73, 0.81, 0.90))
 	target_line.max_lines_visible = 2
 
 
@@ -2186,6 +2255,84 @@ func _mission_reward_preview_items(level: Dictionary) -> Array:
 
 func _mission_badge_text(badge: String) -> String:
 	return GameManager.badge_display_name(badge)
+
+
+# The assessment levels hand target selection to the player. Each option
+# states what the object is like, not which eyepiece to fit - working the
+# power out from the description is the thing being assessed.
+func _build_target_choice_panel(parent: Control) -> void:
+	_board_label(
+		parent,
+		GameManager.text(
+			"Assessment: no hints tonight. Pick one, then choose its power yourself.",
+			"考核：今晚没有提示。自己选一个目标，再自己决定它该用多大倍率。"
+		),
+		Vector2(14, 34),
+		Vector2(486, 32),
+		12,
+		Color(0.96, 0.84, 0.46)
+	).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	var choices := GameManager.target_choices()
+	var row_y := 74.0
+	for choice_value in choices:
+		if not choice_value is Dictionary:
+			continue
+		var choice: Dictionary = choice_value
+		var object_id := str(choice.get("object_id", ""))
+		if object_id == "":
+			continue
+		var row := Panel.new()
+		row.position = Vector2(14, row_y)
+		row.size = Vector2(486, 78)
+		row.add_theme_stylebox_override("panel", _style(Color(0.040, 0.060, 0.105, 0.96), Color(0.30, 0.44, 0.66, 0.90), 1, 3))
+		parent.add_child(row)
+
+		var icon_path := "res://assets/celestial_icons/%s.png" % object_id
+		if ResourceLoader.exists(icon_path):
+			var icon := TextureRect.new()
+			icon.position = Vector2(10, 15)
+			icon.size = Vector2(48, 48)
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.texture = load(icon_path)
+			row.add_child(icon)
+
+		_board_label(row, GameManager.dict_text(choice, "label"), Vector2(68, 10), Vector2(300, 20), 15, WARM_TEXT)
+		var blurb := _board_label(row, GameManager.dict_text(choice, "blurb"), Vector2(68, 32), Vector2(300, 40), 11, Color(0.74, 0.82, 0.94))
+		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+		var pick := _board_button(
+			row,
+			GameManager.text("Choose", "选择"),
+			Vector2(378, 24),
+			Vector2(96, 32),
+			Color(0.08, 0.28, 0.22),
+			Color(0.56, 0.90, 0.54)
+		)
+		pick.name = "ChooseTarget_%s" % object_id
+		var captured_id := object_id
+		pick.pressed.connect(func() -> void: _choose_mission_target(captured_id))
+		row_y += 84.0
+
+
+func _choose_mission_target(object_id: String) -> void:
+	if not GameManager.set_level_target_choice(object_id):
+		return
+	_close_mission_board(false)
+	_open_mission_board()
+
+
+func _reopen_target_choice() -> void:
+	var level_id := str(GameManager.current_level().get("id", ""))
+	if level_id != "":
+		var overrides: Dictionary = GameManager.progress.get("level_target_overrides", {})
+		overrides.erase(level_id)
+		GameManager.progress["level_target_overrides"] = overrides
+		GameManager.last_sky_aim = {}
+		GameManager.save()
+	_close_mission_board(false)
+	_open_mission_board()
 
 
 func _board_section(parent: Control, pos: Vector2, section_size: Vector2, title: String) -> Panel:

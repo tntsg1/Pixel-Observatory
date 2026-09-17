@@ -20,15 +20,15 @@ func _initialize() -> void:
 	gm.debug_jump_to_level(10, false)
 	gm.language_mode = "zh"
 	gm.progress["language_mode"] = "zh"
-	for part_id in ["eyepiece_20mm", "eyepiece_10mm", "basic_finder_scope", "basic_focus_knob"]:
+	for part_id in ["eyepiece_32mm", "eyepiece_20mm", "eyepiece_10mm", "basic_finder_scope", "basic_focus_knob"]:
 		if not gm.progress["unlocked_parts"].has(part_id):
 			gm.progress["unlocked_parts"].append(part_id)
 
-	gm.equip_part("eyepiece_10mm")
+	gm.equip_part("eyepiece_32mm")
 	gm.reset_assembly()
 	for part_type in gm.current_level().get("required_parts", []):
 		gm.install_part(str(part_type), 0)
-	gm.mark_mission_step_done("high_power")
+	gm.mark_mission_step_done("low_power")
 	var auto_plan: Array = gm.auto_equip_plan()
 	var planned_eyepiece := ""
 	for entry_value in auto_plan:
@@ -39,7 +39,7 @@ func _initialize() -> void:
 	_check(planned_eyepiece == "eyepiece_20mm", "one-click mission loadout selects the pending 20mm experiment eyepiece")
 
 	var route: Dictionary = gm.current_room_route()
-	_check(str(route.get("target", "")) == "cabinet", "after the 10mm pass, room guidance points to the Parts Cabinet")
+	_check(str(route.get("target", "")) == "cabinet", "after the 32mm pass, room guidance points to the Parts Cabinet")
 	_check(str(route.get("required_part_id", "")) == "eyepiece_20mm", "route names the pending 20mm eyepiece")
 
 	gm.equip_part("eyepiece_20mm")
@@ -66,13 +66,13 @@ func _check_cabinet(gm: Node) -> void:
 	for node in cabinet.find_children("*", "Control", true, false):
 		if node.has_meta("part_id") and str(node.get_meta("part_id", "")) == "eyepiece_20mm":
 			eyepiece_text = _node_text(node)
-		elif node.has_meta("part_id") and str(node.get_meta("part_id", "")) == "eyepiece_10mm":
+		elif node.has_meta("part_id") and str(node.get_meta("part_id", "")) == "eyepiece_32mm":
 			high_power_text = _node_text(node)
 	_check(all_text.contains("当前实验指定目镜"), "20mm card is identified as the current experiment part")
-	_check(not eyepiece_text.contains("可用更佳设备") and not eyepiece_text.contains("10mm"), "task-required 20mm does not advertise 10mm as a better replacement")
+	_check(not eyepiece_text.contains("可用更佳设备"), "task-required 20mm does not advertise a better replacement")
 	_check(not eyepiece_text.contains("Better available"), "English generic eyepiece upgrade warning is also suppressed")
-	_check(not high_power_text.contains("本关必需") and not high_power_text.contains("当前任务推荐") and not high_power_text.contains("下一步安装"), "completed 10mm experiment is not still marked as required, recommended, or next")
-	_check(not high_power_text.contains("Required for current mission") and not high_power_text.contains("Recommended for current mission") and not high_power_text.contains("Next assembly step"), "completed 10mm experiment has no English mission badge")
+	_check(not high_power_text.contains("本关必需") and not high_power_text.contains("当前任务推荐") and not high_power_text.contains("下一步安装"), "completed 32mm experiment is not still marked as required, recommended, or next")
+	_check(not high_power_text.contains("Required for current mission") and not high_power_text.contains("Recommended for current mission") and not high_power_text.contains("Next assembly step"), "completed 32mm experiment has no English mission badge")
 	cabinet.queue_free()
 	await process_frame
 
@@ -88,7 +88,7 @@ func _check_telescope_panel(gm: Node) -> void:
 	_check(label != null, "telescope view exposes a dedicated mission-step label")
 	if label != null:
 		_check(label.text.contains("20mm"), "mission-step label names the pending 20mm eyepiece")
-		_check(label.text.contains("已完成 1/2") and label.text.contains("当前"), "mission-step label describes flexible completion progress")
+		_check(label.text.contains("已完成 1/3") and label.text.contains("当前"), "mission-step label describes flexible completion progress")
 		_check(not label.text.contains("Step") and not label.text.contains("Completed"), "Chinese mode does not leak the English progress prefix")
 		_check(label.get_theme_font_size("font_size") >= 14, "mission-step text uses a readable font size")
 		_check(label.size.y >= 34.0 and label.max_lines_visible >= 2, "mission-step label has room to wrap")

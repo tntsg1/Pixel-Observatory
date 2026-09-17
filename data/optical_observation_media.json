@@ -63,8 +63,8 @@
                              }
                 },
     "venus":  {
-                  "master_path":  "res://assets/telescope_view/official/venus.png",
-                  "asset_class":  "licensed_science_image",
+                  "master_path":  "res://assets/telescope_view/expansion/venus_crescent.png",
+                  "asset_class":  "display_tone_derivative",
                   "media_class":  "isolated_planet",
                   "render_mode":  "transparent_subject",
                   "crop":  {
@@ -105,6 +105,17 @@
                                  "fit":  "contain",
                                  "target_scale":  0.64,
                                  "safe_margin_px":  144
+                             }
+                },
+    "triton":  {
+                    "master_path":  "res://assets/telescope_view/expansion/triton.png",
+                    "asset_class":  "original_procedural_art",
+                    "media_class":  "isolated_planet",
+                    "render_mode":  "transparent_subject",
+                    "crop":  {
+                                 "fit":  "contain",
+                                 "target_scale":  0.18,
+                                 "safe_margin_px":  180
                              }
                 },
     "moon_crater_copernicus":  {

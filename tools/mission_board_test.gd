@@ -65,7 +65,19 @@ func _initialize() -> void:
 		gm.install_part(str(part_type), 0)
 	route = room.call("_mission_board_route")
 	var l10_rows: Array = room.call("_mission_board_checklist", route)
-	_check(_rows_contain(l10_rows, "20mm") and _rows_contain(l10_rows, "10mm"), "L10 checklist names both eyepiece passes")
+	_check(
+		_rows_contain(l10_rows, "32mm") and _rows_contain(l10_rows, "20mm") and _rows_contain(l10_rows, "10mm"),
+		"L10 checklist names all three eyepiece passes"
+	)
+
+	# L10 now compares three eyepieces, so the board correctly routes to the
+	# Parts Cabinet until the CURRENT pass's eyepiece is fitted. Fit the first
+	# one (32mm) so the pad-guidance assertion below tests what it always did:
+	# a mission whose equipment is ready points at the Observation Pad.
+	gm.equip_part("eyepiece_32mm")
+	gm.install_part("eyepiece", 0)
+	route = room.call("_mission_board_route")
+	_check(str(route.get("target", "")) == "telescope", "L10 routes to the pad once the current pass's eyepiece is fitted")
 
 	room.call("_open_mission_board")
 	_check(room.get("mission_board_popup") != null, "Mission Board opens as a modal task center")

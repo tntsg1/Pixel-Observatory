@@ -1923,10 +1923,10 @@
   {
     "id": "level_50",
     "level_number": 50,
-    "title_en": "When the Air Boils",
-    "title_zh": "当大气沸腾",
-    "description_en": "High power amplifies every ripple of air. Wait for the still moments; drop power if they never come.",
-    "description_zh": "高倍率会放大每一丝大气抖动。等待平静的瞬间；等不到就降低倍率。",
+    "title_en": "Venus in Unsteady Twilight",
+    "title_zh": "暮光中沸腾的大气",
+    "description_en": "Venus sits low over the western horizon after sunset, and low air boils. Drop the power, trim the exposure until the phase edge returns, and wait for the brief steady moments.",
+    "description_zh": "日落之后，金星低悬在西方地平线附近，而低空的大气正在翻涌。降低倍率，收敛曝光直到相位边缘重新出现，并等待那些短暂的稳定瞬间。",
     "observation_mode": "telescope",
     "equipment_stage": "cassegrain",
     "assembly_mode": "advanced",
@@ -1934,7 +1934,7 @@
     "requires_telescope": true,
     "requires_collimation": false,
     "collimation_threshold": 86,
-    "target_object_id": "jupiter",
+    "target_object_id": "venus",
     "required_parts": [
       "mount",
       "reflector_tube",
@@ -1961,11 +1961,11 @@
     ],
     "required_assembly_score": 82,
     "minimum_success_quality": "Fair",
-    "required_concept_card": "seeing_turbulence",
-    "hint_text_en": "Use the 40mm eyepiece while the air boils. Center Jupiter, wait for a cloud gap, then focus during a steady instant.",
-    "hint_text_zh": "大气翻涌时使用 40mm 目镜。让木星居中，等云隙经过，再在稳定瞬间完成调焦。",
-    "success_text_en": "High power amplifies every ripple of air. Wait for the still moments; drop power if they never come.",
-    "success_text_zh": "高倍率会放大每一丝大气抖动。等待平静的瞬间；等不到就降低倍率。",
+    "required_concept_card": "venus_phase_exposure",
+    "hint_text_en": "Keep the 40mm in place: high power only magnifies the turbulence. Reduce exposure until the crescent edge appears, then focus during a steady instant.",
+    "hint_text_zh": "保持使用 40mm 目镜：高倍率只会放大扰动。降低曝光直到弯月边缘显现，再在稳定瞬间完成调焦。",
+    "success_text_en": "Venus is a phase, not a surface. Low altitude decides how much you can see - power cannot buy back steady air.",
+    "success_text_zh": "金星呈现的是相位，而不是表面。能看到多少取决于它的高度——倍率买不回平稳的大气。",
     "reward_credits": 170,
     "unlock_parts": [],
     "unlock_equipment_stage": "cassegrain",
@@ -1979,10 +1979,19 @@
     "hold_seconds": 6,
     "environment": {
       "seeing": "poor",
-      "cloud_cover": 0.35,
-      "sky_brightness": "suburban"
+      "cloud_cover": 0.0,
+      "sky_brightness": "twilight"
     },
-    "requires_focus": true
+    "requires_focus": true,
+    "safety_notice_en": "Safety: this session begins only after the Sun is fully below the horizon. Never point a telescope at or near the Sun - concentrated sunlight causes permanent eye injury in an instant.",
+    "safety_notice_zh": "安全提示：本次观测只在太阳完全落到地平线以下后开始。绝不可将望远镜指向太阳或太阳附近——被聚焦的阳光会在瞬间造成不可逆的眼睛损伤。",
+    "observation_success_feedback_en": "The bright crescent holds still for a moment, its edge clean against the twilight.",
+    "observation_success_feedback_zh": "明亮的弯月短暂地稳定下来，边缘在暮色中清晰利落。",
+    "observation_requirements": {
+      "magnification_max": 60,
+      "exposure_max": 0.4,
+      "seeing_patience": 0.5
+    }
   },
   {
     "id": "level_51",
@@ -2115,10 +2124,10 @@
   {
     "id": "level_53",
     "level_number": 53,
-    "title_en": "Two Reflectors Compared",
-    "title_zh": "两台反射镜的对比",
-    "description_en": "Same Jupiter, two mirrors: the Newtonian showed a wide bright disk, the Cassegrain a large detailed one. Neither is simply better.",
-    "description_zh": "同一颗木星，两种镜子：牛顿镜给出宽而亮的圆面，卡塞格林给出大而细的圆面。没有谁全面更好。",
+    "title_en": "Two Reflectors, One Ice Giant",
+    "title_zh": "两台反射镜，同一颗冰巨星",
+    "description_en": "You logged Uranus once already, through the Newtonian. Tonight the Cassegrain takes the same target. Compare honestly: acquisition, field width, image scale, steadiness.",
+    "description_zh": "你已经用牛顿镜记录过一次天王星。今晚换成卡塞格林观测同一个目标。诚实地比较：寻找难度、视野宽度、成像尺度、稳定程度。",
     "observation_mode": "telescope",
     "equipment_stage": "cassegrain",
     "assembly_mode": "advanced",
@@ -2126,7 +2135,7 @@
     "requires_telescope": true,
     "requires_collimation": false,
     "collimation_threshold": 86,
-    "target_object_id": "jupiter",
+    "target_object_id": "uranus",
     "required_parts": [
       "mount",
       "reflector_tube",
@@ -2153,11 +2162,11 @@
     ],
     "required_assembly_score": 82,
     "minimum_success_quality": "Fair",
-    "required_concept_card": "cassegrain_folded_path",
-    "hint_text_en": "The secondary is convex and sends light back through the primary. This is a different folded path, not a Newtonian copy.",
-    "hint_text_zh": "凸面副镜将光送回主镜中心孔。这是不同的折叠光路，不是牛顿镜的复制品。",
-    "success_text_en": "Same Jupiter, two mirrors: the Newtonian showed a wide bright disk, the Cassegrain a large detailed one. Neither is simply better.",
-    "success_text_zh": "同一颗木星，两种镜子：牛顿镜给出宽而亮的圆面，卡塞格林给出大而细的圆面。没有谁全面更好。",
+    "required_concept_card": "ice_giant_disks",
+    "hint_text_en": "The long folded focus gives you image scale, not field. Uranus should stop looking like a star and become a tiny blue-green disk.",
+    "hint_text_zh": "折叠光路带来的是成像尺度，而不是视野。天王星应当不再像一颗恒星，而变成一个微小的蓝绿色圆面。",
+    "success_text_en": "Wide field finds it; long focus resolves it. Neither mirror is simply better - they answer different questions.",
+    "success_text_zh": "宽视野负责找到它，长焦距负责分辨它。两种镜子没有谁全面更好——它们回答的是不同的问题。",
     "reward_credits": 170,
     "unlock_parts": [],
     "unlock_equipment_stage": "cassegrain",
@@ -2170,11 +2179,19 @@
     "drift_enabled": true,
     "hold_seconds": 6,
     "environment": {
-      "seeing": "average",
+      "seeing": "good",
       "cloud_cover": 0,
       "sky_brightness": "suburban"
     },
-    "requires_focus": true
+    "requires_focus": true,
+    "comparison_baseline_level": 32,
+    "comparison_baseline_en": "Your Newtonian record from Night 32: wide field, easy to find, but a very small disk.",
+    "comparison_baseline_zh": "你在第 32 晚的牛顿镜记录：视野宽、容易找到，但圆面非常小。",
+    "observation_success_feedback_en": "No longer a point: a small, flat, blue-green disk holding steady at high power.",
+    "observation_success_feedback_zh": "它不再是一个光点：一个小而平坦的蓝绿色圆面，在高倍率下稳稳地停在视野中。",
+    "observation_requirements": {
+      "magnification_min": 90
+    }
   },
   {
     "id": "level_54",
@@ -2243,10 +2260,10 @@
   {
     "id": "level_55",
     "level_number": 55,
-    "title_en": "Cassegrain Graduation",
-    "title_zh": "卡塞格林结业",
-    "description_en": "Master the folded path under real conditions. Then Maya brings out an even stranger fold - centuries older.",
-    "description_zh": "在真实条件下驾驭折叠光路。然后 Maya 拿出一种更奇特的折叠——它还要古老几个世纪。",
+    "title_en": "Neptune and Triton",
+    "title_zh": "海王星与海卫一",
+    "description_en": "Graduation night. Find Neptune by coordinates, confirm it is a disk and not a star, hold it steady - then find the faint spark of Triton beside it and log the pair as a system.",
+    "description_zh": "结业之夜。按坐标找到海王星，确认它是圆面而不是恒星，稳定地追踪它——然后在它旁边找到海卫一那点微弱的光芒，并把这一对作为一个系统记录下来。",
     "observation_mode": "telescope",
     "equipment_stage": "cassegrain",
     "assembly_mode": "advanced",
@@ -2254,7 +2271,7 @@
     "requires_telescope": true,
     "requires_collimation": false,
     "collimation_threshold": 86,
-    "target_object_id": "jupiter",
+    "target_object_id": "neptune",
     "required_parts": [
       "mount",
       "reflector_tube",
@@ -2281,11 +2298,11 @@
     ],
     "required_assembly_score": 82,
     "minimum_success_quality": "Good",
-    "required_concept_card": "cassegrain_folded_path",
-    "hint_text_en": "The secondary is convex and sends light back through the primary. This is a different folded path, not a Newtonian copy.",
-    "hint_text_zh": "凸面副镜将光送回主镜中心孔。这是不同的折叠光路，不是牛顿镜的复制品。",
-    "success_text_en": "Master the folded path under real conditions. Then Maya brings out an even stranger fold - centuries older.",
-    "success_text_zh": "在真实条件下驾驭折叠光路。然后 Maya 拿出一种更奇特的折叠——它还要古老几个世纪。",
+    "required_concept_card": "ice_giant_disks",
+    "hint_text_en": "Neptune first, then Triton. The moon is far fainter than the planet, so let your eye settle before you judge the field.",
+    "hint_text_zh": "先找海王星，再找海卫一。卫星比行星暗得多，所以先让眼睛适应，再判断视野里的光点。",
+    "success_text_en": "A blue disk at the edge of the Solar System, with its own moon beside it. The folded path earned you this one.",
+    "success_text_zh": "太阳系边缘的一个蓝色圆面，旁边还伴着它自己的卫星。这一幕是折叠光路为你赢来的。",
     "reward_credits": 220,
     "unlock_parts": [
       "segmented_primary_array",
@@ -2303,11 +2320,34 @@
     "drift_enabled": true,
     "hold_seconds": 6,
     "environment": {
-      "seeing": "average",
+      "seeing": "good",
       "cloud_cover": 0,
       "sky_brightness": "suburban"
     },
-    "requires_focus": true
+    "requires_focus": true,
+    "secondary_target": {
+      "object_id": "triton",
+      "name_en": "Triton",
+      "name_zh": "海卫一",
+      "label_en": "Confirm Triton beside Neptune",
+      "label_zh": "在海王星旁确认海卫一",
+      "separation_px": 96,
+      "position_angle_deg": 138,
+      "detect_radius_px": 34,
+      "hint_en": "Triton is a faint spark very close to Neptune. Sweep slowly along the marked side and hold when the proximity meter rises.",
+      "hint_zh": "海卫一是紧邻海王星的一点微光。沿着标出的方向缓慢移动，接近度指示上升时保持不动。",
+      "found_en": "Triton confirmed. You have logged a planetary system, not just a planet.",
+      "found_zh": "已确认海卫一。你记录下的是一个行星系统，而不只是一颗行星。"
+    },
+    "observation_success_feedback_en": "Neptune holds as a small blue disk, and the faint point of Triton sits just off its edge.",
+    "observation_success_feedback_zh": "海王星稳定地呈现为一个小小的蓝色圆面，海卫一微弱的光点就在它边缘之外。",
+    "target_requirement_overrides": {
+      "required_light_score": 78,
+      "required_stability": 68
+    },
+    "observation_requirements": {
+      "magnification_min": 90
+    }
   },
   {
     "id": "level_56",
@@ -2580,10 +2620,10 @@
   {
     "id": "level_60",
     "level_number": 60,
-    "title_en": "Contrast Study",
-    "title_zh": "对比度研究",
-    "description_en": "Study Jupiter's cloud bands: the Gregorian's clean contrast is its quiet strength.",
-    "description_zh": "研究木星云带：干净的对比度是格里高利镜低调的强项。",
+    "title_en": "Contrast, Not Size",
+    "title_zh": "对比度，而不是大小",
+    "description_en": "Mars is small even in a large telescope. What the Gregorian defends is contrast: hold the focus, wait for steady air, and the dark markings and a hint of polar frost separate from the orange disk.",
+    "description_zh": "即使用大望远镜，火星依然很小。格里高利镜守护的是对比度：稳住焦点，等待平稳的大气，暗色区域和极冠的微弱痕迹就会从橙色圆面中浮现出来。",
     "observation_mode": "telescope",
     "equipment_stage": "gregorian",
     "assembly_mode": "advanced",
@@ -2591,7 +2631,7 @@
     "requires_telescope": true,
     "requires_collimation": false,
     "collimation_threshold": 88,
-    "target_object_id": "jupiter",
+    "target_object_id": "mars",
     "required_parts": [
       "mount",
       "reflector_tube",
@@ -2618,11 +2658,11 @@
     ],
     "required_assembly_score": 84,
     "minimum_success_quality": "Fair",
-    "required_concept_card": "magnification_tradeoff",
-    "hint_text_en": "Both mirrors are concave in this system. The secondary sits beyond the first focus.",
-    "hint_text_zh": "该系统中的两面镜子都是凹面，副镜位于第一个焦点之后。",
-    "success_text_en": "Study Jupiter's cloud bands: the Gregorian's clean contrast is its quiet strength.",
-    "success_text_zh": "研究木星云带：干净的对比度是格里高利镜低调的强项。",
+    "required_concept_card": "surface_contrast_detail",
+    "hint_text_en": "Do not chase size. Fine-tune the focus and watch the disk: faint dark patches appear only when the air is still.",
+    "hint_text_zh": "不要追求更大。细调焦点并注视圆面：只有大气平稳时，淡淡的暗色斑块才会显现。",
+    "success_text_en": "Low-contrast detail is won by focus and steady air, not by magnification. That is this design's quiet strength.",
+    "success_text_zh": "低对比度的细节靠的是调焦和平稳的大气，而不是倍率。这正是这套设计低调的强项。",
     "reward_credits": 160,
     "unlock_parts": [],
     "unlock_equipment_stage": "gregorian",
@@ -2640,7 +2680,13 @@
       "sky_brightness": "suburban"
     },
     "requires_focus": true,
-    "deprecated": true
+    "deprecated": true,
+    "observation_success_feedback_en": "A small orange disk with a soft dark marking across it and a pale brightening at one pole.",
+    "observation_success_feedback_zh": "一个小小的橙色圆面，上面横着一道柔和的暗色纹理，一侧极区泛着淡淡的亮色。",
+    "observation_requirements": {
+      "magnification_min": 80,
+      "stability_min": 70
+    }
   },
   {
     "id": "level_61",

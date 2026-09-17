@@ -1379,6 +1379,10 @@ func _magnitude_limit() -> float:
 	match _sky_brightness_key():
 		"city":
 			return 3.6
+		"twilight":
+			# The sky itself is still lit after sunset: only the very brightest
+			# objects are up yet, which is exactly why Venus stands alone.
+			return 1.2
 		"suburban":
 			return 4.5
 	return 99.0
@@ -1396,6 +1400,9 @@ func _sky_lift_color() -> Color:
 	match _sky_brightness_key():
 		"city":
 			return Color(0.030, 0.034, 0.050, 1.0)
+		"twilight":
+			# Warm, not grey: the western sky still holds the sunset gradient.
+			return Color(0.115, 0.082, 0.098, 1.0)
 		"suburban":
 			return Color(0.015, 0.017, 0.025, 1.0)
 	return Color(0.0, 0.0, 0.0, 0.0)
@@ -3651,8 +3658,8 @@ func _update_sky_condition_text() -> void:
 	var cover := _cloud_cover_amount()
 	var parts: Array[String] = []
 	if sky_key != "":
-		var sky_names_en := {"city": "City", "suburban": "Suburban", "dark": "Dark"}
-		var sky_names_zh := {"city": "城市", "suburban": "郊区", "dark": "暗夜"}
+		var sky_names_en := {"city": "City", "suburban": "Suburban", "dark": "Dark", "twilight": "Twilight"}
+		var sky_names_zh := {"city": "城市", "suburban": "郊区", "dark": "暗夜", "twilight": "暮光"}
 		var sky_name := str(sky_names_zh.get(sky_key, sky_key)) if GameManager.language_mode == "zh" else str(sky_names_en.get(sky_key, sky_key.capitalize()))
 		parts.append(GameManager.text("Sky: %s", "天空：%s") % sky_name)
 	if cover > 0.0:

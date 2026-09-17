@@ -240,6 +240,21 @@ func _concept_action_text(card_id: String) -> String:
 			"1. 先找到最亮的锚点星。\n2. 按图示顺序连线，不要把倍率放得过高。\n3. 核对季节、方位角和俯仰角，再确认整体形状。"
 		)
 	match card_id:
+		"stellar_point_source":
+			return GameManager.text(
+				"1. Center the star and turn the focus knob slowly.\n2. Watch the blob shrink instead of waiting for surface detail.\n3. Stop at the smallest, tightest point you can reach.",
+				"1. 让恒星居中，然后缓慢转动调焦旋钮。\n2. 注意观察光斑收缩，而不是等待表面细节出现。\n3. 停在你能达到的最小、最紧实的光点上。"
+			)
+		"wide_field_framing":
+			return GameManager.text(
+				"1. Find the cluster's overall shape with Eye and Finder first.\n2. Fit the lowest-power, widest-field eyepiece.\n3. Confirm the whole pattern is inside the field before recording.",
+				"1. 先用肉眼和寻星镜找到星团的整体形状。\n2. 换上倍率最低、视野最宽的目镜。\n3. 确认整个图案都在视野之内，再进行记录。"
+			)
+		"surface_contrast_detail":
+			return GameManager.text(
+				"1. Set a moderate, steady power and leave it there.\n2. Fine-tune the focus in very small steps.\n3. Keep watching: faint markings surface only during steady moments.",
+				"1. 选定一档适中而稳定的倍率，然后不要再动它。\n2. 用极小的幅度细调焦点。\n3. 持续注视：暗淡的纹理只在大气平稳的瞬间才会浮现。"
+			)
 		"dobsonian_manual_altaz":
 			return GameManager.text(
 				"1. Use a low-power eyepiece to acquire the target.\n2. Swivel the rocker box for Az; tilt the tube for Alt.\n3. Nudge, release, observe, then nudge again as the sky drifts.",
@@ -324,6 +339,12 @@ func _concept_watch_text(card_id: String) -> String:
 			"星座是宽广的整体图形，不是某一颗可点击的星。倍率过高会把其余形状裁出视场。"
 		)
 	match card_id:
+		"stellar_point_source":
+			return GameManager.text("Do not keep turning the knob hoping a surface appears. Past best focus the point swells again - that means you went too far.", "不要指望继续转动旋钮就能看到表面细节。越过最佳焦点后光点会重新变大，那说明你调过头了。")
+		"wide_field_framing":
+			return GameManager.text("A few bright stars filling the eyepiece is not the cluster. If you cannot see its outline, the power is too high.", "几颗亮星塞满目镜并不等于看到了星团。如果看不出它的轮廓，就说明倍率太高了。")
+		"surface_contrast_detail":
+			return GameManager.text("A bigger, mushier disk is not more detail. If the markings fade as you add power, go back down.", "更大但更糊的圆面并不意味着更多细节。如果提高倍率后纹理反而变淡，就应该降回去。")
 		"dobsonian_manual_altaz":
 			return GameManager.text("The mount does not track automatically. Large corrections create overshoot; use repeated gentle nudges.", "支架不会自动追踪。大幅推动很容易冲过目标，应连续使用轻柔小幅修正。")
 		"cassegrain_folded_path":

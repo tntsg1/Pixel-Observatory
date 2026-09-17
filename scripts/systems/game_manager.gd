@@ -497,6 +497,7 @@ func default_progress() -> Dictionary:
 		"language_mode": "en",
 		"mission_step_state": {},
 		"level_target_overrides": {},
+		"secondary_targets_found": {},
 		"finder_offset": {"az": 0.0, "alt": 0.0},
 		"finder_offset_seeded": false,
 		"tracking_rate": 0.0,
@@ -1021,6 +1022,141 @@ func current_target() -> Dictionary:
 	return get_object(current_target_object_id())
 
 
+# ------------------------------------------------- level-scoped target tuning
+#
+# The same catalog object is reused at very different points in the campaign.
+# Saturn's shipped requirements are tuned for the 140mm Newtonian chapter, so
+# dropping it into the basic-refractor chapter would make that level
+# mathematically unwinnable. A level may therefore soften (or tighten) the
+# target's requirement fields for itself only; the catalog entry - and every
+# other level using it - is untouched.
+func target_requirement_overrides_for(object_id: String) -> Dictionary:
+	var level := current_level()
+	var merged: Dictionary = {}
+	var choice := target_choice_entry(object_id)
+	if not choice.is_empty():
+		var choice_overrides: Variant = choice.get("requirement_overrides", {})
+		if choice_overrides is Dictionary:
+			merged.merge(choice_overrides as Dictionary, true)
+	if object_id == current_target_object_id():
+		var level_overrides: Variant = level.get("target_requirement_overrides", {})
+		if level_overrides is Dictionary:
+			merged.merge(level_overrides as Dictionary, true)
+	return merged
+
+
+func apply_target_requirement_overrides(obj: Dictionary) -> Dictionary:
+	var object_id := str(obj.get("id", ""))
+	if object_id == "":
+		return obj
+	var overrides := target_requirement_overrides_for(object_id)
+	if overrides.is_empty():
+		return obj
+	var tuned := obj.duplicate(true)
+	tuned.merge(overrides, true)
+	return tuned
+
+
+# ------------------------------------------------------------ target choices
+#
+# A choice level (L13) lets the player pick the target instead of being
+# assigned one. Each entry may carry its own observation requirements, so
+# "the right power" differs per target - that comparison is the lesson.
+func target_choices() -> Array:
+	var choices: Variant = current_level().get("target_choices", [])
+	if choices is Array:
+		return choices as Array
+	return []
+
+
+func level_requires_target_choice() -> bool:
+	return bool(current_level().get("requires_target_choice", false)) and not target_choices().is_empty()
+
+
+func target_choice_entry(object_id: String) -> Dictionary:
+	for choice_value in target_choices():
+		if not choice_value is Dictionary:
+			continue
+		var choice: Dictionary = choice_value
+		if str(choice.get("object_id", "")) == object_id:
+			return choice
+	return {}
+
+
+func has_chosen_level_target() -> bool:
+	var level_id := str(current_level().get("id", ""))
+	if level_id == "":
+		return false
+	var overrides: Dictionary = progress.get("level_target_overrides", {})
+	return overrides.has(level_id)
+
+
+func set_level_target_choice(object_id: String) -> bool:
+	if object_id == "" or target_choice_entry(object_id).is_empty():
+		return false
+	var level_id := str(current_level().get("id", ""))
+	if level_id == "":
+		return false
+	if not progress.get("level_target_overrides") is Dictionary:
+		progress["level_target_overrides"] = {}
+	var overrides: Dictionary = progress["level_target_overrides"]
+	overrides[level_id] = object_id
+	progress["level_target_overrides"] = overrides
+	selected_object_id = object_id
+	last_sky_aim = {}
+	save()
+	return true
+
+
+# Requirements actually in force: the level's own block, overlaid by the
+# chosen target's block on a choice level.
+func active_observation_requirements() -> Dictionary:
+	var level := current_level()
+	var base: Variant = level.get("observation_requirements", {})
+	var merged: Dictionary = (base as Dictionary).duplicate(true) if base is Dictionary else {}
+	var choice := target_choice_entry(current_target_object_id())
+	if not choice.is_empty():
+		var choice_requirements: Variant = choice.get("observation_requirements", {})
+		if choice_requirements is Dictionary:
+			merged.merge(choice_requirements as Dictionary, true)
+	return merged
+
+
+# --------------------------------------------------------- secondary targets
+#
+# L55 logs Neptune AND Triton. The secondary is a real, separately confirmed
+# object rather than decoration painted into the primary's sprite.
+func current_secondary_target() -> Dictionary:
+	var secondary: Variant = current_level().get("secondary_target", {})
+	if secondary is Dictionary:
+		return secondary as Dictionary
+	return {}
+
+
+func secondary_target_found() -> bool:
+	var level_id := str(current_level().get("id", ""))
+	if level_id == "":
+		return false
+	var found: Variant = progress.get("secondary_targets_found", {})
+	if not found is Dictionary:
+		return false
+	return bool((found as Dictionary).get(level_id, false))
+
+
+func mark_secondary_target_found() -> void:
+	var level_id := str(current_level().get("id", ""))
+	if level_id == "" or current_secondary_target().is_empty():
+		return
+	if not progress.get("secondary_targets_found") is Dictionary:
+		progress["secondary_targets_found"] = {}
+	var found: Dictionary = progress["secondary_targets_found"]
+	if bool(found.get(level_id, false)):
+		return
+	found[level_id] = true
+	progress["secondary_targets_found"] = found
+	save()
+
+
 # Resolves the level's actual target for this playthrough: levels with a
 # target_pool get a random pick on first visit (stable afterward via
 # progress["level_target_overrides"]); levels without one just use their
@@ -1037,6 +1173,11 @@ func current_target_object_id() -> String:
 	var overrides: Dictionary = progress.get("level_target_overrides", {})
 	if overrides.has(level_id):
 		return str(overrides[level_id])
+	# Choice levels wait for the player instead of rolling for them. The
+	# declared target_object_id is only a placeholder so every existing caller
+	# (sky placement, mission board preview) still has something valid to read.
+	if level_requires_target_choice():
+		return default_id
 	var pick := str(pool[randi() % pool.size()])
 	overrides[level_id] = pick
 	progress["level_target_overrides"] = overrides
@@ -2327,6 +2468,23 @@ func current_room_route() -> Dictionary:
 	# this one decision. It keeps the next physical action consistent.
 	if campaign_completed():
 		return postgraduate_room_route()
+	# Choice assessments have no physical destination until the player has
+	# actually selected an object. The level's fallback target keeps legacy
+	# data callers safe, but must never leak into player-facing guidance as if
+	# the choice had already been made.
+	if level_requires_target_choice() and not has_chosen_level_target():
+		return {
+			"target": "mission",
+			"title": text("Maya: Choose tonight's target", "玛雅：选择今晚的目标"),
+			"hint": text(
+				"Open the Mission Board and choose the Moon, Saturn, or the Pleiades before equipping the telescope.",
+				"先打开任务板，从月球、土星和昴星团中选择一个目标，再为望远镜配装。"
+			),
+			"action": text("Choose a target on the Mission Board", "在任务板上选择目标"),
+			"outcome": text("Your chosen target sets the eyepiece test for tonight.", "你选择的目标会决定今晚要匹配的目镜。"),
+			"ready": false,
+			"choice_pending": true
+		}
 	var target_name := dict_text(current_target(), "name")
 	if current_observation_mode() == "naked_eye":
 		return _with_site_route_status({
@@ -3346,6 +3504,8 @@ func set_collimation_score(value: float) -> void:
 func evaluate_selected_object(extra_context: Dictionary = {}) -> Dictionary:
 	var obj := get_object(selected_object_id)
 	var free_observation := is_free_observation()
+	if not free_observation:
+		obj = apply_target_requirement_overrides(obj)
 	if not extra_context.has("observation_mode"):
 		extra_context["observation_mode"] = current_observation_mode()
 	if not extra_context.has("minimum_success_quality"):
@@ -3377,6 +3537,10 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 	if not next_pending_mission_step().is_empty():
 		return false
 	if not bool(observation.get("success", false)):
+		return false
+	# A system-level mission is not complete until its secondary object has
+	# been confirmed separately (L55: Neptune alone is not Neptune + Triton).
+	if not current_secondary_target().is_empty() and not secondary_target_found():
 		return false
 	var level_number: int = int(level.get("level_number", progress.get("current_level", 1)))
 	var already_completed: bool = progress["completed_levels"].has(level_number)
@@ -3658,6 +3822,43 @@ func _unlock_parts_for_current_level() -> void:
 			_queue_unlock_notice(part_id)
 
 
+# Save migration: a level's target_pool can change between builds (L13 moved
+# from jupiter/moon/mars to moon/saturn/pleiades). A stored pick that is no
+# longer offered would strand the player on a target the level no longer
+# describes, so it is dropped and the level simply asks again. Completed
+# levels, credits, badges and every other stored pick are left alone.
+func _migrate_stale_level_targets() -> void:
+	var overrides: Dictionary = progress.get("level_target_overrides", {})
+	if overrides.is_empty():
+		return
+	var stale: Array[String] = []
+	for level_id_value in overrides.keys():
+		var level_id := str(level_id_value)
+		var level := get_level_by_id(level_id)
+		if level.is_empty():
+			continue
+		var pool: Variant = level.get("target_pool", [])
+		if not pool is Array or (pool as Array).is_empty():
+			continue
+		if not (pool as Array).has(str(overrides[level_id_value])):
+			stale.append(level_id)
+	for level_id in stale:
+		overrides.erase(level_id)
+	if not stale.is_empty():
+		progress["level_target_overrides"] = overrides
+
+
+func get_level_by_id(level_id: String) -> Dictionary:
+	if level_id == "":
+		return {}
+	for level_value in levels_data:
+		if not level_value is Dictionary:
+			continue
+		if str((level_value as Dictionary).get("id", "")) == level_id:
+			return level_value as Dictionary
+	return {}
+
+
 func _queue_unlock_notice(part_id: String) -> void:
 	# Newly unlocked parts are announced with a popup the next time the
 	# player stands in the observatory (see observatory_room).
@@ -3773,6 +3974,9 @@ func _migrate_progress_schema() -> void:
 		progress["mission_step_state"] = {}
 	if not progress.get("level_target_overrides") is Dictionary:
 		progress["level_target_overrides"] = {}
+	if not progress.get("secondary_targets_found") is Dictionary:
+		progress["secondary_targets_found"] = {}
+	_migrate_stale_level_targets()
 	if not progress.get("finder_offset") is Dictionary:
 		progress["finder_offset"] = {"az": 0.0, "alt": 0.0}
 	if not progress.has("finder_offset_seeded"):

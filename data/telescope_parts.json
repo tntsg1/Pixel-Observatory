@@ -83,6 +83,20 @@
     "icon_path": "res://assets/telescope_parts/basic_finder_scope.png"
   },
   {
+    "id": "eyepiece_32mm",
+    "type": "eyepiece",
+    "name_en": "32mm Wide Field Eyepiece",
+    "name_zh": "32mm 广角目镜",
+    "focal_length_mm": 32,
+    "field_of_view": 68,
+    "quality": 60,
+    "cost": 60,
+    "unlock_level": 10,
+    "description_en": "The lowest power and the widest view. Bright and steady, but too weak to separate fine structure.",
+    "description_zh": "倍率最低、视野最宽。画面明亮稳定，但不足以分辨精细结构。",
+    "icon_path": "res://assets/telescope_parts/eyepiece_32mm.png"
+  },
+  {
     "id": "eyepiece_10mm",
     "type": "eyepiece",
     "name_en": "10mm High Power Eyepiece",
