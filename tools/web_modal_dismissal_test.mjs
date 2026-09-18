@@ -32,7 +32,7 @@ assert.ok(
 );
 
 assert.ok(
-  landingSource.includes('account.js?v=20260729-registration-fix'),
+  landingSource.includes('account.js?v=20260917-release-bulletin'),
   "landing page cache-busts the corrected account behavior",
 );
 assert.ok(
@@ -40,7 +40,7 @@ assert.ok(
   "landing page cache-busts the corrected community behavior",
 );
 assert.ok(
-  loaderPatchSource.includes('const SHELL_VERSION = "20260804-loader-stability-v3";'),
+  loaderPatchSource.includes('const SHELL_VERSION = "20260917-release-bulletin";'),
   "game shell cache-busts the corrected account behavior",
 );
 

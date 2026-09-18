@@ -65,6 +65,9 @@ if (!requireRuntime) {
 }
 await access(join(outputDir, "game-loader.js"));
 await access(join(outputDir, "game-loader.css"));
+const announcement = JSON.parse(await readFile(join(outputDir, "release-announcement.json"), "utf8"));
+assert.equal(announcement.schema, 1, "Release announcement schema must be supported.");
+assert.equal(announcement.audience, "registered", "Release announcement must target registered observers.");
 return gameIndex;
 }
 

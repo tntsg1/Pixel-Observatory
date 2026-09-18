@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "version": "v0.9.4",
+  "published_at": "2026-09-17",
+  "audience": "registered",
+  "title": {
+    "en": "Cloud Campaign Reliability Update",
+    "zh": "云端新档可靠性更新"
+  },
+  "summary": {
+    "en": "This release corrects an issue that could restore an older cloud checkpoint immediately after a registered observer started a new campaign.",
+    "zh": "本次更新修复了注册用户建立新游戏后，旧云端进度可能立即覆盖新存档的问题。"
+  },
+  "sections": [
+    {
+      "heading": {
+        "en": "Issues resolved",
+        "zh": "问题修复"
+      },
+      "items": [
+        {
+          "en": "Starting a new campaign now remains at Level 1 instead of being restored to a previous cloud checkpoint, such as Level 43.",
+          "zh": "新建游戏现在会稳定停留在第 1 关，不再被第 43 关等旧云端检查点覆盖。"
+        },
+        {
+          "en": "The main menu now waits for account and cloud-save discovery before enabling New Game, removing the synchronization race at startup.",
+          "zh": "主菜单会先完成账号与云存档检查，再开放“新游戏”，消除了启动阶段的同步竞态。"
+        },
+        {
+          "en": "Campaign resets now use a dedicated, validated server path while ordinary cloud saves retain their protection against accidental progress loss.",
+          "zh": "新档重置现在使用独立且经过校验的服务端流程，普通云存档仍保留防止进度意外倒退的保护。"
+        }
+      ]
+    },
+    {
+      "heading": {
+        "en": "New for registered observers",
+        "zh": "注册用户新功能"
+      },
+      "items": [
+        {
+          "en": "The latest formal release notice now appears once on the main screen after each version update and remains available from the account panel.",
+          "zh": "今后每次版本更新后，最新正式公告会在主屏幕为注册用户显示一次，并可随时从账号面板重新查看。"
+        }
+      ]
+    }
+  ],
+  "footer": {
+    "en": "Thank you for helping us keep every observing record trustworthy.",
+    "zh": "感谢你帮助我们守护每一份可靠的观测记录。"
+  }
+}

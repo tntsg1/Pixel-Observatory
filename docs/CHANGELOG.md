@@ -7,6 +7,18 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-09-17 - v0.9.4 Cloud Campaign Reliability Update
+
+- Fixed registered observers starting a new campaign and being returned to an
+  older cloud checkpoint, including the reported Level 43 case. New campaigns
+  now use an explicit, validated reset while ordinary saves retain monotonic
+  progress protection.
+- Held the New Game action until account and cloud-save discovery completes,
+  removing the startup synchronization race.
+- Added a formal bilingual release bulletin for registered observers. It opens
+  once on the game main screen for each version and remains available from the
+  account panel afterward.
+
 ## 2026-08-04 - Dialogue Portrait Matches the Protagonist
 
 - Replaced the retired blocky player headshot in story dialogue with a lossless
