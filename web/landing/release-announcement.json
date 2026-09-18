@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "version": "v0.9.4",
-  "published_at": "2026-09-17",
+  "version": "v0.9.5",
+  "published_at": "2026-09-18",
   "audience": "registered",
   "title": {
-    "en": "Cloud Campaign Reliability Update",
-    "zh": "云端新档可靠性更新"
+    "en": "Observatory Website Copy Update",
+    "zh": "天文台网站文案更新"
   },
   "summary": {
-    "en": "This release corrects an issue that could restore an older cloud checkpoint immediately after a registered observer started a new campaign.",
-    "zh": "本次更新修复了注册用户建立新游戏后，旧云端进度可能立即覆盖新存档的问题。"
+    "en": "This release revises the public observatory website with clearer, more direct explanations of the observing journey and its scientific foundations.",
+    "zh": "本次更新重新整理了天文台官网文案，以更直接的方式介绍观测旅程及其科学原理。"
   },
   "sections": [
     {
@@ -19,34 +19,34 @@
       },
       "items": [
         {
-          "en": "Starting a new campaign now remains at Level 1 instead of being restored to a previous cloud checkpoint, such as Level 43.",
-          "zh": "新建游戏现在会稳定停留在第 1 关，不再被第 43 关等旧云端检查点覆盖。"
+          "en": "The opening, Maya introduction, telescope assembly, optics, observing and instrument sections now use shorter and more specific language.",
+          "zh": "首页开场、Maya 介绍、望远镜组装、光学、观测与仪器章节已改用更简洁、明确的表述。"
         },
         {
-          "en": "The main menu now waits for account and cloud-save discovery before enabling New Game, removing the synchronization race at startup.",
-          "zh": "主菜单会先完成账号与云存档检查，再开放“新游戏”，消除了启动阶段的同步竞态。"
+          "en": "Dense promotional passages were removed or rewritten so the page reads more like an observatory guide than generic marketing copy.",
+          "zh": "部分冗长的宣传性段落已经删除或重写，让页面更接近天文台指南，而不是泛化的宣传文案。"
         },
         {
-          "en": "Campaign resets now use a dedicated, validated server path while ordinary cloud saves retain their protection against accidental progress loss.",
-          "zh": "新档重置现在使用独立且经过校验的服务端流程，普通云存档仍保留防止进度意外倒退的保护。"
+          "en": "Desktop and mobile layouts were checked against the longer technical explanations to prevent clipped cards and unreadable overflow.",
+          "zh": "桌面端和移动端均已针对较长的技术说明完成排版检查，避免卡片裁切或文字溢出。"
         }
       ]
     },
     {
       "heading": {
-        "en": "New for registered observers",
-        "zh": "注册用户新功能"
+        "en": "Scientific corrections",
+        "zh": "科学表述修正"
       },
       "items": [
         {
-          "en": "The latest formal release notice now appears once on the main screen after each version update and remains available from the account panel.",
-          "zh": "今后每次版本更新后，最新正式公告会在主屏幕为注册用户显示一次，并可随时从账号面板重新查看。"
+          "en": "The dark-adaptation explanation now correctly describes the increasing sensitivity of rod cells, while focus, chromatic aberration, seeing and tracking terminology has been clarified.",
+          "zh": "暗适应说明现已正确描述视杆细胞敏感度的恢复，同时进一步明确了调焦、色差、视宁度和跟踪等术语。"
         }
       ]
     }
   ],
   "footer": {
-    "en": "Thank you for helping us keep every observing record trustworthy.",
-    "zh": "感谢你帮助我们守护每一份可靠的观测记录。"
+    "en": "Thank you for helping the observatory speak with greater clarity.",
+    "zh": "感谢你帮助天文台把每一句话说得更清楚。"
   }
 }

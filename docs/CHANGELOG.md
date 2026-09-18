@@ -7,6 +7,17 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-09-18 - v0.9.5 Observatory Website Copy Update
+
+- Rewrote the Chinese public landing page from the opening and Maya introduction
+  through assembly, optics, observing and advanced instrument explanations.
+- Removed generic promotional phrasing in favor of shorter, more concrete
+  observatory language while preserving the existing visual structure.
+- Corrected the dark-adaptation explanation to refer to rod-cell sensitivity and
+  clarified terminology around focus, chromatic aberration, seeing and tracking.
+- Verified the revised copy at desktop and mobile widths without clipped cards
+  or horizontal text overflow.
+
 ## 2026-09-17 - v0.9.4 Cloud Campaign Reliability Update
 
 - Fixed registered observers starting a new campaign and being returned to an

@@ -13,8 +13,15 @@ assert.equal(announcement.audience, "registered");
 assert.match(announcement.version, /^v\d+\.\d+\.\d+/);
 assert.ok(announcement.title.en && announcement.title.zh, "Release title must be bilingual.");
 assert.ok(announcement.summary.en && announcement.summary.zh, "Release summary must be bilingual.");
-assert.ok(announcement.sections.some(section => section.heading.en === "Issues resolved"));
-assert.ok(announcement.sections.flatMap(section => section.items).some(item => /Level 43/.test(item.en)), "The bulletin documents the reported cloud restore fix.");
+const resolved = announcement.sections.find(section => section.heading.en === "Issues resolved");
+assert.ok(resolved, "Every release bulletin must include a formal Issues resolved section.");
+assert.ok(resolved.items.length > 0, "The bulletin must document at least one resolved issue.");
+for (const section of announcement.sections) {
+	assert.ok(section.heading.en && section.heading.zh, "Every release section heading must be bilingual.");
+	for (const item of section.items) {
+		assert.ok(item.en && item.zh, "Every release item must be bilingual.");
+	}
+}
 
 assert.match(account, /state\.sessionResolved/,
 	"The release bulletin waits for registered-user session discovery.");
