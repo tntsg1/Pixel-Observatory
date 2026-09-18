@@ -101,6 +101,12 @@ func _build_hotspots() -> void:
 		_draw_no_save_menu_rows(rects, active_rects)
 	_add_button_feedback("new", active_rects["new"])
 	var new_button := _transparent_button("new", active_rects["new"])
+	new_button.disabled = not _cloud_progress_is_resolved()
+	if new_button.disabled:
+		new_button.tooltip_text = GameManager.text(
+			"Checking local and cloud saves...",
+			"正在检查本地与云端存档……"
+		)
 	new_button.pressed.connect(_on_new_game)
 	add_child(new_button)
 
@@ -168,11 +174,16 @@ func _draw_no_save_menu_rows(source_rects: Dictionary, target_rects: Dictionary)
 
 
 func _should_show_continue() -> bool:
-	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
-	if cloud_sync != null and cloud_sync.has_method("is_progress_availability_resolved") \
-			and not bool(cloud_sync.call("is_progress_availability_resolved")):
+	if not _cloud_progress_is_resolved():
 		return false
 	return GameManager.has_save()
+
+
+func _cloud_progress_is_resolved() -> bool:
+	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+	if cloud_sync != null and cloud_sync.has_method("is_progress_availability_resolved"):
+		return bool(cloud_sync.call("is_progress_availability_resolved"))
+	return true
 
 
 func _build_feedback() -> void:
@@ -205,6 +216,12 @@ func _build_feedback() -> void:
 
 
 func _on_new_game() -> void:
+	if not _cloud_progress_is_resolved():
+		_show_feedback(GameManager.text(
+			"Please wait while local and cloud saves are checked.",
+			"正在检查本地与云端存档，请稍候。"
+		))
+		return
 	GameManager.new_game()
 	if GameManager.try_story_event("intro", "observatory"):
 		return

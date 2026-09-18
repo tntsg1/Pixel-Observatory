@@ -20,9 +20,12 @@ assert.match(cloudSync, /pixelObservatoryCloudResponse/, "Godot receives browser
 assert.match(cloudSync, /_guest_progress_candidate/, "Guest progress is frozen before cloud download.");
 assert.match(cloudSync, /merge_required/, "Cloud sync has a non-destructive merge-required state.");
 assert.match(cloudSync, /_union_arrays/, "Monotonic archive collections are merged, not replaced.");
+assert.match(cloudSync, /start_new_campaign/, "New Game uses a dedicated cloud campaign reset path.");
+assert.match(cloudSync, /resetCampaign/, "The cloud upload identifies an explicit campaign reset.");
 assert.match(saveManager, /save_revision/, "Local saves carry a monotonic revision.");
 assert.match(saveManager, /save_updated_at/, "Local saves carry an update timestamp.");
 assert.match(worker, /stale_progress/, "The Worker rejects stale or regressive uploads.");
 assert.match(worker, /preservesMonotonicProgress/, "The Worker verifies monotonic achievements before replacing an archive.");
+assert.match(worker, /invalid_campaign_reset/, "The Worker validates fresh campaign reset payloads.");
 
 console.log("CLOUD_SAVE_WEB_CONTRACT_TEST_PASS");

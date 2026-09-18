@@ -523,7 +523,13 @@ func new_game() -> void:
 	# Save exactly the initialized game state.  Writing the default progress
 	# first would transiently persist English and could queue an incorrect cloud
 	# upload when the player starts a Chinese game from the main menu.
-	SaveManager.save_progress(progress)
+	# A fresh campaign replaces the one cloud slot. Do not send it through the
+	# normal monotonic upload/merge path: that path intentionally keeps the
+	# highest level and would resurrect the previous campaign.
+	SaveManager.save_progress(progress, false)
+	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+	if cloud_sync != null and cloud_sync.has_method("start_new_campaign"):
+		cloud_sync.call("start_new_campaign", progress.duplicate(true))
 	selected_object_id = ""
 	selected_object_level = 0
 	world_map_return_scene = "sky"

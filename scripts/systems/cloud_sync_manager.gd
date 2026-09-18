@@ -53,6 +53,7 @@ var _local_progress_belongs_to_session := false
 var _guest_progress_candidate: Dictionary = {}
 var _cloud_progress_candidate: Dictionary = {}
 var _merge_pending := false
+var _new_campaign_pending := false
 var _session_refresh_requested := false
 var _browser_session_callback
 var _browser_merge_callback
@@ -200,6 +201,31 @@ func queue_upload(progress: Dictionary) -> void:
 	_emit_status("syncing", "Syncing progress.")
 
 
+# New Game is an explicit replacement of the single campaign slot, not a
+# monotonic merge. The menu waits for session/cloud discovery before calling
+# this, so the reset always belongs to the resolved account (or remains local
+# for a guest) and cannot accidentally target an account discovered later.
+func start_new_campaign(fresh_progress: Dictionary) -> void:
+	_merge_pending = false
+	_guest_progress_candidate.clear()
+	_cloud_progress_candidate.clear()
+	_pending_progress.clear()
+	_upload_clock = -1.0
+	if not OS.has_feature("web") or _session_user.is_empty():
+		_new_campaign_pending = false
+		_emit_status("local_saved", "Saved locally just now.")
+		return
+	_new_campaign_pending = true
+	var owned_progress := fresh_progress.duplicate(true)
+	owned_progress["cloud_owner_id"] = str(_session_user.get("id", ""))
+	GameManager.progress["cloud_owner_id"] = str(_session_user.get("id", ""))
+	SaveManager.save_progress(GameManager.progress, false, false)
+	_pending_progress = owned_progress
+	_local_progress_belongs_to_session = true
+	_upload_clock = 0.0
+	_emit_status("syncing", "Starting a new cloud campaign.")
+
+
 func signed_in() -> bool:
 	return not _session_user.is_empty()
 
@@ -252,6 +278,7 @@ func _flush_upload() -> void:
 		"baseVersion": _cloud_version,
 		"schemaVersion": int(_pending_progress.get("campaign_version", 1)),
 		"clientUpdatedAt": int(_pending_progress.get("save_updated_at", Time.get_unix_time_from_system())),
+		"resetCampaign": _new_campaign_pending,
 	}
 	_start_request("upload", SAVE_PATH, HTTPClient.METHOD_PUT, JSON.stringify(payload))
 
@@ -338,6 +365,7 @@ func _complete_request(operation: String, response_code: int, body: PackedByteAr
 		"upload":
 			_cloud_version = int(payload.get("version", _cloud_version + 1))
 			_pending_progress.clear()
+			_new_campaign_pending = false
 			GameManager.progress["cloud_synced_revision"] = int(GameManager.progress.get("save_revision", 0))
 			SaveManager.save_progress(GameManager.progress, false, false)
 			_emit_status("saved", "Saved just now.")
@@ -361,6 +389,24 @@ func _apply_cloud_payload(payload: Dictionary) -> void:
 			_cloud_progress_candidate["cloud_owner_id"] = str(_session_user.get("id", ""))
 	else:
 		_cloud_version = 0
+
+	# A deliberate New Game must win over the previous single-slot archive.
+	# Never feed that archive into the monotonic merge, which would restore the
+	# old level/credits by design. Downloading first still gives us the current
+	# server version needed for a conflict-safe reset upload.
+	if _new_campaign_pending:
+		var fresh_progress := GameManager.progress.duplicate(true)
+		fresh_progress["cloud_owner_id"] = str(_session_user.get("id", ""))
+		GameManager.progress["cloud_owner_id"] = str(_session_user.get("id", ""))
+		SaveManager.save_progress(GameManager.progress, false, false)
+		_pending_progress = fresh_progress
+		_guest_progress_candidate.clear()
+		_merge_pending = false
+		_local_progress_belongs_to_session = true
+		_upload_clock = 0.0
+		_emit_status("syncing", "Starting a new cloud campaign.")
+		_set_progress_availability_resolved(true)
+		return
 
 	if not _guest_progress_candidate.is_empty():
 		_merge_pending = true

@@ -88,9 +88,51 @@ const mergedUpload = await request("/api/cloud-save", {
 }, cookie);
 assert.equal(mergedUpload.data.version, 2);
 
+const invalidReset = await request("/api/cloud-save", {
+	method: "PUT",
+	body: JSON.stringify({
+		progress: { ...mergedProgress, current_level: 2 },
+		baseVersion: 2,
+		schemaVersion: 2,
+		clientUpdatedAt: 1050,
+		resetCampaign: true,
+	}),
+}, cookie, 400);
+assert.equal(invalidReset.data.error, "invalid_campaign_reset");
+
+const freshProgress = {
+	...richProgress,
+	save_revision: 1,
+	save_updated_at: 1100,
+	current_level: 1,
+	credits: 0,
+	completed_levels: [],
+	observed_objects: [],
+	journal_entries: [],
+	program_completed: false,
+};
+const resetUpload = await request("/api/cloud-save", {
+	method: "PUT",
+	body: JSON.stringify({
+		progress: freshProgress,
+		baseVersion: 2,
+		schemaVersion: 2,
+		clientUpdatedAt: 1100,
+		resetCampaign: true,
+	}),
+}, cookie);
+assert.equal(resetUpload.data.version, 3);
+const afterReset = await request("/api/cloud-save", {}, cookie);
+assert.equal(afterReset.data.save.progress.current_level, 1);
+assert.equal(afterReset.data.save.progress.credits, 0);
+assert.deepEqual(afterReset.data.save.progress.completed_levels, []);
+
 console.log(JSON.stringify({
 	ok: true,
 	staleUploadRejected: rejected.data.error,
+	invalidResetRejected: invalidReset.data.error,
 	cloudLevelAfterReject: afterReject.data.save.progress.current_level,
 	mergedVersion: mergedUpload.data.version,
+	resetVersion: resetUpload.data.version,
+	cloudLevelAfterReset: afterReset.data.save.progress.current_level,
 }, null, 2));

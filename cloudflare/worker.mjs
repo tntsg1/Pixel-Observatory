@@ -599,13 +599,22 @@ async function handleSavePut(request, env) {
 		return apiError("The save is too large or invalid.", 413, "invalid_save");
 	}
 	if (!body.progress || typeof body.progress !== "object" || Array.isArray(body.progress)) return apiError("Invalid save data.", 400, "invalid_save");
+	const resetCampaign = body.resetCampaign === true;
+	if (resetCampaign) {
+		const isFreshCampaign = Number(body.progress.current_level || 1) === 1
+			&& Number(body.progress.credits || 0) === 0
+			&& Array.isArray(body.progress.completed_levels) && body.progress.completed_levels.length === 0
+			&& Array.isArray(body.progress.journal_entries) && body.progress.journal_entries.length === 0
+			&& body.progress.program_completed !== true;
+		if (!isFreshCampaign) return apiError("A campaign reset must contain a fresh level-one save.", 400, "invalid_campaign_reset");
+	}
 	const progressJson = JSON.stringify(body.progress);
 	if (new TextEncoder().encode(progressJson).length > MAX_SAVE_BYTES) return apiError("The save is too large.", 413, "invalid_save");
 	const existing = await env.DB.prepare("SELECT version, progress_json FROM cloud_saves WHERE user_id = ?").bind(user.id).first();
 	const currentVersion = Number(existing?.version || 0);
 	const baseVersion = Number(body.baseVersion || 0);
 	if (existing && baseVersion !== currentVersion) return json({ ok: false, error: "version_conflict", currentVersion }, 409);
-	if (existing) {
+	if (existing && !resetCampaign) {
 		let currentProgress = {};
 		try {
 			currentProgress = JSON.parse(existing.progress_json || "{}");

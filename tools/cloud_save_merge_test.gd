@@ -40,6 +40,22 @@ func _initialize() -> void:
 	_assert((merged["unlocked_parts"] as Array).has("cloud_only_part"), "Cloud-only unlocks must survive a local-primary merge.")
 	_assert(int(cloud_sync.call("_compare_progress", local, cloud)) > 0, "An older cloud archive must never outrank richer local progress.")
 
+	# A deliberate New Game is the exception to monotonic merging. Simulate the
+	# conflict-recovery download that can arrive after another browser advances
+	# the cloud archive, and verify the fresh campaign is still the upload source.
+	var fresh: Dictionary = game_manager.call("default_progress")
+	fresh["save_initialized"] = true
+	fresh["current_level"] = 1
+	fresh["credits"] = 0
+	game_manager.set("progress", fresh.duplicate(true))
+	cloud_sync.set("_session_user", {"id": "reset-test-user"})
+	cloud_sync.set("_new_campaign_pending", true)
+	cloud_sync.call("_apply_cloud_payload", {"save": {"version": 7, "progress": local}})
+	var reset_upload: Dictionary = cloud_sync.get("_pending_progress")
+	_assert(int(game_manager.get("progress").get("current_level", 0)) == 1, "Cloud conflict recovery must not restore the old level during New Game.")
+	_assert(int(reset_upload.get("current_level", 0)) == 1, "New Game retries the fresh level-one campaign after a cloud conflict.")
+	_assert(int(cloud_sync.get("_cloud_version")) == 7, "New Game adopts the latest cloud version before retrying its reset.")
+
 	var first := local.duplicate(true)
 	save_manager.call("_update_archive_metadata", first, {})
 	_assert(int(first["save_revision"]) == 8, "A meaningful local save increments its revision.")
