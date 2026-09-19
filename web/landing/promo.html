@@ -601,6 +601,129 @@
   }
   .gnav-visits b{color:var(--gold-soft);font-weight:600}
   @media (max-width:980px){.gnav-visits{display:none}}
+  /* Observatory navigation: the controls stay above the hero and the drawer is a real focusable menu. */
+  html{overflow-x:clip}
+  .gnav{z-index:500;isolation:isolate;max-width:calc(100vw - 24px)}
+  .gnav-drawer{display:contents}
+  .gnav-menu-toggle{display:none}
+  .gnav :is(a,button):focus-visible,.instrument-tabs button:focus-visible{outline:2px solid #e9c987;outline-offset:3px}
+  @media (max-width:1250px){
+    .gnav{width:min(520px,calc(100vw - 24px));padding:8px 10px 8px 16px;justify-content:space-between;border-radius:23px;gap:10px}
+    .gnav-brand{font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+    .gnav-menu-toggle{display:none;align-items:center;justify-content:center;gap:6px;flex:none;border:1px solid rgba(233,201,135,.38);border-radius:12px;background:rgba(20,35,58,.86);color:var(--gold-soft);padding:9px 11px;font:600 12px var(--sans);cursor:pointer}
+    .gnav.menu-ready .gnav-menu-toggle{display:inline-flex}
+    .gnav-menu-toggle[aria-expanded="true"]{background:rgba(56,73,104,.9)}
+    .gnav-play{padding:10px 13px;flex:none}
+    .gnav-drawer{display:grid;position:absolute;top:calc(100% + 9px);left:0;right:0;padding:18px;border:1px solid rgba(233,201,135,.35);border-radius:22px;background:linear-gradient(155deg,rgba(17,34,57,.98),rgba(5,10,22,.98));box-shadow:0 22px 65px rgba(0,0,0,.65);max-height:calc(100dvh - 90px);overflow:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .gnav.menu-ready .gnav-drawer{display:none}
+    .gnav.menu-ready .gnav-drawer.is-open{display:grid}
+    .gnav-links{display:contents}
+    .gnav-links a,.gnav-drawer .gnav-tool{display:flex;justify-content:flex-start;align-items:center;min-width:0;min-height:42px;padding:8px 12px;border-radius:12px;color:var(--txt-hi);font-size:13px;text-decoration:none}
+    .gnav-links a{border:1px solid rgba(140,174,213,.18);background:rgba(44,69,104,.19)}
+    .gnav-drawer .gnav-tool{width:auto;height:auto;border-radius:12px}
+    .gnav-drawer .gnav-tool span:last-child{display:inline}
+    .gnav-drawer #account-open{order:-4}
+    .gnav-drawer .lang-sw{order:-3;justify-content:center;align-items:center}
+    .gnav-drawer #inbox-open{order:-2}
+    .gnav-drawer #community-open{order:-1}
+    .gnav-drawer .gnav-feedback{display:flex}
+    .gnav-drawer .gnav-visits{display:block;align-self:center}
+  }
+  @media (max-width:560px){
+    .gnav{top:10px;width:calc(100vw - 20px)}
+    .gnav-brand{font-size:0;gap:0;overflow:visible;flex:none}
+    .gnav-brand .dot{width:13px;height:13px}
+    .gnav-play{margin-left:auto}
+    .gnav-drawer{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (prefers-reduced-motion:reduce){.gnav,.gnav-play{transition:none!important}}
+  /* The path is a scan-friendly map; detailed optical diagrams share one comparison surface. */
+  section{padding:70px 0}
+  .tl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:48px}
+  .tl::before,.tl-item::before{display:none}
+  .tl-item{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:18px;border:1px solid var(--line);border-radius:18px;background:rgba(19,32,56,.45)}
+  .tl-fig,.tl-item:nth-child(even) .tl-fig{order:0;padding:0;height:100px;place-items:center}
+  .tl-fig svg{width:min(100%,150px);max-height:100px}
+  .tl-txt,.tl-item:nth-child(even) .tl-txt{order:1;text-align:left}
+  .tl-txt .stage{margin-bottom:5px}
+  .tl-txt h3{font-size:18px;line-height:1.3}
+  .tl-txt p,.tl-item:nth-child(even) .tl-txt p{margin:8px 0 0;font-size:14px;line-height:1.55}
+  .s-pr{padding-top:72px}
+  .instrument-tabs{display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:44px}
+  .instrument-tabs.is-ready{display:grid}
+  .instrument-tab{min-width:0;min-height:84px;text-align:left;padding:14px;border:1px solid rgba(154,188,226,.25);border-radius:14px;background:rgba(17,33,57,.68);color:var(--txt-hi);font:inherit;cursor:pointer}
+  .instrument-tab[aria-pressed="true"]{border-color:var(--gold);background:rgba(217,166,72,.13);box-shadow:inset 0 2px rgba(233,201,135,.15)}
+  .instrument-tab b{display:block;font-size:15px;line-height:1.3}
+  .instrument-tab small{display:block;margin-top:7px;font-size:12px;line-height:1.4;color:var(--txt-mid)}
+  .pr[hidden]{display:none!important}
+  .instrument-tabs.is-ready ~ .pr{margin-top:40px}
+  .asm-grid{margin-top:50px;gap:48px}
+  .asm-steps{gap:3.5vh;padding:2vh 0 4vh}
+  .maya-band .art{max-width:250px}
+  .eye-visual{aspect-ratio:21/8}
+  .cmp-pair{margin-top:42px}
+  .cmp-view{aspect-ratio:16/9}
+  .tip-band{margin-top:38px}
+  .s-opt{padding-bottom:42px}
+  .s-cmp{padding-top:42px}
+  #optics .s-cmp,#path .s-pr{background:transparent}
+  .s-tl{padding-bottom:54px}
+  .s-pr{padding-top:54px}
+  .eye-visual{margin-top:46px}
+  .eye-stats{margin-top:32px}
+  .motto{margin-top:45px}
+  .dyn-stage{margin-top:42px}
+  .s-diff .mechanism-list{margin-top:38px}
+  .creator-note{margin-top:54px}
+  .feat-grid{margin-top:42px}
+  .finale{min-height:65svh;padding:80px 24px}
+  .view-tabs{display:none}
+  .obs-card[hidden]{display:none!important}
+  .s-diff .mechanism-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+  .s-diff .mechanism-card{display:flex;flex-direction:column;align-items:stretch;gap:20px}
+  .s-diff .mechanism-card{padding:24px}
+  .s-diff .mechanism-card .mechanism-figure{margin-top:auto}
+  .s-diff .environment-card{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .seeing-detail{margin-top:16px;padding:14px 16px;border:1px solid rgba(233,201,135,.3);border-radius:12px;background:rgba(217,166,72,.07)}
+  .seeing-detail summary{cursor:pointer;color:var(--gold-soft);font-weight:650;font-size:14px}
+  .seeing-detail summary:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+  .seeing-detail .mechanism-figure{margin-top:16px;max-width:320px}
+  @media (max-width:900px){
+    section{padding:70px 0}
+    .tl{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .instrument-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .s-diff .mechanism-list{grid-template-columns:1fr}
+    .s-diff .environment-card{grid-column:auto;display:flex}
+    .view-tabs.is-ready{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:32px}
+    .view-tabs button{min-width:0;padding:10px 8px;border:1px solid rgba(154,188,226,.3);border-radius:13px;background:rgba(18,35,60,.74);color:var(--txt-hi);font:inherit;cursor:pointer;text-align:center}
+    .view-tabs button[aria-pressed="true"]{border-color:var(--gold);background:rgba(217,166,72,.13)}
+    .view-tabs b,.view-tabs small{display:block}
+    .view-tabs b{font-size:14px}.view-tabs small{font-size:11px;color:var(--txt-mid);margin-top:3px}
+    .obs-views{margin-top:14px}
+    .asm-steps{gap:36px}
+    .maya-band .art{max-width:210px}
+    .view-tabs button:focus-visible{outline:2px solid var(--gold-soft);outline-offset:3px}
+  }
+  @media (max-width:560px){
+    section{padding:62px 0}
+    .tl{gap:10px}
+    .tl-item{padding:14px}
+    .tl-fig{height:72px!important}
+    .tl-fig svg{max-height:72px}
+    .tl-txt h3{font-size:16px}
+    .tl-txt p{font-size:13px}
+    .instrument-tab{min-height:78px;padding:11px}
+    .eye-stats{grid-template-columns:1fr;gap:8px}
+    .eye-stat{padding:16px 18px}
+    .eye-stat b{font-size:22px}
+    .eye-stat em{margin-bottom:3px}
+    .feat-grid{gap:10px}
+    .feat{min-height:120px;padding:48px 24px 20px}
+    .feat::before{top:16px;left:24px}.feat::after{top:23px;left:31px}
+    .s-diff .mechanism-card{padding:22px;gap:14px}
+    .s-diff .mechanism-figure{max-height:185px}
+    .s-diff .mechanism-figure svg{max-height:160px}
+  }
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2305070d'/%3E%3Cpath d='M16 4l2.4 8.3L27 16l-8.6 3.7L16 28l-2.4-8.3L5 16l8.6-3.7L16 4z' fill='%23d9a648'/%3E%3C/svg%3E">
 </head>
@@ -609,6 +732,8 @@
 <!-- ================= NAV ================= -->
 <nav class="gnav glass" id="gnav" aria-label="Main navigation">
   <a class="gnav-brand" href="#top"><span class="dot" aria-hidden="true"></span>Starlight Observatory</a>
+  <button class="gnav-menu-toggle" id="gnav-menu-toggle" type="button" aria-expanded="false" aria-controls="gnav-drawer" aria-label="Open navigation / 展开导航"><span aria-hidden="true">✦</span><span class="en">Menu</span><span class="zh">菜单</span></button>
+  <div class="gnav-drawer" id="gnav-drawer">
   <div class="gnav-links">
     <a href="#assemble"><span class="en">Assembly</span><span class="zh">组装</span></a>
     <a href="#optics"><span class="en">Optics</span><span class="zh">光学</span></a>
@@ -634,6 +759,7 @@
     <button type="button" id="langEn" aria-pressed="true">EN</button>
   </div>
   <span class="gnav-visits" aria-live="polite">VISITORS <b id="visitor-count">--</b></span>
+  </div>
   <a class="gnav-play" href="game/" target="_blank" rel="noopener">
     <span class="en">▶ Play</span><span class="zh">▶ 在线游玩</span></a>
 </nav>
@@ -979,12 +1105,8 @@
         <span class="zh">实际观测还会受到大气视宁度、光学质量和对焦精度影响。</span>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ================= 4 · GLASS LIMIT → NEWTONIAN ================= -->
-<section class="s-cmp" id="reflector">
-  <div class="wrap">
+    <!-- The refractor's focus and its colour limit form one optics lesson. -->
+    <div class="s-cmp" id="reflector">
     <p class="eyebrow rv">Chapter 04 · <span class="en">The Limit of Glass</span><span class="zh"></span></p>
     <h2 class="rv">
       <span class="en">When the limits of glass<br>become visible.</span>
@@ -1049,6 +1171,7 @@
         <p class="zh">“玻璃把蓝光折射得比红光更厉害。或许不应该用折射，而应该用反射？”</p>
       </div>
     </div>
+    </div>
   </div>
 </section>
 
@@ -1062,6 +1185,11 @@
       <p class="zh">天文观测通常在不同视场间切换：先用大视场完成目标搜寻，再逐步缩小视场并提高倍率，以获得更精细的结构信息。</p>
     </div>
 
+    <div class="view-tabs" role="group" aria-label="Observation views / 观测视角">
+      <button type="button" aria-pressed="true"><b><span class="en">Eye</span><span class="zh">肉眼</span></b><small>180° · <span class="en">orient</span><span class="zh">定位</span></small></button>
+      <button type="button" aria-pressed="false"><b><span class="en">Finder</span><span class="zh">寻星镜</span></b><small>28° · <span class="en">aim</span><span class="zh">瞄准</span></small></button>
+      <button type="button" aria-pressed="false"><b><span class="en">Scope</span><span class="zh">主镜</span></b><small>6° · <span class="en">study</span><span class="zh">细看</span></small></button>
+    </div>
     <div class="obs-views">
       <article class="obs-card card rv">
         <div class="obs-scope" aria-label="Naked-eye view: a wide sky of faint points">
@@ -1385,12 +1513,8 @@
         </div>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ================= 8 · PRINCIPLES ATLAS ================= -->
-<section class="s-pr" id="principles">
-  <div class="wrap">
+    <!-- The stage map and instrument comparison are read as one progression. -->
+    <div class="s-pr" id="principles">
     <p class="eyebrow rv">Chapter 08 · <span class="en">How They Work</span><span class="zh">原理详解</span></p>
     <h2 class="rv">
       <span class="en">Four instruments,<br>four ways of catching light.</span>
@@ -1411,6 +1535,12 @@
     </div>
 
     <!-- ---- Newtonian ---- -->
+    <div class="instrument-tabs" role="group" aria-label="Instrument comparison / 仪器对比">
+      <button type="button" class="instrument-tab" aria-pressed="true"><b><span class="en">Newtonian</span><span class="zh">牛顿反射镜</span></b><small><span class="en">Mirror · colour without fringing</span><span class="zh">主镜反射 · 没有透镜色差</span></small></button>
+      <button type="button" class="instrument-tab" aria-pressed="false"><b><span class="en">Dobsonian</span><span class="zh">多布森</span></b><small><span class="en">Simple mount · more aperture</span><span class="zh">简化支架 · 换得更大口径</span></small></button>
+      <button type="button" class="instrument-tab" aria-pressed="false"><b><span class="en">Webb</span><span class="zh">韦伯</span></b><small><span class="en">Cold mirrors · infrared</span><span class="zh">低温镜面 · 观测红外</span></small></button>
+      <button type="button" class="instrument-tab" aria-pressed="false"><b>FAST</b><small><span class="en">Moving surface · radio</span><span class="zh">主动变形 · 接收射电信号</span></small></button>
+    </div>
     <article class="pr rv">
       <figure class="pr-fig" aria-label="Newtonian reflector light path: parabolic primary and 45-degree flat secondary">
         <svg viewBox="0 0 620 420">
@@ -1757,6 +1887,7 @@
         </div>
       </div>
     </article>
+    </div>
   </div>
 </section>
 
@@ -2131,6 +2262,8 @@
     });
     btnZh.setAttribute('aria-pressed', String(l === 'zh'));
     btnEn.setAttribute('aria-pressed', String(l === 'en'));
+    document.getElementById('account-open').setAttribute('aria-label', l === 'zh' ? '账号' : 'Account');
+    document.getElementById('inbox-open').setAttribute('aria-label', l === 'zh' ? '信箱' : 'Inbox');
     updateGameLinks(l);
     if(remember){ try{ localStorage.setItem('so-lang', l); }catch(e){} }
     document.dispatchEvent(new CustomEvent('po:language-changed', {detail:{lang:l}}));
@@ -2242,7 +2375,23 @@
   var heroInner = document.getElementById('heroInner');
   var heroCv = document.getElementById('sky');
   var gnav = document.getElementById('gnav');
-  var lastY = 0, ticking = false, navStopTimer = 0;
+  gnav.classList.add('menu-ready');
+  var menuToggle = document.getElementById('gnav-menu-toggle');
+  var menuDrawer = document.getElementById('gnav-drawer');
+  var lastY = scrollY, ticking = false;
+  function setMenuOpen(open, restoreFocus){
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'Close navigation / 关闭导航' : 'Open navigation / 展开导航');
+    menuDrawer.classList.toggle('is-open', open);
+    if(restoreFocus) menuToggle.focus();
+  }
+  menuToggle.addEventListener('click', function(){setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true');gnav.classList.remove('hide');});
+  menuDrawer.addEventListener('click', function(event){
+    if(event.target.closest('a,button')) setMenuOpen(false);
+  });
+  document.addEventListener('pointerdown', function(event){if(!gnav.contains(event.target)) setMenuOpen(false);});
+  document.addEventListener('keydown', function(event){if(event.key === 'Escape' && menuToggle.getAttribute('aria-expanded') === 'true'){setMenuOpen(false,true);}});
+  addEventListener('resize', function(){if(innerWidth > 1250) setMenuOpen(false);});
   function onScroll(){
     var y = scrollY;
     if(!reduced && heroInner && y < innerHeight*1.2){
@@ -2251,36 +2400,60 @@
       heroCv.style.transform = 'translateY('+(y*.16)+'px)';
     }
     if(gnav){
-      if(y < 90) gnav.classList.add('hide');
-      else if(y > lastY + 4) gnav.classList.add('hide');
-      else if(y < lastY - 4) gnav.classList.remove('hide');
+      if(y < 90 || y < lastY - 2 || menuToggle.getAttribute('aria-expanded') === 'true' || (gnav.contains(document.activeElement) && document.activeElement.matches(':focus-visible'))) {gnav.classList.remove('hide');gnav.inert=false;}
+      else if(y > lastY + 5) {gnav.classList.add('hide');gnav.inert=true;}
     }
     lastY = y; ticking = false;
   }
-  function revealNavAfterStop(){
-    clearTimeout(navStopTimer);
-    navStopTimer = setTimeout(function(){
-      if(gnav && scrollY >= 90) gnav.classList.remove('hide');
-    }, 320);
-  }
   addEventListener('scroll', function(){
     if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
-    revealNavAfterStop();
   }, {passive:true});
   onScroll();
-  revealNavAfterStop();
-  var hero = document.getElementById('top');
-  if(hero){
-    hero.addEventListener('pointerdown', function(event){
-      if(event.target.closest('a,button,input,textarea,select')) return;
-      if(gnav){
-        clearTimeout(navStopTimer);
-        gnav.classList.remove('hide');
-        navStopTimer = setTimeout(function(){
-          if(scrollY < 90) gnav.classList.add('hide');
-        }, 4200);
-      }
+
+  /* All articles remain in the HTML if scripts fail. Once ready, show one detailed
+     optical comparison while the four short summaries stay visible. */
+  var instrumentButtons = Array.from(document.querySelectorAll('.instrument-tab'));
+  var instrumentArticles = Array.from(document.querySelectorAll('#principles .pr'));
+  function selectInstrument(index){
+    instrumentButtons.forEach(function(button,i){button.setAttribute('aria-pressed', String(i === index));});
+    instrumentArticles.forEach(function(article,i){
+      article.hidden = i !== index;
+      if(i === index) article.classList.add('in');
     });
+  }
+  instrumentButtons.forEach(function(button,index){
+    button.addEventListener('click', function(){selectInstrument(index);});
+    button.addEventListener('keydown', function(event){
+      var next = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1 : -1;
+      if(next >= 0){event.preventDefault();next = (next + instrumentButtons.length) % instrumentButtons.length;selectInstrument(next);instrumentButtons[next].focus();}
+    });
+  });
+  if(instrumentButtons.length === instrumentArticles.length){document.querySelector('.instrument-tabs').classList.add('is-ready');selectInstrument(0);}
+  var viewButtons = Array.from(document.querySelectorAll('.view-tabs button'));
+  var viewCards = Array.from(document.querySelectorAll('.obs-card'));
+  var selectedView = 0;
+  function updateViews(){
+    var compact = innerWidth <= 900;
+    viewCards.forEach(function(card,i){card.hidden = compact && i !== selectedView;if(!card.hidden) card.classList.add('in');});
+    viewButtons.forEach(function(button,i){button.setAttribute('aria-pressed', String(i === selectedView));});
+    document.querySelector('.view-tabs').classList.toggle('is-ready', compact);
+  }
+  viewButtons.forEach(function(button,i){button.addEventListener('click',function(){selectedView=i;updateViews();});});
+  addEventListener('resize',updateViews);
+  updateViews();
+  /* The separate seeing card repeats the environmental feedback explanation.
+     Keep its measured limits and diagram beside the complete cause-and-response chain. */
+  var mechanismCards = document.querySelectorAll('#difference .mechanism-card');
+  if(mechanismCards.length >= 5){
+    var seeingCard = mechanismCards[0];
+    var environmentCard = mechanismCards[4];
+    environmentCard.classList.add('environment-card');
+    var seeingDetail = document.createElement('details');
+    seeingDetail.className = 'seeing-detail';
+    seeingDetail.innerHTML = '<summary><span class="en">Seeing limit: why less magnification can help</span><span class="zh">视宁度上限：为什么降低倍率更有效</span></summary>';
+    seeingCard.querySelectorAll('p,.mechanism-code,.mechanism-figure').forEach(function(node){seeingDetail.appendChild(node);});
+    environmentCard.firstElementChild.appendChild(seeingDetail);
+    seeingCard.remove();
   }
 
   /* ---------- scatter static SVG stars ---------- */

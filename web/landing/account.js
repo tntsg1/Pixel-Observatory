@@ -205,6 +205,7 @@ window.pixelObservatoryCloudRequest = async request => {
     const label=document.getElementById("account-label");
     if(label) label.textContent=state.user?.username||t("Account","账号");
   }
+  document.addEventListener("po:language-changed",updateNav);
 
   function notifyGameSessionChanged(){
     document.dispatchEvent(new CustomEvent("po:session-changed"));
