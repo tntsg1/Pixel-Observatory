@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "version": "v0.9.5",
-  "published_at": "2026-09-18",
+  "version": "v0.9.7",
+  "published_at": "2026-09-28",
   "audience": "registered",
   "title": {
-    "en": "Observatory Website Copy Update",
-    "zh": "天文台网站文案更新"
+    "en": "Eyepiece Observation Fixes",
+    "zh": "目镜观测问题修复"
   },
   "summary": {
-    "en": "This release revises the public observatory website with clearer, more direct explanations of the observing journey and its scientific foundations.",
-    "zh": "本次更新重新整理了天文台官网文案，以更直接的方式介绍观测旅程及其科学原理。"
+    "en": "The Level 10 Saturn comparison and eyepiece recommendations in Levels 13 and 16 have been corrected. These fixes are live in the browser game.",
+    "zh": "第 10 关土星目镜比较，以及第 13、16 关的目镜推荐问题已修复，网页版现已更新。"
   },
   "sections": [
     {
@@ -19,34 +19,22 @@
       },
       "items": [
         {
-          "en": "The opening, Maya introduction, telescope assembly, optics, observing and instrument sections now use shorter and more specific language.",
-          "zh": "首页开场、Maya 介绍、望远镜组装、光学、观测与仪器章节已改用更简洁、明确的表述。"
+          "en": "Level 10 now records a focused Saturn observation through the 32mm and 10mm eyepieces as part of the comparison, even though those powers cannot pass the final identification check. After comparing all three, return to the 20mm eyepiece to identify Saturn.",
+          "zh": "第 10 关使用 32mm 或 10mm 目镜对准土星并完成调焦后，即使倍率不满足最终识别条件，比较步骤也会记录。比较三枚目镜后，请换回 20mm 目镜识别土星。"
         },
         {
-          "en": "Dense promotional passages were removed or rewritten so the page reads more like an observatory guide than generic marketing copy.",
-          "zh": "部分冗长的宣传性段落已经删除或重写，让页面更接近天文台指南，而不是泛化的宣传文案。"
+          "en": "In Level 13, the parts cabinet and automatic equipment now follow the target you actually chose: 10mm for the Moon, 20mm for Saturn, and 32mm for the Pleiades.",
+          "zh": "第 13 关的零件柜与自动配装现在会按实际选择的目标推荐：月球 10mm、土星 20mm、昴星团 32mm。"
         },
         {
-          "en": "Desktop and mobile layouts were checked against the longer technical explanations to prevent clipped cards and unreadable overflow.",
-          "zh": "桌面端和移动端均已针对较长的技术说明完成排版检查，避免卡片裁切或文字溢出。"
-        }
-      ]
-    },
-    {
-      "heading": {
-        "en": "Scientific corrections",
-        "zh": "科学表述修正"
-      },
-      "items": [
-        {
-          "en": "The dark-adaptation explanation now correctly describes the increasing sensitivity of rod cells, while focus, chromatic aberration, seeing and tracking terminology has been clarified.",
-          "zh": "暗适应说明现已正确描述视杆细胞敏感度的恢复，同时进一步明确了调焦、色差、视宁度和跟踪等术语。"
+          "en": "In Level 16, automatic equipment now selects the wide-field 32mm eyepiece for the Pleiades instead of the 10mm eyepiece that exceeded the level's magnification limit.",
+          "zh": "第 16 关观测昴星团时，自动配装现选择视野更宽的 32mm 目镜，不再推荐超过本关倍率上限的 10mm 目镜。"
         }
       ]
     }
   ],
   "footer": {
-    "en": "Thank you for helping the observatory speak with greater clarity.",
-    "zh": "感谢你帮助天文台把每一句话说得更清楚。"
+    "en": "Your existing save can continue. Thank you for reporting the observing problems.",
+    "zh": "现有存档可以继续使用。感谢大家反馈观测问题。"
   }
 }

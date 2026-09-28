@@ -7,7 +7,9 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
-## 2026-09-28 - Level 10 Eyepiece Comparison
+## 2026-09-28 - v0.9.7 Observation Fixes
+
+### Level 10 Eyepiece Comparison
 
 - Recorded focused Saturn observations with the 32mm, 20mm and 10mm eyepieces
   even when the low or high power falls outside the final identification
@@ -16,7 +18,7 @@ concrete implementation details.
 - Added a Godot regression test for the full eyepiece sequence and the
   out-of-focus guard.
 
-## 2026-09-28 - Target-Aware Eyepiece Recommendations
+### Target-Aware Eyepiece Recommendations
 
 - Corrected the parts cabinet and automatic equipment selection for levels
   with a chosen target or magnification limit. The Moon, Saturn and Pleiades
