@@ -2102,7 +2102,7 @@ func set_assembly_hints(enabled: bool) -> void:
 # Task profile for part scoring: what does TONIGHT's observation reward?
 func _task_profile() -> String:
 	var target_type := str(current_target().get("type_en", "")).to_lower()
-	if target_type.contains("nebula") or target_type.contains("galaxy"):
+	if target_type.contains("nebula") or target_type.contains("galaxy") or target_type.contains("cluster"):
 		return "deep_sky"
 	if str(current_environment().get("seeing", "")) == "poor":
 		return "steady"
@@ -2158,11 +2158,36 @@ func best_part_for_type(part_type: String) -> Dictionary:
 		var part_family := str(option.get("telescope_family", ""))
 		if part_family != "" and part_family != current_family:
 			continue
+		if part_type == "eyepiece" and not eyepiece_meets_active_magnification(option):
+			continue
 		var score := _part_score(option, profile)
 		if score > best_score:
 			best_score = score
 			best = option
 	return best
+
+
+# Keep cabinet badges and automatic equipment inside the chosen target's
+# magnification window. Exact lesson parts and comparison steps bypass this
+# filter at their call sites because observing at the wrong power is the task.
+func eyepiece_meets_active_magnification(eyepiece: Dictionary) -> bool:
+	var requirements := active_observation_requirements()
+	if not requirements.has("magnification_min") and not requirements.has("magnification_max"):
+		return true
+	var objective_type := "primary_mirror" if current_level().get("required_parts", []).has("primary_mirror") else "objective"
+	var objective_id := pinned_part_id(objective_type)
+	var objective := get_part(objective_id) if objective_id != "" else best_part_for_type(objective_type)
+	if objective.is_empty():
+		objective = get_part(equipped_part_id(objective_type))
+	var objective_focal := float(objective.get("focal_length_mm", 0.0))
+	var eyepiece_focal := float(eyepiece.get("focal_length_mm", 0.0))
+	if objective_focal <= 0.0 or eyepiece_focal <= 0.0:
+		return true
+	var magnification := objective_focal / eyepiece_focal
+	return (
+		(not requirements.has("magnification_min") or magnification >= float(requirements["magnification_min"]))
+		and (not requirements.has("magnification_max") or magnification <= float(requirements["magnification_max"]))
+	)
 
 
 func _auto_reason(part_type: String, profile: String, part: Dictionary) -> Dictionary:

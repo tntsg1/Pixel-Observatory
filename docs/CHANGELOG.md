@@ -16,6 +16,17 @@ concrete implementation details.
 - Added a Godot regression test for the full eyepiece sequence and the
   out-of-focus guard.
 
+## 2026-09-28 - Target-Aware Eyepiece Recommendations
+
+- Corrected the parts cabinet and automatic equipment selection for levels
+  with a chosen target or magnification limit. The Moon, Saturn and Pleiades
+  choices in level 13 now select usable eyepieces; level 16 favors the wide
+  32mm view for the Pleiades instead of the overpowered 10mm view.
+- Kept level 10's prescribed comparison eyepieces ahead of ordinary equipment
+  advice, then selected the 20mm eyepiece after the comparison.
+- Added a regression test that verifies recommendations and successful
+  observations for these choices.
+
 ## 2026-09-27 - v0.9.6 Official Trailer on the Website
 
 - Added a two-minute official trailer as the first chapter of the landing page.

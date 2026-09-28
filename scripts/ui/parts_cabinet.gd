@@ -691,9 +691,11 @@ func _is_recommended(part: Dictionary) -> bool:
 	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
 	if pending_step_part_id != "":
 		return part_id == pending_step_part_id
+	if part_type == "eyepiece" and not GameManager.eyepiece_meets_active_magnification(part):
+		return false
 	if _array_has_string(level.get("recommended_part_ids", []), part_id):
 		return true
-	var target_id := str(level.get("target_object_id", ""))
+	var target_id := GameManager.current_target_object_id()
 	if target_id in ["orion_nebula", "andromeda"] and part_id in ["objective_100mm", "stable_mount", "eyepiece_20mm", "tracking_mount"]:
 		return _is_unlocked(part_id)
 	if target_id in ["mars", "jupiter"] and part_id in ["stable_mount", "eyepiece_10mm"]:
