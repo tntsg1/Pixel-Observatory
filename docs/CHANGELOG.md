@@ -7,6 +7,15 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-09-28 - Level 10 Eyepiece Comparison
+
+- Recorded focused Saturn observations with the 32mm, 20mm and 10mm eyepieces
+  even when the low or high power falls outside the final identification
+  range. The player can now finish all three comparison steps, then return
+  to the 20mm eyepiece to identify Saturn and complete the lesson.
+- Added a Godot regression test for the full eyepiece sequence and the
+  out-of-focus guard.
+
 ## 2026-09-27 - v0.9.6 Official Trailer on the Website
 
 - Added a two-minute official trailer as the first chapter of the landing page.
