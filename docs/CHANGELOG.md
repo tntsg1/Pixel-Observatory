@@ -7,6 +7,21 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-09-27 - v0.9.6 Official Trailer on the Website
+
+- Added a two-minute official trailer as the first chapter of the landing page.
+  The frame plays a muted preview loop while on screen (skipped for reduced
+  motion and Save-Data), the hero and navigation "Watch Trailer" entries glide
+  to it and start the full cut with sound, and the end screen hands visitors
+  straight to Play in Browser, Watch Again or GitHub.
+- The trailer pauses when scrolled away and resumes on return; narrow screens
+  and Save-Data connections receive the 720p rendition, desktops 1080p.
+- Trailer MP4s are versioned, immutable R2 objects served through the Worker
+  with byte-range support (`/media/trailer/20260927/...`); only the
+  allow-listed renditions resolve.
+- Added Open Graph / Twitter card metadata so shared links show the trailer
+  poster and video.
+
 ## 2026-09-18 - v0.9.5 Observatory Website Copy Update
 
 - Rewrote the Chinese public landing page from the opening and Maya introduction

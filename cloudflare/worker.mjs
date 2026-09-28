@@ -270,6 +270,15 @@ export function resolveLargeGameAsset(pathname) {
 			contentType: match[2].endsWith(".pck") ? "application/octet-stream" : "application/wasm",
 		};
 	}
+	// Official trailer: versioned, immutable MP4s kept in R2 (too large for
+	// Workers static assets). Only the allow-listed renditions resolve.
+	const trailer = /^\/media\/trailer\/(\d{8}[a-z0-9-]{0,24})\/(trailer-1080|trailer-720|teaser-720)\.mp4$/.exec(pathname);
+	if (trailer) {
+		return {
+			key: `media/trailer/${trailer[1]}/${trailer[2]}.mp4`,
+			contentType: "video/mp4",
+		};
+	}
 	const pack = /^\/game\/resource-packs\/([a-z0-9-]+)\/([a-f0-9]{20})\.pck$/.exec(pathname);
 	if (!pack) return null;
 	return {

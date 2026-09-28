@@ -8,6 +8,21 @@
 <link rel="stylesheet" href="account.css?v=20260917-release-bulletin">
 <link rel="stylesheet" href="inbox.css?v=20260728-glass-controls">
 <link rel="stylesheet" href="social.css?v=20260729-friend-directory">
+<link rel="stylesheet" href="trailer.css?v=20260927-trailer">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Starlight Observatory">
+<meta property="og:title" content="Starlight Observatory — Official Trailer">
+<meta property="og:description" content="From the first star charts to the Moon. Build your telescope, read the sky, and make the observation yourself — free in your browser.">
+<meta property="og:url" content="https://pixelobservatorygame.com/">
+<meta property="og:image" content="https://pixelobservatorygame.com/img/trailer-og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:video" content="https://pixelobservatorygame.com/media/trailer/20260927/trailer-720.mp4">
+<meta property="og:video:type" content="video/mp4">
+<meta property="og:video:width" content="1280">
+<meta property="og:video:height" content="720">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://pixelobservatorygame.com/img/trailer-og.jpg">
 <style>
   :root{
     --ink-0:#05070d;
@@ -735,6 +750,7 @@
   <button class="gnav-menu-toggle" id="gnav-menu-toggle" type="button" aria-expanded="false" aria-controls="gnav-drawer" aria-label="Open navigation / 展开导航"><span aria-hidden="true">✦</span><span class="en">Menu</span><span class="zh">菜单</span></button>
   <div class="gnav-drawer" id="gnav-drawer">
   <div class="gnav-links">
+    <a href="#trailer"><span class="en">Trailer</span><span class="zh">预告片</span></a>
     <a href="#assemble"><span class="en">Assembly</span><span class="zh">组装</span></a>
     <a href="#optics"><span class="en">Optics</span><span class="zh">光学</span></a>
     <a href="#observe"><span class="en">Observing</span><span class="zh">观测</span></a>
@@ -813,6 +829,9 @@
       <a class="btn btn-gold" href="game/" target="_blank" rel="noopener">
         <span class="play-ico" aria-hidden="true"></span>
         <span class="en">Play in Browser</span><span class="zh">在线游玩</span></a>
+      <a class="btn btn-ghost" href="#trailer" data-trailer-open>
+        <span class="tr-ico" aria-hidden="true"></span>
+        <span class="en">Watch Trailer</span><span class="zh">观看预告片</span></a>
       <button class="btn btn-ghost" id="community-hero-open" type="button">
         <span class="en">Enter Community</span><span class="zh">进入社区</span></button>
     </div>
@@ -821,6 +840,56 @@
 </header>
 
 <main>
+<!-- ================= OFFICIAL TRAILER ================= -->
+<section class="s-trailer" id="trailer" aria-labelledby="trailerTitle">
+  <div class="wrap">
+    <p class="eyebrow rv"><span class="en">Official Trailer · 2:00</span><span class="zh">官方预告片 · 2 分钟</span></p>
+    <h2 class="rv" id="trailerTitle">
+      <span class="en">From the first star charts<br>to the surface of the Moon.</span>
+      <span class="zh">从第一张星图，<br>到月球之上。</span>
+    </h2>
+    <p class="tr-lede rv">
+      <span class="en">Three thousand years of looking up — then your turn. Every gameplay shot is captured from the game as it runs today.</span>
+      <span class="zh">三千年的仰望，然后轮到你。片中所有游戏画面，都来自游戏当前版本的实机录制。</span>
+    </p>
+    <div class="tr-frame rv rv-s" id="trFrame" data-state="idle" tabindex="-1">
+      <video id="trVideo" playsinline preload="none" poster="img/trailer-poster.webp"
+        aria-label="Starlight Observatory official trailer"></video>
+      <div class="tr-veil" aria-hidden="true"></div>
+      <span class="tr-teaser-tag" aria-hidden="true"><span class="en">Preview</span><span class="zh">预览</span></span>
+      <button class="tr-play" id="trPlay" type="button">
+        <span class="tr-play-ring" aria-hidden="true"><span class="play-ico"></span></span>
+        <span class="tr-play-label"><span class="en">Watch the trailer</span><span class="zh">观看预告片</span><small>2:00</small></span>
+      </button>
+      <div class="tr-bar glass" role="group" aria-label="Trailer controls">
+        <button class="tr-btn" id="trToggle" type="button" aria-label="Pause"></button>
+        <input class="tr-seek" id="trSeek" type="range" min="0" max="100" step="0.1" value="0" aria-label="Seek">
+        <span class="tr-time" id="trTime">0:00 / 2:00</span>
+        <button class="tr-btn" id="trMute" type="button" aria-label="Mute"></button>
+        <button class="tr-btn" id="trFs" type="button" aria-label="Full screen">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M1 1h5v2H3v3H1zM10 1h5v5h-2V3h-3zM1 10h2v3h3v2H1zM13 10h2v5h-5v-2h3z"/></svg>
+        </button>
+      </div>
+      <div class="tr-end" id="trEnd">
+        <p class="eyebrow"><span class="en">Your turn</span><span class="zh">轮到你了</span></p>
+        <h3><span class="en">The night sky is waiting.</span><span class="zh">夜空正在等待你的发现。</span></h3>
+        <div class="hero-cta">
+          <a class="btn btn-gold" id="trEndPlay" href="game/" target="_blank" rel="noopener">
+            <span class="play-ico" aria-hidden="true"></span>
+            <span class="en">Play in Browser</span><span class="zh">在线游玩</span></a>
+          <button class="btn btn-ghost" id="trReplay" type="button">
+            <span class="en">Watch Again</span><span class="zh">再看一遍</span></button>
+          <a class="btn btn-ghost" href="https://github.com/tntsg1/Pixel-Observatory" target="_blank" rel="noopener">GitHub</a>
+        </div>
+      </div>
+    </div>
+    <p class="tr-credit rv">
+      <span class="en">Historic imagery: NASA and public-domain archives · Earth–Moon shots rendered in Blender from NASA maps.</span>
+      <span class="zh">历史影像：NASA 及公版档案 · 地月镜头由 Blender 依据 NASA 贴图渲染。</span>
+    </p>
+  </div>
+</section>
+
 <!-- ================= 1 · NAKED EYE ================= -->
 <section class="s-eye" id="eye">
   <div class="wrap">
@@ -2535,5 +2604,6 @@
 <script src="messaging.js?v=20260729-friend-drawer" defer></script>
 <script src="inbox.js?v=20260729-shared-messaging" defer></script>
 <script src="social.js?v=20260804-leaderboard-scale" defer></script>
+<script src="trailer.js?v=20260927-trailer" defer></script>
 </body>
 </html>

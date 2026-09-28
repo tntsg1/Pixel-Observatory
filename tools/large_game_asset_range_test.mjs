@@ -67,4 +67,16 @@ assert.deepEqual(resolveLargeGameAsset("/game/runtime/cf93a2c/index.wasm"), {
 });
 assert.equal(resolveLargeGameAsset("/game/runtime/../../secret/index.pck"), null);
 
+assert.deepEqual(resolveLargeGameAsset("/media/trailer/20260927/trailer-1080.mp4"), {
+	key: "media/trailer/20260927/trailer-1080.mp4",
+	contentType: "video/mp4",
+});
+assert.deepEqual(resolveLargeGameAsset("/media/trailer/20260927/teaser-720.mp4"), {
+	key: "media/trailer/20260927/teaser-720.mp4",
+	contentType: "video/mp4",
+});
+assert.equal(resolveLargeGameAsset("/media/trailer/20260927/other.mp4"), null);
+assert.equal(resolveLargeGameAsset("/media/trailer/../runtime/x/trailer-720.mp4"), null);
+assert.equal(resolveLargeGameAsset("/media/trailer/latest/trailer-720.mp4"), null);
+
 console.log("Large game asset range delivery: PASS");
