@@ -10,3 +10,13 @@
   cookie (same origin); nothing in this worker was changed.
 - Pre-existing: in English at ~1440px wide the full nav is wider than the viewport (▶ Play is cut off);
   not caused by this change (the entry collapses to a 38px icon between 1251 and 1800px).
+
+## Changelog page (2026-09-29)
+
+- Live at https://pixelobservatorygame.com/changelog/ — source `web/landing/changelog/index.html`,
+  data `web/landing/changelog.json` (bilingual; built from `docs/CHANGELOG.md` + `docs/VERSION_HISTORY.md`).
+- Entry points in `web/landing/promo.html`: `.hero-log` line under the hero buttons (shows a static
+  version, currently `v0.9.7`) and a footer "Changelog / 更新日志" link.
+- **On every release:** add the entry to `changelog.json` (newest first, `en` + `zh`), bump the version in
+  `.hero-log`, and keep `docs/CHANGELOG.md` as the local record. Deployed by patching the built index
+  identically (3 files uploaded).

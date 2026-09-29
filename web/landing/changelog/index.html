@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Changelog · Starlight Observatory</title>
+<meta name="description" content="Every Starlight Observatory / Pixel Observatory update, from the first prototype to the latest release.">
+<meta name="theme-color" content="#05070d">
+<link rel="canonical" href="https://pixelobservatorygame.com/changelog/">
+<style>
+  /* 星光天文台 · 更新日志。沿用官网的墨蓝底、金色、玻璃卡片；只用同源资源（站点开启了 COEP）。 */
+  :root{
+    --ink-0:#05070d;--ink-1:#0a0f1e;--ink-2:#101a33;--line:#1c2742;
+    --txt-hi:#e8ecf4;--txt-mid:#a8b2c8;--txt-low:#5d6880;
+    --gold:#d9a648;--gold-soft:#e9c987;--blue-glow:#3d5aa0;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,monospace;
+    --ease-out:cubic-bezier(0.23,1,0.32,1);
+    color-scheme:dark;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--ink-0);color:var(--txt-mid);font-family:var(--sans);font-size:16px;line-height:1.75}
+  html[data-lang="zh"] .en{display:none!important}
+  html[data-lang="en"] .zh{display:none!important}
+  a{color:var(--gold-soft)}
+  :focus-visible{outline:2px solid var(--gold-soft);outline-offset:3px}
+  #sky{position:fixed;inset:0;width:100%;height:100%;z-index:-1;pointer-events:none}
+  .glass{background:linear-gradient(160deg,rgba(120,150,220,.10),rgba(20,30,60,.28) 45%,rgba(10,16,34,.36));backdrop-filter:blur(22px) saturate(1.7);-webkit-backdrop-filter:blur(22px) saturate(1.7);
+    border:1px solid rgba(190,210,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.14),inset 0 -1px 0 rgba(0,0,0,.3),0 18px 50px rgba(0,0,0,.45)}
+  .card{border:1px solid rgba(190,210,255,.12);border-radius:18px;background:linear-gradient(160deg,rgba(120,150,220,.08),rgba(13,21,48,.5));
+    backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);box-shadow:inset 0 1px 0 rgba(255,255,255,.1),0 12px 34px rgba(0,0,0,.35)}
+
+  .gnav{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100;display:flex;align-items:center;gap:8px;padding:8px 10px 8px 20px;border-radius:999px;max-width:calc(100vw - 24px);width:max-content}
+  .gnav-brand{color:var(--txt-hi);text-decoration:none;font-weight:700;font-size:14px;letter-spacing:.06em;display:flex;align-items:center;gap:9px;white-space:nowrap}
+  .gnav-brand .dot{width:8px;height:8px;border-radius:2px;background:var(--gold);box-shadow:0 0 12px rgba(217,166,72,.9)}
+  .gnav-links{display:flex;gap:2px;margin:0 6px}
+  .gnav-links a{color:var(--txt-mid);text-decoration:none;font-size:13px;padding:8px 12px;border-radius:999px;white-space:nowrap}
+  .gnav-links a:hover{color:var(--txt-hi);background:rgba(255,255,255,.08)}
+  .lang-sw{display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(5,9,20,.5);border:1px solid rgba(190,210,255,.14);flex:none}
+  .lang-sw button{font:inherit;font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:0;cursor:pointer;background:transparent;color:var(--txt-low)}
+  .lang-sw button[aria-pressed="true"]{background:linear-gradient(160deg,rgba(190,210,255,.22),rgba(120,150,220,.12));color:var(--txt-hi)}
+  .gnav-play{color:#100b02;background:linear-gradient(160deg,var(--gold-soft),var(--gold));text-decoration:none;font-size:13px;font-weight:700;padding:9px 18px;border-radius:999px;white-space:nowrap;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 4px 18px rgba(217,166,72,.35);transition:transform 160ms var(--ease-out)}
+  .gnav-play:active{transform:scale(.97)}
+  @media (max-width:760px){.gnav-links{display:none}.gnav{padding-left:14px}}
+
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px}
+  .head{padding:150px 0 50px;text-align:center}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.28em;text-transform:uppercase;color:var(--gold);margin-bottom:20px;display:block}
+  h1{margin:0;font-size:clamp(34px,6vw,64px);font-weight:800;letter-spacing:-.01em;line-height:1.1;
+    background:linear-gradient(178deg,#fff 20%,#dbe4f5 45%,#8d9cc0 80%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .lede{font-size:clamp(16px,2vw,19px);max-width:36em;margin:22px auto 0}
+  .source{margin-top:20px;font-size:13px;color:var(--txt-low)}
+  .current{display:inline-flex;gap:10px;align-items:center;margin-top:30px;padding:10px 18px;border-radius:999px;font-size:13.5px;color:var(--txt-hi)}
+  .current b{font-family:var(--mono);color:var(--gold-soft)}
+
+  .timeline{position:relative;padding:10px 0 40px}
+  .timeline::before{content:"";position:absolute;left:11px;top:14px;bottom:40px;width:1px;background:linear-gradient(var(--gold),rgba(61,90,160,.6) 60%,transparent)}
+  .entry{position:relative;margin:0 0 20px 40px;padding:24px 26px;opacity:0;transform:translateY(16px);transition:opacity 700ms var(--ease-out),transform 800ms var(--ease-out)}
+  .entry.in{opacity:1;transform:none}
+  .entry::before{content:"";position:absolute;left:-34px;top:31px;width:11px;height:11px;border-radius:50%;background:var(--ink-0);border:1.5px solid var(--gold)}
+  .entry.in::before{background:var(--gold);box-shadow:0 0 12px rgba(217,166,72,.8)}
+  .meta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-family:var(--mono);font-size:11.5px;letter-spacing:.14em;color:var(--txt-low)}
+  .ver{color:#100b02;background:linear-gradient(160deg,var(--gold-soft),var(--gold));padding:2px 10px;border-radius:999px;font-weight:700;letter-spacing:.06em}
+  .entry h2{color:var(--txt-hi);font-size:clamp(19px,2.4vw,24px);margin:10px 0 14px;letter-spacing:-.01em;line-height:1.3}
+  .entry ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+  .entry li{display:grid;grid-template-columns:62px 1fr;gap:12px;align-items:baseline;font-size:15px}
+  .tag{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-align:center;padding:2px 0;border-radius:999px;border:1px solid}
+  .tag.new{color:#9fe0a8;border-color:rgba(159,224,168,.4)}
+  .tag.change{color:#8fb8ff;border-color:rgba(143,184,255,.4)}
+  .tag.fix{color:#ffb08a;border-color:rgba(255,176,138,.4)}
+  .tag.site{color:var(--gold-soft);border-color:rgba(233,201,135,.4)}
+  .tag.test{color:#c3b4ff;border-color:rgba(195,180,255,.4)}
+
+  section.block{padding:40px 0}
+  section.block h3{color:var(--txt-hi);font-size:22px;margin:0 0 6px}
+  section.block .sub{margin:0 0 20px;font-size:14px;color:var(--txt-low)}
+  .milestones{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .ms{padding:14px 16px;border-radius:14px;font-size:14px}
+  .ms b{display:block;font-family:var(--mono);font-size:12px;color:var(--gold-soft);letter-spacing:.1em}
+  @media (max-width:760px){.milestones{grid-template-columns:repeat(2,1fr)}}
+  .gaps{list-style:none;margin:0;padding:22px 26px;display:grid;gap:10px}
+  .gaps li{position:relative;padding-left:22px;font-size:15px}
+  .gaps li::before{content:"";position:absolute;left:0;top:.75em;width:10px;height:1px;background:var(--gold)}
+  footer{border-top:1px solid var(--line);padding:30px 0;margin-top:40px;font-size:13px;color:var(--txt-low)}
+  footer .wrap{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+  footer a{color:var(--txt-mid);text-decoration:none}
+  @media (max-width:560px){.timeline::before{left:7px}.entry{margin-left:26px;padding:20px}.entry::before{left:-24px}.entry li{grid-template-columns:1fr}.tag{justify-self:start;padding:2px 8px}}
+  @media (prefers-reduced-motion:reduce){.entry{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+<canvas id="sky" aria-hidden="true"></canvas>
+<nav class="gnav glass" aria-label="Main navigation">
+  <a class="gnav-brand" href="/"><span class="dot" aria-hidden="true"></span>Starlight Observatory</a>
+  <div class="gnav-links">
+    <a href="/"><span class="en">Home</span><span class="zh">首页</span></a>
+    <a href="#milestones"><span class="en">Milestones</span><span class="zh">早期里程碑</span></a>
+    <a href="#gaps"><span class="en">Known gaps</span><span class="zh">已知待办</span></a>
+  </div>
+  <div class="lang-sw" role="group" aria-label="Language / 语言">
+    <button type="button" id="langZh" aria-pressed="false">中文</button>
+    <button type="button" id="langEn" aria-pressed="true">EN</button>
+  </div>
+  <a class="gnav-play" href="/game/"><span class="en">▶ Play</span><span class="zh">▶ 在线游玩</span></a>
+</nav>
+
+<header class="head wrap">
+  <span class="eyebrow">Changelog · <span class="en">Every update</span><span class="zh">更新日志</span></span>
+  <h1><span class="en">Every night at the<br>observatory, logged.</span><span class="zh">每一次更新，<br>都记在观测日志里。</span></h1>
+  <p class="lede"><span class="en">From the first prototype to the latest release: what changed, why it matters to observers, and what is still on the bench.</span><span class="zh">从第一个原型到最新版本：改了什么、对观测者意味着什么，以及还在工作台上的事。</span></p>
+  <div class="current glass" id="current"></div>
+  <p class="source"><span class="en">Source: </span><span class="zh">来源：</span><a href="https://github.com/tntsg1/Pixel-Observatory/blob/main/docs/CHANGELOG.md" target="_blank" rel="noopener">docs/CHANGELOG.md</a> · <a href="https://github.com/tntsg1/Pixel-Observatory/blob/main/docs/VERSION_HISTORY.md" target="_blank" rel="noopener">docs/VERSION_HISTORY.md</a></p>
+</header>
+
+<main class="wrap">
+  <div class="timeline" id="timeline"></div>
+  <section class="block" id="milestones">
+    <h3><span class="en">Early milestones</span><span class="zh">早期里程碑</span></h3>
+    <p class="sub"><span class="en">Development labels before dated releases (v0.1 – v1.8).</span><span class="zh">有日期记录之前的开发版本（v0.1 – v1.8）。</span></p>
+    <div class="milestones" id="ms"></div>
+  </section>
+  <section class="block" id="gaps">
+    <h3><span class="en">Known gaps</span><span class="zh">已知待办</span></h3>
+    <p class="sub"><span class="en">Listed so the log never implies every framework feature is finished.</span><span class="zh">写在这里，免得日志让人以为所有框架功能都已完工。</span></p>
+    <ul class="gaps card" id="gapList"></ul>
+  </section>
+</main>
+
+<footer><div class="wrap"><span>© 2026 Pixel Observatory</span><span><a href="/"><span class="en">Starlight Observatory</span><span class="zh">星光天文台</span></a> · <a href="/game/"><span class="en">Play</span><span class="zh">在线游玩</span></a> · <a href="https://github.com/tntsg1/Pixel-Observatory" target="_blank" rel="noopener">GitHub</a></span></div></footer>
+
+<script>
+(function () {
+  "use strict";
+  var root = document.documentElement;
+  var reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var TAGS = { new: ["NEW", "新增"], change: ["CHANGE", "调整"], fix: ["FIX", "修复"], site: ["SITE", "网站"], test: ["TEST", "测试"] };
+  function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return "&#" + c.charCodeAt(0) + ";"; }); }
+  function bi(o) { return '<span class="en">' + esc(o.en) + '</span><span class="zh">' + esc(o.zh) + "</span>"; }
+
+  // 语言：和官网共用 localStorage 'so-lang'
+  var btnZh = document.getElementById("langZh"), btnEn = document.getElementById("langEn");
+  function setLang(l, remember) {
+    root.dataset.lang = l;
+    root.lang = l === "zh" ? "zh-CN" : "en";
+    document.title = l === "zh" ? "更新日志 · 星光天文台" : "Changelog · Starlight Observatory";
+    btnZh.setAttribute("aria-pressed", String(l === "zh"));
+    btnEn.setAttribute("aria-pressed", String(l === "en"));
+    if (remember) { try { localStorage.setItem("so-lang", l); } catch (e) {} }
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("so-lang"); } catch (e) {}
+  setLang(saved === "zh" ? "zh" : "en", false);
+  btnZh.addEventListener("click", function () { setLang("zh", true); });
+  btnEn.addEventListener("click", function () { setLang("en", true); });
+
+  fetch("/changelog.json", { cache: "no-cache" }).then(function (r) { return r.json(); }).then(function (data) {
+    var latest = data.entries[0];
+    document.getElementById("current").innerHTML = '<span class="en">Current release</span><span class="zh">当前版本</span> <b>' + esc(latest.version || latest.date) + "</b> · " + esc(latest.date);
+    document.getElementById("timeline").innerHTML = data.entries.map(function (e) {
+      return '<article class="entry card"><div class="meta">' + (e.version ? '<span class="ver">' + esc(e.version) + "</span>" : "") + "<span>" + esc(e.date) + "</span></div><h2>" + bi(e.title) + "</h2><ul>" +
+        e.items.map(function (it) { var tag = TAGS[it.tag] || [it.tag, it.tag]; return '<li><span class="tag ' + esc(it.tag) + '"><span class="en">' + tag[0] + '</span><span class="zh">' + tag[1] + "</span></span><span>" + bi(it) + "</span></li>"; }).join("") +
+        "</ul></article>";
+    }).join("");
+    document.getElementById("ms").innerHTML = data.milestones.map(function (m) { return '<div class="ms card"><b>' + esc(m.version) + "</b>" + bi(m) + "</div>"; }).join("");
+    document.getElementById("gapList").innerHTML = data.gaps.map(function (g) { return "<li>" + bi(g) + "</li>"; }).join("");
+    var entries = document.querySelectorAll(".entry");
+    if (reduced || !("IntersectionObserver" in window)) { entries.forEach(function (e) { e.classList.add("in"); }); return; }
+    var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } }); }, { threshold: .12 });
+    entries.forEach(function (e) { io.observe(e); });
+  }).catch(function () { document.getElementById("timeline").textContent = "Changelog unavailable."; });
+
+  // 和官网同一套星空：闪烁、缓慢漂移、偶尔流星
+  var cv = document.getElementById("sky"), ctx = cv.getContext("2d"), stars = [], meteors = [], W, H, D, seed = 29;
+  function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+  function size() { D = Math.min(devicePixelRatio || 1, 2); W = cv.width = Math.floor(innerWidth * D); H = cv.height = Math.floor(innerHeight * D); stars = [];
+    for (var i = 0; i < W * H / 9000; i++) stars.push({ x: rnd() * W, y: rnd() * H, r: (rnd() * 1.2 + .3) * D, tw: rnd() * 6.28, ts: rnd() * .9 + .25, warm: rnd() < .12 }); }
+  function draw(t) {
+    ctx.clearRect(0, 0, W, H);
+    var drift = reduced ? 0 : (t * .0022) % W;
+    for (var i = 0; i < stars.length; i++) { var s = stars[i], x = (s.x - drift + W) % W, a = reduced ? .8 : .35 + .6 * Math.abs(Math.sin(s.tw + t * .0006 * s.ts));
+      ctx.fillStyle = s.warm ? "rgba(233,201,135," + a + ")" : "rgba(232,236,244," + a + ")"; ctx.fillRect(x, s.y, s.r * 1.4, s.r * 1.4); }
+    if (!reduced) {
+      if (Math.random() < .004 && meteors.length < 2) meteors.push({ x: rnd() * W * .8, y: rnd() * H * .3, vx: 3 * D, vy: 1.6 * D, life: 1 });
+      meteors = meteors.filter(function (m) { m.x += m.vx; m.y += m.vy; m.life -= .012; var tail = 90 * D * m.life;
+        var g = ctx.createLinearGradient(m.x, m.y, m.x - tail * .88, m.y - tail * .48); g.addColorStop(0, "rgba(255,250,235," + .95 * m.life + ")"); g.addColorStop(1, "rgba(233,201,135,0)");
+        ctx.strokeStyle = g; ctx.lineWidth = 1.6 * D; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x - tail * .88, m.y - tail * .48); ctx.stroke(); return m.life > 0; });
+      requestAnimationFrame(draw);
+    }
+  }
+  size(); requestAnimationFrame(draw); addEventListener("resize", size);
+})();
+</script>
+</body>
+</html>

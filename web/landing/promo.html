@@ -664,6 +664,10 @@
   @media (max-width:560px){.gnav-new .gnav-new-name{display:none}.gnav-new{margin-left:auto;padding:7px 10px 7px 8px}.gnav-new~.gnav-play{margin-left:0}}
   @media (min-width:1251px) and (max-width:1800px){.gnav-new{position:relative;padding:0;width:38px;height:38px;justify-content:center;gap:0}.gnav-new .gnav-new-name{display:none}.gnav-new-orb{width:19px;height:19px}.gnav-new b{position:absolute;top:-7px;right:-12px;font-size:8px;padding:1px 4px;box-shadow:0 0 8px rgba(242,164,68,.6)}}
   @media (prefers-reduced-motion:reduce){.gnav-new{transition:none!important}}
+  /* Changelog entry under the hero actions and in the footer. */
+  .hero-log{display:inline-flex;align-items:center;gap:10px;margin-top:30px;font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt-low);text-decoration:none;transition:color .3s}
+  .hero-log b{font-weight:500;color:var(--gold-soft)}
+  .hero-log:hover{color:var(--txt-hi)}
   /* The path is a scan-friendly map; detailed optical diagrams share one comparison surface. */
   section{padding:70px 0}
   .tl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:48px}
@@ -848,6 +852,7 @@
       <button class="btn btn-ghost" id="community-hero-open" type="button">
         <span class="en">Enter Community</span><span class="zh">进入社区</span></button>
     </div>
+    <a class="hero-log" href="changelog/"><b>v0.9.7</b><span class="en">Changelog · every update →</span><span class="zh">更新日志 · 每一次更新都有记录 →</span></a>
   </div>
   <div class="scroll-hint"><span class="en">Scroll</span><span class="zh">向下滚动</span></div>
 </header>
@@ -2312,6 +2317,7 @@
       <a href="https://github.com/tntsg1/Pixel-Observatory" target="_blank" rel="noopener">GitHub</a>
       <a href="https://store.steampowered.com/" target="_blank" rel="noopener">
         <span class="en">Steam (soon)</span><span class="zh">Steam（即将上线）</span></a>
+      <a href="changelog/"><span class="en">Changelog</span><span class="zh">更新日志</span></a>
       <a href="#top"><span class="en">Back to top</span><span class="zh">回到顶部</span></a>
     </nav>
     <p class="fine">© 2026 tntsg · Starlight Observatory · v0.9.7. <span class="en">All observations belong to the night.</span><span class="zh">所有观测，归于夜空。</span></p>

@@ -1,0 +1,173 @@
+{
+  "source": "docs/CHANGELOG.md + docs/VERSION_HISTORY.md (github.com/tntsg1/Pixel-Observatory)",
+  "entries": [
+    {
+      "date": "2026-09-28", "version": "v0.9.7",
+      "title": { "en": "Observation Fixes", "zh": "目镜观测问题修复" },
+      "items": [
+        { "tag": "fix", "en": "Level 10 records focused Saturn observations through the 32mm, 20mm and 10mm eyepieces even when a power is outside the final identification range; compare all three, then return to 20mm to identify Saturn.", "zh": "第 10 关用 32mm、20mm、10mm 目镜对准土星并调焦后都会记录，即使倍率不满足最终识别条件；比较完三枚目镜后换回 20mm 识别土星。" },
+        { "tag": "fix", "en": "Level 13's parts cabinet and automatic equipment follow the chosen target (Moon 10mm, Saturn 20mm, Pleiades 32mm); Level 16 picks the wide 32mm view for the Pleiades.", "zh": "第 13 关零件柜与自动配装按实际选择的目标推荐（月球 10mm、土星 20mm、昴星团 32mm）；第 16 关观测昴星团改用视野更宽的 32mm。" },
+        { "tag": "test", "en": "Regression tests cover the full eyepiece sequence and the target-aware recommendations.", "zh": "新增回归测试，覆盖完整目镜比较流程和按目标推荐。" }
+      ]
+    },
+    {
+      "date": "2026-09-27", "version": "v0.9.6",
+      "title": { "en": "Official Trailer on the Website", "zh": "官网上线官方宣传片" },
+      "items": [
+        { "tag": "new", "en": "A two-minute official trailer opens the landing page: a muted preview loops on screen, Watch Trailer glides to it and plays with sound, and the end screen offers Play, Watch Again or GitHub.", "zh": "两分钟官方宣传片成为官网第一章：进入视野时静音预览循环，“观看预告片”滑到这里并带声播放，片尾可直接开始游玩、重看或前往 GitHub。" },
+        { "tag": "change", "en": "Pauses when scrolled away; phones and Save-Data connections get 720p, desktops 1080p, served from R2 with byte-range support.", "zh": "滚走时暂停、回来继续；手机和省流量模式用 720p，电脑用 1080p，由 R2 按字节范围分发。" },
+        { "tag": "site", "en": "Open Graph / Twitter cards show the trailer poster and video when the link is shared.", "zh": "分享链接时显示宣传片封面和视频卡片。" }
+      ]
+    },
+    {
+      "date": "2026-09-18", "version": "v0.9.5",
+      "title": { "en": "Observatory Website Copy Update", "zh": "官网文案更新" },
+      "items": [
+        { "tag": "site", "en": "Rewrote the Chinese landing page from the opening through assembly, optics, observing and advanced instruments in shorter, more concrete observatory language.", "zh": "重写中文官网，从开场、玛雅介绍到组装、光学、观测和高级仪器，去掉空泛宣传语，改成更短、更具体的天文台语言。" },
+        { "tag": "fix", "en": "Corrected the dark-adaptation explanation (rod-cell sensitivity) and clarified focus, chromatic aberration, seeing and tracking terms.", "zh": "更正暗适应说明（视杆细胞灵敏度），理清调焦、色差、视宁度、跟踪等术语。" }
+      ]
+    },
+    {
+      "date": "2026-09-17", "version": "v0.9.4",
+      "title": { "en": "Cloud Campaign Reliability Update", "zh": "云端战役存档可靠性更新" },
+      "items": [
+        { "tag": "fix", "en": "Registered observers starting a new campaign are no longer returned to an older cloud checkpoint (including the reported Level 43 case).", "zh": "修复登录玩家开新战役后被带回旧云端进度的问题（包括反馈的第 43 关情况）。" },
+        { "tag": "fix", "en": "New Game waits until account and cloud-save discovery completes, removing a startup race.", "zh": "“新游戏”会等账号和云存档检查完成后再开始，消除启动时的同步竞争。" },
+        { "tag": "new", "en": "A bilingual release bulletin opens once per version on the main screen and stays available in the account panel.", "zh": "新增中英双语版本公告：每个版本在主界面弹出一次，之后可在账号面板查看。" }
+      ]
+    },
+    {
+      "date": "2026-08-04",
+      "title": { "en": "Dialogue Portrait Matches the Protagonist", "zh": "剧情头像与主角一致" },
+      "items": [
+        { "tag": "change", "en": "Story dialogue now uses a lossless crop of the current eight-direction protagonist instead of the retired blocky headshot.", "zh": "剧情对话头像改用当前八方向主角图集的无损裁切，不再使用旧的方块头像。" }
+      ]
+    },
+    {
+      "date": "2026-08-03",
+      "title": { "en": "Smoother Eight-Direction Observatory Character", "zh": "更顺滑的八方向主角" },
+      "items": [
+        { "tag": "new", "en": "Six-frame animations in all eight directions replace the old four-direction, three-step walk.", "zh": "主角换成八个方向、每个方向六帧的行走动画，替代旧的四方向三步动画。" },
+        { "tag": "fix", "en": "Frames advance by distance travelled, so diagonals, low frame rates and blocked movement no longer skate or run in place.", "zh": "按实际移动距离推进帧，斜走、低帧率和被挡住时不再“滑步”或原地跑。" }
+      ]
+    },
+    {
+      "date": "2026-07-29",
+      "title": { "en": "Observatory Reliability, FAST Pulsar Rework and Community", "zh": "可靠性、FAST 脉冲星重做与社区" },
+      "items": [
+        { "tag": "new", "en": "FAST stage 4 is a continuous radio-analysis sequence: find the repeating clock, drag seven sub-bands into dispersion alignment, fold the phase and capture the pulse three times as it crosses the gate.", "zh": "FAST 第 4 阶段改为连续的射电分析：找重复时钟、拖动七条子频带对齐色散、旋转相位折叠，脉冲穿过闸门时按三次捕获。" },
+        { "tag": "new", "en": "The measured period, DM, pulse width and SNR flow into the report and saved archive, with a dedispersed-spectrum thumbnail in the journal.", "zh": "测得的周期、色散量、脉宽、信噪比进入报告和存档，日志里生成消色散频谱缩略图。" },
+        { "tag": "new", "en": "Friend messaging opens the existing private conversation directly, with real-time drawers on the website.", "zh": "游戏内好友消息直接打开已有私聊；官网加入实时私信抽屉。" },
+        { "tag": "fix", "en": "Fixed account creation after a completed human check; the loading screen now clearly reads LOADING / 在加载中.", "zh": "修复完成人机验证后注册失败；加载画面改为醒目的“LOADING / 在加载中”。" },
+        { "tag": "fix", "en": "Continue appears only for resumable saves; the menu language carries into a new campaign; playtime uses foreground-only heartbeats so duplicate tabs cannot inflate it.", "zh": "只有可继续的存档才显示“继续游戏”；主菜单选的语言会带进新战役；游玩时长只在前台计时，多开标签页不会重复累计。" },
+        { "tag": "change", "en": "Clicking outside Community or sign-in no longer closes it; use the close button or Escape.", "zh": "点击社区或登录框外的暗处不再关闭它，改用关闭按钮或 Esc。" }
+      ]
+    },
+    {
+      "date": "2026-07-28",
+      "title": { "en": "Observatory Accounts and Field Reports", "zh": "观测者账号与现场报告" },
+      "items": [
+        { "tag": "new", "en": "Observer accounts with secure sessions and automatic cloud progress sync for the web build; an older cloud save cannot erase more advanced local progress.", "zh": "上线观测者账号：安全会话，网页版进度自动云同步；旧的云存档不会覆盖更靠前的本机进度。" },
+        { "tag": "new", "en": "Categorized field reports from any page, each with a visible receipt, and a developer console to triage them.", "zh": "任意页面都能提交分类反馈并拿到回执，开发者后台可以分拣处理。" },
+        { "tag": "change", "en": "Turnstile, a honeypot and rate limits protect sign-up and feedback; passwords use salted PBKDF2 hashes.", "zh": "注册与反馈加入 Turnstile 人机验证、蜜罐和频率限制；密码使用加盐 PBKDF2 哈希。" }
+      ]
+    },
+    {
+      "date": "2026-07-27",
+      "title": { "en": "Independent Observer Release", "zh": "独立观测者版本" },
+      "items": [
+        { "tag": "new", "en": "Graduation is a four-part closing sequence: course recap, observing archive, equipment handover and the first independent night.", "zh": "结业变成四段可玩的收尾：课程回顾、观测档案、光学器材交接、第一次独立观测之夜。" },
+        { "tag": "fix", "en": "The observatory pad keeps your active optical telescope; visiting FAST or Space Infrared no longer overwrites it.", "zh": "观测台记住你当前使用的光学望远镜，去过 FAST 或空间红外后不再被覆盖。" }
+      ]
+    },
+    {
+      "date": "2026-07-25",
+      "title": { "en": "Official Website, /game/ Route and Advanced Observatory Pass", "zh": "官网重做、/game/ 路由与高级观测台" },
+      "items": [
+        { "tag": "site", "en": "New official website built around the game's own artwork, in chapters covering assembly, optics, observing modes, the instrument path and how each telescope works.", "zh": "以游戏原画为核心重做官网，按章节讲组装、光学、观测模式、仪器路线和各类望远镜原理。" },
+        { "tag": "change", "en": "pixelobservatorygame.com serves the website and the game opens at /game/; GitHub Pages became a deployment mirror; large game files come from Cloudflare R2.", "zh": "pixelobservatorygame.com 显示官网，游戏在 /game/ 打开；GitHub Pages 改为部署镜像；大文件改由 Cloudflare R2 分发。" },
+        { "tag": "new", "en": "Tutorial-assistance levels, space-infrared slewing and wavefront alignment, a five-stage FAST flow and a first SFX layer.", "zh": "新增教程辅助档位、空间红外姿态调整与波前对准、五阶段 FAST 流程和第一批音效。" },
+        { "tag": "fix", "en": "Web exports disable desktop texture compression that greyed out menu and observatory imagery in browsers.", "zh": "网页导出关闭桌面纹理压缩，修复浏览器里主菜单和观测台图片发灰。" }
+      ]
+    },
+    {
+      "date": "2026-07-22",
+      "title": { "en": "Learning Diagram and Mobile Cabinet Update", "zh": "学习图解与移动端零件柜" },
+      "items": [
+        { "tag": "change", "en": "A larger light-gathering diagram (pupil, aperture, collected light, faint objects) and a bigger Concept Brief image area.", "zh": "集光能力图解放大（瞳孔、口径、收集的光、暗弱天体），概念卡图片区域加大。" },
+        { "tag": "new", "en": "Touch swipe scrolling in the Parts Cabinet, with tap-versus-drag separation.", "zh": "零件柜支持触屏滑动，并区分点按与拖动，避免误装零件。" }
+      ]
+    },
+    {
+      "date": "2026-07-20",
+      "title": { "en": "Location, Horizon and Free Observation", "zh": "观测地点、地平线与自由观测" },
+      "items": [
+        { "tag": "new", "en": "Choose another observing site when a target is below the horizon, with world-map transitions and layered horizon scenery.", "zh": "目标在地平线以下时可换观测地点，加入世界地图过渡和分层地平线景观。" },
+        { "tag": "new", "en": "Free observation of non-mission objects with a detailed panel; the source of each coordinate (online/local/offline) is shown.", "zh": "自由观测非任务天体并查看详细面板；显示每个坐标的数据来源（在线 / 本地 / 离线）。" }
+      ]
+    },
+    {
+      "date": "2026-07-19", "version": "v2.0",
+      "title": { "en": "Web Delivery and Mobile Input", "zh": "网页版与移动输入" },
+      "items": [
+        { "tag": "new", "en": "Godot web export through GitHub Actions and GitHub Pages (then at tntsg1.github.io/Pixel-Observatory/), later on the custom domain pixelobservatorygame.com.", "zh": "通过 GitHub Actions 与 GitHub Pages 发布网页版（当时地址 tntsg1.github.io/Pixel-Observatory/），之后切到自定义域名 pixelobservatorygame.com。" },
+        { "tag": "new", "en": "Mobile Controller Mode: virtual joystick, interaction and mission buttons, scope switching, focus and collimation controls.", "zh": "移动控制模式：虚拟摇杆、交互与任务按钮、镜筒切换、调焦与准直控制。" }
+      ]
+    },
+    {
+      "date": "2026-07-19", "version": "v1.9",
+      "title": { "en": "Advanced Telescope Framework and Observation HUD", "zh": "高级望远镜框架与观测 HUD" },
+      "items": [
+        { "tag": "new", "en": "Newtonian assembly and collimation, chromatic-aberration comparison, installed-part textures and interaction feedback.", "zh": "牛顿式组装与准直、色差对比、已安装零件贴图和交互反馈。" },
+        { "tag": "new", "en": "Focus, seeing, clouds, drift, tracking and target-lock feedback; azimuth/altitude scales in DMS; reduced-motion support.", "zh": "调焦、视宁度、云层、漂移、跟踪和目标锁定反馈；方位 / 高度刻度（度分秒）；减少动态效果选项。" }
+      ]
+    },
+    {
+      "date": "2026-07-18",
+      "title": { "en": "Observation HUD and Target Feedback", "zh": "观测 HUD 与目标反馈" },
+      "items": [
+        { "tag": "change", "en": "New reticles for naked eye, finder and telescope; unified approach ring, lock ring and completion radius.", "zh": "肉眼、寻星镜、望远镜三种准星更新；接近圈、锁定圈与完成半径统一。" }
+      ]
+    },
+    {
+      "date": "2026-07-10 – 07-12",
+      "title": { "en": "Newtonian and Advanced Assembly", "zh": "牛顿式与高级组装" },
+      "items": [
+        { "tag": "new", "en": "Reflector data, nested tube blueprints and slots for primary mirror, cell, spider, secondary, focuser, eyepiece and collimation tool.", "zh": "反射镜数据、嵌套镜筒蓝图，以及主镜、镜室、十字架、副镜、调焦座、目镜、准直工具槽位。" }
+      ]
+    },
+    {
+      "date": "2026-07-04 – 07-05",
+      "title": { "en": "L10–L24 Teaching Structure and Observation Effects", "zh": "L10–L24 教学结构与观测效果规范" },
+      "items": [
+        { "tag": "new", "en": "A spiral practice structure revisits concepts under different conditions; the effects of focus, seeing, clouds, brightness, drift, magnification and tracking were specified.", "zh": "螺旋式练习结构让同一概念在不同条件下反复出现；定义调焦、视宁度、云层、亮度、漂移、倍率和跟踪对画面的影响。" }
+      ]
+    }
+  ],
+  "milestones": [
+    { "version": "v1.8", "en": "Jupiter observation states (clear, blurry, dim)", "zh": "木星观测贴图：清晰 / 模糊 / 暗淡三种状态" },
+    { "version": "v1.7", "en": "Unified Eye / Finder / Scope mode buttons", "zh": "肉眼 / 寻星镜 / 望远镜模式按钮统一" },
+    { "version": "v1.6", "en": "Starlight Observatory main menu", "zh": "星光天文台正式主菜单" },
+    { "version": "v1.5", "en": "Orion Nebula focus and quality pass", "zh": "猎户座大星云通关体验修正" },
+    { "version": "v1.4", "en": "Readable Learning Card diagrams", "zh": "学习卡图解放大" },
+    { "version": "v1.3", "en": "Focus knob as a real part", "zh": "调焦旋钮成为真实零件" },
+    { "version": "v1.2", "en": "Teaching before operation", "zh": "先教学、后操作" },
+    { "version": "v1.1", "en": "Real sky position pipeline", "zh": "真实星体位置系统" },
+    { "version": "v1.0", "en": "Four-direction player animation", "zh": "玩家角色动画规范化" },
+    { "version": "v0.9", "en": "Complete observatory background", "zh": "主观测室完整背景图" },
+    { "version": "v0.8", "en": "Parts Cabinet and Assembly Table separated", "zh": "零件柜与组装台分离" },
+    { "version": "v0.7", "en": "Telescope View and quality states", "zh": "望远镜视野与观测质量" },
+    { "version": "v0.6", "en": "Distinct Sky Observation targets", "zh": "星空观测视觉升级" },
+    { "version": "v0.5", "en": "First complete mission loop", "zh": "第一关完整流程" },
+    { "version": "v0.4", "en": "Playable telescope assembly", "zh": "望远镜组装可玩化" },
+    { "version": "v0.3", "en": "Observatory interior redesign", "zh": "主观测室重做" },
+    { "version": "v0.2", "en": "Movable observatory room", "zh": "可走动的观测室" },
+    { "version": "v0.1", "en": "Project replacement and MVP foundation", "zh": "项目替换与 MVP 基础" }
+  ],
+  "gaps": [
+    { "en": "Some advanced telescope families still need final artwork and family-specific interaction.", "zh": "部分高级望远镜还缺最终美术和专属交互。" },
+    { "en": "Later campaign content needs a diversity pass so targets and concept cards repeat less.", "zh": "后期关卡需要丰富目标，减少重复的天体和概念卡。" },
+    { "en": "Below-horizon travel needs a stronger transition and clearer world-map controls.", "zh": "地平线以下换地点的过渡动画和世界地图操作还要加强。" },
+    { "en": "Mobile controls need real Android testing and a final APK release process.", "zh": "移动端操作需要真机测试和正式 APK 发布流程。" }
+  ]
+}
