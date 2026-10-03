@@ -664,6 +664,19 @@
   @media (max-width:560px){.gnav-new .gnav-new-name{display:none}.gnav-new{margin-left:auto;padding:7px 10px 7px 8px}.gnav-new~.gnav-play{margin-left:0}}
   @media (min-width:1251px) and (max-width:1800px){.gnav-new{position:relative;padding:0;width:38px;height:38px;justify-content:center;gap:0}.gnav-new .gnav-new-name{display:none}.gnav-new-orb{width:19px;height:19px}.gnav-new b{position:absolute;top:-7px;right:-12px;font-size:8px;padding:1px 4px;box-shadow:0 0 8px rgba(242,164,68,.6)}}
   @media (prefers-reduced-motion:reduce){.gnav-new{transition:none!important}}
+  /* Second entry: the probability-games mini site (its own worker, same zone, at /casino). */
+  .gnav-casino{display:inline-flex;align-items:center;gap:8px;flex:none;color:#ffe6c4;text-decoration:none;font-size:13px;font-weight:700;
+    padding:7px 15px 7px 9px;border-radius:999px;white-space:nowrap;border:1px solid transparent;
+    background:linear-gradient(160deg,rgba(66,20,24,.76),rgba(12,14,32,.9)) padding-box,linear-gradient(120deg,#f2d488,#d9a648 42%,#d1552f 74%,#8c2d24) border-box;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 4px 18px rgba(209,85,47,.22);transition:transform .4s cubic-bezier(.22,1,.36,1),box-shadow .4s}
+  .gnav-casino:hover{transform:scale(1.05);color:#fff6e6;box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 6px 26px rgba(209,85,47,.45)}
+  .gnav-casino-wheel{position:relative;width:17px;height:17px;border-radius:50%;flex:none;
+    background:conic-gradient(#d1552f 0 45deg,#141326 45deg 90deg,#d1552f 90deg 135deg,#141326 135deg 180deg,#d1552f 180deg 225deg,#141326 225deg 270deg,#d1552f 270deg 315deg,#141326 315deg 360deg);
+    box-shadow:inset 0 0 0 1.5px #e9c987,0 0 10px rgba(209,85,47,.6)}
+  .gnav-casino-wheel::after{content:"";position:absolute;inset:6px;border-radius:50%;background:#f2d488}
+  @media (max-width:560px){.gnav-casino .gnav-casino-name{display:none}.gnav-casino{padding:7px 10px 7px 8px}}
+  @media (min-width:1251px) and (max-width:1800px){.gnav{gap:3px;padding:8px 8px 8px 14px}.gnav-links{margin:0 3px}.gnav-casino{position:relative;padding:0;width:38px;height:38px;justify-content:center;gap:0}.gnav-casino .gnav-casino-name{display:none}.gnav-casino-wheel{width:19px;height:19px}}
+  @media (prefers-reduced-motion:reduce){.gnav-casino{transition:none!important}}
   /* Changelog entry under the hero actions and in the footer. */
   .hero-log{display:inline-flex;align-items:center;gap:10px;margin-top:30px;font-family:var(--mono);font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt-low);text-decoration:none;transition:color .3s}
   .hero-log b{font-weight:500;color:var(--gold-soft)}
@@ -793,6 +806,7 @@
   <span class="gnav-visits" aria-live="polite">VISITORS <b id="visitor-count">--</b></span>
   </div>
   <a class="gnav-new" href="/stellar/" title="New game: Stellar Ascension / 新作：星际拓荒者" aria-label="New game: Stellar Ascension / 新作：星际拓荒者"><span class="gnav-new-orb" aria-hidden="true"></span><b>NEW</b><span class="gnav-new-name"><span class="en">Stellar Ascension</span><span class="zh">星际拓荒者</span></span></a>
+  <a class="gnav-casino" href="/casino" title="Probability games: eight casino classics / 概率游戏：八种经典玩法" aria-label="Probability games: eight casino classics / 概率游戏：八种经典玩法"><span class="gnav-casino-wheel" aria-hidden="true"></span><span class="gnav-casino-name"><span class="en">Casino</span><span class="zh">赌场</span></span></a>
   <a class="gnav-play" href="game/" target="_blank" rel="noopener">
     <span class="en">▶ Play</span><span class="zh">▶ 在线游玩</span></a>
 </nav>
