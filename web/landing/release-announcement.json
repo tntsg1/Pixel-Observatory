@@ -1,15 +1,15 @@
 {
   "schema": 1,
-  "version": "v0.9.7",
-  "published_at": "2026-09-28",
+  "version": "v0.9.8",
+  "published_at": "2026-10-02",
   "audience": "registered",
   "title": {
-    "en": "Eyepiece Observation Fixes",
-    "zh": "目镜观测问题修复"
+    "en": "Level 26 Assembly Fix",
+    "zh": "第 26 关组装问题修复"
   },
   "summary": {
-    "en": "The Level 10 Saturn comparison and eyepiece recommendations in Levels 13 and 16 have been corrected. These fixes are live in the browser game.",
-    "zh": "第 10 关土星目镜比较，以及第 13、16 关的目镜推荐问题已修复，网页版现已更新。"
+    "en": "Level 26 now opens the Newtonian assembly bench and keeps the starter refractor tube out of the active loadout. Existing saves are repaired when loaded.",
+    "zh": "第 26 关现在会打开牛顿镜组装台，入门折射镜筒不会再占用当前装备；已有存档加载时会自动修正。"
   },
   "sections": [
     {
@@ -19,22 +19,18 @@
       },
       "items": [
         {
-          "en": "Level 10 now records a focused Saturn observation through the 32mm and 10mm eyepieces as part of the comparison, even though those powers cannot pass the final identification check. After comparing all three, return to the 20mm eyepiece to identify Saturn.",
-          "zh": "第 10 关使用 32mm 或 10mm 目镜对准土星并完成调焦后，即使倍率不满足最终识别条件，比较步骤也会记录。比较三枚目镜后，请换回 20mm 目镜识别土星。"
+          "en": "After Level 25, the assembly table automatically selects the Newtonian bench required by Level 26. A save that still remembers the refractor bench is corrected on load.",
+          "zh": "完成第 25 关后，组装台会自动切换到第 26 关需要的牛顿镜；仍记着折射镜组装台的旧存档也会在加载时修正。"
         },
         {
-          "en": "In Level 13, the parts cabinet and automatic equipment now follow the target you actually chose: 10mm for the Moon, 20mm for Saturn, and 32mm for the Pleiades.",
-          "zh": "第 13 关的零件柜与自动配装现在会按实际选择的目标推荐：月球 10mm、土星 20mm、昴星团 32mm。"
-        },
-        {
-          "en": "In Level 16, automatic equipment now selects the wide-field 32mm eyepiece for the Pleiades instead of the 10mm eyepiece that exceeded the level's magnification limit.",
-          "zh": "第 16 关观测昴星团时，自动配装现选择视野更宽的 32mm 目镜，不再推荐超过本关倍率上限的 10mm 目镜。"
+          "en": "The starter tube and other refractor-only parts are no longer shown as equipped or offered for the Newtonian bench. Switching telescope types clears incompatible selections.",
+          "zh": "入门镜筒等折射镜专用零件不再显示为牛顿镜已装备零件；切换镜型时会清理不兼容的装备状态。"
         }
       ]
     }
   ],
   "footer": {
-    "en": "Your existing save can continue. Thank you for reporting the observing problems.",
-    "zh": "现有存档可以继续使用。感谢大家反馈观测问题。"
+    "en": "Your existing save can continue. Thank you for reporting the assembly problem.",
+    "zh": "现有存档可以继续使用。感谢大家反馈组装问题。"
   }
 }

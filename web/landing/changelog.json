@@ -2,6 +2,15 @@
   "source": "docs/CHANGELOG.md + docs/VERSION_HISTORY.md (github.com/tntsg1/Pixel-Observatory)",
   "entries": [
     {
+      "date": "2026-10-02", "version": "v0.9.8",
+      "title": { "en": "Level 26 Assembly Fix", "zh": "第 26 关组装问题修复" },
+      "items": [
+        { "tag": "fix", "en": "Level 26 now opens the Newtonian assembly bench after Level 25, including for existing saves that still remember the refractor bench.", "zh": "完成第 25 关后，第 26 关会打开牛顿镜组装台；仍记着折射镜组装台的旧存档也会自动修正。" },
+        { "tag": "fix", "en": "The starter refractor tube no longer appears equipped or equippable on the Newtonian bench; switching telescope families clears incompatible parts.", "zh": "入门折射镜筒不再显示为牛顿镜已装备零件，也无法误装备；切换镜型会清理不兼容零件。" },
+        { "tag": "test", "en": "Regression checks cover old saves, the Level 25-to-26 transition, the assembly bench and the parts cabinet.", "zh": "回归测试覆盖旧存档、第 25 关进入第 26 关、组装台与零件柜。" }
+      ]
+    },
+    {
       "date": "2026-09-28", "version": "v0.9.7",
       "title": { "en": "Observation Fixes", "zh": "目镜观测问题修复" },
       "items": [

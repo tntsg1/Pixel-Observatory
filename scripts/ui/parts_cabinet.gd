@@ -371,7 +371,8 @@ func _part_card(part: Dictionary) -> Control:
 	var part_id := str(part.get("id", ""))
 	var type_info: Dictionary = {"en": _type_label(part_type, "en"), "zh": _type_label(part_type, "zh"), "role": _type_label(part_type, "role")}
 	var unlocked := _is_unlocked(part_id)
-	var equipped := GameManager.equipped_part_id(part_type) == part_id
+	var compatible := GameManager.is_part_compatible_with_current_level(part)
+	var equipped := compatible and GameManager.equipped_part_id(part_type) == part_id
 	var exact_required_id := _required_id_for_type(part_type)
 	var exact_required := exact_required_id == part_id
 	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
@@ -451,7 +452,7 @@ func _part_card(part: Dictionary) -> Control:
 	desc_label.max_lines_visible = 2
 
 	_draw_stat_chips(root, part, Vector2(18, 132), unlocked)
-	_draw_action_column(root, part, unlocked, equipped, incompatible_equipped)
+	_draw_action_column(root, part, unlocked, equipped, incompatible_equipped, compatible)
 
 	# Tap-selection marker: an inner outline, so the equipped / locked / required
 	# border colours above stay exactly as they are.
@@ -467,7 +468,7 @@ func _part_card(part: Dictionary) -> Control:
 	return root
 
 
-func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipped: bool, incompatible_equipped: bool) -> void:
+func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipped: bool, incompatible_equipped: bool, compatible: bool) -> void:
 	var part_id := str(part.get("id", ""))
 	var part_type := str(part.get("type", ""))
 	var column_x := CARD_SIZE.x - 174.0
@@ -479,6 +480,9 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 	elif equipped:
 		badge_text = GameManager.text("Equipped", "已装备")
 		badge_color = GREEN
+	elif unlocked and not compatible:
+		badge_text = GameManager.text("Other telescope", "其他镜型")
+		badge_color = MUTED
 	elif unlocked:
 		badge_text = GameManager.text("Available", "可装备")
 		badge_color = GOLD
@@ -495,8 +499,8 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 		button.disabled = true
 		button.add_theme_stylebox_override("disabled", _style(Color(0.18, 0.075, 0.045), WARNING, 2, 3) if incompatible_equipped else _style(Color(0.07, 0.14, 0.10), GREEN, 2, 3))
 		button.add_theme_color_override("font_disabled_color", Color(1.0, 0.78, 0.48) if incompatible_equipped else Color(0.72, 1.0, 0.76))
-	elif not unlocked:
-		button.text = GameManager.text("Locked", "未解锁")
+	elif not unlocked or not compatible:
+		button.text = GameManager.text("Locked", "未解锁") if not unlocked else GameManager.text("Other telescope", "其他镜型")
 		button.disabled = true
 		button.add_theme_stylebox_override("disabled", _style(Color(0.05, 0.055, 0.065), Color(0.16, 0.17, 0.19), 2, 3))
 		button.add_theme_color_override("font_disabled_color", Color(0.42, 0.44, 0.48))
@@ -628,6 +632,8 @@ func _grouped_parts() -> Dictionary:
 	for part_value in parts:
 		var part: Dictionary = part_value
 		if not _part_visible_in_tab(str(part.get("telescope_family", ""))):
+			continue
+		if selected_family not in ["all", "refractor"] and str(part.get("type", "")) in ["tube", "objective", "focus_knob"]:
 			continue
 		var category := _category_for_part(part)
 		if not grouped.has(category):

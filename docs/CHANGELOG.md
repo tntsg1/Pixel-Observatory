@@ -7,6 +7,17 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-10-02 - v0.9.8 Level 26 Assembly Fix
+
+- The campaign now selects the required Newtonian assembly bench when moving
+  from level 25 to level 26. Existing saves with a stale refractor selection
+  are corrected on load without resetting earned progress.
+- Switching telescope families clears parts that cannot belong to the new
+  build. The parts cabinet no longer marks the starter refractor tube as
+  equipped on the Newtonian bench or lets players equip it there.
+- Added a Godot regression test for old saves, level progression, the rendered
+  bench, cabinet controls and later telescope-family transitions.
+
 ## 2026-09-28 - v0.9.7 Observation Fixes
 
 ### Level 10 Eyepiece Comparison
