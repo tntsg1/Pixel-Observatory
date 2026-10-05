@@ -162,6 +162,24 @@
     text-align:center;padding:80px 24px 110px;position:relative;overflow:hidden;pointer-events:auto;
   }
   .hero a,.hero button{pointer-events:auto}
+  /* 首页右上角的“新游戏”圆形标志：带环的紫色行星 + 沿圆圈转动的文字，点击进入《星际拓荒者》。窄屏隐藏。 */
+  .hero-newgame{position:absolute;top:118px;right:6%;width:190px;height:190px;z-index:3;display:block;text-decoration:none;
+    border-radius:50%;transition:transform .35s ease,filter .35s ease;filter:drop-shadow(0 0 18px rgba(141,107,255,.35))}
+  .hero-newgame:hover{transform:scale(1.06);filter:drop-shadow(0 0 28px rgba(242,164,68,.55))}
+  .hero-newgame .ng-ring{position:absolute;inset:0;width:100%;height:100%;animation:ngSpin 26s linear infinite}
+  .hero-newgame .ng-ring text{font:800 11.5px var(--sans);fill:#ffd9a6}
+  .hero-newgame .ng-halo{position:absolute;inset:18px;border-radius:50%;border:1px solid rgba(242,164,68,.45);
+    background:radial-gradient(circle at 50% 45%,rgba(75,47,158,.35),rgba(10,12,28,.75) 68%);box-shadow:inset 0 0 24px rgba(141,107,255,.35)}
+  .hero-newgame .ng-planet{position:absolute;left:50%;top:50%;width:62px;height:62px;margin:-36px 0 0 -31px;border-radius:50%;
+    background:radial-gradient(circle at 35% 32%,#e3d4ff,#8d6bff 38%,#3b2386 72%,#1c1048);box-shadow:0 0 22px rgba(141,107,255,.7)}
+  .hero-newgame .ng-planet::after{content:"";position:absolute;left:-22px;right:-22px;top:24px;height:14px;border:2.5px solid #f2a444;border-radius:50%;
+    transform:rotate(-18deg);box-shadow:0 0 10px rgba(242,164,68,.6)}
+  .hero-newgame .ng-badge{position:absolute;left:50%;bottom:44px;transform:translateX(-50%);white-space:nowrap;font:800 10px var(--sans);
+    letter-spacing:.12em;color:#1a0c02;background:#f2a444;padding:2px 8px;border-radius:999px;box-shadow:0 0 12px rgba(242,164,68,.55)}
+  @keyframes ngSpin{to{transform:rotate(360deg)}}
+  @media (max-width:1600px){.hero-newgame{top:92px;right:3%;width:160px;height:160px}.hero-newgame .ng-halo{inset:15px}.hero-newgame .ng-planet{transform:scale(.85)}.hero-newgame .ng-badge{bottom:36px}}
+  @media (max-width:900px){.hero-newgame{display:none}}
+  @media (prefers-reduced-motion:reduce){.hero-newgame .ng-ring{animation:none}.hero-newgame{transition:none}}
   #sky{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
   .hero-veil{
     position:absolute;inset:0;pointer-events:none;
@@ -847,6 +865,16 @@
     </g>
   </svg>
   <div class="hero-veil" aria-hidden="true"></div>
+  <a class="hero-newgame" href="/stellar/" title="New game: Stellar Ascension / 新游戏：星际拓荒者" aria-label="New game: Stellar Ascension / 新游戏：星际拓荒者">
+    <span class="ng-halo" aria-hidden="true"></span>
+    <svg class="ng-ring" viewBox="0 0 190 190" aria-hidden="true">
+      <defs><path id="ngCircle" d="M95,95 m-80,0 a80,80 0 1,1 160,0 a80,80 0 1,1 -160,0"/></defs>
+      <text class="en"><textPath href="#ngCircle" textLength="498" lengthAdjust="spacing">NEW GAME · STELLAR ASCENSION · NEW GAME · STELLAR ASCENSION ·</textPath></text>
+      <text class="zh"><textPath href="#ngCircle" textLength="498" lengthAdjust="spacing">新游戏 · 星际拓荒者 · 新游戏 · 星际拓荒者 ·</textPath></text>
+    </svg>
+    <span class="ng-planet" aria-hidden="true"></span>
+    <span class="ng-badge"><span class="en">PLAY NOW</span><span class="zh">立即游玩</span></span>
+  </a>
 
   <div class="hero-inner" id="heroInner">
     <p class="hero-tag">
