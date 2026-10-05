@@ -1,46 +1,44 @@
 {
   "schema": 1,
-  "version": "v0.9.8",
-  "published_at": "2026-10-04",
+  "version": "v0.9.9",
+  "published_at": "2026-10-05",
   "audience": "registered",
   "title": {
-    "en": "Level 26 Assembly Hotfix",
-    "zh": "第 26 关组装热修复"
+    "en": "Automatic Equipment Recommendation Fix",
+    "zh": "一键装备推荐修复"
   },
   "summary": {
-    "en": "This update fixes a Level 26 progression lock caused by carrying refractor equipment into the Newtonian assembly lesson.",
-    "zh": "本次更新修复了第 26 关因折射式望远镜零件残留到牛顿反射式组装课而造成的卡关问题。"
+    "en": "This release corrects eyepiece recommendations and includes the science instrument needed by each infrared observation plan.",
+    "zh": "本次更新修正了部分关卡的目镜推荐，并为红外关卡的一键装备清单补充了观测计划所需的科学仪器。"
   },
   "sections": [
     {
-      "heading": { "en": "Issues resolved", "zh": "问题修复" },
+      "heading": {
+        "en": "Issues resolved",
+        "zh": "问题修复"
+      },
       "items": [
         {
-          "en": "Entering or loading Level 26 now selects the Newtonian assembly bench and removes incompatible refractor-only parts from the active equipment set.",
-          "zh": "进入或载入第 26 关时，游戏现在会正确切换到牛顿反射式组装台，并移除当前装备中不兼容的折射式专用零件。"
+          "en": "Level 10 keeps the prescribed comparison sequence and recommends the 20mm eyepiece after the experiment.",
+          "zh": "第 10 关保留指定的目镜比较顺序，实验完成后推荐使用 20mm 目镜。"
         },
         {
-          "en": "Automatic equipment and the parts cabinet can no longer leave a starter tube, objective lens or focus knob equipped on a reflector bench.",
-          "zh": "一键装备和零件柜现在不会再把入门镜筒、物镜或调焦旋钮保留在反射式望远镜组装台上。"
+          "en": "Level 13 now recommends 10mm for the Moon, 20mm for Saturn and 32mm for the Pleiades. Level 16 recommends 32mm for its wide-field observation.",
+          "zh": "第 13 关根据所选目标推荐目镜：月亮使用 10mm、土星使用 20mm、昴星团使用 32mm。第 16 关的宽视场观测推荐 32mm 目镜。"
         },
         {
-          "en": "Existing saves already stopped at Level 26 are repaired when loaded; players can continue with the same save.",
-          "zh": "已经停在第 26 关的旧存档会在载入时自动修复，玩家无需重新开档。"
-        }
-      ]
-    },
-    {
-      "heading": { "en": "Observer recognition", "zh": "观测者致谢" },
-      "items": [
+          "en": "Levels 66–75 include the target's recommended NIRCam, MIRI or NIRSpec in automatic equipment. Install it on the Instruments blueprint before starting the observation plan.",
+          "zh": "第 66–75 关的一键装备现在包含本关推荐的 NIRCam、MIRI 或 NIRSpec。请在组装台的“科学仪器”蓝图页完成安装，再进入观测规划。"
+        },
         {
-          "en": "The observer who supplied the reproducible report has received a permanent field-research honor, a signal-gold avatar frame, and access to the in-game developer console without receiving website administration privileges.",
-          "zh": "提供可复现报告的观测者已获得永久现场研究荣誉、信标金环头像框，以及游戏内开发者调试台权限；该权限不包含网站后台管理能力。"
+          "en": "Parts cabinet eyepiece recommendation badges now follow the active target and its magnification limits.",
+          "zh": "零件柜的目镜推荐标记现在会跟随当前目标及本关允许的倍率范围。"
         }
       ]
     }
   ],
   "footer": {
-    "en": "Thank you for testing carefully enough to turn a hard-to-find lock into a fixable report.",
-    "zh": "感谢你认真测试并给出可复现步骤，让这个难以定位的卡关问题能够被修复。"
+    "en": "Existing saves remain compatible. Equipment selection does not replace assembly or observation controls.",
+    "zh": "现有存档可以继续使用。一键装备负责选择零件，玩家仍需完成安装和观测操作。"
   }
 }

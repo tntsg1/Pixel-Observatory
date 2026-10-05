@@ -697,6 +697,8 @@ func _is_recommended(part: Dictionary) -> bool:
 	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
 	if pending_step_part_id != "":
 		return part_id == pending_step_part_id
+	if part_type == "eyepiece":
+		return _is_unlocked(part_id) and part_id == str(GameManager.best_part_for_type("eyepiece").get("id", ""))
 	if _array_has_string(level.get("recommended_part_ids", []), part_id):
 		return true
 	var target_id := str(level.get("target_object_id", ""))

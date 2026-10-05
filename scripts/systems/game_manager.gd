@@ -2141,7 +2141,7 @@ func set_assembly_hints(enabled: bool) -> void:
 # Task profile for part scoring: what does TONIGHT's observation reward?
 func _task_profile() -> String:
 	var target_type := str(current_target().get("type_en", "")).to_lower()
-	if target_type.contains("nebula") or target_type.contains("galaxy"):
+	if target_type.contains("nebula") or target_type.contains("galaxy") or target_type.contains("cluster"):
 		return "deep_sky"
 	if str(current_environment().get("seeing", "")) == "poor":
 		return "steady"
@@ -2197,11 +2197,40 @@ func best_part_for_type(part_type: String) -> Dictionary:
 		var part_family := str(option.get("telescope_family", ""))
 		if part_family != "" and part_family != current_family:
 			continue
+		if part_type == "eyepiece" and not eyepiece_meets_active_magnification(option):
+			continue
 		var score := _part_score(option, profile)
 		if score > best_score:
 			best_score = score
 			best = option
 	return best
+
+
+func eyepiece_meets_active_magnification(eyepiece: Dictionary) -> bool:
+	var requirements := active_observation_requirements()
+	if not requirements.has("magnification_min") and not requirements.has("magnification_max"):
+		return true
+	var objective_type := "primary_mirror" if current_level().get("required_parts", []).has("primary_mirror") else "objective"
+	var objective_id := pinned_part_id(objective_type)
+	var objective := get_part(objective_id) if objective_id != "" else best_part_for_type(objective_type)
+	if objective.is_empty():
+		objective = get_part(equipped_part_id(objective_type))
+	var objective_focal := float(objective.get("focal_length_mm", 0.0))
+	var eyepiece_focal := float(eyepiece.get("focal_length_mm", 0.0))
+	if objective_focal <= 0.0 or eyepiece_focal <= 0.0:
+		return true
+	var magnification := objective_focal / eyepiece_focal
+	return (
+		(not requirements.has("magnification_min") or magnification >= float(requirements["magnification_min"]))
+		and (not requirements.has("magnification_max") or magnification <= float(requirements["magnification_max"]))
+	)
+
+
+func recommended_space_instrument_type() -> String:
+	if assembly_context_family() != "space_segmented" or postgraduate_free_build():
+		return ""
+	var profile: Dictionary = current_level().get("space_profile", {})
+	return str(SPACE_INSTRUMENT_PART_TYPES.get(str(profile.get("best_instrument", "nircam")), ""))
 
 
 func _auto_reason(part_type: String, profile: String, part: Dictionary) -> Dictionary:
@@ -2248,6 +2277,9 @@ func auto_equip_plan() -> Array:
 	for type_value in current_level().get("required_parts", []):
 		if str(type_value) != "optical_tube_assembly" and not slot_types.has(str(type_value)):
 			slot_types.append(str(type_value))
+	var science_type := recommended_space_instrument_type()
+	if science_type != "" and not slot_types.has(science_type):
+		slot_types.append(science_type)
 	for slot_value in slot_types:
 		var part_type := str(slot_value)
 		var pending_step_id := pending_mission_step_part_id(part_type)
@@ -2269,7 +2301,13 @@ func auto_equip_plan() -> Array:
 		var best := best_part_for_type(part_type)
 		if best.is_empty():
 			continue
-		plan.append(_auto_equip_entry(part_type, best, false, _auto_reason(part_type, profile, best)))
+		var reason := _auto_reason(part_type, profile, best)
+		if part_type == science_type:
+			reason = {
+				"en": "This target's observing plan recommends this science instrument. Install it on the Instruments blueprint before observing.",
+				"zh": "本关目标的观测计划推荐使用该科学仪器。请先在“科学仪器”蓝图页安装，再开始观测。"
+			}
+		plan.append(_auto_equip_entry(part_type, best, false, reason))
 	return plan
 
 
