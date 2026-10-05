@@ -38,3 +38,9 @@
 - **On every release:** add the entry to `changelog.json` (newest first, `en` + `zh`), bump the version in
   `.hero-log`, and keep `docs/CHANGELOG.md` as the local record. Deployed by patching the built index
   identically (3 files uploaded).
+
+## Casino → footer (2026-10-04)
+
+- The `.gnav-casino` nav pill was removed at the user's request. The entry now lives in the footer as a separate
+  `.foot-other` row: "Other games / 其他游戏" → "Anti-Gambling / 反赌博" (`.foot-anti`, still links to `/casino`,
+  reuses the `.gnav-casino-wheel` icon CSS). Deployed the same way (copy promo.html → build index, `wrangler@4 deploy`).
