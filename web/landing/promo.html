@@ -551,6 +551,9 @@
   .foot nav{display:flex;gap:24px;flex-wrap:wrap}
   .foot nav a{color:var(--txt-mid);text-decoration:none;font-size:14px;transition:color .3s}
   .foot nav a:hover{color:var(--gold)}
+  .foot .foot-other{width:100%;align-items:center;gap:14px;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+  .foot .foot-other-label{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-low)}
+  .foot .foot-anti{display:inline-flex;align-items:center;gap:8px}
   .foot .fine{width:100%;margin-top:34px;font-family:var(--mono);font-size:11px;
     color:var(--txt-low);letter-spacing:.06em}
 
@@ -806,7 +809,6 @@
   <span class="gnav-visits" aria-live="polite">VISITORS <b id="visitor-count">--</b></span>
   </div>
   <a class="gnav-new" href="/stellar/" title="New game: Stellar Ascension / 新作：星际拓荒者" aria-label="New game: Stellar Ascension / 新作：星际拓荒者"><span class="gnav-new-orb" aria-hidden="true"></span><b>NEW</b><span class="gnav-new-name"><span class="en">Stellar Ascension</span><span class="zh">星际拓荒者</span></span></a>
-  <a class="gnav-casino" href="/casino" title="Probability games: eight casino classics / 概率游戏：八种经典玩法" aria-label="Probability games: eight casino classics / 概率游戏：八种经典玩法"><span class="gnav-casino-wheel" aria-hidden="true"></span><span class="gnav-casino-name"><span class="en">Casino</span><span class="zh">赌场</span></span></a>
   <a class="gnav-play" href="game/" target="_blank" rel="noopener">
     <span class="en">▶ Play</span><span class="zh">▶ 在线游玩</span></a>
 </nav>
@@ -2334,6 +2336,10 @@
         <span class="en">Steam (soon)</span><span class="zh">Steam（即将上线）</span></a>
       <a href="changelog/"><span class="en">Changelog</span><span class="zh">更新日志</span></a>
       <a href="#top"><span class="en">Back to top</span><span class="zh">回到顶部</span></a>
+    </nav>
+    <nav class="foot-other" aria-label="Other games">
+      <span class="foot-other-label"><span class="en">Other games</span><span class="zh">其他游戏</span></span>
+      <a class="foot-anti" href="/casino" title="Anti-Gambling: see the math behind eight casino classics / 反赌博：看清八种经典赌局背后的数学"><span class="gnav-casino-wheel" aria-hidden="true"></span><span class="en">Anti-Gambling</span><span class="zh">反赌博</span></a>
     </nav>
     <p class="fine">© 2026 tntsg · Starlight Observatory · v0.9.8. <span class="en">All observations belong to the night.</span><span class="zh">所有观测，归于夜空。</span></p>
   </div>
