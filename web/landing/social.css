@@ -329,6 +329,49 @@
   border-radius: inherit;
   animation: social-admin-orbit 8s linear infinite;
 }
+.social-avatar.frame-signal-gold {
+  position: relative;
+  border-color: rgba(255,213,112,.92);
+  box-shadow: 0 0 0 3px rgba(255,189,69,.14),0 0 22px rgba(82,211,255,.25),0 16px 38px rgba(0,0,0,.34);
+}
+.social-avatar.frame-signal-gold::before,
+.social-avatar.frame-signal-gold::after {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.social-avatar.frame-signal-gold::before {
+  inset: -8px;
+  border: 2px solid transparent;
+  background: linear-gradient(135deg,#ffd66f,#62dcff,#ffd66f) border-box;
+  -webkit-mask: linear-gradient(#fff 0 0) padding-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  filter: drop-shadow(0 0 8px rgba(99,221,255,.36));
+}
+.social-avatar.frame-signal-gold::after {
+  inset: -14px;
+  border: 1px dashed rgba(255,222,133,.42);
+  animation: social-admin-orbit 16s linear infinite;
+}
+.social-signal-gem {
+  position: absolute;
+  z-index: 3;
+  right: -11px;
+  bottom: -10px;
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 1px solid rgba(255,234,167,.78);
+  border-radius: 50%;
+  color: #7ce7ff;
+  background: radial-gradient(circle at 35% 30%,#fff4bd,#b48122 45%,#173a4b 72%);
+  box-shadow: 0 0 17px rgba(104,224,255,.48),0 5px 14px rgba(0,0,0,.4);
+  font-size: 11px;
+  font-style: normal;
+}
 .social-avatar.is-admin::after {
   inset: -15px;
   border-color: rgba(116,217,255,.22);
@@ -369,6 +412,27 @@
   text-transform: uppercase;
 }
 .social-admin-honor i { color: #8ee2ff; font-style: normal; }
+.social-admin-honor.is-observer-honor {
+  border-color: rgba(105,218,255,.38);
+  color: #ffe9a8;
+  background: linear-gradient(110deg,rgba(40,144,184,.14),rgba(216,166,55,.13));
+}
+.social-special-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: -2px 0 9px;
+  color: #8ee7ff;
+  font: 800 11px/1.25 var(--mono,monospace);
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.social-special-title span { color: #f4c861; }
+.social-profile-identity.is-signal-profile {
+  border-color: rgba(111,211,240,.42);
+  background: linear-gradient(155deg,rgba(13,72,94,.24),rgba(70,49,12,.14) 55%,rgba(7,17,29,.78));
+}
 
 .social-profile-identity.is-admin-profile {
   position: relative;

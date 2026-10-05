@@ -7,6 +7,19 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## 2026-10-04 - v0.9.8 Level 26 Assembly Hotfix
+
+- Fixed the Level 26 Newtonian assembly lock caused by refractor-family state
+  and incompatible starter optics surviving the transition from Level 25.
+- Existing saves now synchronize the assembly family when they load, while the
+  parts cabinet and equipment path reject refractor-only parts on reflector
+  benches.
+- Separated the in-game developer console entitlement from the website
+  administrator role. A rewarded observer can use the testing console without
+  gaining moderation, feedback-console or deployment access.
+- Added a permanent field-research honor, signal-gold avatar frame and special
+  observer title for the player who supplied the reproducible report.
+
 ## 2026-09-18 - v0.9.5 Observatory Website Copy Update
 
 - Rewrote the Chinese public landing page from the opening and Maya introduction

@@ -79,13 +79,20 @@
 
   function avatar(profile, size = "") {
     const adminClass = profile?.role === "admin" ? " is-admin" : "";
-    return `<span class="social-avatar ${size}${adminClass}" style="${avatarStyle(profile?.avatarId)}" role="img" aria-label="${esc(profile?.username || "Observer")}">${profile?.role === "admin" ? '<i class="social-admin-crown" aria-hidden="true">✦</i>' : ""}</span>`;
+    const frameClass = profile?.avatarFrame === "signal-gold" ? " frame-signal-gold" : "";
+    return `<span class="social-avatar ${size}${adminClass}${frameClass}" style="${avatarStyle(profile?.avatarId)}" role="img" aria-label="${esc(profile?.username || "Observer")}">${profile?.role === "admin" ? '<i class="social-admin-crown" aria-hidden="true">✦</i>' : profile?.avatarFrame === "signal-gold" ? '<i class="social-signal-gem" aria-hidden="true">◆</i>' : ""}</span>`;
   }
 
   function honor(profile) {
-    return profile?.role === "admin"
-      ? `<span class="social-admin-honor"><i aria-hidden="true">✦</i>${t("Observatory Director", "天文台台长")}<i aria-hidden="true">✦</i></span>`
-      : "";
+    const value = profile?.role === "admin"
+      ? t("Observatory Director", "天文台台长")
+      : (isZh() ? profile?.honor?.zh : profile?.honor?.en);
+    return value ? `<span class="social-admin-honor ${profile?.role === "admin" ? "" : "is-observer-honor"}"><i aria-hidden="true">✦</i>${esc(value)}<i aria-hidden="true">✦</i></span>` : "";
+  }
+
+  function specialTitle(profile) {
+    const value = isZh() ? profile?.specialTitle?.zh : profile?.specialTitle?.en;
+    return value ? `<div class="social-special-title"><span aria-hidden="true">⌁</span>${esc(value)}<span aria-hidden="true">⌁</span></div>` : "";
   }
 
   function rankName(rank) {
@@ -455,10 +462,11 @@
     const data = await api(`/api/social/profile${query}`);
     const profile = data.profile;
     const percent = Math.round((profile.rank?.progress || 0) * 100);
-    const identity = `<section class="social-card social-profile-identity theme-${esc(profile.profileTheme || "standard")} ${profile.role === "admin" ? "is-admin-profile" : ""}">
+    const identity = `<section class="social-card social-profile-identity theme-${esc(profile.profileTheme || "standard")} ${profile.role === "admin" ? "is-admin-profile" : ""} ${profile.avatarFrame === "signal-gold" ? "is-signal-profile" : ""}">
       ${avatar(profile, "large")}
       <h2 class="social-profile-name">${esc(profile.username)}</h2>
       ${honor(profile)}
+      ${specialTitle(profile)}
       <div class="social-title">${esc(rankName(profile.rank))}</div>
       <div class="social-online ${profile.online ? "" : "offline"}">${profile.online ? t("Online now", "当前在线") : t("Offline", "离线")}</div>
       <div class="social-card social-rank-card">

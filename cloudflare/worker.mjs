@@ -21,6 +21,7 @@ const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
 const PLAYTIME_LEASE_STALE_SECONDS = 75;
 const PERMANENT_MUTE_UNTIL = 4_102_444_800;
 const ADMIN_PROFILE_THEMES = new Set(["command-gold", "aurora-glass", "deep-space"]);
+const SPECIAL_AVATAR_FRAMES = new Set(["signal-gold"]);
 const OBSERVATORY_ACTIVITIES = new Set([
 	"menu",
 	"observatory",
@@ -403,8 +404,10 @@ async function sessionForRequest(env, request) {
 	const tokenHash = await sha256(token);
 	const now = Math.floor(Date.now() / 1000);
 	const row = await env.DB.prepare(
-		`SELECT users.id, users.username, users.role, sessions.token_hash
+		`SELECT users.id, users.username, users.role, sessions.token_hash,
+		   COALESCE(user_entitlements.developer_console, 0) AS developer_console
 		 FROM sessions JOIN users ON users.id = sessions.user_id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE sessions.token_hash = ? AND sessions.expires_at > ?`,
 	).bind(tokenHash, now).first();
 	if (!row) return null;
@@ -425,7 +428,12 @@ async function createSession(env, request, userId) {
 }
 
 function publicUser(user) {
-	return { id: user.id, username: user.username, role: user.role };
+	return {
+		id: user.id,
+		username: user.username,
+		role: user.role,
+		developerConsole: user.role === "admin" || Number(user.developer_console || 0) === 1,
+	};
 }
 
 async function communicationRestriction(env, user) {
@@ -487,7 +495,10 @@ async function handleLogin(request, env) {
 	const usernameKey = String(body.username || "").trim().toLowerCase();
 	const password = String(body.password || "");
 	const user = await env.DB.prepare(
-		"SELECT id, username, role, password_hash, password_salt, password_iterations FROM users WHERE username_key = ?",
+		`SELECT users.id, users.username, users.role, users.password_hash, users.password_salt, users.password_iterations,
+		   COALESCE(user_entitlements.developer_console, 0) AS developer_console
+		 FROM users LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
+		 WHERE users.username_key = ?`,
 	).bind(usernameKey).first();
 	if (!user) return apiError("Observer name or password is incorrect.", 401, "invalid_credentials");
 	const candidate = await passwordHash(password, base64ToBytes(user.password_salt), Number(user.password_iterations));
@@ -1261,10 +1272,17 @@ function socialProfile(row, viewerId = "") {
 		bio: row.bio || "",
 		avatarId: Number(row.avatar_id || 1),
 		selectedTitle: row.selected_title || rank.id,
+		specialTitle: {
+			en: row.special_title_en || "",
+			zh: row.special_title_zh || "",
+		},
 		profileTheme: row.role === "admin" && ADMIN_PROFILE_THEMES.has(row.profile_theme)
 			? row.profile_theme
 			: "standard",
-		honor: row.role === "admin" ? "Observatory Director" : "",
+		avatarFrame: SPECIAL_AVATAR_FRAMES.has(row.avatar_frame) ? row.avatar_frame : "standard",
+		honor: row.role === "admin"
+			? { en: "Observatory Director", zh: "天文台台长" }
+			: { en: row.honor_en || "", zh: row.honor_zh || "" },
 		playSeconds: Number(row.play_seconds || 0),
 		rank,
 		online: Number(row.last_active_at || 0) >= Math.floor(Date.now() / 1000) - ONLINE_WINDOW_SECONDS,
@@ -1297,12 +1315,15 @@ async function selectProfile(env, userId, viewerId = "", viewerRole = "") {
 		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
 		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame,
 		   ? = 'admin' AS viewer_is_admin, user_moderation.muted_until,
 		   user_moderation.reason AS moderation_reason,
 		   (SELECT status FROM friendships
 		    WHERE pair_key = CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
 		    LIMIT 1) AS friendship_status
 		 FROM users JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 LEFT JOIN user_moderation ON user_moderation.user_id = users.id
 		 WHERE users.id = ?`,
 	).bind(viewerRole, viewerId, viewerId, viewerId, userId).first();
@@ -1468,8 +1489,11 @@ async function handleLeaderboard(request, env) {
 	const result = await env.DB.prepare(
 		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
-		   user_profiles.activity_key, user_profiles.activity_updated_at
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM user_profiles JOIN users ON users.id = user_profiles.user_id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 ORDER BY user_profiles.play_seconds DESC, users.created_at ASC LIMIT 100`,
 	).all();
 	return json({
@@ -1486,10 +1510,13 @@ async function handleFriendsGet(request, env) {
 		`SELECT friendships.id AS friendship_id, friendships.status, friendships.requester_id,
 		   users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
-		   user_profiles.activity_key, user_profiles.activity_updated_at
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM friendships
 		 JOIN users ON users.id = CASE WHEN friendships.requester_id = ? THEN friendships.addressee_id ELSE friendships.requester_id END
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE friendships.requester_id = ? OR friendships.addressee_id = ?
 		 ORDER BY friendships.updated_at DESC`,
 	).bind(user.id, user.id, user.id).all();
@@ -1518,9 +1545,12 @@ async function handleObserverSearch(request, env, url) {
 		   friendships.requester_id, users.id, users.username, users.role,
 		   user_profiles.bio, user_profiles.avatar_id, user_profiles.selected_title,
 		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
-		   user_profiles.activity_key, user_profiles.activity_updated_at
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM users
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 LEFT JOIN friendships ON friendships.pair_key =
 		   CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
 		 WHERE users.id <> ? AND users.username_key LIKE ? ESCAPE '\\'
@@ -1687,9 +1717,12 @@ async function handleCommunityPostsGet(request, env) {
 		`SELECT community_posts.id, community_posts.title, community_posts.body,
 		   community_posts.reply_count, community_posts.created_at, community_posts.updated_at,
 		   users.id AS user_id, users.username, users.role, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM community_posts JOIN users ON users.id = community_posts.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE community_posts.deleted_at = 0
 		 ORDER BY community_posts.updated_at DESC LIMIT 60`,
 	).all();
@@ -1738,9 +1771,12 @@ async function handleCommunityPostGet(request, env, postId) {
 	const post = await env.DB.prepare(
 		`SELECT community_posts.*, users.id AS author_id, users.username, users.role,
 		   user_profiles.avatar_id, user_profiles.selected_title, user_profiles.profile_theme,
-		   user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM community_posts JOIN users ON users.id = community_posts.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE community_posts.id = ? AND community_posts.deleted_at = 0`,
 	).bind(postId).first();
 	if (!post) return apiError("Community post not found.", 404, "not_found");
@@ -1748,9 +1784,12 @@ async function handleCommunityPostGet(request, env, postId) {
 		`SELECT community_replies.id, community_replies.body, community_replies.created_at,
 		   community_replies.parent_reply_id, parent_user.username AS reply_to_username,
 		   users.id AS user_id, users.username, users.role, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM community_replies JOIN users ON users.id = community_replies.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 LEFT JOIN community_replies AS parent_reply ON parent_reply.id = community_replies.parent_reply_id
 		 LEFT JOIN users AS parent_user ON parent_user.id = parent_reply.user_id
 		 WHERE community_replies.post_id = ? AND community_replies.deleted_at = 0

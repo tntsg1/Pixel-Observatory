@@ -215,16 +215,17 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func can_open_developer_console() -> bool:
 	# Production web clients are denied by default until the signed server
-	# session explicitly reports role=admin. Local editor builds retain their
+	# session explicitly reports the dedicated entitlement (admins inherit it).
+	# Local editor builds retain their
 	# development workflow; automated tests must opt in with the explicit hook.
 	if _developer_console_test_permission != null:
 		if not bool(_developer_console_test_permission):
 			return false
 		var test_cloud_sync := get_node_or_null("/root/CloudSyncManager")
-		return test_cloud_sync != null and test_cloud_sync.has_method("is_admin") and bool(test_cloud_sync.is_admin())
+		return test_cloud_sync != null and test_cloud_sync.has_method("can_use_developer_console") and bool(test_cloud_sync.can_use_developer_console())
 	if OS.has_feature("web"):
 		var cloud_sync := get_node_or_null("/root/CloudSyncManager")
-		return cloud_sync != null and cloud_sync.has_method("is_admin") and bool(cloud_sync.is_admin())
+		return cloud_sync != null and cloud_sync.has_method("can_use_developer_console") and bool(cloud_sync.can_use_developer_console())
 	return true
 
 
@@ -288,6 +289,7 @@ func debug_jump_to_level(level_number: int, prepare_equipment: bool = false) -> 
 	if debug_family in ASSEMBLY_FAMILIES:
 		assembly_family_id = debug_family
 		progress["selected_telescope_family"] = debug_family
+		progress["selected_assembly_level"] = resolved_level
 	selected_object_id = current_target_object_id()
 	selected_object_level = int(progress.get("current_level", 1))
 	current_sky_positions.clear()
@@ -458,6 +460,7 @@ func default_progress() -> Dictionary:
 		"save_initialized": false,
 		"current_level": 1,
 		"selected_telescope_family": "refractor",
+		"selected_assembly_level": 1,
 		"active_optical_telescope_id": "",
 		"owned_optical_telescope_families": [],
 		"optical_ownership_transfer_version": 0,
@@ -789,9 +792,42 @@ func select_assembly_family(family: String) -> void:
 		_store_postgraduate_family_state(previous_family)
 	assembly_family_id = family
 	progress["selected_telescope_family"] = family
+	progress["selected_assembly_level"] = int(progress.get("current_level", 1))
 	if postgraduate_free_build() and previous_family != family:
 		_restore_postgraduate_family_state(family)
+	elif previous_family != family:
+		_clear_incompatible_selected_parts(family)
 	save()
+
+
+func _clear_incompatible_selected_parts(family: String) -> void:
+	# Generic starter optics occupy refractor-only slots and must not survive a
+	# transition to a reflector bench.
+	var selected: Dictionary = progress.get("selected_parts", {})
+	for part_type_value in selected.keys():
+		var part_type := str(part_type_value)
+		var part_id := str(selected.get(part_type, ""))
+		var part_family := str(get_part(part_id).get("telescope_family", ""))
+		if (part_family != "" and part_family != family) or (family != "refractor" and part_type in ["tube", "objective", "focus_knob"]):
+			selected[part_type] = ""
+	progress["telescope_ready"] = false
+
+
+func _sync_assembly_family_for_level() -> void:
+	if postgraduate_free_build():
+		return
+	var level_number := int(progress.get("current_level", 1))
+	if int(progress.get("selected_assembly_level", 0)) == level_number:
+		return
+	var family := str(current_level().get("telescope_family", "refractor"))
+	if not family in ASSEMBLY_FAMILIES:
+		return
+	var family_changed := assembly_family() != family
+	assembly_family_id = family
+	progress["selected_telescope_family"] = family
+	progress["selected_assembly_level"] = level_number
+	if family_changed:
+		_clear_incompatible_selected_parts(family)
 
 
 func assembly_family() -> String:
@@ -1236,8 +1272,11 @@ func required_part_types_for_current_level() -> Array[String]:
 func is_part_compatible_with_current_level(part: Dictionary) -> bool:
 	if part.is_empty():
 		return false
+	var part_type := str(part.get("type", ""))
 	var part_family := str(part.get("telescope_family", ""))
 	var level_family := assembly_context_family()
+	if level_family != "refractor" and part_type in ["tube", "objective", "focus_knob"]:
+		return false
 	return part_family == "" or part_family == level_family
 
 
@@ -3105,9 +3144,7 @@ func equip_part(part_id: String) -> bool:
 		return false
 	if not progress.get("unlocked_parts", []).has(part_id):
 		return false
-	var part_family := str(part.get("telescope_family", ""))
-	var current_family := assembly_context_family()
-	if part_family != "" and part_family != current_family:
+	if not is_part_compatible_with_current_level(part):
 		return false
 	if str(progress["selected_parts"].get(part_type, "")) == part_id:
 		return true
@@ -3633,6 +3670,7 @@ func complete_current_mission(object_id: String, observation: Dictionary) -> boo
 		var current_index: int = mission_manager.order_index(int(progress.get("current_level", 1)))
 		if completed_index >= 0 and completed_index >= current_index:
 			progress["current_level"] = mission_manager.next_incomplete_level_number(level_number, progress["completed_levels"])
+			_sync_assembly_family_for_level()
 			_unlock_parts_for_current_level()
 			_select_current_mission_target()
 	save()
@@ -3655,6 +3693,7 @@ func _advance_past_completed_current_level() -> bool:
 	if next_level <= 0 or next_level == current:
 		return false
 	progress["current_level"] = next_level
+	_sync_assembly_family_for_level()
 	_unlock_parts_for_current_level()
 	_select_current_mission_target()
 	update_room_guidance_for_level()
@@ -3940,6 +3979,7 @@ func _normalize_progress() -> void:
 		progress["current_level"] = _developer_sandbox_level
 	else:
 		_repair_campaign_progress()
+	_sync_assembly_family_for_level()
 	_unlock_parts_for_current_level()
 	if campaign_completed() and bool(progress.get("graduation_seen", false)):
 		transfer_unlocked_optical_equipment_ownership()

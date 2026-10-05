@@ -242,10 +242,23 @@ func is_admin() -> bool:
 	return signed_in() and session_role() == "admin"
 
 
+func can_use_developer_console() -> bool:
+	return signed_in() and (is_admin() or bool(_session_user.get("developerConsole", false)))
+
+
 func set_test_session_role_for_tests(role: String) -> void:
 	if OS.has_feature("web"):
 		return
-	_session_user = {"id": "test-user", "username": "test-user", "role": role.to_lower()}
+	_session_user = {"id": "test-user", "username": "test-user", "role": role.to_lower(), "developerConsole": false}
+	session_changed.emit(_session_user.duplicate(true))
+
+
+func set_test_developer_console_for_tests(enabled: bool) -> void:
+	if OS.has_feature("web"):
+		return
+	if _session_user.is_empty():
+		_session_user = {"id": "test-user", "username": "test-user", "role": "user"}
+	_session_user["developerConsole"] = enabled
 	session_changed.emit(_session_user.duplicate(true))
 
 

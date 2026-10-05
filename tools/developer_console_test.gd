@@ -28,6 +28,13 @@ func _initialize() -> void:
 	current_scene.add_child(direct_panel)
 	await process_frame
 	_check(not is_instance_valid(direct_panel) or direct_panel.get_parent() == null, "direct developer console instantiation fails closed for ordinary role")
+	if cloud_sync != null and cloud_sync.has_method("set_test_developer_console_for_tests"):
+		cloud_sync.set_test_developer_console_for_tests(true)
+	gm.toggle_developer_console()
+	_check(gm.developer_console != null and is_instance_valid(gm.developer_console), "entitled observer opens developer console without admin role")
+	if gm.developer_console != null and is_instance_valid(gm.developer_console):
+		gm.developer_console.queue_free()
+		gm.developer_console = null
 	if cloud_sync != null and cloud_sync.has_method("set_test_session_role_for_tests"):
 		cloud_sync.set_test_session_role_for_tests("admin")
 	gm.toggle_developer_console()
