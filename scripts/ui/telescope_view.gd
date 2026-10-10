@@ -651,8 +651,8 @@ func _show_focus_tutorial() -> void:
 			technique_target,
 			"first_averted_vision",
 			GameManager.text(
-				"Do not stare at the faint object. Hold Shift for 1.25 seconds and keep the target near the side-view marker while you guide the telescope.",
-				"不要直盯暗弱天体。按住 Shift 1.25 秒，并让目标保持在侧视标记附近。"
+				"Center the target; hold Shift for 1.25s.\nThe side ring shows your gaze, not a target position.",
+				"目标居中，按住 Shift 1.25 秒。\n旁边圆环是视线提示，不要移入天体。"
 			),
 			self
 		)
@@ -747,9 +747,15 @@ func _is_dark_adaptation_target() -> bool:
 
 
 func _visual_detection_techniques_available() -> bool:
-	if not requires_focus or not _is_diffuse_target():
+	if not requires_focus:
 		return false
 	var requirements := _active_observation_requirements()
+	# Explicit mission requirements override the default object-type gate.
+	# Supernova remnants, clusters and planets can also require this technique.
+	if bool(requirements.get("require_averted_vision", false)):
+		return true
+	if not _is_diffuse_target():
+		return false
 	if requirements.has("dark_adaptation_min") or bool(requirements.get("require_averted_vision", false)):
 		return true
 	# Level 18 explicitly teaches these observer techniques. Earlier aperture
@@ -2344,8 +2350,8 @@ func _build_technique_panel() -> void:
 	if _visual_detection_techniques_available():
 		var shift_hint := _plabel(
 			GameManager.text(
-				"Hold SHIFT 1.25s · keep target near the side marker",
-				"按住 Shift 1.25 秒，让目标保持在侧视标记附近"
+				"Keep target centered + hold SHIFT 1.25s",
+				"让目标保持居中，同时按住 Shift 1.25 秒"
 			),
 			Vector2(x, panel_pos.y + 4), Vector2(240, 14), 9,
 			Color(0.48, 0.88, 1.0)
@@ -2417,18 +2423,18 @@ func _refresh_technique_status() -> void:
 		elif averted_vision_active:
 			if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
 				pending.append(GameManager.text(
-					"Keep SHIFT held; guide the target back toward the side-view marker",
-					"继续按住 Shift，把目标带回侧视标记附近"
+					"Keep SHIFT held; use direction keys to center the target",
+					"继续按住 Shift，用方向键把目标移回中央"
 				))
 			else:
 				pending.append(GameManager.text(
-					"Keep holding SHIFT · %d%%" % roundi(averted_hold_visual * 100.0),
-					"继续按住 Shift，让目标保持在侧视标记附近 · %d%%" % roundi(averted_hold_visual * 100.0)
+					"Keep centered + hold SHIFT · %d%%" % roundi(averted_hold_visual * 100.0),
+					"保持居中并按住 Shift · %d%%" % roundi(averted_hold_visual * 100.0)
 				))
 		else:
 			pending.append(GameManager.text(
-				"Hold SHIFT for 1.25s; keep the target near the side-view marker",
-				"按住 Shift 1.25 秒，让目标保持在侧视标记附近"
+				"Center the target, then hold SHIFT for 1.25s",
+				"让目标保持居中，同时按住 Shift 1.25 秒"
 			))
 	if requirements.has("seeing_patience"):
 		var steady_seconds := 4.0 + float(requirements.get("seeing_patience", 0.0)) * 4.0
@@ -2673,16 +2679,16 @@ func _current_feedback() -> String:
 		if averted_vision_active:
 			if drift_enabled and drift_offset.length() > DRIFT_HOLD_RADIUS:
 				return GameManager.text(
-					"Keep Shift held and guide the target back toward the side-view marker.",
-					"继续按住 Shift，把目标带回侧视标记附近。"
+					"Keep Shift held and use the direction keys to center the target.",
+					"继续按住 Shift，用方向键把目标移回中央。"
 				)
 			return GameManager.text(
-				"Keep holding Shift; keep the target near the side marker: %.2f / %.2fs.",
-				"继续按住 Shift，让目标保持在侧视标记附近：%.2f / %.2f 秒。"
+				"Keep centered and hold Shift: %.2f / %.2fs.",
+				"保持居中并按住 Shift：%.2f / %.2f 秒。"
 			) % [averted_vision_hold_seconds, AVERTED_VISION_HOLD_SECONDS]
 		return GameManager.text(
-			"Hold Shift for 1.25 seconds and keep the target near the side marker.",
-			"按住 Shift 1.25 秒，让目标保持在旁边的偏视标记附近。"
+			"Keep the target centered and hold Shift for 1.25 seconds.",
+			"让目标保持居中，同时按住 Shift 1.25 秒。"
 		)
 	if is_focus_acceptable() and _collimation_severity() > 0.28:
 		return _quality_shortfall_text()

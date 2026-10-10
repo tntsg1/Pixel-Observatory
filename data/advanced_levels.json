@@ -2334,8 +2334,8 @@
       "separation_px": 96,
       "position_angle_deg": 138,
       "detect_radius_px": 34,
-      "hint_en": "Triton is a faint spark very close to Neptune. Sweep slowly along the marked side and hold when the proximity meter rises.",
-      "hint_zh": "海卫一是紧邻海王星的一点微光。沿着标出的方向缓慢移动，接近度指示上升时保持不动。",
+      "hint_en": "Click the faint point beside Neptune to confirm Triton; first center and focus the planet.",
+      "hint_zh": "点击海王星旁的微弱光点，确认海卫一；先保持行星居中并调清楚。",
       "found_en": "Triton confirmed. You have logged a planetary system, not just a planet.",
       "found_zh": "已确认海卫一。你记录下的是一个行星系统，而不只是一颗行星。"
     },
