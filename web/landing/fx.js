@@ -334,7 +334,21 @@
   $$(".obs-scope, .cmp-view, .fig, .dyn-stage, .pr-fig, .mechanism-figure").forEach(function (box) {
     var svg = box.querySelector("svg");
     if (!svg) return;
-    var lens = null, inner = null, zoom = box.classList.contains("obs-scope") ? 2.6 : 2.2, size = 150;
+    var lens = null, inner = null, detail = null, zoom = box.classList.contains("obs-scope") ? 2.6 : 2.2, size = 150;
+    var lx = 0, ly = 0, looking = false, lensRaf = 0;
+    // Scenes rendered by fx-planets.js repaint at the lens zoom instead of being upscaled.
+    function paintLens() {
+      lensRaf = 0;
+      if (!looking || !detail) return;
+      var dpr = Math.min(devicePixelRatio || 1, 2);
+      var px = Math.round(size * dpr);
+      if (detail.width !== px) { detail.width = detail.height = px; }
+      var ctx = detail.getContext("2d");
+      ctx.clearRect(0, 0, px, px);
+      var m = svg.getScreenCTM(), b = box.getBoundingClientRect();
+      if (m) box.__fxPaint(ctx, m.a * zoom * dpr, ((m.e - b.left - lx) * zoom + size / 2) * dpr, ((m.f - b.top - ly) * zoom + size / 2) * dpr);
+      lensRaf = requestAnimationFrame(paintLens);
+    }
     box.classList.add("fx-loupe-host");
     if (getComputedStyle(box).position === "static") box.style.position = "relative";
     function build() {
@@ -347,6 +361,11 @@
       [clone].concat($$("[id]", clone)).forEach(function (n) { n.removeAttribute("id"); });
       inner.appendChild(clone);
       lens.appendChild(inner);
+      if (box.__fxPaint) {
+        detail = document.createElement("canvas");
+        detail.className = "fx-loupe-detail";
+        lens.appendChild(detail);
+      }
       lens.insertAdjacentHTML("beforeend", "<i></i>");
       box.appendChild(lens);
     }
@@ -361,15 +380,18 @@
       inner.__ox = sb.left - b.left;
       inner.__oy = sb.top - b.top;
       box.classList.add("is-looking");
+      looking = true;
+      if (detail && !lensRaf) lensRaf = requestAnimationFrame(paintLens);
     });
     box.addEventListener("pointermove", function (e) {
       if (!lens) return;
       var b = box.getBoundingClientRect();
       var x = e.clientX - b.left, y = e.clientY - b.top;
+      lx = x; ly = y;
       lens.style.transform = "translate3d(" + (x - size / 2).toFixed(1) + "px," + (y - size / 2).toFixed(1) + "px,0)";
       inner.style.transform = "translate3d(" + (size / 2 - (x - inner.__ox) * zoom).toFixed(1) + "px," + (size / 2 - (y - inner.__oy) * zoom).toFixed(1) + "px,0)";
     });
-    box.addEventListener("pointerleave", function () { box.classList.remove("is-looking"); });
+    box.addEventListener("pointerleave", function () { box.classList.remove("is-looking"); looking = false; });
   });
 
   /* ================= assembly stage follows the pointer ================= */

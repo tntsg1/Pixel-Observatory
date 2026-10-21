@@ -232,3 +232,10 @@ html.fx-cursor input[type="range"],html.fx-cursor input[type="checkbox"],html.fx
 @keyframes fxRing{0%{transform:translate(var(--x),var(--y)) scale(.3);opacity:1}100%{transform:translate(var(--x),var(--y)) scale(7);opacity:0}}
 
 html.fx-calm .fx-iris{display:none!important}
+
+/* ---------- eyepiece detail (fx-planets.js) ---------- */
+.fx-detail{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2;opacity:0}
+html.fx-on .fx-coarse{transition:opacity .7s ease}
+html.fx-on .fx-focus .fx-coarse{opacity:0}
+.fx-loupe-detail{position:absolute;inset:0;width:100%;height:100%}
+html.fx-on .obs-scope.fx-focus,html.fx-on .cmp-view.fx-focus{box-shadow:inset 0 0 0 1px rgba(233,201,135,.18)}
