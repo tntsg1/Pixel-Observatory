@@ -26,7 +26,7 @@
   if (/swiftshader|llvmpipe|software|basic render/i.test(renderer) && !force) return;
   if (gl.getParameter(gl.MAX_VERTEX_ATTRIBS) < 8) return;
 
-  var FORMATIONS = 9; // 1..9; formation 0 (open star field) takes whatever weight is left
+  var FORMATIONS = 12; // 1..12; formation 0 (open star field) takes whatever weight is left
 
   var VS = [
     "precision highp float;",
@@ -137,6 +137,54 @@
     " else{float rr=mix(.62,1.2,a_r1.x);if(rr>.92&&rr<.97)rr+=.06;float a=a_r1.y*TAU+u_time*.2/pow(rr,1.5);",
     "  p=vec3(cos(a)*rr,(a_r1.z-.5)*.006,sin(a)*rr);C=vec3(1.,.88,.66)*(.25+.35*sin(rr*40.)*sin(rr*40.));S=.75;}",
     " p.yz=rot(p.yz,.42);p.xy=rot(p.xy,-.25);return proj(p);}",
+
+    // shared Newtonian tube: axis along x, open end at -x, focuser on top
+    "vec3 newt(float k,out vec3 C,out float S){float L=1.25,R=.42;vec3 p;",
+    " if(k<.3){if(a_r1.x<.55){float x=mix(-L,L,floor(a_r1.y*7.)/6.);float a=a_r1.z*TAU;p=vec3(x,cos(a)*R,sin(a)*R);}",
+    "  else{float a=floor(a_r1.y*10.)/10.*TAU;p=vec3(mix(-L,L,a_r1.z),cos(a)*R,sin(a)*R);}C=vec3(.55,.7,1.)*.75;S=.8;}",
+    " else if(k<.45){float rr=sqrt(a_r1.x)*.38;float a=a_r1.y*TAU;p=vec3(L-.08-rr*rr*.6,cos(a)*rr,sin(a)*rr);C=vec3(.6,.8,1.)*1.2;S=1.;}",
+    " else if(k<.5){float u=(a_r1.x*2.-1.)*.13,v=(a_r1.y*2.-1.)*.1;p=vec3(-.85,0.,0.)+u*vec3(.7071,-.7071,0.)+vec3(0.,0.,v);C=vec3(.75,.88,1.);S=.95;}",
+    " else if(k<.56){float a=a_r1.y*TAU;p=vec3(-.85+cos(a)*.07,mix(R,R+.26,a_r1.x),sin(a)*.07);C=vec3(.95,.8,.55)*.65;S=.8;}",
+    " else{float bm=floor(a_r1.x*6.);float ang=bm/6.*TAU+.3;vec2 o=vec2(cos(ang),sin(ang))*.3;",
+    "  float ph=fract(a_r1.y+u_time*.09);float xm=L-.08-.054;",
+    "  vec3 a0=vec3(-2.2,o.x,o.y),a1=vec3(xm,o.x,o.y),a2=vec3(-.85,0.,0.),a3=vec3(-.85,R+.26,0.);",
+    "  float l1=xm+2.2,l2=length(a2-a1),l3=R+.26,d=ph*(l1+l2+l3);",
+    "  p=d<l1?mix(a0,a1,d/l1):d<l1+l2?mix(a1,a2,(d-l1)/l2):mix(a2,a3,(d-l1-l2)/l3);",
+    "  C=vec3(1.,.82,.5)*(.8+.4*a_r1.z)*smoothstep(0.,.05,ph);S=.9;}",
+    " return p;}",
+
+    // 10 · Newtonian reflector
+    "vec3 f10(out vec3 C,out float S){vec3 p=newt(a_r2.w,C,S);",
+    " p.xz=rot(p.xz,.28+sin(u_time*.15)*.3);p.yz=rot(p.yz,.22);return proj(p);}",
+
+    // 11 · Dobsonian: the tube on a rocker box over a ground board
+    "vec3 f11(out vec3 C,out float S){float k=a_r2.w;vec3 p;",
+    " if(k<.72){p=newt(k/.72,C,S)*.82;p.xy=rot(p.xy,-.6);p.y+=.3;}",
+    " else if(a_r1.z<.22){float a=a_r1.y*TAU;p=vec3(cos(a)*.78,-.9,sin(a)*.78);C=vec3(1.,.75,.45)*.65;S=.8;}",
+    " else{float e=floor(a_r1.x*12.);float ax=floor(e/4.);float m=mod(e,4.);vec3 h=vec3(.34,.3,.42);",
+    "  float s1=mod(m,2.)<.5?-1.:1.,s2=m<1.5?-1.:1.;float t=mix(-1.,1.,a_r1.y);",
+    "  vec3 q=ax<.5?vec3(t,s1,s2):ax<1.5?vec3(s1,t,s2):vec3(s1,s2,t);p=q*h+vec3(0.,-.56,0.);",
+    "  C=vec3(1.,.72,.42)*.85;S=.9;}",
+    " p.xz=rot(p.xz,.45+sin(u_time*.15)*.35);p.yz=rot(p.yz,.2);return proj(p);}",
+
+    // 12 · James Webb: 18 hexagonal segments, secondary on a tripod, five-layer sunshield
+    "vec3 f12(out vec3 C,out float S){float k=a_r2.w;vec3 p;float s=.2;",
+    " if(k<.5){float i=floor(a_r1.x*18.);float ang,dist;",
+    "  if(i<6.){ang=i*1.0472;dist=1.732*s;}",
+    "  else{float j=i-6.;float jj=floor(j/2.);if(mod(j,2.)<.5){ang=jj*1.0472;dist=3.464*s;}else{ang=jj*1.0472+.5236;dist=3.*s;}}",
+    "  vec2 c=vec2(cos(ang),sin(ang))*dist;float q=floor(a_r1.y*6.);float a=a_r1.z,b=a_r2.x;if(a+b>1.){a=1.-a;b=1.-b;}",
+    "  float r=s*.94;vec2 v1=vec2(cos(q*1.0472+.5236),sin(q*1.0472+.5236))*r,v2=vec2(cos(q*1.0472+1.5708),sin(q*1.0472+1.5708))*r;",
+    "  vec2 xy=c+a*v1+b*v2;p=vec3(xy,-dot(xy,xy)*.12);",
+    "  float edge=1.-max(a+b,max(a,b));C=vec3(1.,.78,.38)*(.75+.4*a_r1.w)*(1.+.8*smoothstep(.12,0.,abs(a+b-1.)));S=.9;}",
+    " else if(k<.56){float rr=sqrt(a_r1.x)*.1;float a=a_r1.y*TAU;p=vec3(cos(a)*rr,sin(a)*rr,.95);C=vec3(1.,.88,.6)*1.1;S=1.1;}",
+    " else if(k<.66){float c=floor(a_r1.y*3.)/3.*TAU+1.5708;vec3 base=vec3(cos(c)*.95,sin(c)*.95,-.08);",
+    "  p=mix(base,vec3(0.,0.,.95),a_r1.x);C=vec3(.7,.8,1.)*.35;S=.65;}",
+    " else{float l=floor(a_r1.x*5.);float y=-.78-l*.07;vec2 d;",
+    "  if(a_r1.y<.62){float e=floor(a_r1.z*4.);float t=a_r2.x;vec2 A=e<.5?vec2(1.6,0.):e<1.5?vec2(0.,.95):e<2.5?vec2(-1.6,0.):vec2(0.,-.95);",
+    "   vec2 B=e<.5?vec2(0.,.95):e<1.5?vec2(-1.6,0.):e<2.5?vec2(0.,-.95):vec2(1.6,0.);d=mix(A,B,t);}",
+    "  else{float u=a_r1.z*2.-1.,v=a_r2.x*2.-1.;float m=abs(u)+abs(v);if(m>1.){u/=m;v/=m;}d=vec2(u*1.6,v*.95);}",
+    "  d*=1.-l*.07;p=vec3(d.x,y,d.y+.25);C=vec3(.9,.72,.95)*(.42+.12*(4.-l));S=.75;}",
+    " p.yz=rot(p.yz,-.3);p.xz=rot(p.xz,sin(u_time*.15)*.6);return proj(p);}",
 
     "void main(){",
     " vec3 C0;float S0;vec3 P0=f0(C0,S0);",
@@ -350,9 +398,16 @@
     ["#join", 1, 1, [0.55, 0.32, 0.95], [1.0, 0.7, 0.32], 1],
   ].map(function (r) {
     var scale = { 0: 1, 1: 1, 2: 1.45, 3: 1.55, 4: 1.65, 5: 1.05, 6: 1.75, 7: 1.55, 8: 1.6, 9: 1.7 }[r[1]];
-    return { el: document.querySelector(r[0]), f: r[1], neb: r[2], ta: r[3], tb: r[4], bright: r[5], scale: scale, ex: r[6] ? document.querySelector(r[6]) : null, isReflector: r[0] === "#reflector" };
+    return { el: document.querySelector(r[0]), f: r[1], dyn: r[0] === "#principles", neb: r[2], ta: r[3], tb: r[4], bright: r[5], scale: scale, ex: r[6] ? document.querySelector(r[6]) : null, isReflector: r[0] === "#reflector" };
   }).filter(function (r) { return r.el; });
 
+  // The principles chapter follows its instrument tabs: Newtonian, Dobsonian, Webb, FAST.
+  var INSTRUMENTS = [10, 11, 12, 7];
+  var tabs = [].slice.call(document.querySelectorAll(".instrument-tab"));
+  function instrument() {
+    for (var i = 0; i < tabs.length; i++) if (tabs[i].getAttribute("aria-pressed") === "true") return INSTRUMENTS[i] || 7;
+    return INSTRUMENTS[0];
+  }
   var curW = new Float32Array(FORMATIONS), tgtW = new Float32Array(FORMATIONS);
   var look = { neb: 1, ta: [0.32, 0.45, 1.0], tb: [1.0, 0.62, 0.28], bright: 1, chroma: 0, scale: 1 };
   var tgt = { neb: 1, ta: [0, 0, 0], tb: [0, 0, 0], bright: 1, chroma: 0, scale: 1 };
@@ -372,7 +427,9 @@
       o = Math.max(0, o) / span;
       if (!o) return;
       total += o;
-      if (r.f) tgtW[r.f - 1] += o;
+      var f = r.dyn ? instrument() : r.f;
+      if (f) tgtW[f - 1] += o;
+      if (r.dyn) r.scale = f === 7 ? 1.55 : 1.12;
       if (r.f === 3) { rays += o; if (r.isReflector) reflector += o; }
       tgt.neb += r.neb * o;
       tgt.bright += r.bright * o;
