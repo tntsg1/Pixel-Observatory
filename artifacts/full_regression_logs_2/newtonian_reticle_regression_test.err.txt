@@ -1,0 +1,5 @@
+SCRIPT ERROR: Cannot call method 'get' on a previously freed instance.
+   at: _initialize (res://tools/newtonian_reticle_regression_test.gd:28)
+   GDScript backtrace (most recent call first):
+       [0] _initialize (res://tools/newtonian_reticle_regression_test.gd:28)
+       [1] _settle (res://tools/newtonian_reticle_regression_test.gd:91)

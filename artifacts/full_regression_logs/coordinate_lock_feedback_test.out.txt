@@ -1,0 +1,11 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: level 14 targets Mars
+  ok: mission panel preserves the coordinate-navigation instruction
+  ok: coordinate lesson restores the cyan approach ring after target acquisition
+  ok: approach ring is visibly rendered
+  ok: approach state explains how to center the target
+  ok: centered Mars restores the gold lock state
+  ok: lock state gives the next Finder action
+COORDINATE LOCK FEEDBACK TEST PASS

@@ -139,7 +139,7 @@ func _test_every_stage_starts_with_an_action() -> void:
 	feedback.set("_tutorial_seen", {})
 	gm.progress["tutorial_assistance"] = "full"
 	var scene := await _new_fast_scene()
-	var expected := ["aim_drive", "tune_center", "rfi_select", "fold_dm_adjust", "report_choose"]
+	var expected := ["aim_drive", "tune_center", "rfi_select", "fold_period_adjust", "report_choose"]
 	for stage_index in range(expected.size()):
 		scene.set("stage", stage_index)
 		scene.call("_rebuild")

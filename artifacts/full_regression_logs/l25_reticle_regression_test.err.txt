@@ -1,0 +1,23 @@
+SCRIPT ERROR: Cannot call method 'call' on a previously freed instance.
+   at: _check_mode (res://tools/l25_reticle_regression_test.gd:49)
+   GDScript backtrace (most recent call first):
+       [0] _check_mode (res://tools/l25_reticle_regression_test.gd:49)
+       [1] _initialize (res://tools/l25_reticle_regression_test.gd:24)
+       [2] _settle (res://tools/l25_reticle_regression_test.gd:78)
+SCRIPT ERROR: Cannot call method 'call' on a previously freed instance.
+   at: _check_mode (res://tools/l25_reticle_regression_test.gd:49)
+   GDScript backtrace (most recent call first):
+       [0] _check_mode (res://tools/l25_reticle_regression_test.gd:49)
+       [1] _initialize (res://tools/l25_reticle_regression_test.gd:25)
+       [2] _settle (res://tools/l25_reticle_regression_test.gd:78)
+SCRIPT ERROR: Cannot call method 'call' on a previously freed instance.
+   at: _check_mode (res://tools/l25_reticle_regression_test.gd:49)
+   GDScript backtrace (most recent call first):
+       [0] _check_mode (res://tools/l25_reticle_regression_test.gd:49)
+       [1] _initialize (res://tools/l25_reticle_regression_test.gd:26)
+       [2] _settle (res://tools/l25_reticle_regression_test.gd:78)
+SCRIPT ERROR: Cannot call method 'get' on a previously freed instance.
+   at: _initialize (res://tools/l25_reticle_regression_test.gd:34)
+   GDScript backtrace (most recent call first):
+       [0] _initialize (res://tools/l25_reticle_regression_test.gd:34)
+       [1] _settle (res://tools/l25_reticle_regression_test.gd:78)

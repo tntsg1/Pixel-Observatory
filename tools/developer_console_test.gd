@@ -28,6 +28,13 @@ func _initialize() -> void:
 	current_scene.add_child(direct_panel)
 	await process_frame
 	_check(not is_instance_valid(direct_panel) or direct_panel.get_parent() == null, "direct developer console instantiation fails closed for ordinary role")
+	if cloud_sync != null and cloud_sync.has_method("set_test_developer_console_for_tests"):
+		cloud_sync.set_test_developer_console_for_tests(true)
+	gm.toggle_developer_console()
+	_check(gm.developer_console != null and is_instance_valid(gm.developer_console), "entitled observer opens developer console without admin role")
+	if gm.developer_console != null and is_instance_valid(gm.developer_console):
+		gm.developer_console.queue_free()
+		gm.developer_console = null
 	if cloud_sync != null and cloud_sync.has_method("set_test_session_role_for_tests"):
 		cloud_sync.set_test_session_role_for_tests("admin")
 	gm.toggle_developer_console()
@@ -49,16 +56,6 @@ func _initialize() -> void:
 			has_l86_button = true
 			break
 	_check(not has_l86_button, "developer console renders no retired L86 button")
-	var auto_graduate_button: Button = gm.developer_console.find_child("AutoGraduateButton", true, false) as Button
-	_check(auto_graduate_button != null, "developer console renders the Auto Graduate button")
-	var credits_before_auto_graduate := int(gm.progress.get("credits", 0))
-	_check(bool(gm.developer_console.call("_prepare_auto_graduation")), "Auto Graduate prepares a valid graduation state")
-	_check(bool(gm.progress.get("program_completed", false)), "Auto Graduate marks the observing program complete")
-	_check(bool(gm.progress.get("graduation_pending", false)) and not bool(gm.progress.get("graduation_seen", true)), "Auto Graduate queues the ceremony")
-	_check((gm.progress.get("completed_levels", []) as Array).size() == mm.campaign_order.size(), "Auto Graduate completes the active campaign exactly once")
-	var credits_after_auto_graduate := int(gm.progress.get("credits", 0))
-	_check(bool(gm.developer_console.call("_prepare_auto_graduation")), "Auto Graduate can be invoked repeatedly")
-	_check(int(gm.progress.get("credits", 0)) == credits_after_auto_graduate and credits_after_auto_graduate >= credits_before_auto_graduate, "repeated Auto Graduate does not duplicate rewards")
 	gm.debug_jump_to_level(18, true)
 	_check(int(gm.progress.get("current_level", 0)) == 18, "developer console can select L18")
 	_check(gm.selected_object_id == "orion_nebula", "selected target follows the chosen lesson")

@@ -155,40 +155,11 @@ func _build() -> void:
 	var mode: String = GameManager.current_learning_card_mode()
 	if mode == "brief":
 		_build_concept_brief(GameManager.current_brief_card())
-		_draw_ambient_margins()
 	elif mode == "complete" or not GameManager.last_learning_card.is_empty():
 		TeachingFlowManager.acknowledge_card_shown()
 		_build_mission_complete(GameManager.last_learning_card)
-		_draw_ambient_margins()
 	else:
 		GameManager.call_deferred("go", "observatory")
-
-
-func _draw_ambient_margins() -> void:
-	# This card is shown after every observation and every concept brief, so it
-	# is one of the most-seen frames in the game - but its painted backdrop
-	# (which includes a starfield) never moved.
-	#
-	# Two deliberate constraints:
-	#  * added AFTER the content, because that backdrop art is drawn full-screen
-	#    and opaque - a layer added before it is simply covered and does nothing.
-	#  * confined to the left/right margins, clear of the centred parchment. This
-	#    is a stop-and-read results screen; twinkling behind the body text would
-	#    fight the reading rather than support it.
-	var margins := [
-		{"rect": Rect2(6, 58, 178, 540), "seed": 20260827},
-		{"rect": Rect2(840, 58, 178, 540), "seed": 20260919},
-	]
-	for margin_value in margins:
-		var margin: Dictionary = margin_value
-		var life := AmbientLife.new()
-		life.name = "AmbientLife"
-		life.configure({
-			"twinkle_zone": margin.get("rect", Rect2()),
-			"twinkle_count": 9,
-			"seed": int(margin.get("seed", 0)),
-		})
-		add_child(life)
 
 
 func _build_concept_brief(card: Dictionary) -> void:
@@ -269,6 +240,21 @@ func _concept_action_text(card_id: String) -> String:
 			"1. 先找到最亮的锚点星。\n2. 按图示顺序连线，不要把倍率放得过高。\n3. 核对季节、方位角和俯仰角，再确认整体形状。"
 		)
 	match card_id:
+		"stellar_point_source":
+			return GameManager.text(
+				"1. Center the star and turn the focus knob slowly.\n2. Watch the blob shrink instead of waiting for surface detail.\n3. Stop at the smallest, tightest point you can reach.",
+				"1. 让恒星居中，然后缓慢转动调焦旋钮。\n2. 注意观察光斑收缩，而不是等待表面细节出现。\n3. 停在你能达到的最小、最紧实的光点上。"
+			)
+		"wide_field_framing":
+			return GameManager.text(
+				"1. Find the cluster's overall shape with Eye and Finder first.\n2. Fit the lowest-power, widest-field eyepiece.\n3. Confirm the whole pattern is inside the field before recording.",
+				"1. 先用肉眼和寻星镜找到星团的整体形状。\n2. 换上倍率最低、视野最宽的目镜。\n3. 确认整个图案都在视野之内，再进行记录。"
+			)
+		"surface_contrast_detail":
+			return GameManager.text(
+				"1. Set a moderate, steady power and leave it there.\n2. Fine-tune the focus in very small steps.\n3. Keep watching: faint markings surface only during steady moments.",
+				"1. 选定一档适中而稳定的倍率，然后不要再动它。\n2. 用极小的幅度细调焦点。\n3. 持续注视：暗淡的纹理只在大气平稳的瞬间才会浮现。"
+			)
 		"dobsonian_manual_altaz":
 			return GameManager.text(
 				"1. Use a low-power eyepiece to acquire the target.\n2. Swivel the rocker box for Az; tilt the tube for Alt.\n3. Nudge, release, observe, then nudge again as the sky drifts.",
@@ -353,6 +339,12 @@ func _concept_watch_text(card_id: String) -> String:
 			"星座是宽广的整体图形，不是某一颗可点击的星。倍率过高会把其余形状裁出视场。"
 		)
 	match card_id:
+		"stellar_point_source":
+			return GameManager.text("Do not keep turning the knob hoping a surface appears. Past best focus the point swells again - that means you went too far.", "不要指望继续转动旋钮就能看到表面细节。越过最佳焦点后光点会重新变大，那说明你调过头了。")
+		"wide_field_framing":
+			return GameManager.text("A few bright stars filling the eyepiece is not the cluster. If you cannot see its outline, the power is too high.", "几颗亮星塞满目镜并不等于看到了星团。如果看不出它的轮廓，就说明倍率太高了。")
+		"surface_contrast_detail":
+			return GameManager.text("A bigger, mushier disk is not more detail. If the markings fade as you add power, go back down.", "更大但更糊的圆面并不意味着更多细节。如果提高倍率后纹理反而变淡，就应该降回去。")
 		"dobsonian_manual_altaz":
 			return GameManager.text("The mount does not track automatically. Large corrections create overshoot; use repeated gentle nudges.", "支架不会自动追踪。大幅推动很容易冲过目标，应连续使用轻柔小幅修正。")
 		"cassegrain_folded_path":
@@ -835,43 +827,23 @@ func _fast_operation_chain(observation: Dictionary, product: Dictionary, kind: S
 
 func _build_completion_navigation(level: Dictionary) -> void:
 	var completed_level_number := int(level.get("level_number", 0))
-	var program_complete := GameManager.study_campaign_complete() if GameManager.study_mode_active() else ( \
-		bool(GameManager.progress.get("program_completed", false)) \
-		and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL)
-	var continue_text := GameManager.text("Complete Research Route", "完成研究路线") if GameManager.study_mode_active() and program_complete \
-		else (GameManager.text("Graduation Ceremony", "参加毕业典礼") if program_complete else GameManager.text("Continue", "继续"))
-	var continue_position := Vector2(357, 668) if GameManager.study_mode_active() else Vector2(298, 668)
-	var continue_size := Vector2(310, 48) if GameManager.study_mode_active() else Vector2(210, 48)
-	var continue_button: Button = _mission_button(continue_text, continue_position, continue_size, Color(0.08, 0.38, 0.20))
+	var program_complete := bool(GameManager.progress.get("program_completed", false)) \
+		and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL
+	var continue_text := GameManager.text("Graduation Ceremony", "参加毕业典礼") if program_complete \
+		else GameManager.text("Continue", "继续")
+	var continue_button: Button = _mission_button(continue_text, Vector2(298, 668), Vector2(210, 48), Color(0.08, 0.38, 0.20))
 	continue_button.name = "GraduationButton" if program_complete else "ContinueButton"
 	continue_button.pressed.connect(func() -> void:
-		if GameManager.study_mode_active():
-			if program_complete:
-				if GameManager.try_story_epilogue(completed_level_number, "study_graduation"):
-					return
-				GameManager.go("study_graduation")
-				return
-			GameManager.update_room_guidance_for_level()
-			if GameManager.go_to_pending_mission_setup():
-				return
-			if GameManager.try_story_epilogue(completed_level_number, "observatory"):
-				return
-			GameManager.go("observatory")
-			return
 		if program_complete:
 			if GameManager.try_story_epilogue(completed_level_number, "graduation"):
 				return
 			GameManager.go("graduation")
 			return
 		GameManager.update_room_guidance_for_level()
-		if GameManager.go_to_pending_mission_setup():
-			return
 		if GameManager.try_story_epilogue(completed_level_number, "observatory"):
 			return
 		GameManager.go("observatory")
 	)
-	if GameManager.study_mode_active():
-		return
 	var journal_button: Button = _mission_button(GameManager.text("Open Journal", "打开观测日志"), Vector2(536, 668), Vector2(230, 48), Color(0.06, 0.20, 0.42))
 	journal_button.pressed.connect(func() -> void:
 		GameManager.set_observatory_spawn("journal")
@@ -884,10 +856,8 @@ func _build_next_mission_route() -> void:
 	var next_route := GameManager.current_room_route()
 	var next_level := int(GameManager.progress.get("current_level", 0))
 	var next_title := GameManager.dict_text(GameManager.current_level(), "title")
-	var next_heading := GameManager.text("NEXT RESEARCH STEP: %s" % next_title, "下一研究步骤：%s" % next_title) if GameManager.study_mode_active() \
-		else GameManager.text("NEXT: Level %d - %s" % [next_level, next_title], "下一关：第 %d 关 - %s" % [next_level, next_title])
 	var head := _label(
-		next_heading,
+		GameManager.text("NEXT: Level %d - %s" % [next_level, next_title], "下一关：第 %d 关 - %s" % [next_level, next_title]),
 		Vector2(180, 598), Vector2(664, 22), 15, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	head.clip_text = true
 	var where := _label(
@@ -932,8 +902,7 @@ func _observation_image(obj: Dictionary, level: Dictionary, observation: Diction
 		return
 	var path := _mission_object_image(obj, level)
 	if path != "":
-		var observation_image := _mission_texture(path, Vector2(232, 186), Vector2(306, 138), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
-		observation_image.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+		_mission_texture(path, Vector2(232, 186), Vector2(306, 138), TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
 	var check := _dark_panel(Vector2(204, 158), Vector2(40, 40), Color(0.12, 0.08, 0.03, 0.95), GOLD)
 	check.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_label("✓", Vector2(204, 158), Vector2(40, 36), 28, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
@@ -975,24 +944,13 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		_dark_panel(cell_pos, cell_size, Color(0.018, 0.022, 0.030, 0.96), state["border"])
 		var image_pos := cell_pos + Vector2(5, 5)
 		var image_size := Vector2(90, 103)
-		var state_path := clear_path
-		var uses_authored_state := false
-		if index == 0:
-			var authored_blur := _mission_object_state_image(obj, "blurry")
-			if authored_blur != "" and authored_blur != clear_path:
-				state_path = authored_blur
-				uses_authored_state = true
-		var image := _mission_texture(state_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
-		# Astronomy masters are photographic/antialiased media. Nearest-neighbour
-		# downsampling made star spikes jagged and erased thin planetary detail.
-		image.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
-		if float(state["blur_radius"]) > 0.0 and not uses_authored_state:
-			var material := ShaderMaterial.new()
-			material.shader = preload("res://shaders/optical_target_state.gdshader") if _mission_object_is_solid_body(obj) else preload("res://shaders/optical_focus_preview.gdshader")
-			material.set_shader_parameter("blur_radius_px", float(state["blur_radius"]))
-			material.set_shader_parameter("defocus_amount", clampf(float(state["blur_radius"]) / 5.6, 0.0, 1.0))
-			material.set_shader_parameter("brightness", float(state["brightness"]))
-			image.material = material
+		var image := _mission_texture(clear_path, image_pos, image_size, TextureRect.STRETCH_KEEP_ASPECT_CENTERED)
+		var material := ShaderMaterial.new()
+		material.shader = preload("res://shaders/optical_target_state.gdshader")
+		material.set_shader_parameter("blur_radius_px", float(state["blur_radius"]))
+		material.set_shader_parameter("defocus_amount", clampf(float(state["blur_radius"]) / 5.6, 0.0, 1.0))
+		material.set_shader_parameter("brightness", float(state["brightness"]))
+		image.material = material
 		var label := _label(str(state["label"]), cell_pos + Vector2(3, 111), Vector2(94, 24), 10, state["border"], HORIZONTAL_ALIGNMENT_CENTER)
 		label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		label.max_lines_visible = 2
@@ -1005,14 +963,6 @@ func _focus_comparison_image(obj: Dictionary, observation: Dictionary) -> void:
 		var badge := _dark_panel(Vector2(510, 180), Vector2(34, 22), Color(0.08, 0.30, 0.12, 0.96), Color(0.34, 0.76, 0.34))
 		badge.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_label("OK", Vector2(510, 180), Vector2(34, 20), 10, Color(0.72, 1.0, 0.70), HORIZONTAL_ALIGNMENT_CENTER)
-
-
-func _mission_object_is_solid_body(obj: Dictionary) -> bool:
-	var object_id := str(obj.get("id", ""))
-	if OpticalMediaRegistry.is_isolated_planet(object_id):
-		return true
-	var type_lower := str(obj.get("type_en", "")).strip_edges().to_lower()
-	return type_lower in ["planet", "natural satellite", "moon"]
 
 
 func _quality_panel(observation: Dictionary, stats: Dictionary) -> void:

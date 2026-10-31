@@ -40,16 +40,6 @@ func _initialize() -> void:
 
 	_check(main != null, "Sirius target sprite exists")
 	_check(point_material != null, "Sirius uses the energy-preserving point-source PSF")
-	var shader_code := point_material.shader.code if point_material != null else ""
-	_check(shader_code.contains("sharp_core_sigma"), "Sirius PSF exposes a dedicated compact sharp core")
-	_check(shader_code.contains("halo_strength"), "Sirius PSF keeps its halo independently restrained")
-	_check(shader_code.contains("source_art_mix"), "Sirius PSF can preserve supplied diffraction artwork")
-	if point_material != null:
-		_check(float(point_material.get_shader_parameter("sharp_core_sigma")) <= 0.007, "best-focus Sirius core stays point-like")
-		_check(float(point_material.get_shader_parameter("halo_strength")) <= 0.12, "best-focus Sirius halo stays subordinate to the core")
-		if shader_code.contains("source_art_mix"):
-			_check(float(point_material.get_shader_parameter("source_art_mix")) >= 0.99, "best-focus Sirius preserves the supplied diffraction artwork")
-	_check(float(view.get("display_scale")) >= 1.45, "Sirius artwork is large enough to read in the eyepiece")
 	_check(ghost_materials.size() == 2, "chromatic images have two independent point-source materials")
 	_check(not field_materials.is_empty(), "catalog field stars use the shared focus PSF")
 	if main == null or point_material == null or ghost_materials.size() != 2 or field_materials.is_empty():

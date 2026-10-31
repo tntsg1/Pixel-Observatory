@@ -75,11 +75,7 @@ func _test_lobby_guidance_visibility(feedback: Node, gm: Node) -> void:
 
 	room.call("_toggle_guidance_highlights")
 	await process_frame
-	var maya := room.get_node_or_null("MayaHallNPC")
-	_check(
-		feedback.guidance_highlights_enabled() and not panel.visible and overlay.visible and maya != null,
-		"lobby button restores the in-world Maya route without the legacy card"
-	)
+	_check(feedback.guidance_highlights_enabled() and panel.visible, "lobby button restores the current route without reloading")
 	room.call("_update_room_guidance_panel")
 	await process_frame
 	var corner_frames := overlay.find_children("GuidanceCornerFrame*", "", true, false)

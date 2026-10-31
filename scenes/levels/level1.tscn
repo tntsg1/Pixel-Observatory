@@ -1,0 +1,168 @@
+[gd_scene load_steps=4 format=3 uid="uid://clevel1main001"]
+
+[ext_resource type="Script" path="res://scripts/systems/main_level.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/systems/level_manager.gd" id="2_lm"]
+[ext_resource type="PackedScene" uid="uid://cpause001" path="res://scenes/ui/pause_menu.tscn" id="3_pause"]
+
+[node name="Level1" type="Node2D"]
+script = ExtResource("1_main")
+
+[node name="PauseMenu" parent="." instance=ExtResource("3_pause")]
+
+[node name="LevelManager" type="Node" parent="."]
+script = ExtResource("2_lm")
+
+[node name="SpawnTimer" type="Timer" parent="LevelManager"]
+one_shot = false
+
+[node name="CanvasLayer" type="CanvasLayer" parent="LevelManager"]
+
+[node name="UpgradePanel" type="Panel" parent="LevelManager/CanvasLayer"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -220.0
+offset_top = -120.0
+offset_right = 220.0
+offset_bottom = 120.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Title" type="Label" parent="LevelManager/CanvasLayer/UpgradePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 5.0
+offset_right = 430.0
+offset_bottom = 30.0
+text = "选择升级"
+horizontal_alignment = 1
+
+[node name="Choice1" type="Button" parent="LevelManager/CanvasLayer/UpgradePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 40.0
+offset_right = 430.0
+offset_bottom = 75.0
+
+[node name="Label" type="Label" parent="LevelManager/CanvasLayer/UpgradePanel/Choice1"]
+layout_mode = 1
+anchors_preset = 15
+text = "升级1"
+
+[node name="Choice2" type="Button" parent="LevelManager/CanvasLayer/UpgradePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 85.0
+offset_right = 430.0
+offset_bottom = 120.0
+
+[node name="Label" type="Label" parent="LevelManager/CanvasLayer/UpgradePanel/Choice2"]
+layout_mode = 1
+anchors_preset = 15
+text = "升级2"
+
+[node name="Choice3" type="Button" parent="LevelManager/CanvasLayer/UpgradePanel"]
+layout_mode = 0
+offset_left = 10.0
+offset_top = 130.0
+offset_right = 430.0
+offset_bottom = 165.0
+
+[node name="Label" type="Label" parent="LevelManager/CanvasLayer/UpgradePanel/Choice3"]
+layout_mode = 1
+anchors_preset = 15
+text = "升级3"
+
+[node name="GameCanvas" type="CanvasLayer" parent="."]
+
+[node name="HPBar" type="ColorRect" parent="GameCanvas"]
+color = Color(0.15, 0.15, 0.15, 0.8)
+size = Vector2(200, 14)
+offset_left = 10.0
+offset_top = 10.0
+
+[node name="HPFill" type="ColorRect" parent="GameCanvas/HPBar"]
+color = Color(0.2, 0.8, 0.4, 1)
+size = Vector2(200, 14)
+
+[node name="HPLabel" type="Label" parent="GameCanvas"]
+offset_left = 220.0
+offset_top = 8.0
+offset_right = 320.0
+offset_bottom = 30.0
+text = "5 / 5"
+
+[node name="ScoreLabel" type="Label" parent="GameCanvas"]
+offset_left = 10.0
+offset_top = 30.0
+offset_right = 200.0
+offset_bottom = 50.0
+text = "分数: 0"
+
+[node name="WaveLabel" type="Label" parent="GameCanvas"]
+offset_left = 10.0
+offset_top = 50.0
+offset_right = 200.0
+offset_bottom = 70.0
+text = "波次: 0"
+
+[node name="DodgeCooldown" type="ColorRect" parent="GameCanvas"]
+color = Color(0.3, 0.3, 0.8, 0.6)
+size = Vector2(40, 8)
+offset_left = 10.0
+offset_top = 75.0
+
+[node name="SkillCooldown" type="ColorRect" parent="GameCanvas"]
+color = Color(0.8, 0.5, 0.2, 0.6)
+size = Vector2(40, 8)
+offset_left = 10.0
+offset_top = 88.0
+
+[node name="BossHPBar" type="ColorRect" parent="GameCanvas"]
+visible = false
+color = Color(0.1, 0.1, 0.1, 0.8)
+size = Vector2(300, 8)
+offset_left = 0.0
+offset_top = 0.0
+
+[node name="BossHPFill" type="ColorRect" parent="GameCanvas/BossHPBar"]
+color = Color(1, 0.15, 0.15, 1)
+size = Vector2(300, 8)
+
+[node name="BossName" type="Label" parent="GameCanvas"]
+visible = false
+offset_top = -5.0
+text = "废弃观测站核心"
+horizontal_alignment = 1
+
+[node name="ResultPanel" type="Panel" parent="GameCanvas"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -120.0
+offset_right = 200.0
+offset_bottom = 120.0
+
+[node name="ResultLabel" type="Label" parent="GameCanvas/ResultPanel"]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 10.0
+offset_right = 380.0
+offset_bottom = 150.0
+text = ""
+horizontal_alignment = 1
+
+[node name="RetryButton" type="Button" parent="GameCanvas/ResultPanel"]
+layout_mode = 0
+offset_left = 100.0
+offset_top = 160.0
+offset_right = 300.0
+offset_bottom = 190.0
+text = "重新开始"

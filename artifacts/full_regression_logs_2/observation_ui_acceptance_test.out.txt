@@ -1,0 +1,128 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: GameManager is available
+  ok: window scaling preserves pixel-art aspect ratio
+  ok: 1.png loads as Texture2D
+  ok: 2.png loads as Texture2D
+  ok: 3.png loads as Texture2D
+  ok: eye_large_center.png loads as Texture2D
+  ok: eye_precise_reticle.png loads as Texture2D
+  ok: finder_second_ring.png loads as Texture2D
+  ok: scope_center_tolerance.png loads as Texture2D
+  ok: azimuth_scale_shell.png loads as Texture2D
+  ok: altitude_scale_shell.png loads as Texture2D
+  ok: azimuth_tick_major.png loads as Texture2D
+  ok: azimuth_tick_minor.png loads as Texture2D
+  ok: altitude_tick_major.png loads as Texture2D
+  ok: altitude_tick_minor.png loads as Texture2D
+  ok: azimuth_pointer.png loads as Texture2D
+  ok: altitude_pointer.png loads as Texture2D
+  ok: mode_eye_icon.png loads as Texture2D
+  ok: mode_finder_icon.png loads as Texture2D
+  ok: mode_scope_icon.png loads as Texture2D
+  ok: target_approach_ring.png loads as Texture2D
+  ok: target_lock_ring.png loads as Texture2D
+  ok: focus_knob_ui.png loads as Texture2D
+  ok: tracking_rate_knob.png loads as Texture2D
+  ok: tracking_enabled_icon.png loads as Texture2D
+  ok: azimuth uses supplied texture ticks
+  ok: altitude uses supplied texture ticks
+  ok: one independent azimuth pointer exists
+  ok: one independent altitude pointer exists
+  ok: reticle center matches the celestial projection center
+  ok: reticle stays above the bottom guidance band
+  ok: eye_precise_reticle.png keeps the celestial target center transparent
+  ok: finder_second_ring.png keeps the celestial target center transparent
+  ok: scope_center_tolerance.png keeps the celestial target center transparent
+  ok: target_approach_ring.png keeps the celestial target center transparent
+  ok: target_lock_ring.png keeps the celestial target center transparent
+  ok: Finder artwork contains only the second circular ring
+  ok: Eye reticle maps one-to-one onto its 410 px screen rect
+  ok: Eye center ring visibly marks the exact 64 px lock radius
+  ok: Eye outer boundary maximizes the available naked-eye field
+  ok: Scope circular frame contains the scaled horizontal lock tolerance
+  ok: Scope circular frame contains the scaled vertical lock tolerance
+  ok: Scope center frame is circular
+  ok: Displayed Scope center frame is at least one third wider than the rendered Moon
+  ok: atmosphere is above celestial targets
+  ok: atmosphere remains below aiming artwork
+  ok: dynamic readouts remain above aiming artwork
+  ok: bottom guidance remains the top sky-viewport layer
+  ok: A/D aim moves the actual azimuth tick textures
+  ok: W/S aim moves the actual altitude tick textures
+  ok: azimuth wraps from 359 to 0
+  ok: 0/360 scale crossing is visually continuous
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: azimuth tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: altitude tick remains clipped to its band
+  ok: azimuth pointer tip is oriented downward
+  ok: altitude pointer tip is oriented toward the sky window
+  ok: sweeping the aim eastward walks the target pointer west across the band
+  ok: pointer sits between its two flanking sweep positions (target-relative, not aim-riding)
+  ok: far off-window target pins the pointer dimmed at the band edge
+  ok: raising the aim walks the target pointer downward on the altitude band
+  ok: naked_eye uses exactly one supplied reticle texture
+  ok: finder uses exactly one supplied reticle texture
+  ok: telescope uses exactly one supplied reticle texture
+  ok: Eye/Finder/Scope FOV values remain 120/28/6
+  ok: target is smallest in Eye and largest in Scope
+  ok: naked_eye star marker stays readable without covering the view
+  ok: finder star marker stays readable without covering the view
+  ok: telescope star marker stays readable without covering the view
+  ok: Eye target is available for screen-space lock testing
+  ok: Eye target inside the visible 64 px center ring is centered
+  ok: Eye target outside the visible 64 px center ring is not centered
+  ok: Finder is unavailable when no finder is installed
+  ok: clouds are clipped inside the sky viewport
+  ok: cloud viewport cannot cover the right mission panel
+  ok: near target shows only the approach ring
+  ok: Observe stays disabled before target lock
+  ok: centered target creates a lock ring
+  ok: target lock ring matches the projected celestial position
+  ok: centered target replaces approach with the lock ring
+  ok: lock ring remains larger than the rendered celestial target
+  ok: Scope target lock ring uses the compact target-derived size
+  ok: approach and lock states keep one consistent target-derived frame size
+  ok: visible target marker exactly matches the real pointer detection region
+  ok: Observe enables from the same centered-target condition
+  ok: English dynamic azimuth readout is English
+  ok: Chinese mode retains dynamic DMS values
+  ok: mouse and keyboard share the same aim-delta path
+  ok: return route restores the player at the telescope
+OBSERVATION UI ACCEPTANCE PASS

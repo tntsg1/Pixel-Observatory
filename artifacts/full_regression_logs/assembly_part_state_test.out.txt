@@ -1,0 +1,24 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1. L3 focus knob not yet unlocked
+  ok: 1. L3 shows no focus-knob card
+  ok: 2. L3 completion unlocks focus knob
+  ok: 3. L4 focus knob unlocked
+  ok: 3. state = unlocked (not equipped)
+  ok: 4. unlocked part reason is NOT a locked/unlock message
+  ok: 5. install unlocked-not-equipped focus knob succeeds (auto-equip)
+  ok: 5. focus knob auto-equipped on install
+  ok: 5. state now installed
+  ok: 6. install objective with explicit better id succeeds
+  ok: 6. installed_part_id = the SELECTED part, not the equipped default
+  ok: 7. genuinely locked part gives a locked reason
+  ok: 7. locked part cannot install
+  ok: 8. incompatible part names the telescope family
+  ok: 9. finder unlocked by L6
+  ok: 9. finder scope installs at L6
+  ok: 10. selecting the card auto-equips the part
+  ok: 10. state reads 'equipped' after card click
+  ok: 11. first install records the 60mm objective
+  ok: 11. replacing overwrites installed_part_id (old state cleared)
+ASSEMBLY PART STATE TEST PASS

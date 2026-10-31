@@ -1,0 +1,23 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1. all 15 horizon assets present (0 missing)
+  ok: 1. every horizon asset has real alpha (0 opaque)
+  ok: 2. horizon manifest present
+  ok: 2. every observing site maps to a set (unmapped: [])
+  ok: 2. home site mapped too
+  ok: 2. set 'plateau' has far/mid/near
+  ok: 2. set 'polar' has far/mid/near
+  ok: 2. set 'desert' has far/mid/near
+  ok: 2. set 'city' has far/mid/near
+  ok: 2. set 'forest' has far/mid/near
+  ok: 2. set 'mountain' has far/mid/near
+  ok: 3. three parallax layers built (far/mid/near)
+  ok: 3. horizon cloud layer built
+  ok: 3. every layer uses a 2-copy seamless wrap
+  ok: 4. horizon z (6) is below Z_OBJECTS (20) - objects draw on top
+  ok: 5. turning in azimuth scrolls the panorama
+  ok: 6. far and near layers move at DIFFERENT rates (parallax 23.7 vs 124.2)
+  ok: 7. aiming higher pushes the horizon band down/out of view
+  ok: 8. horizon layers do not change target altitude
+HORIZON LAYERS TEST PASS

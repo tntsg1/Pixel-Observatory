@@ -2,30 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-<<<<<<<< HEAD:assets/celestial_icons/deep_sky/carina_cosmic_cliffs.png.import
 uid="uid://clwrh34rh37bu"
 path="res://.godot/imported/carina_cosmic_cliffs.png-a2d875a058713720274af65548a49b35.ctex"
 metadata={
 "vram_texture": false
-========
-uid="uid://ba2t83eseocs1"
-path.s3tc="res://.godot/imported/texture_03.png-4078cbce0fbf6b338c37446c5f17d2a1.s3tc.ctex"
-path.etc2="res://.godot/imported/texture_03.png-4078cbce0fbf6b338c37446c5f17d2a1.etc2.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc", "etc2_astc"],
-"vram_texture": true
->>>>>>>> origin/main:Arts/Textures/kenney_prototype_textures/red/texture_03.png.import
 }
 
 [deps]
 
-<<<<<<<< HEAD:assets/celestial_icons/deep_sky/carina_cosmic_cliffs.png.import
 source_file="res://assets/celestial_icons/deep_sky/carina_cosmic_cliffs.png"
 dest_files=["res://.godot/imported/carina_cosmic_cliffs.png-a2d875a058713720274af65548a49b35.ctex"]
-========
-source_file="res://Arts/Textures/kenney_prototype_textures/red/texture_03.png"
-dest_files=["res://.godot/imported/texture_03.png-4078cbce0fbf6b338c37446c5f17d2a1.s3tc.ctex", "res://.godot/imported/texture_03.png-4078cbce0fbf6b338c37446c5f17d2a1.etc2.ctex"]
->>>>>>>> origin/main:Arts/Textures/kenney_prototype_textures/red/texture_03.png.import
 
 [params]
 

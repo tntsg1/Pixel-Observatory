@@ -82,24 +82,12 @@ func _build() -> void:
 		dot.size = Vector2(2, 2)
 		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		add_child(dot)
-	# The 72 dots above are baked once and never move - this whole logbook was
-	# otherwise a dead backdrop behind the cards. Added before the panels so
-	# entry cards still draw on top of it.
-	var life := AmbientLife.new()
-	life.name = "AmbientLife"
-	life.configure({
-		"twinkle_zone": Rect2(0, 0, 1024, 768),
-		"twinkle_count": 22,
-		"seed": 20260827,
-	})
-	add_child(life)
 
 	var top := Panel.new()
 	top.position = Vector2(22, 12)
 	top.size = Vector2(980, 52)
 	top.add_theme_stylebox_override("panel", _style(Color(0.045, 0.070, 0.120, 0.96), Color(0.86, 0.62, 0.28), 2))
 	add_child(top)
-	UiKit.add_bevel(self, Rect2(top.position, top.size))
 	var title := _label(GameManager.text("CLUB LOGBOOK", "俱乐部观测日志"), Vector2(24, 9), Vector2(620, 30), 24, Color(0.96, 0.91, 0.76))
 	top.add_child(title)
 	var summary := _label(_summary_text(), Vector2(540, 15), Vector2(260, 20), 12, Color(0.58, 0.84, 1.0), HORIZONTAL_ALIGNMENT_RIGHT)
@@ -427,11 +415,6 @@ func _style(background: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.corner_radius_top_right = 4
 	style.corner_radius_bottom_left = 4
 	style.corner_radius_bottom_right = 4
-	# Every card here was a flat painted rectangle - a real drop shadow lifts
-	# each logbook entry off the page instead of reading as a screenshot.
-	style.shadow_color = Color(0, 0, 0, 0.42)
-	style.shadow_size = 9
-	style.shadow_offset = Vector2(0, 3)
 	return style
 
 

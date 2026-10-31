@@ -1,0 +1,13 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: naked_eye reticle node is visible
+PASS: naked_eye supplied reticle contains visible pixels (6300)
+PASS: finder reticle node is visible
+PASS: finder supplied reticle contains visible pixels (809)
+PASS: telescope reticle node is visible
+PASS: telescope supplied reticle contains visible pixels (35652)
+PASS: hidden reticle self-recovers on the next frame
+PASS: naked_eye reticle node is visible
+PASS: naked_eye supplied reticle contains visible pixels (6300)
+L25 RETICLE REGRESSION TEST PASS

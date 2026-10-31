@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "version": "v0.9.9",
+  "published_at": "2026-10-05",
+  "audience": "registered",
+  "title": {
+    "en": "Automatic Equipment Recommendation Fix",
+    "zh": "一键装备推荐修复"
+  },
+  "summary": {
+    "en": "This release corrects eyepiece recommendations and includes the science instrument needed by each infrared observation plan.",
+    "zh": "本次更新修正了部分关卡的目镜推荐，并为红外关卡的一键装备清单补充了观测计划所需的科学仪器。"
+  },
+  "sections": [
+    {
+      "heading": {
+        "en": "Issues resolved",
+        "zh": "问题修复"
+      },
+      "items": [
+        {
+          "en": "Level 10 keeps the prescribed comparison sequence and recommends the 20mm eyepiece after the experiment.",
+          "zh": "第 10 关保留指定的目镜比较顺序，实验完成后推荐使用 20mm 目镜。"
+        },
+        {
+          "en": "Level 13 now recommends 10mm for the Moon, 20mm for Saturn and 32mm for the Pleiades. Level 16 recommends 32mm for its wide-field observation.",
+          "zh": "第 13 关根据所选目标推荐目镜：月亮使用 10mm、土星使用 20mm、昴星团使用 32mm。第 16 关的宽视场观测推荐 32mm 目镜。"
+        },
+        {
+          "en": "Levels 66–75 include the target's recommended NIRCam, MIRI or NIRSpec in automatic equipment. Install it on the Instruments blueprint before starting the observation plan.",
+          "zh": "第 66–75 关的一键装备现在包含本关推荐的 NIRCam、MIRI 或 NIRSpec。请在组装台的“科学仪器”蓝图页完成安装，再进入观测规划。"
+        },
+        {
+          "en": "Parts cabinet eyepiece recommendation badges now follow the active target and its magnification limits.",
+          "zh": "零件柜的目镜推荐标记现在会跟随当前目标及本关允许的倍率范围。"
+        }
+      ]
+    }
+  ],
+  "footer": {
+    "en": "Existing saves remain compatible. Equipment selection does not replace assembly or observation controls.",
+    "zh": "现有存档可以继续使用。一键装备负责选择零件，玩家仍需完成安装和观测操作。"
+  }
+}

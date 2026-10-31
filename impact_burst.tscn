@@ -1,6 +1,0 @@
-[gd_scene format=3 uid="uid://bstqkjv7jyrvg"]
-
-[ext_resource type="Script" path="res://scripts/fx/impact_burst.gd" id="1_7l4kv"]
-
-[node name="ImpactBurst" type="Node2D" unique_id=254516709]
-script = ExtResource("1_7l4kv")

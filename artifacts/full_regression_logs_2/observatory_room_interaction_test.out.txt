@@ -1,0 +1,19 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: remote click cabinet does not navigate
+  ok: E focus near cabinet
+  ok: E focus near assembly
+  ok: E focus near door
+  ok: E focus near telescope
+  ok: E focus near mission
+  ok: E focus near journal
+  ok: E focus near computer
+  ok: not-ready pad stays in observatory
+  ok: ready pad enters the observation flow (sky, or world map when the target is below the horizon)
+  ok: return spawn near cabinet
+  ok: return spawn near assembly
+  ok: return spawn near journal
+  ok: return spawn near door
+  ok: return spawn near telescope
+OBSERVATORY INTERACTION TEST PASS

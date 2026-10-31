@@ -16,7 +16,7 @@ func _initialize() -> void:
 	gm.new_game()
 	await _test_dobsonian(gm)
 	await _test_flat_family(gm, 66, "space_segmented")
-	await _test_fast_dependency_order(gm, 76)
+	await _test_flat_family(gm, 76, "fast_radio")
 	await _test_foundation_order(gm)
 	print("ADVANCED ASSEMBLY RANDOM ORDER TEST %s" % ("PASS" if failures == 0 else "FAIL"))
 	_finish(0 if failures == 0 else 1)
@@ -72,56 +72,6 @@ func _test_flat_family(gm: Node, level_number: int, expected_family: String) -> 
 	bench.call("_select_flat_part", deferred_part)
 	bench.call("_install_at_slot", deferred_part)
 	_check(gm.missing_parts().is_empty(), "%s completes in reverse install order" % expected_family)
-	bench.queue_free()
-	await process_frame
-
-
-# FAST is deliberately NOT order-free. Unlike the other benches it enforces a
-# structural dependency graph (advanced_assembly.gd _install_at_slot, and
-# data/assembly_dependencies.json): panel actuators mount to panel segments,
-# the receiver hangs from the cable system, and the control terminal needs all
-# three subsystems live. This test used to assert "fast_radio completes in
-# reverse install order", i.e. the exact opposite of that intent - it predates
-# the dependency graph. What FAST actually promises is asserted here instead:
-# a dependency-violating order is refused, and a dependency-respecting order
-# completes.
-func _test_fast_dependency_order(gm: Node, level_number: int) -> void:
-	gm.debug_jump_to_level(level_number, true)
-	gm.reset_assembly()
-	var bench: Node = load("res://scenes/advanced_assembly.tscn").instantiate()
-	root.add_child(bench)
-	current_scene = bench
-	await process_frame
-	_check(str(gm.assembly_family()) == "fast_radio", "L%d opens fast_radio assembly" % level_number)
-	var available: Array = (bench.get("order") as Array).duplicate()
-	_check(available.size() > 1, "fast_radio exposes multiple installable components")
-
-	# 1. A reverse order violates the structural graph and must be refused.
-	var reverse_order: Array = available.duplicate()
-	reverse_order.reverse()
-	for part_value in reverse_order:
-		var part_type := str(part_value)
-		bench.call("_select_flat_part", part_type)
-		bench.call("_install_at_slot", part_type)
-	_check(not gm.missing_parts().is_empty(),
-		"fast_radio refuses an order that violates its structural dependencies")
-
-	# 2. Building in the bench's own presented order must complete the rig.
-	# The bench lists its slots already in structural order, and its gate only
-	# enforces prerequisites that are actually present on the bench - at this
-	# level signal_processor's rf_receiver prerequisite is not unlocked yet, so
-	# the gate correctly skips it. (AssemblyDependencyGraph.topological_order is
-	# deliberately NOT used here: it resolves the FULL graph and reports not-ok
-	# for a partial, still-unlocking bench set like this level's.)
-	gm.reset_assembly()
-	bench.call("_build")
-	await process_frame
-	for part_value in available:
-		var forward_type := str(part_value)
-		bench.call("_select_flat_part", forward_type)
-		bench.call("_install_at_slot", forward_type)
-	_check(gm.missing_parts().is_empty(),
-		"fast_radio completes when built in dependency order (missing=%s)" % str(gm.missing_parts()))
 	bench.queue_free()
 	await process_frame
 

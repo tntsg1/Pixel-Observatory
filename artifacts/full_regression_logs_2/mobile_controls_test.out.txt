@@ -1,0 +1,18 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: TouchInput autoload present
+  ok: 1. joystick vector moves the player east
+  ok: 2a. player stands near the mission board
+  ok: 2b. Interact opens the mission board like E
+  ok: 2c. mobile overlay exists in the lobby
+  ok: 2d. Interact button present
+  ok: 3a. horizontal drag changes azimuth
+  ok: 3b. sensitivity scales drag response
+  ok: 3c. pinch-out zooms into the next available tier
+  ok: 3d. pinch-in zooms back out
+  ok: 4. focus nudge button raises focus
+  ok: 5a. joystick scale persists
+  ok: 5b. pitch inversion persists
+  ok: 6. PC mode ignores virtual joystick state
+MOBILE CONTROLS TEST PASS

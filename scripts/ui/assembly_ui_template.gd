@@ -40,17 +40,9 @@ static func add_hints_toggle(parent: Control, game_manager: Node, on_change: Cal
 
 
 static func add_title_bar(parent: Control, title: String, subtitle: String = "") -> void:
-	var bar := TextureRect.new()
-	bar.texture = UiKit.gradient_texture(Color(0.055, 0.080, 0.140), Color(0.018, 0.028, 0.055), 58)
-	bar.position = Vector2.ZERO
-	bar.size = Vector2(1024, 58)
-	bar.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	bar.stretch_mode = TextureRect.STRETCH_SCALE
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(bar)
-	_add_rect(parent, Rect2(18, 12, 988, 2), Color(0.86, 0.66, 0.34))
-	_add_rect(parent, Rect2(18, 14, 988, 1), Color(1.0, 0.90, 0.62, 0.35))
-	_add_rect(parent, Rect2(18, 52, 988, 2), Color(0.17, 0.25, 0.40))
+	_add_rect(parent, Rect2(0, 0, 1024, 58), Color(0.030, 0.045, 0.085, 0.96))
+	_add_rect(parent, Rect2(18, 12, 988, 3), Color(0.78, 0.56, 0.28))
+	_add_rect(parent, Rect2(18, 52, 988, 3), Color(0.17, 0.25, 0.40))
 	var title_label := _add_label(parent, title, Vector2(216, 13), Vector2(592, 30), 24, Color(0.96, 0.95, 0.90))
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	if subtitle != "":
@@ -62,12 +54,11 @@ static func add_titled_panel(parent: Control, rect: Rect2, title: String) -> Pan
 	var panel := Panel.new()
 	panel.position = rect.position
 	panel.size = rect.size
-	panel.add_theme_stylebox_override("panel", _depth_style(Color(0.040, 0.060, 0.105, 0.98), Color(0.78, 0.56, 0.28)))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.040, 0.060, 0.105, 0.98), Color(0.78, 0.56, 0.28), 2, 4))
 	parent.add_child(panel)
-	# A milled brass nameplate reads as a real instrument label; the old flat
-	# brown rectangle was the single biggest reason these panels looked cheap.
-	UiKit.header_plate(parent, Rect2(rect.position + Vector2(4, 4), Vector2(rect.size.x - 8, 34)), title)
-	UiKit.add_bevel(parent, rect)
+	_add_rect(parent, Rect2(rect.position + Vector2(4, 4), Vector2(rect.size.x - 8, 34)), Color(0.30, 0.20, 0.10, 0.92))
+	var heading := _add_label(parent, title, rect.position + Vector2(16, 8), Vector2(rect.size.x - 32, 26), 16, Color(0.96, 0.93, 0.84))
+	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return panel
 
 
@@ -76,26 +67,15 @@ static func add_blueprint_panel(parent: Control, title: String) -> Panel:
 	var panel := Panel.new()
 	panel.position = rect.position
 	panel.size = rect.size
-	panel.add_theme_stylebox_override("panel", _depth_style(Color(0.020, 0.045, 0.095, 0.98), Color(0.78, 0.56, 0.28)))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.020, 0.045, 0.095, 0.98), Color(0.78, 0.56, 0.28), 2, 4))
 	parent.add_child(panel)
-	# Shared by every assembly family - the blueprint grid otherwise sits
-	# completely still behind whichever diagram the bench draws over it.
-	var life := AmbientLife.new()
-	life.name = "BlueprintAmbientLife"
-	life.configure({
-		"twinkle_zone": rect,
-		"twinkle_count": 16,
-		"seed": 20260827,
-	})
-	parent.add_child(life)
 	var nameplate := Panel.new()
 	nameplate.position = Vector2(452, 80)
 	nameplate.size = Vector2(196, 34)
-	nameplate.add_theme_stylebox_override("panel", _depth_style(Color(0.08, 0.11, 0.06, 0.96), Color(0.82, 0.62, 0.30)))
+	nameplate.add_theme_stylebox_override("panel", _style(Color(0.10, 0.13, 0.075, 0.96), Color(0.82, 0.62, 0.30), 2, 4))
 	parent.add_child(nameplate)
-	var heading := _add_label(parent, title, Vector2(452, 88), Vector2(196, 24), 16, Color(0.98, 0.86, 0.48))
+	var heading := _add_label(parent, title, Vector2(452, 88), Vector2(196, 24), 16, Color(0.96, 0.82, 0.42))
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	UiKit.add_bevel(parent, rect)
 	return panel
 
 
@@ -297,13 +277,4 @@ static func _style(background: Color, border: Color, width: int, radius: int) ->
 	style.border_color = border
 	style.set_border_width_all(width)
 	style.set_corner_radius_all(radius)
-	return style
-
-static func _depth_style(background: Color, border: Color) -> StyleBoxFlat:
-	# Same silhouette as before, but with a soft cast shadow. Flat panels with no
-	# shadow are what made the bench look like pasted rectangles.
-	var style := _style(background, border, 2, 4)
-	style.shadow_color = Color(0, 0, 0, 0.50)
-	style.shadow_size = 12
-	style.shadow_offset = Vector2(0, 4)
 	return style

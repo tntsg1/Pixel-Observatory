@@ -1,0 +1,21 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: clear file exists
+PASS: clear loads as Texture2D
+PASS: clear is 256x256
+PASS: clear has a transparent corner
+PASS: clear keeps an opaque star center
+PASS: blurry file exists
+PASS: blurry loads as Texture2D
+PASS: blurry is 256x256
+PASS: blurry has a transparent corner
+PASS: blurry keeps an opaque star center
+PASS: dim file exists
+PASS: dim loads as Texture2D
+PASS: dim is 256x256
+PASS: dim has a transparent corner
+PASS: dim keeps an opaque star center
+PASS: L25 uses the imported Vega state textures
+PASS: L27 Newtonian view does not add refractor color fringe
+VEGA SPRITE ACCEPTANCE TEST PASS

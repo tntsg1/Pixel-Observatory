@@ -80,49 +80,27 @@ const FAST_BLUEPRINT_CONFIG := {
 	"dish": {
 		"path": FAST_BLUEPRINT_CROPPED,
 		"source_size": Vector2(765.0, 956.0),
-		"parts": ["radio_dish", "panel_segment", "panel_actuator"],
-		"slots": {
-			"radio_dish": Rect2(108.0, 132.0, 212.0, 98.0),
-			"panel_segment": Rect2(28.0, 270.0, 168.0, 90.0),
-			"panel_actuator": Rect2(224.0, 270.0, 168.0, 90.0),
-		},
-		"title_en": "Dish Surface",
-		"title_zh": "反射面系统",
+		"part_type": "radio_dish",
+		"slot": Rect2(176.0, 374.0, 400.0, 194.0),
+		"title_en": "500m Active Radio Dish",
+		"title_zh": "500 米主动反射面",
 	},
 	"feed": {
 		"path": FAST_BLUEPRINT_CROPPED,
 		"source_size": Vector2(765.0, 956.0),
-		"parts": ["cable_system", "tension_controller", "receiver", "feed_receiver"],
-		"slots": {
-			"cable_system": Rect2(24.0, 58.0, 176.0, 90.0),
-			"tension_controller": Rect2(220.0, 58.0, 176.0, 90.0),
-			"receiver": Rect2(24.0, 180.0, 176.0, 90.0),
-			"feed_receiver": Rect2(220.0, 180.0, 176.0, 90.0),
-		},
-		"title_en": "Suspended Feed",
-		"title_zh": "悬吊馈源系统",
+		"part_type": "receiver",
+		"slot": Rect2(322.0, 99.0, 106.0, 108.0),
+		"title_en": "Suspended Feed Cabin",
+		"title_zh": "悬吊馈源舱",
 	},
 	"signal": {
 		"path": FAST_BLUEPRINT_CROPPED,
 		"source_size": Vector2(765.0, 956.0),
-		"parts": ["rf_receiver", "signal_processor", "spectrum_monitor", "timing_console", "data_recorder", "rfi_monitor", "control_terminal"],
-		"slots": {
-			"rf_receiver": Rect2(12.0, 46.0, 126.0, 88.0),
-			"signal_processor": Rect2(148.0, 46.0, 126.0, 88.0),
-			"spectrum_monitor": Rect2(284.0, 46.0, 126.0, 88.0),
-			"timing_console": Rect2(12.0, 158.0, 126.0, 88.0),
-			"data_recorder": Rect2(148.0, 158.0, 126.0, 88.0),
-			"rfi_monitor": Rect2(284.0, 158.0, 126.0, 88.0),
-			"control_terminal": Rect2(148.0, 270.0, 126.0, 88.0),
-		},
-		"title_en": "Signal Chain",
-		"title_zh": "射电信号链",
+		"part_type": "signal_processor",
+		"slot": Rect2(321.0, 722.0, 106.0, 104.0),
+		"title_en": "Radio Signal Processor",
+		"title_zh": "射电信号处理器",
 	},
-}
-const FAST_SYSTEM_SOURCE_SLOTS := {
-	"dish": Rect2(176.0, 374.0, 400.0, 194.0),
-	"feed": Rect2(322.0, 99.0, 106.0, 108.0),
-	"signal": Rect2(321.0, 722.0, 106.0, 104.0),
 }
 
 var selected_type := ""
@@ -146,7 +124,7 @@ var auto_assemble_button: Button
 var auto_assemble_running := false
 var auto_assemble_skip_requested := false
 var space_blueprint_page := "core"
-var fast_blueprint_page := "overview"
+var fast_blueprint_page := "dish"
 var remembered_parts_scroll_y := 0
 
 
@@ -224,21 +202,9 @@ func _build() -> void:
 		list.add_child(_part_card(part_type))
 
 	var board_panel := _panel(Vector2(316, 88), Vector2(448, 614), _flat_board_title())
-	# Added before `blueprint` so the diagram always draws on top of it - the
-	# space/FAST board otherwise sat on a completely still dark backdrop
-	# around whatever hardware is currently drawn.
-	var board_life := AmbientLife.new()
-	board_life.name = "BoardAmbientLife"
-	board_life.configure({
-		"twinkle_zone": Rect2(10, 38, 428, 500),
-		"twinkle_count": 16,
-		"seed": 20260827,
-	})
-	board_panel.add_child(board_life)
 	blueprint = Control.new()
 	blueprint.position = Vector2(10, 38)
 	blueprint.size = Vector2(428, 500)
-	blueprint.clip_contents = true
 	board_panel.add_child(blueprint)
 	_draw_specialized_blueprint()
 
@@ -1275,35 +1241,15 @@ func _draw_specialized_blueprint() -> void:
 
 func _draw_fast_blueprint_page() -> void:
 	var page_id := fast_blueprint_page
-	if page_id != "overview" and not FAST_BLUEPRINT_CONFIG.has(page_id):
-		page_id = "overview"
+	if not FAST_BLUEPRINT_CONFIG.has(page_id):
+		page_id = "dish"
 		fast_blueprint_page = page_id
-	if page_id == "overview":
-		_draw_fast_blueprint_overview()
-	else:
-		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
-		_draw_fast_module_page(
-			GameManager.text(str(config["title_en"]), str(config["title_zh"])),
-			_fast_page_explanation(page_id),
-			config["parts"]
-		)
-	_draw_fast_blueprint_tabs()
-
-
-func _draw_fast_blueprint_overview() -> void:
-	var canvas := Control.new()
-	canvas.name = "FastBlueprintCanvas"
-	canvas.position = Vector2(4, 6)
-	canvas.size = Vector2(420, 438)
-	canvas.clip_contents = true
-	canvas.mouse_filter = Control.MOUSE_FILTER_PASS
-	blueprint.add_child(canvas)
-
-	var source_size := Vector2(765.0, 956.0)
+	var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+	var source_size: Vector2 = config["source_size"]
 	var layout := _calculate_blueprint_layout(
 		source_size,
 		Rect2(Vector2.ZERO, source_size),
-		Rect2(Vector2.ZERO, canvas.size)
+		Rect2(4, 6, 420, 438)
 	)
 	var art := TextureRect.new()
 	art.name = "FastBlueprintArt"
@@ -1312,98 +1258,22 @@ func _draw_fast_blueprint_overview() -> void:
 	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	art.texture = load(FAST_BLUEPRINT_CROPPED) as Texture2D
+	art.texture = load(str(config["path"])) as Texture2D
 	art.position = layout["display_rect"].position
 	art.size = layout["display_rect"].size
-	art.set_meta("fast_blueprint_page", "overview")
-	canvas.add_child(art)
+	art.set_meta("fast_blueprint_page", page_id)
+	blueprint.add_child(art)
 
-	for system_id_value in ["dish", "feed", "signal"]:
-		var system_id := str(system_id_value)
-		var target_rect := _source_rect_to_blueprint(FAST_SYSTEM_SOURCE_SLOTS[system_id], layout)
-		_draw_fast_system_target(canvas, system_id, target_rect)
-
-
-func _draw_fast_system_target(parent: Control, page_id: String, rect: Rect2) -> void:
-	var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
-	var visible_parts: Array[String] = []
-	for part_type_value in config["parts"]:
-		var part_type := str(part_type_value)
+	# The supplied blueprint already contains all three cyan installation
+	# windows. Keep that original composition visible, then add only restrained
+	# interaction/status overlays at the exact printed windows.
+	for slot_page_id in FAST_BLUEPRINT_CONFIG:
+		var slot_config: Dictionary = FAST_BLUEPRINT_CONFIG[slot_page_id]
+		var part_type := str(slot_config["part_type"])
 		if order.has(part_type):
-			visible_parts.append(part_type)
-	var installed_count := 0
-	for part_type in visible_parts:
-		if _installed(part_type):
-			installed_count += 1
-	var complete := not visible_parts.is_empty() and installed_count == visible_parts.size()
-	var color := GREEN if complete else CYAN
-	var target := Panel.new()
-	target.name = "FastSystemTarget_%s" % page_id
-	target.position = rect.position
-	target.size = rect.size
-	target.clip_contents = true
-	target.add_theme_stylebox_override("panel", _style(Color(0.015, 0.08, 0.12, 0.12), color, 2))
-	parent.add_child(target)
-	var title := GameManager.text(str(config["title_en"]), str(config["title_zh"]))
-	var compact_target := rect.size.x < 90.0
-	var target_text := "%d/%d" % [installed_count, visible_parts.size()] if compact_target else "%s\n%d/%d" % [title, installed_count, visible_parts.size()]
-	var label := _label(
-		target_text,
-		Vector2(4, maxf(2.0, rect.size.y * 0.5 - 20.0)),
-		Vector2(rect.size.x - 8, 40),
-		8 if compact_target else 9,
-		color,
-		HORIZONTAL_ALIGNMENT_CENTER
-	)
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	target.add_child(label)
-	var hit := Button.new()
-	hit.flat = true
-	hit.position = Vector2.ZERO
-	hit.size = rect.size
-	hit.tooltip_text = GameManager.text("Open this engineering system", "打开这套工程系统")
-	hit.pressed.connect(_set_fast_blueprint_page.bind(page_id))
-	target.add_child(hit)
-
-
-func _draw_fast_module_page(title_text: String, explanation: String, part_types: Array) -> void:
-	var header := _label(title_text, Vector2(14, 10), Vector2(400, 24), 15, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
-	blueprint.add_child(header)
-	var help := _label(explanation, Vector2(20, 36), Vector2(388, 34), 10, Color(0.66, 0.78, 0.84), HORIZONTAL_ALIGNMENT_CENTER)
-	help.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	blueprint.add_child(help)
-	var visible_types: Array[String] = []
-	for part_type_value in part_types:
-		var part_type := str(part_type_value)
-		if order.has(part_type):
-			visible_types.append(part_type)
-	for index in range(visible_types.size()):
-		var column := index % 2
-		var row := index / 2
-		_draw_fast_blueprint_slot(
-			visible_types[index],
-			Rect2(12.0 + column * 204.0, 78.0 + row * 78.0, 196.0, 68.0)
-		)
-	if visible_types.is_empty():
-		var locked_note := _label(
-			GameManager.text("No components in this system have been unlocked yet.", "这套系统的组件尚未解锁。"),
-			Vector2(32, 208), Vector2(364, 48), 13, Color(0.58, 0.66, 0.72), HORIZONTAL_ALIGNMENT_CENTER
-		)
-		locked_note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		blueprint.add_child(locked_note)
-
-
-func _fast_page_explanation(page_id: String) -> String:
-	match page_id:
-		"dish":
-			return GameManager.text("Active panels shape the collecting surface.", "主动面板共同塑造接收反射面。")
-		"feed":
-			return GameManager.text("Cables position and steady the feed cabin.", "缆索负责定位并稳定馈源舱。")
-		"signal":
-			return GameManager.text("Electronics clean, time and record the signal.", "电子系统净化、计时并记录信号。")
-	return ""
+			var slot_rect := _source_rect_to_blueprint(slot_config["slot"], layout)
+			_draw_fast_blueprint_slot(part_type, slot_rect)
+	_draw_fast_blueprint_tabs()
 
 
 func _draw_fast_blueprint_slot(part_type: String, rect: Rect2) -> void:
@@ -1422,40 +1292,17 @@ func _draw_fast_blueprint_slot(part_type: String, rect: Rect2) -> void:
 	frame.name = "FastBlueprintFrame_%s" % part_type
 	frame.position = Vector2.ZERO
 	frame.size = rect.size
+	frame.visible = active or installed
 	frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	frame.add_theme_stylebox_override(
 		"panel",
-		_style(Color(0.015, 0.055, 0.085, 0.82 if installed else 0.68), color, 3 if active else 2)
+		_style(Color(0.02, 0.10, 0.15, 0.06 if not active else 0.16), color, 3 if active else 2)
 	)
 	slot.add_child(frame)
-
-	var part := _part_for_type(part_type)
-	var icon := _part_texture_control(part, Rect2(6, 6, 50, 50))
-	if icon != null:
-		icon.name = "FastBlueprintPartTexture_%s" % part_type
-		icon.modulate = Color(1.0, 1.0, 1.0, 1.0 if installed else 0.48)
-		slot.add_child(icon)
-	var caption := _label(
-		_short_type(part_type),
-		Vector2(64, 7),
-		Vector2(rect.size.x - 72, 34),
-		10,
-		GREEN if installed else (GOLD if active else CYAN),
-		HORIZONTAL_ALIGNMENT_CENTER
-	)
-	caption.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	caption.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot.add_child(caption)
 	if installed:
-		var ok := _label("OK", Vector2(rect.size.x - 30, 2), Vector2(26, 15), 9, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+		var ok := _label("OK", Vector2(rect.size.x - 28, 2), Vector2(24, 15), 9, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
 		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot.add_child(ok)
-	var state := _label(
-		GameManager.text("INSTALLED", "已安装") if installed else GameManager.text("CLICK TO INSTALL", "点击安装"),
-		Vector2(64, 47), Vector2(rect.size.x - 72, 15), 8, GREEN if installed else CYAN
-	)
-	state.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	slot.add_child(state)
 
 	var hit := Button.new()
 	hit.name = "FastBlueprintHit_%s" % part_type
@@ -1468,40 +1315,31 @@ func _draw_fast_blueprint_slot(part_type: String, rect: Rect2) -> void:
 
 func _draw_fast_blueprint_tabs() -> void:
 	var tabs := [
-		["overview", GameManager.text("Overview", "总览")],
-		["dish", GameManager.text("Dish", "反射面")],
-		["feed", GameManager.text("Feed", "馈源")],
-		["signal", GameManager.text("Signal", "信号")],
+		["dish", GameManager.text("Active Dish", "主动反射面")],
+		["feed", GameManager.text("Feed Cabin", "馈源舱")],
+		["signal", GameManager.text("Signal Chain", "信号链")],
 	]
 	var x := 4.0
 	for tab_value in tabs:
 		var page_id := str(tab_value[0])
-		var visible_parts: Array[String] = []
-		var config: Dictionary = FAST_BLUEPRINT_CONFIG.get(page_id, {})
-		for part_type_value in config.get("parts", []):
-			var part_type := str(part_type_value)
-			if order.has(part_type):
-				visible_parts.append(part_type)
-		var installed_count := 0
-		for part_type in visible_parts:
-			if _installed(part_type):
-				installed_count += 1
-		var suffix := "" if page_id == "overview" else " %d/%d" % [installed_count, visible_parts.size()]
-		var tab := _button(str(tab_value[1]) + suffix, Vector2(x, 458), Vector2(100, 34), Color(0.055, 0.10, 0.17))
+		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
+		var part_type := str(config["part_type"])
+		var suffix := "  OK" if _installed(part_type) else ""
+		var tab := _button(str(tab_value[1]) + suffix, Vector2(x, 458), Vector2(136, 34), Color(0.055, 0.10, 0.17))
 		tab.name = "FastBlueprintTab_%s" % page_id
-		tab.tooltip_text = GameManager.text("Complete FAST engineering overview", "FAST 完整工程总览") if page_id == "overview" else GameManager.text(str(config["title_en"]), str(config["title_zh"]))
+		tab.tooltip_text = GameManager.text(str(config["title_en"]), str(config["title_zh"]))
 		if page_id == fast_blueprint_page:
 			tab.add_theme_stylebox_override("normal", _style(Color(0.08, 0.18, 0.23), GOLD, 2))
 			tab.add_theme_color_override("font_color", GOLD)
-		elif not visible_parts.is_empty() and installed_count == visible_parts.size():
+		elif _installed(part_type):
 			tab.add_theme_color_override("font_color", GREEN)
 		tab.pressed.connect(_set_fast_blueprint_page.bind(page_id))
 		blueprint.add_child(tab)
-		x += 106.0
+		x += 142.0
 
 
 func _set_fast_blueprint_page(page_id: String) -> void:
-	if page_id != "overview" and not FAST_BLUEPRINT_CONFIG.has(page_id):
+	if not FAST_BLUEPRINT_CONFIG.has(page_id):
 		return
 	fast_blueprint_page = page_id
 	_build()
@@ -1510,7 +1348,7 @@ func _set_fast_blueprint_page(page_id: String) -> void:
 func _fast_page_for_part(part_type: String) -> String:
 	for page_id in FAST_BLUEPRINT_CONFIG:
 		var config: Dictionary = FAST_BLUEPRINT_CONFIG[page_id]
-		if config["parts"].has(part_type):
+		if str(config["part_type"]) == part_type:
 			return str(page_id)
 	return "dish"
 
@@ -1725,22 +1563,9 @@ func _draw_space_blueprint_slot(part_type: String, target_rect: Rect2, label_rec
 	)
 	target.add_child(target_frame)
 	if installed:
-		# A bare "OK" string floating on the diagram disappears against a busy
-		# background - a small filled chip keeps it legible over any artwork.
-		var ok_chip := Panel.new()
-		ok_chip.position = Vector2(target_rect.size.x - 30, 2)
-		ok_chip.size = Vector2(26, 15)
-		ok_chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		var ok_chip_style := StyleBoxFlat.new()
-		ok_chip_style.bg_color = Color(0.03, 0.13, 0.07, 0.88)
-		ok_chip_style.border_color = GREEN
-		ok_chip_style.set_border_width_all(1)
-		ok_chip_style.set_corner_radius_all(3)
-		ok_chip.add_theme_stylebox_override("panel", ok_chip_style)
-		target.add_child(ok_chip)
-		var ok := _label("OK", Vector2(0, -1), Vector2(26, 15), 10, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
+		var ok := _label("OK", Vector2(target_rect.size.x - 28, 2), Vector2(24, 16), 10, GREEN, HORIZONTAL_ALIGNMENT_CENTER)
 		ok.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		ok_chip.add_child(ok)
+		target.add_child(ok)
 	var target_hit := Button.new()
 	target_hit.flat = true
 	target_hit.position = Vector2.ZERO
@@ -1752,7 +1577,7 @@ func _draw_space_blueprint_slot(part_type: String, target_rect: Rect2, label_rec
 	label_panel.name = "SpaceSlotLabel_%s" % part_type
 	label_panel.position = label_rect.position
 	label_panel.size = label_rect.size
-	label_panel.add_theme_stylebox_override("panel", _depth_style(Color(0.025, 0.055, 0.09, 0.94), color, 1))
+	label_panel.add_theme_stylebox_override("panel", _style(Color(0.025, 0.055, 0.09, 0.94), color, 1))
 	blueprint.add_child(label_panel)
 	var label_text := _short_type(part_type)
 	if installed:
@@ -1848,25 +1673,6 @@ func _install_at_slot(slot_type: String) -> void:
 	if selected_type != slot_type:
 		status_label.text = GameManager.text("That part does not belong there. Newtonian optics must follow the reflected light path.", "该零件不属于这里。牛顿镜光学部件必须遵循反射光路。")
 		return
-	if _family() == "fast_radio":
-		var missing_dependencies: Array[String] = []
-		for dependency_value in AssemblyDependencyGraph.prerequisites_for("fast_radio", "main", slot_type):
-			var dependency := str(dependency_value)
-			if order.has(dependency) and not _installed(dependency):
-				missing_dependencies.append(dependency)
-		if not missing_dependencies.is_empty():
-			var dependency_names: Array[String] = []
-			for dependency in missing_dependencies:
-				dependency_names.append(_short_type(dependency))
-			status_label.text = GameManager.text(
-				"Install %s first; this component depends on that physical system." % ", ".join(dependency_names),
-				"请先安装%s；该组件依赖这些物理系统。" % "、".join(dependency_names)
-			)
-			for dependency in missing_dependencies:
-				var dependency_card := part_card_controls.get(dependency) as Control
-				if dependency_card != null:
-					InteractionFeedback.pulse(dependency_card, GOLD, 0.44)
-			return
 	install_animation_active = true
 	var animation := _capture_part_animation(slot_type)
 	var selected_part := _part_for_type(slot_type)
@@ -1879,10 +1685,7 @@ func _install_at_slot(slot_type: String) -> void:
 	if _family() == "fast_radio":
 		fast_blueprint_page = _fast_page_for_part(slot_type)
 	install_animation_active = false
-	status_label.text = GameManager.text(
-		"Installed. The FAST engineering chain is taking shape." if _family() == "fast_radio" else "Installed. The reflected light path is taking shape.",
-		"已安装，FAST 工程链正在成形。" if _family() == "fast_radio" else "已安装，反射光路正在成形。"
-	)
+	status_label.text = GameManager.text("Installed. The reflected light path is taking shape.", "已安装，反射光路正在成形。")
 	_build()
 	_play_part_animation(animation)
 	call_deferred("_finish_advanced_install_feedback", slot_type, false)
@@ -1949,30 +1752,10 @@ func _advanced_part_operation_effect(part_type: String) -> String:
 			return GameManager.text("The observatory can now unfold into its observing geometry.", "天文台现在可以展开到观测构型。")
 		"radio_dish":
 			return GameManager.text("The collecting surface now concentrates radio waves.", "反射面现在可以汇聚射电波。")
-		"panel_segment":
-			return GameManager.text("This active panel can now reshape the illuminated paraboloid.", "这块主动面板现在可以参与形成被照亮的抛物面。")
-		"panel_actuator":
-			return GameManager.text("The reflector surface can now follow commanded curvature changes.", "反射面现在可以执行曲率调整指令。")
-		"cable_system":
-			return GameManager.text("The suspended cabin now has its six-cable support geometry.", "悬吊馈源舱现在具备六索支撑结构。")
-		"tension_controller":
-			return GameManager.text("Cable load can now be balanced while the cabin moves.", "馈源舱移动时，缆索载荷现在可以保持平衡。")
 		"receiver":
 			return GameManager.text("The focused radio signal can now be converted electrically.", "聚焦后的射电信号现在可以转换为电信号。")
-		"feed_receiver", "rf_receiver":
-			return GameManager.text("The selected radio band can now enter the low-noise receiver chain.", "选定的射电频段现在可以进入低噪声接收链。")
 		"signal_processor":
 			return GameManager.text("Noise rejection and pulse analysis are now available.", "噪声抑制与脉冲分析现在可以工作。")
-		"spectrum_monitor":
-			return GameManager.text("Frequency structure and interference are now visible on the spectrum display.", "频率结构与干扰现在会显示在频谱监视器上。")
-		"timing_console":
-			return GameManager.text("Repeating arrivals can now be folded into a measurable pulse period.", "重复到达的信号现在可以折叠成可测量的脉冲周期。")
-		"data_recorder":
-			return GameManager.text("The calibrated observation can now be preserved as a science record.", "完成校准的观测现在可以保存为科学记录。")
-		"rfi_monitor":
-			return GameManager.text("Human-made radio contamination can now be identified and rejected.", "人造射频污染现在可以被识别并剔除。")
-		"control_terminal":
-			return GameManager.text("Dish, cabin and receiver commands now meet at one control station.", "反射面、馈源舱与接收机指令现在汇入同一控制终端。")
 		"mount", "tripod":
 			return GameManager.text("The optical assembly now has stable mechanical support.", "光学组件现在有了稳定机械支撑。")
 		"optical_tube_assembly":
@@ -2259,30 +2042,6 @@ func _status_text() -> String:
 				_space_group_installed_count(SPACE_INSTRUMENT_TYPES), instrument_total,
 			]
 		)
-	if _family() == "fast_radio":
-		if missing.is_empty():
-			return GameManager.text(
-				"All FAST systems installed. Press Finish Assembly.",
-				"FAST 全部系统均已安装。请点击“完成组装”。"
-			)
-		var available_now: Array[String] = []
-		for part_type_value in missing:
-			var part_type := str(part_type_value)
-			var blocked := false
-			for dependency_value in AssemblyDependencyGraph.prerequisites_for("fast_radio", "main", part_type):
-				var dependency := str(dependency_value)
-				if order.has(dependency) and not _installed(dependency):
-					blocked = true
-					break
-			if not blocked:
-				available_now.append(_short_type(part_type))
-			if available_now.size() == 3:
-				break
-		var available_text := "\n- ".join(available_now)
-		return GameManager.text(
-			"Engineering progress: %d/%d\nAvailable now:\n- %s\n\nUse the three blueprint tabs to inspect each system." % [order.size() - missing.size(), order.size(), available_text],
-			"工程进度：%d/%d\n当前可安装：\n- %s\n\n请切换三张蓝图，逐套检查系统。" % [order.size() - missing.size(), order.size(), available_text]
-		)
 	if missing.is_empty():
 		return GameManager.text("All parts installed. Press Finish Assembly.", "全部零件已安装。点击“完成组装”。")
 	var missing_lines: Array[String] = []
@@ -2383,19 +2142,8 @@ func _short_type(part_type: String) -> String:
 		"mount": return GameManager.text("Mount", "支架")
 		"tripod": return GameManager.text("Tripod", "三脚架")
 		"radio_dish": return GameManager.text("Radio Dish", "反射面")
-		"panel_segment": return GameManager.text("Panel Segment", "反射面板单元")
-		"panel_actuator": return GameManager.text("Panel Actuator", "面板促动器")
-		"cable_system": return GameManager.text("Cable System", "馈源舱缆索")
-		"tension_controller": return GameManager.text("Tension Control", "缆索张力控制")
 		"receiver": return GameManager.text("Receiver", "接收机")
-		"feed_receiver": return GameManager.text("Feed Receiver", "馈源舱接收机")
-		"rf_receiver": return GameManager.text("RF Receiver", "射频接收机")
 		"signal_processor": return GameManager.text("Signal Processor", "信号处理")
-		"spectrum_monitor": return GameManager.text("Spectrum Monitor", "频谱监视器")
-		"timing_console": return GameManager.text("Timing Console", "脉冲计时台")
-		"data_recorder": return GameManager.text("Data Recorder", "数据记录器")
-		"rfi_monitor": return GameManager.text("RFI Monitor", "射频干扰监视器")
-		"control_terminal": return GameManager.text("Control Terminal", "观测控制终端")
 	return part_type.replace("_", " ").capitalize()
 
 
@@ -2403,7 +2151,7 @@ func _panel(pos: Vector2, size_value: Vector2, title: String) -> Panel:
 	var panel := Panel.new()
 	panel.position = pos
 	panel.size = size_value
-	panel.add_theme_stylebox_override("panel", _depth_style(PANEL, GOLD, 2))
+	panel.add_theme_stylebox_override("panel", _style(PANEL, GOLD, 2))
 	add_child(panel)
 	panel.add_child(_label(title, Vector2(12, 8), Vector2(size_value.x - 24, 22), 15, GOLD, HORIZONTAL_ALIGNMENT_CENTER))
 	return panel
@@ -2455,14 +2203,6 @@ func _style(background: Color, border: Color, width: int) -> StyleBoxFlat:
 	style.corner_radius_top_right = 4
 	style.corner_radius_bottom_left = 4
 	style.corner_radius_bottom_right = 4
-	return style
-
-
-func _depth_style(background: Color, border: Color, width: int) -> StyleBoxFlat:
-	var style := _style(background, border, width)
-	style.shadow_color = Color(0, 0, 0, 0.42)
-	style.shadow_size = 6
-	style.shadow_offset = Vector2(0, 2)
 	return style
 
 

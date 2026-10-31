@@ -1,0 +1,44 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1. planet task picks the 10mm over the basic 20mm eyepiece
+  ok: 2. free task picks the best mount, not Basic Mount
+  ok: 2b. free task picks the 100mm objective
+  ok: 3. lesson-pinned Basic Mount is kept on L25
+  ok: 3. pinned flag set
+  ok: 3. teaching reason shown (zh)
+  ok: 3b. pinned 20mm eyepiece kept for the experiment
+  ok: 4. Newtonian plan has no refractor objective slot
+  ok: 4. 'basic_tripod' is Newtonian-compatible
+  ok: 4. 'tracking_mount' is Newtonian-compatible
+  ok: 4. 'basic_finder_scope' is Newtonian-compatible
+  ok: 4. 'newtonian_reflector_tube' is Newtonian-compatible
+  ok: 4. 'newtonian_mirror_cell' is Newtonian-compatible
+  ok: 4. 'newtonian_primary_mirror' is Newtonian-compatible
+  ok: 4. 'newtonian_secondary_spider' is Newtonian-compatible
+  ok: 4. 'newtonian_secondary_mirror' is Newtonian-compatible
+  ok: 4. 'newtonian_focuser' is Newtonian-compatible
+  ok: 4. 'newtonian_25mm_eyepiece' is Newtonian-compatible
+  ok: 4. 'newtonian_collimation_cap' is Newtonian-compatible
+  ok: 5. Dobsonian keeps its rocker mount, not the Cassegrain fork
+  ok: 6. infrared plan equips no eyepiece
+  ok: 6b. infrared plan includes the detector
+  ok: 7. FAST plan equips no objective
+  ok: 7b. FAST plan equips no eyepiece
+  ok: 7c. FAST plan includes the dish
+  ok: 8. applied 'tripod' matches preview
+  ok: 8. applied 'mount' matches preview
+  ok: 8. applied 'tube' matches preview
+  ok: 8. applied 'objective' matches preview
+  ok: 8. applied 'eyepiece' matches preview
+  ok: 8. applied 'finder_scope' matches preview
+  ok: 8. applied 'focus_knob' matches preview
+  ok: 9. preview/cancel does not modify equipment
+  ok: 10. bilingual reason for 'tripod'
+  ok: 10. bilingual reason for 'mount'
+  ok: 10. bilingual reason for 'tube'
+  ok: 10. bilingual reason for 'objective'
+  ok: 10. bilingual reason for 'eyepiece'
+  ok: 10. bilingual reason for 'finder_scope'
+  ok: 10. bilingual reason for 'focus_knob'
+AUTO EQUIP TEST PASS

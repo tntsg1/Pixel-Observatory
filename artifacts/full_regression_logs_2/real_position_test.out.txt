@@ -1,0 +1,28 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: mercury has an offline ephemeris
+  ok: mercury RA moves over three months (118.01 deg)
+  ok: venus has an offline ephemeris
+  ok: venus RA moves over three months (46.45 deg)
+  ok: saturn has an offline ephemeris
+  ok: saturn RA moves over three months (5.05 deg)
+  ok: uranus has an offline ephemeris
+  ok: uranus RA moves over three months (0.57 deg)
+  ok: neptune has an offline ephemeris
+  ok: neptune RA moves over three months (1.83 deg)
+  ok: Saturn declination stays near the ecliptic
+  ok: pleiades present in sky positions
+  ok: pleiades is calculated for multiple hours of the night
+  ok: pleiades azimuth moves with the clock (16.4 deg)
+  ok: albireo present in sky positions
+  ok: albireo is calculated for multiple hours of the night
+  ok: albireo azimuth moves with the clock (19.8 deg)
+  ok: m13 present in sky positions
+  ok: m13 is calculated for multiple hours of the night
+  ok: m13 azimuth moves with the clock (11.5 deg)
+  ok: moon_crater_copernicus shares the Moon's azimuth
+  ok: moon_mare_tranquillitatis shares the Moon's azimuth
+  ok: moon_terminator shares the Moon's azimuth
+  ok: Mercury reaches a calculated (ephemeris) position at some hour
+REAL POSITION TEST PASS

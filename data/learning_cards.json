@@ -230,5 +230,29 @@
     "image": "res://assets/learning_diagrams/jwst_false_colour_diagram.png",
     "text_en": "The detector records infrared photons, not eye colours. Each filter's data is mapped to red, green or blue to make a science image. Different colour mappings highlight dust, gas, temperature or star-forming regions. The final answer is a scientific interpretation, not just a pretty picture.",
     "text_zh": "探测器记录的是不同红外波段的强度，不是人眼颜色。把各波段分别映射到红、绿、蓝后，尘埃、气体和恒星形成区会呈现不同结构。颜色要对应测量，不能只追求好看。"
+  },
+  {
+    "id": "stellar_point_source",
+    "title_en": "A Star Is a Point, Not a Disk",
+    "title_zh": "恒星是一个点，不是一个圆面",
+    "image": "res://assets/learning_diagrams/focus_focal_plane_diagram.png",
+    "text_en": "Stars are so far away that no telescope on Earth resolves their surfaces. All a star can ever be is a point. Out of focus, that point spreads into a soft round blob; as you reach the focal plane it collapses inward until it is as small and tight as your optics allow. So for a star, 'in focus' means smallest - not most detailed.",
+    "text_zh": "恒星实在太遥远了，地面上没有任何望远镜能分辨出它们的表面。恒星在望远镜里永远只能是一个点。失焦时，这个点会扩散成柔软的圆形光斑；当你接近焦平面时，它会不断向内收缩，直到达到光学系统允许的最小、最紧实的状态。所以对恒星来说，「合焦」意味着最小，而不是最多细节。"
+  },
+  {
+    "id": "wide_field_framing",
+    "title_en": "When a Narrow Field Is the Wrong Tool",
+    "title_zh": "窄视野反而是错误的工具",
+    "image": "res://assets/learning_diagrams/magnification_field_of_view_diagram.png",
+    "text_en": "An open cluster like the Pleiades is over a degree wide - wider than a high-power eyepiece can show. Push the power up and you get a few bright stars with no shape, because the pattern that makes it a cluster has fallen outside the field. Some objects are identified by their overall shape, and for those the widest, lowest-power view is the correct one.",
+    "text_zh": "像昴星团这样的疏散星团展布超过一度，比高倍率目镜能呈现的范围还要宽。把倍率推高，你只会看到几颗没有形状可言的亮星，因为让它成为「星团」的那个整体图案已经落到视野之外了。有些目标是靠整体形状来辨认的，对它们来说，视野最宽、倍率最低的那一档才是正确答案。"
+  },
+  {
+    "id": "surface_contrast_detail",
+    "title_en": "Contrast, Not Magnification",
+    "title_zh": "对比度，而不是倍率",
+    "image": "res://assets/learning_diagrams/magnification_tradeoff.png",
+    "text_en": "Mars stays a small disk even in a large telescope, and its markings are only slightly darker than the ground around them. Magnification enlarges that faint difference but does not strengthen it - and it enlarges the air's turbulence at the same time. Low-contrast detail is won by precise focus, clean optics and steady air. Push the power too far and the markings wash out completely.",
+    "text_zh": "即使用大望远镜，火星也只是一个小圆面，而且它表面的暗纹只比周围略暗一点点。放大倍率只会把这一点微弱的差异放大，却不会让它变得更明显——与此同时，大气的扰动也被同样放大了。低对比度的细节靠的是精准调焦、干净的光学系统和平稳的大气。倍率推得太高，暗纹反而会被彻底冲淡。"
   }
 ]

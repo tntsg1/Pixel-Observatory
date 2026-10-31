@@ -1,0 +1,33 @@
+[gd_scene format=3 uid="uid://cbosscore001"]
+
+[ext_resource type="Script" path="res://scripts/bosses/boss_core.gd" id="1_boss"]
+
+[sub_resource type="CircleShape2D" id="CircleBoss"]
+radius = 40.0
+
+[node name="BossCore" type="CharacterBody2D"]
+collision_layer = 2
+collision_mask = 0
+script = ExtResource("1_boss")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+scale = Vector2(1.5, 1.5)
+
+[node name="LaserWarning" type="ColorRect" parent="."]
+visible = false
+color = Color(1, 0, 0, 0.5)
+size = Vector2(800, 8)
+pivot_offset = Vector2(400, 4)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleBoss")
+
+[node name="HPBarBg" type="ColorRect" parent="."]
+color = Color(0.1, 0.1, 0.1, 0.8)
+size = Vector2(200, 6)
+offset_left = -100
+offset_top = -55
+
+[node name="HPBarFill" type="ColorRect" parent="HPBarBg"]
+color = Color(1, 0.15, 0.15, 1)
+size = Vector2(200, 6)

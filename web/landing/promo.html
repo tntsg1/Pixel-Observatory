@@ -5,7 +5,7 @@
 <title>Starlight Observatory</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Starlight Observatory is a pixel astronomy simulation. Build your telescope, read the sky, and discover more.">
-<link rel="stylesheet" href="account.css?v=20260728-liquid-feedback">
+<link rel="stylesheet" href="account.css?v=20260917-release-bulletin">
 <link rel="stylesheet" href="inbox.css?v=20260728-glass-controls">
 <link rel="stylesheet" href="social.css?v=20260729-friend-directory">
 <style>
@@ -601,6 +601,129 @@
   }
   .gnav-visits b{color:var(--gold-soft);font-weight:600}
   @media (max-width:980px){.gnav-visits{display:none}}
+  /* Observatory navigation: the controls stay above the hero and the drawer is a real focusable menu. */
+  html{overflow-x:clip}
+  .gnav{z-index:500;isolation:isolate;max-width:calc(100vw - 24px)}
+  .gnav-drawer{display:contents}
+  .gnav-menu-toggle{display:none}
+  .gnav :is(a,button):focus-visible,.instrument-tabs button:focus-visible{outline:2px solid #e9c987;outline-offset:3px}
+  @media (max-width:1250px){
+    .gnav{width:min(520px,calc(100vw - 24px));padding:8px 10px 8px 16px;justify-content:space-between;border-radius:23px;gap:10px}
+    .gnav-brand{font-size:12px;overflow:hidden;text-overflow:ellipsis;min-width:0}
+    .gnav-menu-toggle{display:none;align-items:center;justify-content:center;gap:6px;flex:none;border:1px solid rgba(233,201,135,.38);border-radius:12px;background:rgba(20,35,58,.86);color:var(--gold-soft);padding:9px 11px;font:600 12px var(--sans);cursor:pointer}
+    .gnav.menu-ready .gnav-menu-toggle{display:inline-flex}
+    .gnav-menu-toggle[aria-expanded="true"]{background:rgba(56,73,104,.9)}
+    .gnav-play{padding:10px 13px;flex:none}
+    .gnav-drawer{display:grid;position:absolute;top:calc(100% + 9px);left:0;right:0;padding:18px;border:1px solid rgba(233,201,135,.35);border-radius:22px;background:linear-gradient(155deg,rgba(17,34,57,.98),rgba(5,10,22,.98));box-shadow:0 22px 65px rgba(0,0,0,.65);max-height:calc(100dvh - 90px);overflow:auto;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .gnav.menu-ready .gnav-drawer{display:none}
+    .gnav.menu-ready .gnav-drawer.is-open{display:grid}
+    .gnav-links{display:contents}
+    .gnav-links a,.gnav-drawer .gnav-tool{display:flex;justify-content:flex-start;align-items:center;min-width:0;min-height:42px;padding:8px 12px;border-radius:12px;color:var(--txt-hi);font-size:13px;text-decoration:none}
+    .gnav-links a{border:1px solid rgba(140,174,213,.18);background:rgba(44,69,104,.19)}
+    .gnav-drawer .gnav-tool{width:auto;height:auto;border-radius:12px}
+    .gnav-drawer .gnav-tool span:last-child{display:inline}
+    .gnav-drawer #account-open{order:-4}
+    .gnav-drawer .lang-sw{order:-3;justify-content:center;align-items:center}
+    .gnav-drawer #inbox-open{order:-2}
+    .gnav-drawer #community-open{order:-1}
+    .gnav-drawer .gnav-feedback{display:flex}
+    .gnav-drawer .gnav-visits{display:block;align-self:center}
+  }
+  @media (max-width:560px){
+    .gnav{top:10px;width:calc(100vw - 20px)}
+    .gnav-brand{font-size:0;gap:0;overflow:visible;flex:none}
+    .gnav-brand .dot{width:13px;height:13px}
+    .gnav-play{margin-left:auto}
+    .gnav-drawer{grid-template-columns:repeat(2,minmax(0,1fr))}
+  }
+  @media (prefers-reduced-motion:reduce){.gnav,.gnav-play{transition:none!important}}
+  /* The path is a scan-friendly map; detailed optical diagrams share one comparison surface. */
+  section{padding:70px 0}
+  .tl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-top:48px}
+  .tl::before,.tl-item::before{display:none}
+  .tl-item{display:flex;flex-direction:column;align-items:stretch;gap:10px;padding:18px;border:1px solid var(--line);border-radius:18px;background:rgba(19,32,56,.45)}
+  .tl-fig,.tl-item:nth-child(even) .tl-fig{order:0;padding:0;height:100px;place-items:center}
+  .tl-fig svg{width:min(100%,150px);max-height:100px}
+  .tl-txt,.tl-item:nth-child(even) .tl-txt{order:1;text-align:left}
+  .tl-txt .stage{margin-bottom:5px}
+  .tl-txt h3{font-size:18px;line-height:1.3}
+  .tl-txt p,.tl-item:nth-child(even) .tl-txt p{margin:8px 0 0;font-size:14px;line-height:1.55}
+  .s-pr{padding-top:72px}
+  .instrument-tabs{display:none;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:44px}
+  .instrument-tabs.is-ready{display:grid}
+  .instrument-tab{min-width:0;min-height:84px;text-align:left;padding:14px;border:1px solid rgba(154,188,226,.25);border-radius:14px;background:rgba(17,33,57,.68);color:var(--txt-hi);font:inherit;cursor:pointer}
+  .instrument-tab[aria-pressed="true"]{border-color:var(--gold);background:rgba(217,166,72,.13);box-shadow:inset 0 2px rgba(233,201,135,.15)}
+  .instrument-tab b{display:block;font-size:15px;line-height:1.3}
+  .instrument-tab small{display:block;margin-top:7px;font-size:12px;line-height:1.4;color:var(--txt-mid)}
+  .pr[hidden]{display:none!important}
+  .instrument-tabs.is-ready ~ .pr{margin-top:40px}
+  .asm-grid{margin-top:50px;gap:48px}
+  .asm-steps{gap:3.5vh;padding:2vh 0 4vh}
+  .maya-band .art{max-width:250px}
+  .eye-visual{aspect-ratio:21/8}
+  .cmp-pair{margin-top:42px}
+  .cmp-view{aspect-ratio:16/9}
+  .tip-band{margin-top:38px}
+  .s-opt{padding-bottom:42px}
+  .s-cmp{padding-top:42px}
+  #optics .s-cmp,#path .s-pr{background:transparent}
+  .s-tl{padding-bottom:54px}
+  .s-pr{padding-top:54px}
+  .eye-visual{margin-top:46px}
+  .eye-stats{margin-top:32px}
+  .motto{margin-top:45px}
+  .dyn-stage{margin-top:42px}
+  .s-diff .mechanism-list{margin-top:38px}
+  .creator-note{margin-top:54px}
+  .feat-grid{margin-top:42px}
+  .finale{min-height:65svh;padding:80px 24px}
+  .view-tabs{display:none}
+  .obs-card[hidden]{display:none!important}
+  .s-diff .mechanism-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch}
+  .s-diff .mechanism-card{display:flex;flex-direction:column;align-items:stretch;gap:20px}
+  .s-diff .mechanism-card{padding:24px}
+  .s-diff .mechanism-card .mechanism-figure{margin-top:auto}
+  .s-diff .environment-card{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .seeing-detail{margin-top:16px;padding:14px 16px;border:1px solid rgba(233,201,135,.3);border-radius:12px;background:rgba(217,166,72,.07)}
+  .seeing-detail summary{cursor:pointer;color:var(--gold-soft);font-weight:650;font-size:14px}
+  .seeing-detail summary:focus-visible{outline:2px solid var(--gold);outline-offset:4px}
+  .seeing-detail .mechanism-figure{margin-top:16px;max-width:320px}
+  @media (max-width:900px){
+    section{padding:70px 0}
+    .tl{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .instrument-tabs{grid-template-columns:repeat(2,minmax(0,1fr))}
+    .s-diff .mechanism-list{grid-template-columns:1fr}
+    .s-diff .environment-card{grid-column:auto;display:flex}
+    .view-tabs.is-ready{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:32px}
+    .view-tabs button{min-width:0;padding:10px 8px;border:1px solid rgba(154,188,226,.3);border-radius:13px;background:rgba(18,35,60,.74);color:var(--txt-hi);font:inherit;cursor:pointer;text-align:center}
+    .view-tabs button[aria-pressed="true"]{border-color:var(--gold);background:rgba(217,166,72,.13)}
+    .view-tabs b,.view-tabs small{display:block}
+    .view-tabs b{font-size:14px}.view-tabs small{font-size:11px;color:var(--txt-mid);margin-top:3px}
+    .obs-views{margin-top:14px}
+    .asm-steps{gap:36px}
+    .maya-band .art{max-width:210px}
+    .view-tabs button:focus-visible{outline:2px solid var(--gold-soft);outline-offset:3px}
+  }
+  @media (max-width:560px){
+    section{padding:62px 0}
+    .tl{gap:10px}
+    .tl-item{padding:14px}
+    .tl-fig{height:72px!important}
+    .tl-fig svg{max-height:72px}
+    .tl-txt h3{font-size:16px}
+    .tl-txt p{font-size:13px}
+    .instrument-tab{min-height:78px;padding:11px}
+    .eye-stats{grid-template-columns:1fr;gap:8px}
+    .eye-stat{padding:16px 18px}
+    .eye-stat b{font-size:22px}
+    .eye-stat em{margin-bottom:3px}
+    .feat-grid{gap:10px}
+    .feat{min-height:120px;padding:48px 24px 20px}
+    .feat::before{top:16px;left:24px}.feat::after{top:23px;left:31px}
+    .s-diff .mechanism-card{padding:22px;gap:14px}
+    .s-diff .mechanism-figure{max-height:185px}
+    .s-diff .mechanism-figure svg{max-height:160px}
+  }
 </style>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2305070d'/%3E%3Cpath d='M16 4l2.4 8.3L27 16l-8.6 3.7L16 28l-2.4-8.3L5 16l8.6-3.7L16 4z' fill='%23d9a648'/%3E%3C/svg%3E">
 </head>
@@ -609,6 +732,8 @@
 <!-- ================= NAV ================= -->
 <nav class="gnav glass" id="gnav" aria-label="Main navigation">
   <a class="gnav-brand" href="#top"><span class="dot" aria-hidden="true"></span>Starlight Observatory</a>
+  <button class="gnav-menu-toggle" id="gnav-menu-toggle" type="button" aria-expanded="false" aria-controls="gnav-drawer" aria-label="Open navigation / 展开导航"><span aria-hidden="true">✦</span><span class="en">Menu</span><span class="zh">菜单</span></button>
+  <div class="gnav-drawer" id="gnav-drawer">
   <div class="gnav-links">
     <a href="#assemble"><span class="en">Assembly</span><span class="zh">组装</span></a>
     <a href="#optics"><span class="en">Optics</span><span class="zh">光学</span></a>
@@ -634,6 +759,7 @@
     <button type="button" id="langEn" aria-pressed="true">EN</button>
   </div>
   <span class="gnav-visits" aria-live="polite">VISITORS <b id="visitor-count">--</b></span>
+  </div>
   <a class="gnav-play" href="game/" target="_blank" rel="noopener">
     <span class="en">▶ Play</span><span class="zh">▶ 在线游玩</span></a>
 </nav>
@@ -676,17 +802,17 @@
   <div class="hero-inner" id="heroInner">
     <p class="hero-tag">
       <span class="en">A Pixel Astronomy Simulation · Free in Your Browser</span>
-      <span class="zh">像素天文观测模拟 · 浏览器免费畅玩</span>
+      <span class="zh">像素天文观测模拟 · 在线游玩</span>
     </p>
     <h1>STARLIGHT OBSERVATORY<span class="sub zh">星光天文台</span></h1>
     <p class="hero-sub">
       <span class="en">Build your telescope. Read the sky. Discover more.</span>
-      <span class="zh">亲手组装望远镜，读懂夜空，发现更远的世界。</span>
+      <span class="zh">组装望远镜，看夜空。</span>
     </p>
     <div class="hero-cta">
       <a class="btn btn-gold" href="game/" target="_blank" rel="noopener">
         <span class="play-ico" aria-hidden="true"></span>
-        <span class="en">Play in Browser</span><span class="zh">立即在线游玩</span></a>
+        <span class="en">Play in Browser</span><span class="zh">在线游玩</span></a>
       <button class="btn btn-ghost" id="community-hero-open" type="button">
         <span class="en">Enter Community</span><span class="zh">进入社区</span></button>
     </div>
@@ -705,7 +831,7 @@
     </h2>
     <div class="lede rv">
       <p class="en">You have just joined the astronomy club. Tonight, before any instrument, you learn how the eye itself sees: field of view, brightness, and the slow patience of dark adaptation.</p>
-      <p class="zh">你刚刚加入天文俱乐部。今晚，在使用任何仪器之前，先学会眼睛本身如何观看——视野、亮度，以及暗适应所需的耐心。</p>
+      <p class="zh">你刚刚加入天文俱乐部。先从最熟悉的工具开始：用自己的双眼观察夜空。</p>
     </div>
 
     <div class="maya-band">
@@ -717,11 +843,11 @@
         <h3 class="maya-name">Maya</h3>
         <div style="margin-top:16px">
           <p class="en">She meets you at the observation deck on your first night. Before she lets you touch a single lens, she wants to know what you can already see.</p>
-          <p class="zh">第一晚，她在观测台上等你。在让你碰第一片镜片之前，她想先知道——你已经能看见什么。</p>
+          <p class="zh">Maya 是天文台里耐心又温柔的学姐，也是你的导师。接下来的旅程中，她会一步一步教你如何观测星空。</p>
         </div>
         <div class="maya-quote">
           <span class="en">“Don't rush to the telescope. Tell me first — what do you see with just your eyes?”</span>
-          <span class="zh">“别急着碰望远镜。先告诉我，仅凭双眼，你看到了什么？”</span>
+          <span class="zh">“学弟，跟我来～”</span>
         </div>
       </div>
     </div>
@@ -759,21 +885,21 @@
     <div class="eye-stats rv">
       <div class="eye-stat card" data-tip="Human horizontal vision approaches 120 degrees, the widest view used in this journey." data-tip-en="Human horizontal vision approaches 120 degrees, the widest view used in this journey." data-tip-zh="人眼的水平视野接近 120°，是所有观测方式中最广的。" tabindex="0">
         <em><span class="en">Field of View</span><span class="zh">视野</span></em><b>≈ 120°</b>
-        <span class="en">The widest view you will ever have.</span><span class="zh">你所拥有的最广视野。</span>
+        <span class="en">The widest view you will ever have.</span><span class="zh">你的最广视野。</span>
       </div>
       <div class="eye-stat card" data-tip="The unaided eye reaches roughly magnitude 6; fainter objects require an instrument." data-tip-en="The unaided eye reaches roughly magnitude 6; fainter objects require an instrument." data-tip-zh="肉眼极限星等约 6 等——再暗的天体就需要仪器帮忙了。" tabindex="0">
         <em><span class="en">Limiting Magnitude</span><span class="zh">极限星等</span></em><b>~ mag 6</b>
-        <span class="en">Fainter objects stay invisible.</span><span class="zh">更暗的天体无法看见。</span>
+        <span class="en">Fainter objects stay invisible.</span><span class="zh">更暗的星星无法通过肉眼被看见。</span>
       </div>
       <div class="eye-stat card" data-tip="About 30 minutes in darkness lets the pupil and rod cells reveal fainter stars." data-tip-en="About 30 minutes in darkness lets the pupil and rod cells reveal fainter stars." data-tip-zh="在黑暗中等待约 30 分钟，瞳孔扩张、视杆细胞激活，才能看到最暗的星。" tabindex="0">
         <em><span class="en">Dark Adaptation</span><span class="zh">暗适应</span></em><b>~ 30 min</b>
-        <span class="en">Patience makes stars appear.</span><span class="zh">耐心让星星显现。</span>
+        <span class="en">Patience makes stars appear.</span><span class="zh">进入黑暗后，视杆细胞逐渐恢复敏感度，让原本看不见的暗星慢慢显现。</span>
       </div>
     </div>
 
     <div class="lede rv" style="margin-top:56px">
       <p class="en">The naked eye sees wide — but dim nebulae and small planetary disks stay out of reach. That limit is where this story begins.</p>
-      <p class="zh">肉眼看得很广，却看不清暗淡的星云与细小的行星圆面。这个极限，正是整个故事的起点。</p>
+      <p class="zh">在这片黑暗里，你看到的是宇宙的尺度。</p>
     </div>
   </div>
 </section>
@@ -784,11 +910,11 @@
     <p class="eyebrow rv">Chapter 02 · <span class="en">The Refractor</span><span class="zh">折射式望远镜</span></p>
     <h2 class="rv">
       <span class="en">A telescope is not<br>a single object.</span>
-      <span class="zh">望远镜不是<br>一个单独的物体。</span>
+      <span class="zh">望远镜不是<br>一件单独的物体。</span>
     </h2>
     <div class="lede rv">
       <p class="en">It is a system of carefully aligned parts. You enter the tube blueprint and install every component yourself — in the right order.</p>
-      <p class="zh">它是一套需要精确对齐的光学系统。你可以进入镜筒蓝图，按正确顺序亲手安装每一个内部零件。</p>
+      <p class="zh">一套需要精确对齐的光学系统。你可以进入镜筒蓝图，按正确顺序亲手安装每一个内部零件。</p>
     </div>
 
     <div class="asm-grid">
@@ -847,43 +973,43 @@
           <span class="idx">01 / 07</span>
           <h3><span class="en">Tripod</span><span class="zh">三脚架</span></h3>
           <p class="en">Stability first. Every arcsecond of shake is magnified along with the image.</p>
-          <p class="zh">稳定是第一位的——任何抖动都会随影像一起被放大。</p>
+          <p class="zh">稳定。</p>
         </div>
         <div class="asm-step" data-step="2">
           <span class="idx">02 / 07</span>
           <h3><span class="en">Mount</span><span class="zh">支架</span></h3>
           <p class="en">Two axes of motion: azimuth and altitude. It carries the tube and lets you aim.</p>
-          <p class="zh">方位与俯仰两个转轴，承载镜筒并让你指向目标。</p>
+          <p class="zh">方位与俯仰两个转轴。</p>
         </div>
         <div class="asm-step" data-step="3">
           <span class="idx">03 / 07</span>
           <h3><span class="en">Optical Tube</span><span class="zh">镜筒</span></h3>
           <p class="en">A dark, straight corridor for light — and a blueprint you can open to fit parts inside.</p>
-          <p class="zh">一条为光准备的暗直通道，也是一张可以打开安装内部零件的蓝图。</p>
+          <p class="zh">为光准备的通道。</p>
         </div>
         <div class="asm-step" data-step="4">
           <span class="idx">04 / 07</span>
           <h3><span class="en">Objective Lens</span><span class="zh">物镜</span></h3>
           <p class="en">The front glass that gathers starlight and bends it toward a single point.</p>
-          <p class="zh">位于最前端的透镜，收集星光并将其弯折汇聚。</p>
+          <p class="zh">位于最前端的透镜。</p>
         </div>
         <div class="asm-step" data-step="5">
           <span class="idx">05 / 07</span>
           <h3><span class="en">Focuser</span><span class="zh">调焦装置</span></h3>
           <p class="en">A rack and pinion that slides the eyepiece until the light converges exactly.</p>
-          <p class="zh">齿轮齿条推动目镜移动，直到光线恰好汇聚。</p>
+          <p class="zh">推动目镜移动。</p>
         </div>
         <div class="asm-step" data-step="6">
           <span class="idx">06 / 07</span>
           <h3><span class="en">Eyepiece</span><span class="zh">目镜</span></h3>
           <p class="en">A small lens that magnifies the focal-plane image. Swap it to change power.</p>
-          <p class="zh">放大焦平面影像的小透镜，更换目镜即可改变倍率。</p>
+          <p class="zh">放大平面影像的小透镜。</p>
         </div>
         <div class="asm-step" data-step="7">
           <span class="idx">07 / 07</span>
           <h3><span class="en">Finder Scope</span><span class="zh">寻星镜</span></h3>
           <p class="en">A low-power guide riding on the tube. Wide enough to catch the target, aligned to hand it over.</p>
-          <p class="zh">骑在镜筒上的低倍向导，先找到目标，再交给主镜。</p>
+          <p class="zh">低倍率望远镜，用于寻找天体的大体位置。</p>
         </div>
       </div>
     </div>
@@ -894,10 +1020,10 @@
 <section class="s-opt" id="optics">
   <div class="wrap">
     <p class="eyebrow rv">Chapter 03 · <span class="en">Optics</span><span class="zh">光学原理</span></p>
-    <h2 class="rv"><span class="en">Focus is not a button.</span><span class="zh">调焦不是按钮操作。</span></h2>
+    <h2 class="rv"><span class="en">Focus is not a button.</span><span class="zh">调焦。</span></h2>
     <div class="lede rv">
       <p class="en">It is the meeting point of light. Watch parallel starlight enter the tube, bend through the objective, and converge on the focal plane.</p>
-      <p class="zh">它是让光线重新汇聚的过程。看平行的星光进入镜筒，经过物镜弯折，最终在焦平面上相遇。</p>
+      <p class="zh">光线重新汇聚的过程。看平行光进入镜筒，经过物镜弯折，最终在焦平面上会聚。</p>
     </div>
 
     <figure class="fig rv-s rv" aria-label="Light path: parallel rays converge at the focal plane">
@@ -961,38 +1087,34 @@
       <div class="term card" data-tip="Focal length is the distance from the objective or primary mirror to its focus." data-tip-en="Focal length is the distance from the objective or primary mirror to its focus." data-tip-zh="物镜（或主镜）到焦点的距离。焦距越长，同一目镜下放大率越高。" tabindex="0">
         <i>ƒ</i><b><span class="en">Focal Length</span><span class="zh">焦距</span></b>
         <span class="en">Distance from lens to focus. Longer ƒ, higher power.</span>
-        <span class="zh">透镜到焦点的距离，决定放大潜力。</span>
+        <span class="zh">目镜焦距一定时，主镜焦距越长，放大倍率越高、视野越窄。</span>
       </div>
       <div class="term card" data-tip="Magnification equals telescope focal length divided by eyepiece focal length." data-tip-en="Magnification equals telescope focal length divided by eyepiece focal length." data-tip-zh="放大率 = 物镜焦距 ÷ 目镜焦距。倍率不是越高越好。" tabindex="0">
         <i>×</i><b><span class="en">Magnification</span><span class="zh">放大率</span></b>
         <span class="en">ƒ objective ÷ ƒ eyepiece. More is not always better.</span>
-        <span class="zh">物镜焦距 ÷ 目镜焦距，倍率并非越高越好。</span>
+        <span class="zh">主镜焦距 ÷ 目镜焦距，过高倍率会受到口径、视宁度和衍射极限限制，并不会无限增加细节。</span>
       </div>
       <div class="term card" data-tip="Higher magnification narrows the field, revealing detail while making targets easier to lose." data-tip-en="Higher magnification narrows the field, revealing detail while making targets easier to lose." data-tip-zh="倍率升高，视野变窄——看得更细，也更容易跟丢目标。" tabindex="0">
         <i>°</i><b><span class="en">Field of View</span><span class="zh">视野</span></b>
         <span class="en">Higher power, narrower view.</span>
-        <span class="zh">倍率与视野此消彼长。</span>
+        <span class="zh">真实视场近似满足 目镜表观视场 ÷ 放大倍率，因此倍率越高，一次能够看到的天空范围通常越小。</span>
       </div>
       <div class="term card" data-tip="Aperture, focus and atmospheric stability all limit image sharpness." data-tip-en="Aperture, focus and atmospheric stability all limit image sharpness." data-tip-zh="清晰度受口径、焦点位置与大气共同限制，失焦会产生重影。" tabindex="0">
         <i>Δ</i><b><span class="en">Sharpness</span><span class="zh">清晰度</span></b>
         <span class="en">Aperture, focus and air decide the detail.</span>
-        <span class="zh">由口径、焦点与大气共同决定。</span>
+        <span class="zh">实际观测还会受到大气视宁度、光学质量和对焦精度影响。</span>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ================= 4 · GLASS LIMIT → NEWTONIAN ================= -->
-<section class="s-cmp" id="reflector">
-  <div class="wrap">
-    <p class="eyebrow rv">Chapter 04 · <span class="en">The Limit of Glass</span><span class="zh">玻璃的极限</span></p>
+    <!-- The refractor's focus and its colour limit form one optics lesson. -->
+    <div class="s-cmp" id="reflector">
+    <p class="eyebrow rv">Chapter 04 · <span class="en">The Limit of Glass</span><span class="zh"></span></p>
     <h2 class="rv">
       <span class="en">When the limits of glass<br>become visible.</span>
-      <span class="zh">当玻璃镜片的极限<br>清晰显现。</span>
+      <span class="zh">玻璃镜片<br></span>
     </h2>
     <div class="lede rv">
       <p class="en">Push the refractor to high power and a flaw appears: glass bends each colour differently. Red and blue refuse to meet at the same focus.</p>
-      <p class="zh">将折射镜推向高倍，一个缺陷显现出来：玻璃对不同颜色的光弯折程度不同，红与蓝无法汇聚在同一个焦点上。</p>
+      <p class="zh">放大倍率提高后，普通折射镜的色差会更加明显。玻璃对不同波长光的折射率不同，红光与蓝光无法完全汇聚在同一焦平面上。</p>
     </div>
 
     <div class="cmp-pair">
@@ -1013,9 +1135,9 @@
           </svg>
         </div>
         <figcaption class="cmp-cap">
-          <b><span class="en">Colour fringes, lost detail.</span><span class="zh">红蓝镶边，细节流失。</span></b>
+          <b><span class="en">Colour fringes, lost detail.</span><span class="zh">色差（Chromatic Aberration）：不同波长的光具有不同焦距，在高倍率下会形成彩色边缘，并降低目标的对比度与细节分辨能力。</span></b>
           <span class="en">At high magnification the lens splits light like a weak prism — edges blur into red and blue.</span>
-          <span class="zh">高倍之下，透镜像一块微弱的棱镜，把边缘拆成红与蓝。</span>
+          <span class="zh"></span>
         </figcaption>
       </figure>
 
@@ -1034,9 +1156,9 @@
           </svg>
         </div>
         <figcaption class="cmp-cap">
-          <b><span class="en">Mirrors treat every colour alike.</span><span class="zh">反射镜对所有颜色一视同仁。</span></b>
+          <b><span class="en">Mirrors treat every colour alike.</span><span class="zh">反射光学（Mirror Optics）：反射定律基本不随波长改变，因此反射式望远镜不会产生传统折射镜的纵向色差，在高倍率下能更完整地保留不同颜色的细节。</span></b>
           <span class="en">Reflection does not disperse light — no fringes, cleaner detail, ready for high power and deep sky.</span>
-          <span class="zh">反射不色散：没有镶边，细节更干净，胜任高倍与深空。</span>
+          <span class="zh"></span>
         </figcaption>
       </figure>
     </div>
@@ -1046,8 +1168,9 @@
       <div class="bubble">
         <b><span class="en">Maya, thinking it over</span><span class="zh">Maya 的思考</span></b>
         <p class="en">“The glass isn't broken. It is doing exactly what glass does — bending blue more sharply than red. So if we want the colours back together, we should stop bending light. We should bounce it.”</p>
-        <p class="zh">“镜片没有坏。它只是在做玻璃该做的事——把蓝光折得比红光更厉害。所以，想让颜色重新合拢，我们就不该再折射光线，而应该让它反射。”</p>
+        <p class="zh">“玻璃把蓝光折射得比红光更厉害。或许不应该用折射，而应该用反射？”</p>
       </div>
+    </div>
     </div>
   </div>
 </section>
@@ -1059,9 +1182,14 @@
     <h2 class="rv"><span class="en">Three views. One sky.</span><span class="zh">三种视角，同一片夜空。</span></h2>
     <div class="lede rv">
       <p class="en">Every observation flows through three instruments. Wide to find, narrow to see. Switch between them at any moment.</p>
-      <p class="zh">每一次观测都在三种视角之间流转：广角负责寻找，窄视野负责看清。你可以随时切换。</p>
+      <p class="zh">天文观测通常在不同视场间切换：先用大视场完成目标搜寻，再逐步缩小视场并提高倍率，以获得更精细的结构信息。</p>
     </div>
 
+    <div class="view-tabs" role="group" aria-label="Observation views / 观测视角">
+      <button type="button" aria-pressed="true"><b><span class="en">Eye</span><span class="zh">肉眼</span></b><small>180° · <span class="en">orient</span><span class="zh">定位</span></small></button>
+      <button type="button" aria-pressed="false"><b><span class="en">Finder</span><span class="zh">寻星镜</span></b><small>28° · <span class="en">aim</span><span class="zh">瞄准</span></small></button>
+      <button type="button" aria-pressed="false"><b><span class="en">Scope</span><span class="zh">主镜</span></b><small>6° · <span class="en">study</span><span class="zh">细看</span></small></button>
+    </div>
     <div class="obs-views">
       <article class="obs-card card rv">
         <div class="obs-scope" aria-label="Naked-eye view: a wide sky of faint points">
@@ -1078,7 +1206,7 @@
           <span class="fov">View 1 · FOV 120°</span>
           <b><span class="en">Naked Eye</span><span class="zh">肉眼</span></b>
           <span class="en">The whole sky at once — but Jupiter is only a bright point.</span>
-          <span class="zh">一眼望尽整片天空，但木星只是一个亮点。</span>
+          <span class="zh">超大视场适合建立星空方位感和粗略定位目标，但单个天体的角尺寸过小，几乎无法辨认细节。</span>
         </div>
       </article>
 
@@ -1103,7 +1231,7 @@
           <span class="fov">View 2 · FOV 28°</span>
           <b><span class="en">Finder Scope</span><span class="zh">寻星镜</span></b>
           <span class="en">Narrower, with a crosshair. Enough to hunt the target down — still too soft to study it.</span>
-          <span class="zh">视野收窄、带有十字线，足以锁定目标，却仍看不清它。</span>
+          <span class="zh">中等视场兼顾定位速度与指向精度，十字分划可用于将目标准确移入主望远镜光轴。</span>
         </div>
       </article>
 
@@ -1134,7 +1262,7 @@
           <span class="fov">View 3 · FOV 6°</span>
           <b><span class="en">Main Telescope</span><span class="zh">主望远镜</span></b>
           <span class="en">Cloud bands, moons, nebulae, galaxies — detail at last.</span>
-          <span class="zh">云带、卫星、星云与星系——细节终于呈现。</span>
+          <span class="zh">窄视场配合更高放大倍率后，目标的表观角尺寸增大，行星、卫星及深空天体的局部结构开始显现。</span>
         </div>
       </article>
     </div>
@@ -1164,7 +1292,7 @@
     <h2 class="rv"><span class="en">The sky never stays still.</span><span class="zh">夜空从来不会静止。</span></h2>
     <div class="lede rv">
       <p class="en">The Earth turns beneath you. Stars drift out of frame, clouds pass through, and the air itself trembles. Observing means responding.</p>
-      <p class="zh">地球在你脚下转动：星体缓缓漂出视野，云层不时掠过，大气本身也在颤动。观测，就是不断做出回应。</p>
+      <p class="zh">地球在你脚下转动：星体缓缓漂出视野。</p>
     </div>
 
     <figure class="dyn-stage rv-s rv" aria-label="Living sky: drift, clouds and atmospheric turbulence">
@@ -1199,32 +1327,32 @@
       <div class="card" data-tip="Earth rotates one degree every four minutes, so high-power targets drift quickly." data-tip-en="Earth rotates one degree every four minutes, so high-power targets drift quickly." data-tip-zh="地球每 4 分钟自转 1°。倍率越高，目标离开视野越快。" tabindex="0">
         <b><span class="en">Earth Rotation</span><span class="zh">地球自转</span></b>
         <span class="en">At high power a target drifts out of the field in seconds.</span>
-        <span class="zh">高倍下，目标数十秒内就会漂出视野。</span>
+        <span class="zh">地球自转使天球产生每秒约 15 角秒的视运动。高倍率下，目标会迅速漂出视场，因此需要持续补偿。</span>
       </div>
       <div class="card" data-tip="Passing clouds can temporarily hide a target; waiting or changing targets are both valid choices." data-tip-en="Passing clouds can temporarily hide a target; waiting or changing targets are both valid choices." data-tip-zh="云层会临时遮挡目标，等待或换目标都是策略。" tabindex="0">
         <b><span class="en">Clouds</span><span class="zh">云层遮挡</span></b>
         <span class="en">A passing band can hide your target mid-observation.</span>
-        <span class="zh">一条流云足以在观测中途遮住目标。</span>
+        <span class="zh">云层会吸收和散射来自天体的光，即使薄云也会显著降低目标亮度与观测对比度。</span>
       </div>
       <div class="card" data-tip="Turbulent air softens and shakes the image. High power works best under steady seeing." data-tip-en="Turbulent air softens and shakes the image. High power works best under steady seeing." data-tip-zh="大气湍流让影像抖动模糊。视宁度好的夜晚才适合高倍观测。" tabindex="0">
         <b><span class="en">Seeing</span><span class="zh">大气视宁度</span></b>
         <span class="en">Turbulent air makes the image tremble and soften.</span>
-        <span class="zh">湍动的大气让影像颤抖、变软。</span>
+        <span class="zh">大气湍流不断改变光线传播路径，使星像发生抖动、膨胀和模糊，从而限制实际角分辨率。</span>
       </div>
       <div class="card" data-tip="City glow raises the sky background and overwhelms faint objects." data-tip-en="City glow raises the sky background and overwhelms faint objects." data-tip-zh="城市灯光抬高天空背景亮度，淹没暗弱天体。" tabindex="0">
         <b><span class="en">Light Pollution</span><span class="zh">光污染</span></b>
         <span class="en">City glow drowns the faintest objects.</span>
-        <span class="zh">城市的辉光淹没最暗的天体。</span>
+        <span class="zh">人工照明提高天空背景亮度，降低天体与背景之间的信噪比，使暗弱目标更难被分辨。</span>
       </div>
       <div class="card" data-tip="Adapt by lowering power, refocusing or enabling tracking when conditions change." data-tip-en="Adapt by lowering power, refocusing or enabling tracking when conditions change." data-tip-zh="根据条件降低倍率、重新调焦，或启用追踪补偿自转。" tabindex="0">
         <b><span class="en">Adapt</span><span class="zh">随机应变</span></b>
         <span class="en">Lower the power, refocus, re-aim — the conditions decide.</span>
-        <span class="zh">降倍、重调焦、重新指向，由条件说了算。</span>
+        <span class="zh">观测条件持续变化，实际操作需要随时重新对焦、调整倍率、修正指向并等待更稳定的大气窗口。</span>
       </div>
       <div class="card" data-tip="Tracking matches the sky's apparent motion and keeps the target centered." data-tip-en="Tracking matches the sky's apparent motion and keeps the target centered." data-tip-zh="追踪速度匹配天体周日运动，让目标稳定停留在视野中央。" tabindex="0">
         <b><span class="en">Tracking</span><span class="zh">追踪</span></b>
         <span class="en">Match the sky's motion to hold the target centered.</span>
-        <span class="zh">匹配天球运动，把目标留在视野中央。</span>
+        <span class="zh">赤道仪或电动跟踪系统通过补偿地球自转，使目标在长时间观测中持续保持在视场中心。</span>
       </div>
     </div>
   </div>
@@ -1385,12 +1513,8 @@
         </div>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ================= 8 · PRINCIPLES ATLAS ================= -->
-<section class="s-pr" id="principles">
-  <div class="wrap">
+    <!-- The stage map and instrument comparison are read as one progression. -->
+    <div class="s-pr" id="principles">
     <p class="eyebrow rv">Chapter 08 · <span class="en">How They Work</span><span class="zh">原理详解</span></p>
     <h2 class="rv">
       <span class="en">Four instruments,<br>four ways of catching light.</span>
@@ -1398,7 +1522,7 @@
     </h2>
     <div class="lede rv">
       <p class="en">The refractor taught you to bend light. Everything after it bends nothing — it reflects, folds, cools, or listens. Here is exactly how.</p>
-      <p class="zh">折射镜教你如何弯折光线。而在它之后的每一台设备都不再折射——它们反射、折转、制冷，或者聆听。原理如下。</p>
+      <p class="zh">不同类型的望远镜虽然结构各异，但分析光路时都可以归结为三个核心问题：如何收集光、在哪里形成像、光在系统中如何传播与变化。</p>
     </div>
 
     <div class="tip-band card rv" style="margin-top:52px">
@@ -1406,11 +1530,17 @@
       <div class="bubble">
         <b><span class="en">Maya's rule of thumb</span><span class="zh">Maya 的判断法则</span></b>
         <p class="en">“Ask three questions about any telescope: how does it collect light, where does the light come to a focus, and what wavelength is it built for? Answer those and you already understand the instrument.”</p>
-        <p class="zh">“面对任何一台望远镜，只问三个问题：它靠什么收集光、光在哪里成像、它为哪一段波长而生。答得出这三个，你就已经读懂了这台仪器。”</p>
+        <p class="zh">“面对任何一台望远镜，只要依次判断集光元件、成像位置和光路路径，基本就能读懂它的光学结构与工作原理。”</p>
       </div>
     </div>
 
     <!-- ---- Newtonian ---- -->
+    <div class="instrument-tabs" role="group" aria-label="Instrument comparison / 仪器对比">
+      <button type="button" class="instrument-tab" aria-pressed="true"><b><span class="en">Newtonian</span><span class="zh">牛顿反射镜</span></b><small><span class="en">Mirror · colour without fringing</span><span class="zh">主镜反射 · 没有透镜色差</span></small></button>
+      <button type="button" class="instrument-tab" aria-pressed="false"><b><span class="en">Dobsonian</span><span class="zh">多布森</span></b><small><span class="en">Simple mount · more aperture</span><span class="zh">简化支架 · 换得更大口径</span></small></button>
+      <button type="button" class="instrument-tab" aria-pressed="false"><b><span class="en">Webb</span><span class="zh">韦伯</span></b><small><span class="en">Cold mirrors · infrared</span><span class="zh">低温镜面 · 观测红外</span></small></button>
+      <button type="button" class="instrument-tab" aria-pressed="false"><b>FAST</b><small><span class="en">Moving surface · radio</span><span class="zh">主动变形 · 接收射电信号</span></small></button>
+    </div>
     <article class="pr rv">
       <figure class="pr-fig" aria-label="Newtonian reflector light path: parabolic primary and 45-degree flat secondary">
         <svg viewBox="0 0 620 420">
@@ -1757,6 +1887,7 @@
         </div>
       </div>
     </article>
+    </div>
   </div>
 </section>
 
@@ -1773,9 +1904,9 @@
         <div>
           <span class="mechanism-kicker">01 · <span class="en">The atmosphere</span><span class="zh">大气</span></span>
           <h3><span class="en">On a bad night, no aperture can buy its way past the air.</span>
-            <span class="zh">糟糕的夜晚，再大的口径也买不通大气这一关。</span></h3>
+            <span class="zh">视宁度</span></h3>
           <p class="en">Poor seeing imposes an <b>absolute magnification ceiling near 55×</b>; average seeing near 110×. A larger objective does not raise it. The source comment says why outright: without an absolute cap, a bigger lens would let a player dodge the lesson. So the answer to a turbulent night is <b>less magnification</b> — the single hardest habit for a beginner to accept.</p>
-          <p class="zh">视宁度差时会施加一道<b>约 55 倍的绝对放大率上限</b>，一般视宁度约 110 倍，更大的物镜抬不高它。源码注释直说原因：没有绝对上限，换块大镜片就能绕过整堂课。所以湍动夜晚的答案是<b>降低倍率</b>——新手最难接受的一个习惯。</p>
+          <p class="zh">大气湍流会让星像抖动、膨胀并丢失细节。视宁度为 2″ 时，即使望远镜的衍射分辨率更高，实际细节仍会被限制在约 2″；继续放大只会得到更大的模糊影像。<b></b><b></b></p>
           <div class="mechanism-code">useful_limit_eff = min( useful_limit × seeing_eff , seeing_cap ) <span>· observation_system.gd</span></div>
         </div>
         <figure class="mechanism-figure">
@@ -1804,9 +1935,9 @@
       <article class="mechanism-card glass rv">
         <div>
           <span class="mechanism-kicker">02 · <span class="en">Assembly</span><span class="zh">组装</span></span>
-          <h3><span class="en">Your build quality is your image quality.</span><span class="zh">你的组装质量，就是你的成像质量。</span></h3>
+          <h3><span class="en">Your build quality is your image quality.</span><span class="zh">组装质量，成像质量。</span></h3>
           <p class="en">Every part is scored on how cleanly you seated it, and those scores multiply straight into clarity and stability. A rushed build shows no warning dialog — it shows a blurred, shaking, dimmer target. Being out of focus costs clarity before anything else does, and the focuser is a real part: a cheap one caps how finely you can ever reach best focus.</p>
-          <p class="zh">每个零件按安装的精准程度评分，这些分数直接乘进清晰度与稳定度。草率的组装不会弹警告框——它给你一个模糊、抖动、更暗的目标。失焦比任何因素都更早吃掉清晰度；调焦座也是个带精度的真实零件，便宜的让你永远差一点才到最佳焦点。</p>
+          <p class="zh">望远镜的实际成像质量不仅取决于镜片和口径，还取决于光轴准直、焦面位置、支架稳定性与机械装配精度。轻微的倾斜或偏心就可能引入彗差、像散和失焦，使恒星从锐利的点像变成拖尾或模糊的光斑。</p>
           <div class="mechanism-code">clarity = base_quality × assembly_score / 100 <span>· telescope_math.gd</span></div>
         </div>
         <figure class="mechanism-figure">
@@ -1841,11 +1972,11 @@
       <article class="mechanism-card glass rv">
         <div>
           <span class="mechanism-kicker">03 · <span class="en">The sky</span><span class="zh">星空</span></span>
-          <h3><span class="en">The sky overhead is the actual sky.</span><span class="zh">你头顶的这片星空，是真的。</span></h3>
+          <h3><span class="en">The sky overhead is the actual sky.</span><span class="zh">星空</span></h3>
           <p class="en">43,124 catalogued stars placed by true right ascension and declination, converted the way an observatory does it — Julian date, to Greenwich sidereal time, to local sidereal time, to hour angle, to altitude and azimuth for your latitude. You travel between fourteen real observatories, from Paranal to Svalbard at 78° north.</p>
           <p class="en">The consequence is unusual for a game: a target genuinely below your horizon is simply <b>not available</b>. You wait for the season, or you travel to a site that can see it.</p>
-          <p class="zh">43,124 颗恒星按真实赤经赤纬定位，并用天文台的方式换算——儒略日 → 格林尼治恒星时 → 地方恒星时 → 时角 → 你所在纬度的高度角与方位角。你会在十四座真实天文台之间旅行，从帕瑞纳到北纬 78° 的斯瓦尔巴。</p>
-          <p class="zh">由此产生一个游戏里罕见的后果：真正落在地平线以下的目标，就是<b>不可用</b>。要么等季节，要么换一个能看见它的地方。</p>
+          <p class="zh">每颗天体的位置都由真实天球坐标计算得到。系统将赤经、赤纬结合观测地点的经纬度与时间，通过恒星时和时角转换为实时的高度角与方位角，因此同一颗星在不同地点、日期和时刻，会出现在完全不同的位置。</p>
+          <p class="zh"><b></b></p>
           <div class="mechanism-code">JD → GMST → LST → hour angle → alt / az <span>· sky_position_service.gd</span></div>
         </div>
         <figure class="mechanism-figure">
@@ -1868,9 +1999,9 @@
       <article class="mechanism-card glass rv solo">
         <div>
           <span class="mechanism-kicker">04 · <span class="en">Beyond visible light</span><span class="zh">超越可见光</span></span>
-          <h3><span class="en">Infrared and radio are modelled, not reskinned.</span><span class="zh">红外与射电是真的建模，不是换皮。</span></h3>
+          <h3><span class="en">Infrared and radio are modelled, not reskinned.</span><span class="zh">红外与射电</span></h3>
           <p class="en">The space telescope carries the four real instruments — NIRCam, NIRSpec, MIRI, FGS/NIRISS — with filters, dither patterns and a deployment order that follows the actual sequence. The Sun must stay 85° to 135° off boresight or the thermal envelope breaks; the optics reach about 40 K, MIRI colder still. Because infrared is invisible, the image you make is a <b>false-colour composite</b>: you assign wavelength bands to red, green and blue yourself, and learn why every published space-telescope image is a choice someone made. The radio dish is a pointing-dynamics problem instead — momentum damped, and the whole instrument limited to 40° from zenith the way FAST genuinely is.</p>
-          <p class="zh">空间望远镜搭载四台真实仪器——NIRCam、NIRSpec、MIRI、FGS/NIRISS——配有滤光片、抖动策略与遵循真实次序的展开流程。太阳必须保持在视轴 85° 至 135° 之间，否则热控包线被破坏；光学系统降到约 40 K，MIRI 还要更冷。由于红外不可见，你产出的是<b>伪彩色合成图</b>：由你自己把波段分配给红绿蓝三通道，并由此明白——每一张公开的空间望远镜照片，都是某个人做出的选择。射电那边则是一道指向动力学题：动量会衰减，整台设备被限制在天顶 40° 以内，正如真实的 FAST。</p>
+          <p class="zh">空间望远镜搭载四台真实仪器——NIRCam、NIRSpec、MIRI、FGS/NIRISS——配有滤光片、抖动策略与遵循真实次序的展开流程。太阳必须保持在视轴 85° 至 135° 之间，否则热控包线被破坏；光学系统降到约 40 K，MIRI 还要更冷。由于红外不可见，你产出的是<b>伪彩色合成图</b>你可以把不同波段分配给红、绿、蓝三个通道，由此明白：每一张公开的空间望远镜照片，都包含制作者的选择。射电观测则是一道指向动力学题：动量会衰减，整台设备被限制在天顶 40° 以内，正如真实的 FAST。</p>
           <div class="mechanism-code">false colour: nir_short → R · nir_long → G · miri_dust → B <span>· space_observation_model.gd</span></div>
         </div>
       </article>
@@ -1879,11 +2010,11 @@
         <div>
           <span class="mechanism-kicker">04.5 · <span class="en">Environmental Simulation and Optical Feedback</span><span class="zh">环境模拟与光学反馈</span></span>
           <h3><span class="en">The weather is not behind the image. It is inside the result.</span>
-            <span class="zh">环境不是画面背后的装饰，而是观测结果的一部分。</span></h3>
+            <span class="zh">观测结果的一部分。</span></h3>
           <p class="en">Clouds cross the fixed eyepiece and attenuate the target in real time. Poor seeing spreads the point-spread function and limits useful magnification. City sky glow lifts the black floor, suppresses faint structure and lowers local contrast. Dark adaptation and averted vision can recover a dim nebula or galaxy, while Earth rotation carries every untracked target across the field until manual correction or an equatorial drive counters it.</p>
           <p class="zh">云层会穿过固定的目镜视场，实时削弱目标；较差的视宁度会扩散点像，并限制真正可用的倍率；城市天光会抬高黑位、吞掉微弱结构、压低局部对比。暗适应与侧视法能重新找回昏暗的星云或星系，而地球自转会让未追踪的目标持续漂过视场，直到玩家手动修正，或让赤道仪追踪抵消它。</p>
           <p class="en">The optical path matters too. A refractor can leave red and blue fringes around some bright targets because its lens brings wavelengths to slightly different focus positions. A Newtonian uses mirrors for the main light path, so that lens-produced colour separation is greatly reduced. In every case the cause is communicated through <b>the image itself, the quality score, the current objective and a specific recovery hint</b> — not a hidden penalty.</p>
-          <p class="zh">光路本身也会改变反馈。折射镜的透镜会让不同波长落在略有差异的焦点上，因此部分高亮目标周围会留下红蓝彩边；牛顿镜以反射光路为主，显著减轻这种由大物镜产生的色差。每一种原因都会通过<b>画面本身、质量评分、当前目标和明确的补救提示</b>告诉玩家，而不是藏在不可见的惩罚里。</p>
+          <p class="zh">光路本身也会改变反馈。折射镜的透镜会让不同波长落在略有差异的焦点上，因此部分高亮目标周围会留下红蓝彩边；牛顿镜以反射光路为主，显著减轻这种由大物镜产生的色差。每一种原因都会通过<b>画面本身、质量评分、当前目标和明确的补救提示</b>告诉玩家</p>
           <div class="mechanism-code">environment → optical response → player action → quality result <span>· telescope_view.gd + observation_system.gd</span></div>
         </div>
         <figure class="mechanism-figure">
@@ -2131,6 +2262,8 @@
     });
     btnZh.setAttribute('aria-pressed', String(l === 'zh'));
     btnEn.setAttribute('aria-pressed', String(l === 'en'));
+    document.getElementById('account-open').setAttribute('aria-label', l === 'zh' ? '账号' : 'Account');
+    document.getElementById('inbox-open').setAttribute('aria-label', l === 'zh' ? '信箱' : 'Inbox');
     updateGameLinks(l);
     if(remember){ try{ localStorage.setItem('so-lang', l); }catch(e){} }
     document.dispatchEvent(new CustomEvent('po:language-changed', {detail:{lang:l}}));
@@ -2242,7 +2375,23 @@
   var heroInner = document.getElementById('heroInner');
   var heroCv = document.getElementById('sky');
   var gnav = document.getElementById('gnav');
-  var lastY = 0, ticking = false, navStopTimer = 0;
+  gnav.classList.add('menu-ready');
+  var menuToggle = document.getElementById('gnav-menu-toggle');
+  var menuDrawer = document.getElementById('gnav-drawer');
+  var lastY = scrollY, ticking = false;
+  function setMenuOpen(open, restoreFocus){
+    menuToggle.setAttribute('aria-expanded', String(open));
+    menuToggle.setAttribute('aria-label', open ? 'Close navigation / 关闭导航' : 'Open navigation / 展开导航');
+    menuDrawer.classList.toggle('is-open', open);
+    if(restoreFocus) menuToggle.focus();
+  }
+  menuToggle.addEventListener('click', function(){setMenuOpen(menuToggle.getAttribute('aria-expanded') !== 'true');gnav.classList.remove('hide');});
+  menuDrawer.addEventListener('click', function(event){
+    if(event.target.closest('a,button')) setMenuOpen(false);
+  });
+  document.addEventListener('pointerdown', function(event){if(!gnav.contains(event.target)) setMenuOpen(false);});
+  document.addEventListener('keydown', function(event){if(event.key === 'Escape' && menuToggle.getAttribute('aria-expanded') === 'true'){setMenuOpen(false,true);}});
+  addEventListener('resize', function(){if(innerWidth > 1250) setMenuOpen(false);});
   function onScroll(){
     var y = scrollY;
     if(!reduced && heroInner && y < innerHeight*1.2){
@@ -2251,36 +2400,60 @@
       heroCv.style.transform = 'translateY('+(y*.16)+'px)';
     }
     if(gnav){
-      if(y < 90) gnav.classList.add('hide');
-      else if(y > lastY + 4) gnav.classList.add('hide');
-      else if(y < lastY - 4) gnav.classList.remove('hide');
+      if(y < 90 || y < lastY - 2 || menuToggle.getAttribute('aria-expanded') === 'true' || (gnav.contains(document.activeElement) && document.activeElement.matches(':focus-visible'))) {gnav.classList.remove('hide');gnav.inert=false;}
+      else if(y > lastY + 5) {gnav.classList.add('hide');gnav.inert=true;}
     }
     lastY = y; ticking = false;
   }
-  function revealNavAfterStop(){
-    clearTimeout(navStopTimer);
-    navStopTimer = setTimeout(function(){
-      if(gnav && scrollY >= 90) gnav.classList.remove('hide');
-    }, 320);
-  }
   addEventListener('scroll', function(){
     if(!ticking){ requestAnimationFrame(onScroll); ticking = true; }
-    revealNavAfterStop();
   }, {passive:true});
   onScroll();
-  revealNavAfterStop();
-  var hero = document.getElementById('top');
-  if(hero){
-    hero.addEventListener('pointerdown', function(event){
-      if(event.target.closest('a,button,input,textarea,select')) return;
-      if(gnav){
-        clearTimeout(navStopTimer);
-        gnav.classList.remove('hide');
-        navStopTimer = setTimeout(function(){
-          if(scrollY < 90) gnav.classList.add('hide');
-        }, 4200);
-      }
+
+  /* All articles remain in the HTML if scripts fail. Once ready, show one detailed
+     optical comparison while the four short summaries stay visible. */
+  var instrumentButtons = Array.from(document.querySelectorAll('.instrument-tab'));
+  var instrumentArticles = Array.from(document.querySelectorAll('#principles .pr'));
+  function selectInstrument(index){
+    instrumentButtons.forEach(function(button,i){button.setAttribute('aria-pressed', String(i === index));});
+    instrumentArticles.forEach(function(article,i){
+      article.hidden = i !== index;
+      if(i === index) article.classList.add('in');
     });
+  }
+  instrumentButtons.forEach(function(button,index){
+    button.addEventListener('click', function(){selectInstrument(index);});
+    button.addEventListener('keydown', function(event){
+      var next = event.key === 'ArrowRight' ? index + 1 : event.key === 'ArrowLeft' ? index - 1 : -1;
+      if(next >= 0){event.preventDefault();next = (next + instrumentButtons.length) % instrumentButtons.length;selectInstrument(next);instrumentButtons[next].focus();}
+    });
+  });
+  if(instrumentButtons.length === instrumentArticles.length){document.querySelector('.instrument-tabs').classList.add('is-ready');selectInstrument(0);}
+  var viewButtons = Array.from(document.querySelectorAll('.view-tabs button'));
+  var viewCards = Array.from(document.querySelectorAll('.obs-card'));
+  var selectedView = 0;
+  function updateViews(){
+    var compact = innerWidth <= 900;
+    viewCards.forEach(function(card,i){card.hidden = compact && i !== selectedView;if(!card.hidden) card.classList.add('in');});
+    viewButtons.forEach(function(button,i){button.setAttribute('aria-pressed', String(i === selectedView));});
+    document.querySelector('.view-tabs').classList.toggle('is-ready', compact);
+  }
+  viewButtons.forEach(function(button,i){button.addEventListener('click',function(){selectedView=i;updateViews();});});
+  addEventListener('resize',updateViews);
+  updateViews();
+  /* The separate seeing card repeats the environmental feedback explanation.
+     Keep its measured limits and diagram beside the complete cause-and-response chain. */
+  var mechanismCards = document.querySelectorAll('#difference .mechanism-card');
+  if(mechanismCards.length >= 5){
+    var seeingCard = mechanismCards[0];
+    var environmentCard = mechanismCards[4];
+    environmentCard.classList.add('environment-card');
+    var seeingDetail = document.createElement('details');
+    seeingDetail.className = 'seeing-detail';
+    seeingDetail.innerHTML = '<summary><span class="en">Seeing limit: why less magnification can help</span><span class="zh">视宁度上限：为什么降低倍率更有效</span></summary>';
+    seeingCard.querySelectorAll('p,.mechanism-code,.mechanism-figure').forEach(function(node){seeingDetail.appendChild(node);});
+    environmentCard.firstElementChild.appendChild(seeingDetail);
+    seeingCard.remove();
   }
 
   /* ---------- scatter static SVG stars ---------- */
@@ -2358,7 +2531,7 @@
   }
 })();
 </script>
-<script src="account.js?v=20260729-registration-fix" defer></script>
+<script src="account.js?v=20260917-release-bulletin" defer></script>
 <script src="messaging.js?v=20260729-friend-drawer" defer></script>
 <script src="inbox.js?v=20260729-shared-messaging" defer></script>
 <script src="social.js?v=20260804-leaderboard-scale" defer></script>

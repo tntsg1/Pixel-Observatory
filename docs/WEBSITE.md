@@ -16,8 +16,7 @@ built artifact, not a direct view of the working tree.
 ## Deployment Path
 
 The checked-in workflow is `.github/workflows/deploy-web.yml`. It runs on
-pushes to `main`, `agent/current-version-2026-07-18`, and
-`agent/maya-npc-companion`, or by manual dispatch.
+pushes to `main` and `agent/current-version-2026-07-18`, or by manual dispatch.
 It performs the following steps:
 
 1. Installs Godot 4.7 and the matching Web export templates.

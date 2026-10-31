@@ -1,0 +1,22 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1. no object uses a frozen fallback position (0 frozen)
+  ok: 1. all 27 catalog objects are really calculated
+  ok: 2. same place, different time -> altitude changes
+  ok: 3. same time, different longitude -> azimuth differs
+  ok: 4. same time, different latitude -> altitude differs
+  ok: 4. a +60 dec target is up north, down south
+  ok: 5. below-horizon target reports below_horizon + not visible
+  ok: 5. high target reports visible
+  ok: 6. azimuth 0 is North
+  ok: 6. azimuth 90 is East
+  ok: 6. azimuth 180 is South
+  ok: 6. azimuth 270 is West
+  ok: 7. Jupiter RA changes across the year
+  ok: 7. the Moon moves several hours of RA in a week
+  ok: 7. Mars RA changes across the year
+  ok: 8. bright-star catalog present
+  ok: 8. catalog has 1637 real stars (not random points)
+  ok: 9. moving hemisphere changes most objects' altitude (27 changed)
+REAL SKY TEST PASS

@@ -796,8 +796,8 @@ func report() -> Dictionary:
 		and residual_rfi_count() == 0 \
 		and integration_s >= required_integration_s \
 		and snr >= report_snr_threshold \
-		and period_match() >= period_threshold \
-		and dm_match() >= dm_threshold \
+		and period_match() > period_threshold \
+		and dm_match() > dm_threshold \
 		and phase_match() >= 0.72 \
 		and period_solution_state() == "fundamental"
 	return {
@@ -839,7 +839,7 @@ func conclusion_state() -> String:
 		return "residual_rfi"
 	if fold_snr() < report_snr_threshold:
 		return "insufficient_signal"
-	if period_match() < period_threshold or dm_match() < dm_threshold:
+	if period_match() <= period_threshold or dm_match() <= dm_threshold:
 		return "unstable_candidate"
 	if target_kind in ["hi_line", "hydrogen"]:
 		return "confirmed_hi"

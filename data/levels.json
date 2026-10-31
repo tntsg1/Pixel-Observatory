@@ -101,10 +101,10 @@
   {
     "id": "level_4",
     "level_number": 4,
-    "title_en": "Adjust the Focus",
-    "title_zh": "调焦训练",
-    "description_en": "A telescope image is blurry until you focus it. Observe Jupiter and turn the focus knob until it is sharp.",
-    "description_zh": "木星已经在视野里，但画面还很糊。转动调焦旋钮，把边缘和条纹调清楚。",
+    "title_en": "Bring the Star to a Point",
+    "title_zh": "把恒星调成一个点",
+    "description_en": "Betelgeuse is so far away that no telescope on Earth can show its surface. Out of focus it swells into a soft orange blur. Turn the focus knob until it collapses into one tight red-orange point.",
+    "description_zh": "参宿四太遥远了，地面上任何望远镜都无法显示它的表面。失焦时，它会胀成一团柔软的橙色光斑。转动调焦旋钮，直到它收缩成一个紧实的橙红色光点。",
     "observation_mode": "telescope",
     "equipment_stage": "refractor_basic",
     "requires_telescope": true,
@@ -117,9 +117,16 @@
         "trigger": "before_focus",
         "mode": "brief",
         "required_once": true
+      },
+      {
+        "id": "point_source_intro",
+        "card_id": "stellar_point_source",
+        "trigger": "before_observation",
+        "mode": "brief",
+        "required_once": true
       }
     ],
-    "target_object_id": "jupiter",
+    "target_object_id": "betelgeuse",
     "required_parts": [
       "tripod",
       "mount",
@@ -130,16 +137,18 @@
     ],
     "required_assembly_score": 70,
     "minimum_success_quality": "Fair",
-    "focus_ready_text_zh": "图像已清晰，可以识别。",
-    "observation_success_feedback_zh": "图像已清晰，可以识别。",
-    "hint_text_en": "After observing, adjust focus in the telescope view until the image is sharp.",
-    "hint_text_zh": "用 Q/E 慢慢调焦。越接近正确方向，木星边缘会越收紧。",
-    "success_text_en": "Focusing aligns the focal plane image with the eyepiece.",
-    "success_text_zh": "图像已清晰，可以识别。",
+    "focus_ready_text_zh": "光斑已经收缩成锐利的橙色光点，参宿四已经合焦。",
+    "observation_success_feedback_zh": "一个干净、紧实的橙色光点。恒星最清晰的样子就是如此。",
+    "hint_text_en": "A star should shrink, not gain detail. Use Q/E: the smallest, tightest point is correct focus.",
+    "hint_text_zh": "恒星应当收缩，而不是显出细节。用 Q/E 调焦：光点最小、最紧实时就是准确合焦。",
+    "success_text_en": "At the focal plane a star shrinks to the smallest point your optics allow. That tight point - not a disk - is what 'in focus' means for a star.",
+    "success_text_zh": "在焦平面上，恒星会收缩到光学系统允许的最小光点。那个紧实的光点——而不是圆面——就是恒星「合焦」的含义。",
     "reward_credits": 60,
     "unlock_parts": [],
     "unlock_equipment_stage": "refractor_basic",
-    "badge": "Sharp Eye"
+    "badge": "Sharp Eye",
+    "focus_ready_text_en": "The blur has collapsed into a sharp orange point. Betelgeuse is in focus.",
+    "observation_success_feedback_en": "A clean, tight point of orange light. This is as sharp as a star can ever look."
   },
   {
     "id": "level_5",
@@ -334,15 +343,15 @@
   {
     "id": "level_10",
     "level_number": 10,
-    "title_en": "Jupiter Revisited - Too Much Power",
-    "title_zh": "重返木星——过犹不及的倍率",
-    "description_en": "Jupiter is back. Try the Low, Medium, and High eyepieces one by one and see what higher magnification really costs.",
-    "description_zh": "木星又来了。依次试试低、中、高三档目镜，看看更高的倍率到底要付出什么代价。",
+    "title_en": "Saturn at Too Much Power",
+    "title_zh": "土星与过高的倍率",
+    "description_en": "Saturn tonight. Work through the 32mm, 20mm and 10mm eyepieces in order and find out which one actually shows the rings best - it is not the strongest one.",
+    "description_zh": "今晚观测土星。依次使用 32mm、20mm 和 10mm 目镜，找出到底哪一档才能把土星环看得最清楚——答案不是倍率最高的那一档。",
     "observation_mode": "telescope",
     "equipment_stage": "advanced",
     "requires_telescope": true,
     "requires_focus": true,
-    "required_concept_card": "magnification_field_of_view",
+    "required_concept_card": "saturn_rings_seeing",
     "teaching_steps": [
       {
         "id": "magnification_tradeoff_intro",
@@ -352,7 +361,7 @@
         "required_once": true
       }
     ],
-    "target_object_id": "jupiter",
+    "target_object_id": "saturn",
     "required_parts": [
       "tripod",
       "mount",
@@ -363,10 +372,10 @@
       "focus_knob"
     ],
     "required_assembly_score": 75,
-    "hint_text_en": "Switch eyepieces and compare: bigger is not always clearer.",
-    "hint_text_zh": "换着目镜比较：图像更大不代表更清楚。",
-    "success_text_en": "Bigger is not clearer. You proved it yourself tonight.",
-    "success_text_zh": "木星虽然变大了，细节却没有一直增加。现在你知道什么时候该停在合适倍率了。",
+    "hint_text_en": "Low power: small but bright and steady. Medium power: the rings separate. High power: bigger, dimmer, softer, shakier.",
+    "hint_text_zh": "低倍率：目标小，但明亮稳定。中倍率：光环能分辨出来。高倍率：更大，却更暗、更软、更抖。",
+    "success_text_en": "The 20mm won. The 10mm made Saturn bigger but dimmer and shakier, and the ring got worse - so go back to the eyepiece that actually showed it best.",
+    "success_text_zh": "20mm 目镜胜出。10mm 让土星更大，却更暗、更抖，光环反而更差——所以要换回真正把它显示得最好的那一枚目镜。",
     "reward_credits": 100,
     "unlock_parts": [],
     "unlock_equipment_stage": "advanced",
@@ -375,22 +384,39 @@
     "lesson_thread": "magnification",
     "practice_step": 1,
     "variation": "eyepiece_comparison",
-    "repeat_target_reason_en": "Same Jupiter, new question: how much power is too much?",
-    "repeat_target_reason_zh": "还是木星，这次比较不同倍率，找出画面开始变暗、变抖的那一档。",
+    "repeat_target_reason_en": "A new planet with a structure that punishes too much power: Saturn's ring.",
+    "repeat_target_reason_zh": "换一颗行星，它的结构会惩罚过高的倍率：土星环。",
     "mission_steps": [
       {
         "id": "low_power",
-        "label_en": "Observe Jupiter with the 20mm",
-        "label_zh": "用 20mm 目镜观测木星",
+        "label_en": "Low power: 32mm on Saturn",
+        "label_zh": "低倍率：用 32mm 看土星",
+        "require_part_id": "eyepiece_32mm"
+      },
+      {
+        "id": "medium_power",
+        "label_en": "Medium power: 20mm on Saturn",
+        "label_zh": "中倍率：用 20mm 看土星",
         "require_part_id": "eyepiece_20mm"
       },
       {
         "id": "high_power",
-        "label_en": "Switch to 10mm and observe again",
-        "label_zh": "换 10mm 目镜再观测一次",
+        "label_en": "High power: 10mm on Saturn",
+        "label_zh": "高倍率：用 10mm 看土星",
         "require_part_id": "eyepiece_10mm"
       }
-    ]
+    ],
+    "observation_success_feedback_en": "At this power the ring stands clear of the disk. This is Saturn's best view tonight.",
+    "observation_success_feedback_zh": "在这一档倍率下，光环与星体清晰分离。这就是今晚土星最好的样子。",
+    "target_requirement_overrides": {
+      "required_light_score": 40,
+      "required_clarity": 50,
+      "required_stability": 47
+    },
+    "observation_requirements": {
+      "magnification_min": 32,
+      "magnification_max": 55
+    }
   },
   {
     "id": "level_11",
@@ -493,20 +519,20 @@
   {
     "id": "level_13",
     "level_number": 13,
-    "title_en": "Magnification Review Mission",
-    "title_zh": "倍率复习任务",
-    "description_en": "Your call tonight. Pick a target and pick your own power - no hints this time.",
-    "description_zh": "今晚你说了算。自己选目标，自己选倍率——这次没有提示。",
+    "title_en": "Your Target, Your Power",
+    "title_zh": "自选目标，自定倍率",
+    "description_en": "An assessment, not a lesson. Choose one of three targets yourself, then choose the eyepiece that suits it. Each target wants a different power - matching them is the whole test.",
+    "description_zh": "这是一次考核，不是教学。你要自己从三个目标中选一个，再自己选择合适的目镜。每个目标适合的倍率都不同——把两者匹配起来，就是本关的全部考点。",
     "observation_mode": "telescope",
     "equipment_stage": "advanced",
     "requires_telescope": true,
     "requires_focus": true,
     "required_concept_card": "magnification_field_of_view",
-    "target_object_id": "jupiter",
+    "target_object_id": "moon",
     "target_pool": [
-      "jupiter",
       "moon",
-      "mars"
+      "saturn",
+      "pleiades"
     ],
     "required_parts": [
       "tripod",
@@ -518,10 +544,10 @@
       "focus_knob"
     ],
     "required_assembly_score": 75,
-    "hint_text_en": "Choose wisely: the right power depends on the target, not habit.",
-    "hint_text_zh": "选得巧一点：合适的倍率取决于目标，不是习惯。",
-    "success_text_en": "You chose like an observer, not a beginner. Chapter logged.",
-    "success_text_zh": "你的选择像个观测者，而不是新手了。本章记入日志。",
+    "hint_text_en": "Decide first, then equip. The Moon rewards power, Saturn rewards balance, the Pleiades reward a wide field.",
+    "hint_text_zh": "先决定目标，再去配装备。月球奖励高倍率，土星奖励平衡，昴星团奖励宽视野。",
+    "success_text_en": "You picked the target and matched the power to it yourself. That is what an observer does.",
+    "success_text_zh": "你自己选定了目标，并为它匹配了合适的倍率。观测者就是这样工作的。",
     "reward_credits": 150,
     "unlock_parts": [],
     "unlock_equipment_stage": "advanced",
@@ -532,7 +558,52 @@
     "variation": "free_choice_review",
     "environment": {
       "seeing": "average"
-    }
+    },
+    "requires_target_choice": true,
+    "target_choices": [
+      {
+        "object_id": "moon",
+        "label_en": "The Moon - crater detail",
+        "label_zh": "月球——环形山细节",
+        "blurb_en": "Big, bright and full of fine detail. Detail wants magnification.",
+        "blurb_zh": "又大又亮，细节丰富。看细节就需要较高的倍率。",
+        "recommendation_en": "Medium to high power suits a detailed, bright surface.",
+        "recommendation_zh": "明亮且细节丰富的表面适合中到高倍率。",
+        "observation_requirements": {
+          "magnification_min": 55
+        }
+      },
+      {
+        "object_id": "saturn",
+        "label_en": "Saturn - the ring",
+        "label_zh": "土星——光环",
+        "blurb_en": "A small disk with one fine structure. Enough power to split the ring, not so much that it shakes.",
+        "blurb_zh": "圆面很小，只有一条精细结构。倍率要够分辨光环，但不能高到画面发抖。",
+        "recommendation_en": "A moderate, effective power is the sweet spot.",
+        "recommendation_zh": "适中而有效的倍率才是最佳选择。",
+        "observation_requirements": {
+          "magnification_min": 32,
+          "magnification_max": 55
+        },
+        "requirement_overrides": {
+          "required_light_score": 40,
+          "required_clarity": 50,
+          "required_stability": 47
+        }
+      },
+      {
+        "object_id": "pleiades",
+        "label_en": "The Pleiades - the whole cluster",
+        "label_zh": "昴星团——完整星团",
+        "blurb_en": "A wide scattering of stars. Its shape is the point, so it must fit in the field.",
+        "blurb_zh": "一片散开的恒星。它的整体形状才是重点，必须完整地放进视野。",
+        "recommendation_en": "Low power and the widest field you own.",
+        "recommendation_zh": "低倍率，配上你手上最宽的视野。",
+        "observation_requirements": {
+          "magnification_max": 45
+        }
+      }
+    ]
   },
   {
     "id": "level_14",
@@ -618,16 +689,16 @@
   {
     "id": "level_16",
     "level_number": 16,
-    "title_en": "Narrow Field Problem",
-    "title_zh": "窄视野的难题",
-    "description_en": "Feeling confident? Try the main telescope alone first - then follow Eye to Finder to Scope like Maya taught you.",
-    "description_zh": "自信满满？先只用主望远镜试试——然后按 Maya 教的肉眼到寻星镜到主镜的顺序来。",
+    "title_en": "Too Narrow for the Seven Sisters",
+    "title_zh": "装不下的七姐妹",
+    "description_en": "The Pleiades are wider than the main telescope's field. Look with your eyes, step down to the finder, and only then go to the scope - and keep the power low enough to hold the whole cluster.",
+    "description_zh": "昴星团比主望远镜的视野还要大。先用肉眼看，再换寻星镜，最后才用主镜——而且倍率要低到足以容纳整个星团。",
     "observation_mode": "telescope",
     "equipment_stage": "advanced",
     "requires_telescope": true,
     "requires_focus": true,
     "required_concept_card": "finder_scope_alignment",
-    "target_object_id": "jupiter",
+    "target_object_id": "pleiades",
     "required_parts": [
       "tripod",
       "mount",
@@ -638,10 +709,10 @@
       "focus_knob"
     ],
     "required_assembly_score": 75,
-    "hint_text_en": "Lost in the 6-degree view? Go wide first, narrow last.",
-    "hint_text_zh": "在 6 度视野里迷路了？先宽后窄。",
-    "success_text_en": "The narrow field shows detail. The wide field shows the way.",
-    "success_text_zh": "窄视野看细节，宽视野认路。",
+    "hint_text_en": "Naked eye shows the shape, the finder keeps it whole, the scope loses it. Go wide first, narrow last.",
+    "hint_text_zh": "肉眼能看出形状，寻星镜能装下整体，主镜反而会把它看丢。先宽后窄。",
+    "success_text_en": "A narrow field shows detail, but a wide field shows the whole object. The Pleiades only fit in the wide one.",
+    "success_text_zh": "窄视野看细节，宽视野才能看到目标的全貌。昴星团只有在宽视野里才装得下。",
     "reward_credits": 100,
     "unlock_parts": [],
     "unlock_equipment_stage": "advanced",
@@ -652,7 +723,21 @@
     "variation": "workflow_discipline",
     "environment": {
       "seeing": "average"
-    }
+    },
+    "observation_success_feedback_en": "The cluster sits whole inside the field - blue stars scattered over dark sky, not a crowd of strays.",
+    "observation_success_feedback_zh": "整个星团完整地落在视野里——深色天空上散布着蓝色恒星，而不是几颗孤零零的散兵。",
+    "observation_requirements": {
+      "magnification_max": 45
+    },
+    "teaching_steps": [
+      {
+        "id": "wide_field_intro",
+        "card_id": "wide_field_framing",
+        "trigger": "before_observation",
+        "mode": "brief",
+        "required_once": true
+      }
+    ]
   },
   {
     "id": "level_17",

@@ -1,0 +1,156 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: autoloads available
+  ok: campaign extends through L131
+  ok: legacy L91 remains unchanged
+  ok: nine constellation patterns loaded
+  ok: mercury can be selected
+  ok: mercury has independent visual
+  ok: venus can be selected
+  ok: venus has independent visual
+  ok: saturn can be selected
+  ok: saturn has independent visual
+  ok: uranus can be selected
+  ok: uranus has independent visual
+  ok: neptune can be selected
+  ok: neptune has independent visual
+  ok: moon_crater_copernicus can be selected
+  ok: moon_crater_copernicus has independent visual
+  ok: moon_mare_tranquillitatis can be selected
+  ok: moon_mare_tranquillitatis has independent visual
+  ok: moon_terminator can be selected
+  ok: moon_terminator has independent visual
+  ok: albireo can be selected
+  ok: albireo has independent visual
+  ok: pleiades can be selected
+  ok: pleiades has independent visual
+  ok: m13 can be selected
+  ok: m13 has independent visual
+  ok: ring_nebula can be selected
+  ok: ring_nebula has independent visual
+  ok: lagoon_nebula can be selected
+  ok: lagoon_nebula has independent visual
+  ok: sombrero_galaxy can be selected
+  ok: sombrero_galaxy has independent visual
+  ok: ursa_major has a real star pattern
+  ok: ursa_major has ordered connection logic
+  ok: ursa_major has seasonal visibility
+  ok: cassiopeia has a real star pattern
+  ok: cassiopeia has ordered connection logic
+  ok: cassiopeia has seasonal visibility
+  ok: cygnus has a real star pattern
+  ok: cygnus has ordered connection logic
+  ok: cygnus has seasonal visibility
+  ok: lyra has a real star pattern
+  ok: lyra has ordered connection logic
+  ok: lyra has seasonal visibility
+  ok: aquila has a real star pattern
+  ok: aquila has ordered connection logic
+  ok: aquila has seasonal visibility
+  ok: taurus has a real star pattern
+  ok: taurus has ordered connection logic
+  ok: taurus has seasonal visibility
+  ok: scorpius has a real star pattern
+  ok: scorpius has ordered connection logic
+  ok: scorpius has seasonal visibility
+  ok: orion_constellation has a real star pattern
+  ok: orion_constellation has ordered connection logic
+  ok: orion_constellation has seasonal visibility
+  ok: leo has a real star pattern
+  ok: leo has ordered connection logic
+  ok: leo has seasonal visibility
+  ok: Venus overexposure is a real failure
+  ok: Venus succeeds at controlled exposure
+  ok: nebula filter requirement is enforced
+  ok: filter + adaptation + averted vision can satisfy the technique
+  ok: shared sky observation scene loads
+  ok: constellation search uses the telescope workflow
+  ok: prepared constellation search has a telescope and finder
+  ok: constellation route resolves through the shared sky scene
+  ok: shared sky scene binds the constellation target
+  FAIL: constellation renders as a star field in the shared sky view
+  ok: centered constellation opens in the regular telescope observation view
+  ok: Venus uses its dedicated crescent visual at runtime
+  ok: expansion technique HUD is built
+  ok: L92 is contiguous
+  ok: L92 has bilingual teaching
+  ok: L93 is contiguous
+  ok: L93 has bilingual teaching
+  ok: L94 is contiguous
+  ok: L94 has bilingual teaching
+  ok: L95 is contiguous
+  ok: L95 has bilingual teaching
+  ok: L96 is contiguous
+  ok: L96 has bilingual teaching
+  ok: L97 is contiguous
+  ok: L97 has bilingual teaching
+  ok: L98 is contiguous
+  ok: L98 has bilingual teaching
+  ok: L99 is contiguous
+  ok: L99 has bilingual teaching
+  ok: L100 is contiguous
+  ok: L100 has bilingual teaching
+  ok: L101 is contiguous
+  ok: L101 has bilingual teaching
+  ok: L102 is contiguous
+  ok: L102 has bilingual teaching
+  ok: L103 is contiguous
+  ok: L103 has bilingual teaching
+  ok: L104 is contiguous
+  ok: L104 has bilingual teaching
+  ok: L105 is contiguous
+  ok: L105 has bilingual teaching
+  ok: L106 is contiguous
+  ok: L106 has bilingual teaching
+  ok: L107 is contiguous
+  ok: L107 has bilingual teaching
+  ok: L108 is contiguous
+  ok: L108 has bilingual teaching
+  ok: L109 is contiguous
+  ok: L109 has bilingual teaching
+  ok: L110 is contiguous
+  ok: L110 has bilingual teaching
+  ok: L111 is contiguous
+  ok: L111 has bilingual teaching
+  ok: L112 is contiguous
+  ok: L112 has bilingual teaching
+  ok: L113 is contiguous
+  ok: L113 has bilingual teaching
+  ok: L114 is contiguous
+  ok: L114 has bilingual teaching
+  ok: L115 is contiguous
+  ok: L115 has bilingual teaching
+  ok: L116 is contiguous
+  ok: L116 has bilingual teaching
+  ok: L117 is contiguous
+  ok: L117 has bilingual teaching
+  ok: L118 is contiguous
+  ok: L118 has bilingual teaching
+  ok: L119 is contiguous
+  ok: L119 has bilingual teaching
+  ok: L120 is contiguous
+  ok: L120 has bilingual teaching
+  ok: L121 is contiguous
+  ok: L121 has bilingual teaching
+  ok: L122 is contiguous
+  ok: L122 has bilingual teaching
+  ok: L123 is contiguous
+  ok: L123 has bilingual teaching
+  ok: L124 is contiguous
+  ok: L124 has bilingual teaching
+  ok: L125 is contiguous
+  ok: L125 has bilingual teaching
+  ok: L126 is contiguous
+  ok: L126 has bilingual teaching
+  ok: L127 is contiguous
+  ok: L127 has bilingual teaching
+  ok: L128 is contiguous
+  ok: L128 has bilingual teaching
+  ok: L129 is contiguous
+  ok: L129 has bilingual teaching
+  ok: L130 is contiguous
+  ok: L130 has bilingual teaching
+  ok: L131 is contiguous
+  ok: L131 has bilingual teaching
+OBSERVATION EXPANSION TEST FAIL (1)

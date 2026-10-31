@@ -2,30 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-<<<<<<<< HEAD:assets/celestial_icons/deep_sky/andromeda.png.import
 uid="uid://clpkbpcgbwm5e"
 path="res://.godot/imported/andromeda.png-31fc13c20f3a585509aed0c1fbf6b078.ctex"
 metadata={
 "vram_texture": false
-========
-uid="uid://jf3s2u74wsp0"
-path.s3tc="res://.godot/imported/texture_04.png-6b38462c01eca05bf0eac173eb8b3d94.s3tc.ctex"
-path.etc2="res://.godot/imported/texture_04.png-6b38462c01eca05bf0eac173eb8b3d94.etc2.ctex"
-metadata={
-"imported_formats": ["s3tc_bptc", "etc2_astc"],
-"vram_texture": true
->>>>>>>> origin/main:Arts/Textures/kenney_prototype_textures/red/texture_04.png.import
 }
 
 [deps]
 
-<<<<<<<< HEAD:assets/celestial_icons/deep_sky/andromeda.png.import
 source_file="res://assets/celestial_icons/deep_sky/andromeda.png"
 dest_files=["res://.godot/imported/andromeda.png-31fc13c20f3a585509aed0c1fbf6b078.ctex"]
-========
-source_file="res://Arts/Textures/kenney_prototype_textures/red/texture_04.png"
-dest_files=["res://.godot/imported/texture_04.png-6b38462c01eca05bf0eac173eb8b3d94.s3tc.ctex", "res://.godot/imported/texture_04.png-6b38462c01eca05bf0eac173eb8b3d94.etc2.ctex"]
->>>>>>>> origin/main:Arts/Textures/kenney_prototype_textures/red/texture_04.png.import
 
 [params]
 

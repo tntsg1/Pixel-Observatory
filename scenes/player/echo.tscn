@@ -1,0 +1,24 @@
+[gd_scene format=3 uid="uid://cplayerecho001"]
+
+[ext_resource type="Script" path="res://scripts/player/player_controller.gd" id="1_player"]
+
+[sub_resource type="CircleShape2D" id="CircleHitbox"]
+radius = 5.0
+
+[node name="Player" type="CharacterBody2D"]
+collision_layer = 1
+collision_mask = 2
+script = ExtResource("1_player")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+scale = Vector2(0.7, 0.7)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleHitbox")
+
+[node name="DodgeEffect" type="CPUParticles2D" parent="."]
+emitting = false
+amount = 8
+lifetime = 0.3
+one_shot = true
+explosiveness = 1.0

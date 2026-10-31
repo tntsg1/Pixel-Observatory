@@ -1,0 +1,44 @@
+[gd_scene format=3 uid="uid://cexplosion2d001"]
+
+[ext_resource type="Script" path="res://Misc/ExplosionEffect2D/explosion_2d_script.gd" id="1_expl"]
+
+[sub_resource type="Curve" id="Curve_scale"]
+_data = [Vector2(0, 1), 0.0, 0.0, 0, 0, Vector2(0.3, 1.2), 0.0, 0.0, 0, 0, Vector2(1, 0), 0.0, 0.0, 0, 0]
+point_count = 3
+
+[sub_resource type="CurveTexture" id="CurveTexture_scale"]
+curve = SubResource("Curve_scale")
+
+[sub_resource type="Gradient" id="Gradient_explosion"]
+colors = PackedColorArray(1, 0.9, 0.2, 1, 1, 0.4, 0, 1, 0.7, 0.2, 0, 1, 0.4, 0, 0, 0)
+
+[sub_resource type="GradientTexture1D" id="GradientTexture_explosion"]
+gradient = SubResource("Gradient_explosion")
+
+[sub_resource type="ParticleProcessMaterial" id="ParticleProcessMaterial_explosion"]
+emission_shape = 1
+emission_sphere_radius = 1.0
+spread = 180.0
+initial_velocity_min = 80.0
+initial_velocity_max = 200.0
+scale_min = 0.5
+scale_max = 2.0
+scale_curve = SubResource("CurveTexture_scale")
+color = Color(1, 0.8, 0.2, 1)
+color_ramp = SubResource("GradientTexture_explosion")
+damping_min = 20.0
+damping_max = 60.0
+angle_min = -180.0
+angle_max = 180.0
+
+[node name="ExplosionEffect2D" type="Node2D"]
+script = ExtResource("1_expl")
+
+[node name="Particles" type="CPUParticles2D" parent="."]
+emitting = false
+amount = 30
+lifetime = 0.6
+one_shot = true
+explosiveness = 1.0
+process_material = SubResource("ParticleProcessMaterial_explosion")
+texture = null

@@ -64,7 +64,11 @@ func _complete_focus_training(gm: Node) -> void:
 	_check(str(gm.equipped_part_id("mount")) == "basic_mount", "L4 still uses the basic mount")
 	_check(bool(gm.can_enter_observation().get("ok", false)), "L4 observation gate opens after focus knob installation")
 
-	gm.selected_object_id = "jupiter"
+	# L4 now trains focus on Betelgeuse: a star is a point source, so focusing
+	# means shrinking the blur disc rather than resolving surface detail.
+	var l4_target := str(gm.current_target_object_id())
+	_check(l4_target == "betelgeuse", "L4 trains focus on Betelgeuse")
+	gm.selected_object_id = l4_target
 	var observation: Dictionary = gm.evaluate_selected_object({
 		"focus_error": 0.0,
 		"requires_focus": true,
@@ -76,18 +80,19 @@ func _complete_focus_training(gm: Node) -> void:
 	_check(quality_order.find(quality) >= quality_order.find("Fair"), "L4 basic equipment reaches the Fair teaching threshold")
 	_check(not bool(observation.get("out_of_focus", true)), "L4 exact focus is inside tolerance")
 	_check(bool(observation.get("success", false)), "L4 focused Fair observation passes")
-	_check(str(observation.get("feedback_zh", "")) == "图像已清晰，可以识别。", "L4 focused Chinese feedback is instructional")
+	_check(str(observation.get("feedback_zh", "")) == str(gm.current_level().get("observation_success_feedback_zh", "")), "L4 focused Chinese feedback is instructional")
+	_check(str(observation.get("feedback_zh", "")).strip_edges() != "", "L4 focused Chinese feedback is non-empty")
 	var off_center: Dictionary = gm.evaluate_selected_object({
 		"focus_error": 0.0,
 		"requires_focus": true,
 		"focus_tolerance": 0.06,
 		"target_off_center": true
 	})
-	_check(not bool(off_center.get("success", true)), "L4 still requires Jupiter to be centered")
+	_check(not bool(off_center.get("success", true)), "L4 still requires the star to be centered")
 
-	# Passing Jupiter is the same final gate used by the correct Identify choice.
+	# Passing the real target is the same final gate the Identify choice uses.
 	_check(not gm.complete_current_mission("mars", observation), "an incorrect identification cannot complete L4")
-	_check(gm.complete_current_mission("jupiter", observation), "correctly identified Jupiter completes L4")
+	_check(gm.complete_current_mission(l4_target, observation), "correctly identified Betelgeuse completes L4")
 	_check(int(gm.progress.get("current_level", 0)) == 5, "L4 advances to L5")
 
 

@@ -1,0 +1,30 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1a. L1 refractor skips family selection
+  ok: 1b. L26 newtonian shows family selection
+  ok: 1c. L66 space/IR shows family selection
+  ok: 1d. refractor unlocked at start
+  ok: 1e. newtonian locked at start
+  ok: 1f. locked family cannot proceed
+  ok: 2a. newtonian main assembly complete
+  ok: 2b. newtonian tube interior complete
+  ok: 2c. newtonian collimation written (>=80)
+  ok: 2d. newtonian observation entry open
+  ok: 2e. dobsonian prepared and open
+  ok: 2f. L92 refractor main assembly complete
+  ok: 2g. L92 observation entry open
+  FAIL: 2h. constellation night needs no rig
+  ok: 2i. constellation entry open
+  ok: 3a. constellation binds target
+  ok: 3b. seven key stars
+  ok: 3c. starts in IDENTIFY phase
+  ok: 3d. wrong shape stays in IDENTIFY
+  ok: 3e. correct shape advances to CONNECT
+  ok: 3f. out-of-order star rejected
+  ok: 3g. full pattern advances to NAVIGATE
+  ok: 3h. record locked before aim lock
+  ok: 3i. centered aim reaches READY
+  ok: 3j. record unlocked when all conditions met
+  ok: 3k. no block reason at READY
+EXPANSION PLAYABILITY TEST FAIL (1)

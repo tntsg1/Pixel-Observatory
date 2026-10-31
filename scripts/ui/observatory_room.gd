@@ -1,8 +1,6 @@
 extends Control
 
 const FurnitureAnimator = preload("res://scripts/ui/observatory_furniture_animator.gd")
-const AmbientAnimator = preload("res://scripts/ui/observatory_ambient_animator.gd")
-const MayaHallNPCScript = preload("res://scripts/ui/maya_hall_npc.gd")
 const W := 1024.0
 const H := 768.0
 const ROOM_RECT := Rect2(34, 100, 956, 578)
@@ -17,15 +15,6 @@ const PLAYER_TEXTURE: Texture2D = preload("res://assets/characters/player_observ
 const ASSEMBLY_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_occluders/assembly_table_clean.png")
 const COMPUTER_OCCLUDER_TEXTURE: Texture2D = preload("res://assets/reference/observatory_furniture/remote_instrument_desk_official.png")
 const COMPUTER_VISUAL_RECT := Rect2(764, 520, 172, 172.0 * 210.0 / 274.0)
-# The corkboard + desk's combined painted footprint, sampled directly from the
-# hall art (board frame ~y96-212, desk ~y212-301, both ~x670-886).
-# INTERACTION_RECTS["mission"] is taller still (it starts at y84, under the
-# HUD bar, so the walk-up zone reaches the floor in front of the desk) - the
-# highlight bracket needs this tighter rect or it floats above the board
-# instead of framing it. Do not reuse this for the desk occluder below: that
-# one intentionally covers only the desk's collision footprint, not the
-# wall-mounted board, which the player can never walk behind.
-const MISSION_BOARD_VISUAL_RECT := Rect2(672, 96, 214, 205)
 const PLAYER_FRAME_SIZE := Vector2(64, 96)
 # The supplied frames keep their original pixels. A single uniform scale makes
 # their visible 77 px character match the previous ~66 px in-room height.
@@ -113,18 +102,9 @@ const OBSTACLE_RECTS := [
 	Rect2(499, 417, 24, 27),   # Central telescope pivot only
 ]
 
-# The round brass-and-blue observation platform is scenery the player may step
-# onto, but Maya's autonomous routes must go around it.  Without this dedicated
-# footprint her pathfinder only saw the 24x27 telescope pivot and marched her
-# straight across the painted platform.
-const MAYA_CENTRAL_PLATFORM_CENTER := Vector2(512, 445)
-const MAYA_CENTRAL_PLATFORM_RADII := Vector2(156, 116)
-
 const FURNITURE_OCCLUDER_SPECS := [
 	{
 		"id": "mission",
-		# Desk-only footprint: the board above is wall-mounted and the player
-		# never walks behind it, so only the desk needs occlusion collision.
 		"rect": Rect2(684, 218, 202, 85),
 		"front_y": 296.0,
 		"polygons": [
@@ -197,9 +177,6 @@ var mission_board_popup: Control
 var stats_terminal_popup: Control
 var stats_terminal_animating := false
 var unlock_popup: Control
-var maya_workbench_popup: Control
-var maya_rest_chat_popup: Control
-var maya_workbench_open_progress := 0
 var level_value_label: Label
 var credits_value_label: Label
 var telescope_status_label: Label
@@ -221,7 +198,6 @@ var control_bar: Panel
 var control_bar_toggle: Button
 var control_bar_expanded := false
 var control_bar_manual_revision := 0
-var ambient_animator: ObservatoryAmbientAnimator
 var furniture_animator: ObservatoryFurnitureAnimator
 var furniture_occluders: Array[Dictionary] = []
 var interactables: Array[Dictionary] = []
@@ -243,10 +219,6 @@ var pending_remote_console_scene := ""
 var pending_remote_console_kind := ""
 var furniture_interaction_active := false
 var arrival_furniture_id := ""
-var maya_npc: MayaHallNPC
-var maya_initial_return_state := ""
-var maya_initial_station_id := ""
-var maya_return_pose: Dictionary = {}
 
 
 func _ready() -> void:
@@ -273,10 +245,7 @@ func _ready() -> void:
 	elif GameManager.room_guidance_target != "":
 		active_guidance = "room_guidance"
 	var arrival_id := GameManager.take_observatory_spawn()
-	maya_initial_return_state = _maya_return_state(arrival_id)
-	maya_initial_station_id = arrival_id
 	var return_pose: Dictionary = GameManager.take_observatory_return_pose()
-	maya_return_pose = GameManager.take_maya_observatory_return_pose()
 	if bool(return_pose.get("valid", false)):
 		player_pos = return_pose.get("position", _spawn_position(arrival_id))
 		player_facing = str(return_pose.get("facing", "down"))
@@ -346,12 +315,6 @@ func _show_assembly_return_chain(arrival_id: String) -> void:
 
 
 func _process(delta: float) -> void:
-	if maya_npc != null:
-		maya_npc.set_room_blocked(
-			room_transition_active or unlock_popup != null or stats_terminal_popup != null
-			or mission_board_popup != null or maya_workbench_popup != null
-			or maya_rest_chat_popup != null or furniture_interaction_active
-		)
 	if room_transition_active:
 		_update_hud()
 		return
@@ -361,33 +324,14 @@ func _process(delta: float) -> void:
 	if stats_terminal_popup != null:
 		_update_hud()
 		return
-	if maya_workbench_popup != null:
-		_update_hud()
-		return
-	if maya_rest_chat_popup != null:
-		_update_hud()
-		return
 	_move_player(delta)
 	_poll_action_keys()
 	_update_nearby()
 	_update_hud()
-	_remember_maya_pose()
 
 
 func _input(event: InputEvent) -> void:
 	if room_transition_active:
-		return
-	if maya_workbench_popup != null:
-		if event is InputEventKey:
-			var workbench_key := event as InputEventKey
-			if workbench_key.pressed and not workbench_key.echo and workbench_key.keycode == KEY_ESCAPE:
-				_close_maya_workbench()
-		return
-	if maya_rest_chat_popup != null:
-		if event is InputEventKey:
-			var chat_key := event as InputEventKey
-			if chat_key.pressed and not chat_key.echo and chat_key.keycode == KEY_ESCAPE:
-				_close_maya_rest_chat()
 		return
 	if stats_terminal_popup != null:
 		if event is InputEventKey:
@@ -417,10 +361,6 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		var mouse_event := event as InputEventMouseButton
 		if mouse_event.pressed and mouse_event.button_index == MOUSE_BUTTON_LEFT:
-			if maya_npc != null and maya_npc.contains_screen_point(mouse_event.position):
-				_interact_with_maya()
-				get_viewport().set_input_as_handled()
-				return
 			_interact_at(mouse_event.position)
 
 
@@ -450,7 +390,6 @@ func _event_action_pressed(event: InputEvent, action_name: String) -> bool:
 
 func _build() -> void:
 	control_bar_manual_revision += 1
-	maya_npc = null
 	for child in get_children():
 		child.queue_free()
 	interactables.clear()
@@ -461,145 +400,11 @@ func _build() -> void:
 	_draw_furniture_animation_overlays()
 	_register_hitboxes()
 	_draw_player()
-	_draw_maya_npc()
 	_draw_furniture_occluders()
-	_draw_ambient_life()
 	_draw_hud()
 	_set_player_position(player_pos)
 	_update_nearby()
 	_update_hud()
-
-
-func _draw_ambient_life() -> void:
-	# Complements ObservatoryAmbientAnimator (wall lights, CRT refresh, glints,
-	# dust) rather than repeating it: this layer adds only what that one has no
-	# concept of - a status lamp on each DEVICE showing it is powered and busy
-	# with its own rhythm, the mount still tracking the sky, and the occasional
-	# meteor across the doorway. Dust is left to the existing animator.
-	var life := AmbientLife.new()
-	life.name = "AmbientLife"
-	life.configure({
-		"bounds": ROOM_RECT,
-		"motes": 0,
-		"seed": 20260724,
-		"indicators": [
-			# the console is the busiest thing in the room
-			{"rect": INTERACTION_RECTS["computer"], "style": "data",
-				"tint": Color(0.52, 0.95, 0.68), "ax": 0.80, "ay": 0.22, "phase": 0.0},
-			# assembly bench: powered, waiting for work
-			{"rect": INTERACTION_RECTS["assembly"], "style": "standby",
-				"tint": Color(1.0, 0.72, 0.34), "ax": 0.86, "ay": 0.20, "phase": 1.7},
-			# mission board: an unread-notice blip
-			{"rect": INTERACTION_RECTS["mission"], "style": "pulse",
-				"tint": Color(1.0, 0.86, 0.45), "ax": 0.84, "ay": 0.12, "phase": 0.6},
-			# the mount is still following the sky
-			{"rect": INTERACTION_RECTS["telescope"], "style": "track",
-				"tint": Color(0.60, 0.84, 1.0), "ax": 0.72, "ay": 0.22, "phase": 2.3},
-			{"rect": INTERACTION_RECTS["cabinet"], "style": "idle",
-				"tint": Color(0.70, 0.82, 1.0), "ax": 0.88, "ay": 0.14, "phase": 3.1},
-			{"rect": INTERACTION_RECTS["journal"], "style": "idle",
-				"tint": Color(1.0, 0.80, 0.55), "ax": 0.90, "ay": 0.10, "phase": 4.4},
-		],
-		# A twinkling star field on the observation pad's dome glass, standing
-		# in for the sweeping radar line the pad used to have (cut - it read as
-		# a cheap scanning effect rather than part of the room).
-		"twinkle_zone": Rect2(355, 330, 300, 198),
-		# the doorway looks out at the sky: let a meteor cross it now and then
-		"streak_zone": INTERACTION_RECTS["door"],
-	})
-	add_child(life)
-
-
-func _draw_maya_npc() -> void:
-	maya_npc = MayaHallNPCScript.new() as MayaHallNPC
-	maya_npc.name = "MayaHallNPC"
-	add_child(maya_npc)
-	var start := Vector2(512, 292)
-	var initial_facing := "down"
-	if bool(maya_return_pose.get("valid", false)):
-		start = maya_return_pose.get("position", start)
-		initial_facing = str(maya_return_pose.get("facing", "down"))
-	elif maya_initial_return_state != "" and maya_initial_station_id in [
-		"cabinet", "door", "mission", "assembly", "telescope", "journal", "computer"
-	]:
-		start = _maya_destination_for(maya_initial_station_id)
-	maya_npc.setup(
-		start,
-		Callable(self, "_maya_position_is_walkable"),
-		Callable(self, "_maya_player_position"),
-		Callable(self, "_maya_destination_for"),
-		Callable(self, "_maya_route_target"),
-		maya_initial_return_state,
-		initial_facing,
-		Callable(self, "_maya_focus_for")
-	)
-	# A stale or malformed runtime pose must never place her inside furniture.
-	if not _maya_position_is_walkable(maya_npc.position):
-		maya_npc.position = _maya_destination_for(maya_initial_station_id) \
-			if maya_initial_station_id != "" else Vector2(512, 292)
-
-
-func _maya_position_is_walkable(pos: Vector2) -> bool:
-	var foot_rect := Rect2(pos - Vector2(8, 8), Vector2(16, 8))
-	if not _player_rect_is_on_walkable_floor(foot_rect):
-		return false
-	var platform_offset := pos - MAYA_CENTRAL_PLATFORM_CENTER
-	var normalized_platform_offset := Vector2(
-		platform_offset.x / MAYA_CENTRAL_PLATFORM_RADII.x,
-		platform_offset.y / MAYA_CENTRAL_PLATFORM_RADII.y
-	)
-	if normalized_platform_offset.length_squared() <= 1.0:
-		return false
-	for obstacle in obstacles:
-		if foot_rect.intersects(obstacle):
-			return false
-	return true
-
-
-func _maya_player_position() -> Vector2:
-	return player_pos
-
-
-func _maya_destination_for(destination_id: String) -> Vector2:
-	var destinations := {
-		"cabinet": Vector2(360, 326),
-		"door": Vector2(590, 310),
-		"mission": Vector2(665, 324),
-		# Use the middle of the clear aisle in front of the workbench.  The old
-		# left-side waypoint made Maya look detached from the telescope she was
-		# meant to be assembling.
-		"assembly": Vector2(852, 540),
-		# Observe from the clear right-hand aisle instead of standing on, or
-		# routing across, the central circular platform.
-		"telescope": Vector2(680, 496),
-		"journal": Vector2(322, 590),
-		"computer": Vector2(724, 620),
-	}
-	return destinations.get(destination_id, Vector2(600, 620))
-
-
-func _maya_focus_for(destination_id: String) -> Vector2:
-	var station_rect: Rect2 = INTERACTION_RECTS.get(destination_id, Rect2())
-	return station_rect.get_center() if station_rect.size != Vector2.ZERO \
-		else _maya_destination_for(destination_id)
-
-
-func _maya_route_target() -> String:
-	return GameManager.room_guidance_target
-
-
-func _maya_return_state(arrival_id: String) -> String:
-	if arrival_id == "assembly" and GameManager.telescope_is_ready():
-		return "assembly_success"
-	if arrival_id == "computer" and not GameManager.last_observation.is_empty():
-		return "remote_success"
-	if arrival_id == "journal" and not GameManager.last_observation.is_empty():
-		return "journal_saved"
-	if arrival_id in ["telescope", "door"] and not GameManager.last_observation.is_empty():
-		return "observation_success"
-	if bool(GameManager.progress.get("graduation_seen", false)):
-		return "graduated"
-	return ""
 
 
 func _draw_full_background() -> void:
@@ -636,10 +441,6 @@ func _draw_official_remote_terminal() -> void:
 
 
 func _draw_furniture_animation_overlays() -> void:
-	ambient_animator = AmbientAnimator.new()
-	ambient_animator.name = "AmbientAnimator"
-	add_child(ambient_animator)
-	ambient_animator.setup()
 	furniture_animator = FurnitureAnimator.new()
 	furniture_animator.name = "FurnitureAnimator"
 	add_child(furniture_animator)
@@ -777,7 +578,7 @@ func _draw_space_console_overlay() -> void:
 func _register_hitboxes() -> void:
 	_register_interactable("cabinet", GameManager.text("Parts Cabinet", "零件柜"), GameManager.text("Review unlocked telescope parts.", "查看已解锁的望远镜零件。"), INTERACTION_RECTS["cabinet"])
 	_register_interactable("door", GameManager.text("Observatory Dome", "圆顶观星站"), GameManager.text("The ridge dome: wind-shielded formal station with its own control room. Same sky as the pad - steadier housing.", "山脊圆顶：挡风的正式观测站，带控制室。和露天观测台看同一片天空，但圆顶更稳、更抗风。"), INTERACTION_RECTS["door"])
-	_register_interactable("mission", GameManager.text("Mission Board", "任务公告板"), GameManager.text("Read the current level goal here.", "在此查看当前关卡目标。"), INTERACTION_RECTS["mission"], MISSION_BOARD_VISUAL_RECT)
+	_register_interactable("mission", GameManager.text("Mission Board", "任务公告板"), GameManager.text("Read the current level goal here.", "在此查看当前关卡目标。"), INTERACTION_RECTS["mission"])
 	_register_interactable("assembly", GameManager.text("Assembly Table", "组装台"), GameManager.text("Build and align the telescope.", "组装和校准望远镜。"), INTERACTION_RECTS["assembly"])
 	if GameManager.postgraduate_free_build():
 		var active_family := GameManager.active_optical_telescope_family()
@@ -803,23 +604,16 @@ func _register_hitboxes() -> void:
 		"computer",
 		GameManager.text("Remote Instrument Console", "远程仪器控制台"),
 		GameManager.text("Control the space infrared observatory and FAST radio array.", "控制空间红外天文台与 FAST 射电阵列。"),
-		INTERACTION_RECTS["computer"],
-		COMPUTER_VISUAL_RECT)
+		INTERACTION_RECTS["computer"])
 
 	# Foot blockers preserve the top-down walkable floor while preventing the
 	# player from standing inside furniture, the telescope base, or stools.
 	obstacles.append_array(OBSTACLE_RECTS)
 
 
-func _register_interactable(id: String, display_name: String, hint: String, rect: Rect2, visual_rect := Rect2()) -> void:
-	# `rect` is the forgiving walk-up interaction zone (also used for the E
-	# hint and click target) - it is deliberately larger than the furniture's
-	# painted footprint so the player does not have to stand pixel-precise.
-	# The highlight bracket must NOT use that loose zone directly, or it reads
-	# as boxing empty floor instead of framing the actual console/board.
-	var frame_rect := visual_rect if visual_rect.size != Vector2.ZERO else rect
+func _register_interactable(id: String, display_name: String, hint: String, rect: Rect2) -> void:
 	var frame_color := BRASS if _is_ready_observation_target(id) else CYAN
-	var frame := _thin_highlight_frame(frame_rect, frame_color)
+	var frame := _thin_highlight_frame(rect, frame_color)
 	frame.modulate.a = 0.0
 	var click_target := _transparent_click_target(rect, id)
 	interactables.append({
@@ -835,16 +629,12 @@ func _register_interactable(id: String, display_name: String, hint: String, rect
 func _draw_player() -> void:
 	player_shadow = _rect(_player_shadow_position(), Vector2(26, 7), Color(0.0, 0.0, 0.0, 0.32))
 	player = Sprite2D.new()
-	player.name = "Player"
 	player_atlas = AtlasTexture.new()
 	player_atlas.atlas = PLAYER_TEXTURE
 	player.texture = player_atlas
 	player.position = _player_visual_position()
 	player.centered = true
 	player.scale = Vector2.ONE * PLAYER_DISPLAY_SCALE
-	# Both actors normally share z=1. Maya only brackets this layer while their
-	# sprites physically overlap, so furniture treats them consistently.
-	player.z_index = 1
 	player.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_child(player)
 	_set_player_animation_frame(player_facing, 0)
@@ -857,9 +647,6 @@ func _draw_furniture_occluders() -> void:
 		var rect: Rect2 = spec.get("rect", Rect2())
 		var occluder := Node2D.new()
 		occluder.name = "FurnitureOccluder_%s" % str(spec.get("id", "table"))
-		# These cutouts appear only while an actor is physically behind a prop, so
-		# they must remain above both character depth bands.
-		occluder.z_index = 3
 		occluder.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		occluder.visible = false
 		var cutout_texture := spec.get("texture") as Texture2D
@@ -899,29 +686,19 @@ func _draw_furniture_occluders() -> void:
 
 
 func _update_furniture_occlusion() -> void:
-	if player == null and maya_npc == null:
+	if player == null:
 		return
-	var visual_rect := Rect2()
-	if player != null:
-		visual_rect = Rect2(
-			_player_visual_position() - PLAYER_DISPLAY_SIZE * 0.5,
-			PLAYER_DISPLAY_SIZE
-		)
-	var maya_in_front_of_furniture := false
+	var visual_rect := Rect2(
+		_player_visual_position() - PLAYER_DISPLAY_SIZE * 0.5,
+		PLAYER_DISPLAY_SIZE
+	)
 	for data in furniture_occluders:
 		var occluder := data.get("node") as CanvasItem
 		if occluder == null:
 			continue
 		var furniture_rect: Rect2 = data.get("rect", Rect2())
-		var front_y := float(data.get("front_y", furniture_rect.end.y))
-		var player_behind := player != null and player_pos.y <= front_y \
-			and visual_rect.intersects(furniture_rect)
-		var maya_behind := maya_npc != null and maya_npc.is_behind_furniture(furniture_rect, front_y)
-		var maya_in_front := maya_npc != null and maya_npc.is_in_front_of_furniture(furniture_rect, front_y)
-		maya_in_front_of_furniture = maya_in_front_of_furniture or maya_in_front
-		occluder.visible = player_behind or maya_behind
-	if maya_npc != null:
-		maya_npc.set_furniture_front_layer(maya_in_front_of_furniture)
+		var is_behind := player_pos.y <= float(data.get("front_y", furniture_rect.end.y))
+		occluder.visible = is_behind and visual_rect.intersects(furniture_rect)
 
 
 func _draw_hud() -> void:
@@ -1009,9 +786,7 @@ func _draw_hud_lower() -> void:
 	guidance_panel.position = Vector2(222, 76)
 	guidance_panel.size = Vector2(580, 170)
 	guidance_panel.add_theme_stylebox_override("panel", _style(Color(0.030, 0.045, 0.080, 0.96), BRASS, 3, 6))
-	# Maya now guides in-world with a compact thought bubble. Keep this legacy
-	# card as a data container for route copy, but never let it cover the room.
-	guidance_panel.visible = false
+	guidance_panel.visible = InteractionFeedback.guidance_highlights_enabled()
 	add_child(guidance_panel)
 	_corner_pins(guidance_panel)
 	guidance_maya_portrait = MayaPortrait.create(
@@ -1206,19 +981,7 @@ func _open_main_menu() -> void:
 	# exact foot position and facing instead of falling back to a furniture
 	# spawn when Continue returns to the observatory.
 	GameManager.remember_observatory_pose(player_pos, player_facing)
-	_remember_maya_pose()
 	GameManager.go("menu")
-
-
-func _remember_maya_pose(begin_observation_hall_roam: bool = false) -> void:
-	if maya_npc == null:
-		return
-	maya_npc.remember_player_departure(begin_observation_hall_roam)
-	GameManager.remember_maya_observatory_pose(
-		maya_npc.position,
-		maya_npc.current_facing(),
-		maya_npc.current_destination_id()
-	)
 
 
 func _player_visual_position() -> Vector2:
@@ -1360,9 +1123,7 @@ func _update_nearby() -> void:
 	if mobile_overlay != null:
 		# Interact button mirrors the E key: enabled near an interactable
 		# and labeled with the object's name.
-		if nearby_id == "" and maya_npc != null and maya_npc.player_is_near():
-			mobile_overlay.set_action_enabled("interact", true, maya_npc.interaction_prompt())
-		elif nearby_id == "":
+		if nearby_id == "":
 			mobile_overlay.set_action_enabled("interact", false, GameManager.text("Interact", "互动"))
 		else:
 			mobile_overlay.set_action_enabled("interact", true, str(_get_interactable(nearby_id).get("name", "")))
@@ -1392,10 +1153,7 @@ func _update_hud() -> void:
 		telescope_status_label.add_theme_color_override("font_color", Color(0.48, 0.95, 0.36) if ready else Color(0.95, 0.72, 0.36))
 
 	if nearby_id == "":
-		if maya_npc != null and maya_npc.player_is_near():
-			focus_label.text = "[E] " + maya_npc.interaction_prompt()
-		else:
-			focus_label.text = GameManager.text("Move around the observatory room", "在观测室里移动")
+		focus_label.text = GameManager.text("Move around the observatory room", "在观测室里移动")
 		if _has_feedback_override():
 			InteractionFeedback.crossfade_text(feedback_label, feedback_override)
 		elif GameManager.room_guidance_target != "" and InteractionFeedback.guidance_highlights_enabled():
@@ -1427,287 +1185,14 @@ func _update_hud() -> void:
 func _interact_with_nearby() -> void:
 	if nearby_id != "":
 		_handle_interaction(nearby_id)
-	elif maya_npc != null and maya_npc.player_is_near():
-		_interact_with_maya()
 
 
 func _interact_at(pos: Vector2) -> void:
-	if maya_npc != null and maya_npc.contains_screen_point(pos):
-		_interact_with_maya()
-		return
 	for data in interactables:
 		var rect: Rect2 = data["rect"]
 		if rect.grow(12).has_point(pos):
 			_click_interactable(str(data["id"]))
 			return
-
-
-func _interact_with_maya() -> void:
-	if maya_npc == null:
-		return
-	var request := maya_npc.postgraduate_interaction_request()
-	maya_npc.respond_to_player()
-	if str(request.get("action", "")) == "open_workbench":
-		_open_maya_workbench()
-		return
-	if str(request.get("action", "")) == "rest_chat":
-		_open_maya_rest_chat()
-		return
-	if str(request.get("action", "")) != "join_observation":
-		return
-	var object_id := str(request.get("object_id", ""))
-	_remember_maya_pose(true)
-	var instrument := {
-		"id": str(request.get("instrument_id", "")),
-		"name_en": str(request.get("instrument_name_en", "")),
-		"name_zh": str(request.get("instrument_name_zh", "")),
-		"night_id": str(request.get("night_id", "clear_stable")),
-	}
-	if GameManager.go_to_maya_companion_observation(object_id, instrument, "telescope"):
-		maya_npc.remember_joined_observation()
-		return
-	_show_feedback(maya_npc.editable_text("companion_not_ready"), 4200)
-
-
-func _open_maya_workbench() -> void:
-	if maya_workbench_popup != null or maya_npc == null:
-		return
-	_suspend_room_guidance_for_modal()
-	maya_workbench_open_progress = int(maya_npc.postgraduate_work_snapshot().get("assembly_progress", 0))
-	maya_workbench_popup = Control.new()
-	maya_workbench_popup.name = "MayaCollaborativeWorkbench"
-	maya_workbench_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
-	maya_workbench_popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	maya_workbench_popup.z_index = COMPUTER_MODAL_LAYER
-	add_child(maya_workbench_popup)
-
-	var dim := ColorRect.new()
-	dim.color = Color(0.005, 0.010, 0.022, 0.76)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	maya_workbench_popup.add_child(dim)
-
-	var panel := Panel.new()
-	panel.name = "MayaWorkbenchPanel"
-	panel.position = Vector2(190, 112)
-	panel.size = Vector2(644, 536)
-	panel.add_theme_stylebox_override("panel", _style(Color(0.020, 0.037, 0.064, 0.99), Color(0.47, 0.82, 0.98), 2, 8))
-	maya_workbench_popup.add_child(panel)
-	_board_label(panel, maya_npc.editable_text("workbench_title"), Vector2(28, 22), Vector2(588, 30), 20, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
-	_board_label(
-		panel,
-		maya_npc.editable_text("workbench_subtitle"),
-		Vector2(28, 54), Vector2(588, 22), 12, Color(0.58, 0.84, 0.96), HORIZONTAL_ALIGNMENT_CENTER
-	)
-	_rect_to(panel, Vector2(26, 86), Vector2(592, 1), Color(0.34, 0.58, 0.75, 0.72))
-	var content := Control.new()
-	content.name = "MayaWorkbenchContent"
-	content.position = Vector2(26, 98)
-	content.size = Vector2(592, 356)
-	panel.add_child(content)
-	var close := _board_button(
-		panel, maya_npc.editable_text("workbench_close"),
-		Vector2(34, 470), Vector2(220, 42), Color(0.08, 0.13, 0.20), Color(0.35, 0.55, 0.72)
-	)
-	close.name = "MayaWorkbenchCloseButton"
-	close.pressed.connect(_close_maya_workbench)
-	var assist := _board_button(
-		panel, maya_npc.editable_text("workbench_assist"),
-		Vector2(270, 470), Vector2(340, 42), Color(0.08, 0.24, 0.28), Color(0.42, 0.90, 0.88)
-	)
-	assist.name = "MayaWorkbenchAssistButton"
-	assist.pressed.connect(_assist_maya_at_workbench)
-	_refresh_maya_workbench()
-	InteractionFeedback.page_enter(maya_workbench_popup, Vector2(0, 8))
-
-
-func _refresh_maya_workbench() -> void:
-	if maya_workbench_popup == null or maya_npc == null:
-		return
-	var panel := maya_workbench_popup.find_child("MayaWorkbenchPanel", true, false) as Panel
-	var content := maya_workbench_popup.find_child("MayaWorkbenchContent", true, false) as Control
-	var assist := maya_workbench_popup.find_child("MayaWorkbenchAssistButton", true, false) as Button
-	if panel == null or content == null or assist == null:
-		return
-	for child in content.get_children():
-		child.queue_free()
-	var work := maya_npc.postgraduate_work_snapshot()
-	var chinese := GameManager.language_mode == "zh"
-	var instrument_name := str(work.get("instrument_name_zh" if chinese else "instrument_name_en", ""))
-	var target_name := str(work.get("target_name_zh" if chinese else "target_name_en", ""))
-	var night_name := str(work.get("night_name_zh" if chinese else "night_name_en", ""))
-	var event_name := str(work.get("event_name_zh" if chinese else "event_name_en", ""))
-	var night_display := night_name if event_name == "" else "%s · %s" % [night_name, event_name]
-	var progress := int(work.get("assembly_progress", 0))
-	var steps_value: Variant = work.get("assembly_steps_zh" if chinese else "assembly_steps_en", [])
-	var steps: Array = steps_value if steps_value is Array else []
-	_board_label(content, maya_npc.editable_text("workbench_instrument"), Vector2(8, 4), Vector2(130, 20), 11, Color(0.52, 0.82, 1.0))
-	_board_label(content, instrument_name, Vector2(138, 0), Vector2(438, 26), 17, WARM_TEXT)
-	_board_label(content, maya_npc.editable_text("workbench_target"), Vector2(8, 34), Vector2(130, 20), 11, Color(0.52, 0.82, 1.0))
-	_board_label(content, target_name, Vector2(138, 30), Vector2(438, 26), 17, Color(0.98, 0.84, 0.45))
-	_board_label(content, maya_npc.editable_text("workbench_night"), Vector2(8, 64), Vector2(130, 20), 11, Color(0.52, 0.82, 1.0))
-	_board_label(content, night_display, Vector2(138, 60), Vector2(438, 26), 15, Color(0.68, 0.91, 0.96))
-	var progress_text := maya_npc.editable_text("workbench_progress", {
-		"progress": progress,
-		"total": steps.size(),
-	})
-	_board_label(content, progress_text, Vector2(8, 94), Vector2(568, 24), 13, Color(0.64, 0.94, 0.86))
-	var assembly_row_height := 44.0 if steps.size() > 3 else 52.0
-	var assembly_row_step := 52.0 if steps.size() > 3 else 62.0
-	var assembly_row_start := 120.0 if steps.size() > 3 else 126.0
-	for index in range(steps.size()):
-		var complete := index < progress
-		var row := Panel.new()
-		row.position = Vector2(8, assembly_row_start + index * assembly_row_step)
-		row.size = Vector2(568, assembly_row_height)
-		row.add_theme_stylebox_override("panel", _style(
-			Color(0.04, 0.13, 0.13, 0.92) if complete else Color(0.035, 0.055, 0.085, 0.94),
-			Color(0.38, 0.88, 0.68) if complete else Color(0.25, 0.39, 0.55), 1, 5
-		))
-		content.add_child(row)
-		_board_label(row, "✓" if complete else str(index + 1), Vector2(12, 5), Vector2(38, 34), 18, Color(0.50, 1.0, 0.72) if complete else BRASS, HORIZONTAL_ALIGNMENT_CENTER)
-		_board_label(row, str(steps[index]), Vector2(62, 5), Vector2(488, 34), 14, WARM_TEXT)
-	var relationship_stage := str(work.get("relationship_stage", "colleague"))
-	var relationship_name := maya_npc.editable_text("relationship_colleague")
-	match relationship_stage:
-		"familiar":
-			relationship_name = maya_npc.editable_text("relationship_familiar")
-		"trusted":
-			relationship_name = maya_npc.editable_text("relationship_trusted")
-	var project_caption := maya_npc.editable_text("shared_project", {
-		"cycle": int(work.get("cycle", 1)),
-		"relationship": relationship_name,
-	})
-	_board_label(content, project_caption, Vector2(8, 320), Vector2(568, 24), 11, Color(0.52, 0.68, 0.78), HORIZONTAL_ALIGNMENT_CENTER)
-	assist.disabled = progress >= steps.size() or str(work.get("phase", "")) != "assembling"
-	assist.text = maya_npc.editable_text("workbench_finish") \
-		if progress == steps.size() - 1 else maya_npc.editable_text("workbench_assist")
-
-
-func _assist_maya_at_workbench() -> void:
-	if maya_npc == null:
-		return
-	var result := maya_npc.assist_postgraduate_assembly()
-	if str(result.get("phase", "")) == "observing":
-		_close_maya_workbench(true)
-		_show_feedback(maya_npc.editable_text("assembly_complete"), 3600)
-		return
-	_refresh_maya_workbench()
-
-
-func _close_maya_workbench(completed: bool = false) -> void:
-	if maya_workbench_popup == null:
-		return
-	var close_progress := maya_workbench_open_progress
-	if maya_npc != null:
-		close_progress = int(maya_npc.postgraduate_work_snapshot().get("assembly_progress", close_progress))
-	var popup := maya_workbench_popup
-	maya_workbench_popup = null
-	InteractionFeedback.fade_then(popup, popup.queue_free)
-	_resume_room_guidance_after_modal()
-	if not completed and maya_npc != null:
-		maya_npc.react_to_workbench_walkaway(maya_workbench_open_progress, close_progress)
-	maya_workbench_open_progress = 0
-
-
-func _open_maya_rest_chat() -> void:
-	if maya_rest_chat_popup != null or maya_npc == null:
-		return
-	var chat := maya_npc.postgraduate_rest_chat_snapshot()
-	var topics_value: Variant = chat.get("topics", [])
-	var topics: Array = topics_value if topics_value is Array else []
-	if topics.is_empty():
-		return
-	_suspend_room_guidance_for_modal()
-	maya_rest_chat_popup = Control.new()
-	maya_rest_chat_popup.name = "MayaRestConversation"
-	maya_rest_chat_popup.set_anchors_preset(Control.PRESET_FULL_RECT)
-	maya_rest_chat_popup.mouse_filter = Control.MOUSE_FILTER_STOP
-	maya_rest_chat_popup.z_index = COMPUTER_MODAL_LAYER
-	add_child(maya_rest_chat_popup)
-
-	var dim := ColorRect.new()
-	dim.color = Color(0.005, 0.010, 0.022, 0.72)
-	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
-	dim.mouse_filter = Control.MOUSE_FILTER_STOP
-	maya_rest_chat_popup.add_child(dim)
-
-	var panel := Panel.new()
-	panel.name = "MayaRestConversationPanel"
-	panel.position = Vector2(220, 134)
-	panel.size = Vector2(584, 500)
-	panel.add_theme_stylebox_override("panel", _style(Color(0.024, 0.035, 0.055, 0.99), Color(0.73, 0.58, 0.36), 2, 9))
-	maya_rest_chat_popup.add_child(panel)
-	_board_label(panel, str(chat.get("title", "")), Vector2(24, 20), Vector2(536, 30), 20, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
-	_board_label(
-		panel,
-		maya_npc.editable_text("rest_tonight", {"night": str(chat.get("night_name", ""))}),
-		Vector2(24, 52), Vector2(536, 22), 12, Color(0.60, 0.83, 0.92), HORIZONTAL_ALIGNMENT_CENTER
-	)
-	var intro := _board_label(panel, str(chat.get("intro", "")), Vector2(38, 80), Vector2(508, 44), 13, Color(0.76, 0.80, 0.82), HORIZONTAL_ALIGNMENT_CENTER)
-	intro.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-
-	var response_panel := Panel.new()
-	response_panel.position = Vector2(30, 132)
-	response_panel.size = Vector2(524, 104)
-	response_panel.add_theme_stylebox_override("panel", _style(Color(0.038, 0.057, 0.078, 0.96), Color(0.32, 0.46, 0.58), 1, 6))
-	panel.add_child(response_panel)
-	_board_label(response_panel, "MAYA", Vector2(16, 10), Vector2(70, 18), 11, Color(0.52, 0.82, 1.0))
-	var response := _board_label(
-		response_panel,
-		maya_npc.editable_text("rest_prompt"),
-		Vector2(16, 32), Vector2(492, 58), 14, WARM_TEXT
-	)
-	response.name = "MayaRestConversationResponse"
-	response.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	response.max_lines_visible = 3
-
-	var five_topic_layout := topics.size() > 4
-	var topic_height := 34.0 if five_topic_layout else (40.0 if topics.size() > 3 else 46.0)
-	var topic_step := 38.0 if five_topic_layout else (44.0 if topics.size() > 3 else 56.0)
-	var topic_start_y := 238.0 if five_topic_layout else (244.0 if topics.size() > 3 else 252.0)
-	for index in range(topics.size()):
-		var topic_value: Variant = topics[index]
-		if not topic_value is Dictionary:
-			continue
-		var topic := topic_value as Dictionary
-		var topic_id := str(topic.get("id", ""))
-		var button := _board_button(
-			panel, str(topic.get("label", "")),
-			Vector2(42, topic_start_y + index * topic_step), Vector2(500, topic_height),
-			Color(0.055, 0.085, 0.115), Color(0.36, 0.51, 0.62)
-		)
-		button.name = "MayaRestTopic_%s" % topic_id
-		button.pressed.connect(_choose_maya_rest_topic.bind(topic_id))
-	var close := _board_button(
-		panel, maya_npc.editable_text("rest_close"),
-		Vector2(172, 432), Vector2(240, 42), Color(0.10, 0.12, 0.15), Color(0.55, 0.45, 0.34)
-	)
-	close.name = "MayaRestConversationCloseButton"
-	close.pressed.connect(_close_maya_rest_chat)
-	InteractionFeedback.page_enter(maya_rest_chat_popup, Vector2(0, 8))
-
-
-func _choose_maya_rest_topic(topic_id: String) -> void:
-	if maya_rest_chat_popup == null or maya_npc == null:
-		return
-	var response := maya_rest_chat_popup.find_child("MayaRestConversationResponse", true, false) as Label
-	if response == null:
-		return
-	var reply := maya_npc.postgraduate_rest_response(topic_id)
-	if reply == "":
-		return
-	response.text = reply
-	InteractionFeedback.pulse(response)
-
-
-func _close_maya_rest_chat() -> void:
-	if maya_rest_chat_popup == null:
-		return
-	var popup := maya_rest_chat_popup
-	maya_rest_chat_popup = null
-	InteractionFeedback.fade_then(popup, popup.queue_free)
-	_resume_room_guidance_after_modal()
 
 
 func _click_interactable(id: String) -> void:
@@ -1720,9 +1205,6 @@ func _click_interactable(id: String) -> void:
 func _handle_interaction(id: String) -> void:
 	if furniture_interaction_active:
 		return
-	_remember_maya_pose()
-	if maya_npc != null:
-		maya_npc.react_to_interaction(id, "open")
 	if id == "mission":
 		GameManager.set_observatory_spawn("mission")
 		_toggle_mission_board()
@@ -1734,7 +1216,6 @@ func _handle_interaction(id: String) -> void:
 		_play_furniture_action("door", _enter_observatory_door)
 	elif id == "telescope":
 		if GameManager.postgraduate_free_build() or _space_console_active():
-			_remember_maya_pose(true)
 			if GameManager.go_to_local_optical_observation("telescope"):
 				GameManager.clear_room_guidance()
 				return
@@ -1752,7 +1233,6 @@ func _handle_interaction(id: String) -> void:
 		if bool(gate.get("ok", false)):
 			GameManager.set_observatory_spawn("telescope")
 			GameManager.clear_room_guidance()
-			_remember_maya_pose(true)
 			_enter_sky_or_relocate("telescope")
 		else:
 			_show_feedback(GameManager.text(
@@ -2233,9 +1713,8 @@ func _open_mission_board() -> void:
 	panel.name = "MissionBoardPanel"
 	panel.position = Vector2(36, 60)
 	panel.size = Vector2(952, 650)
-	panel.add_theme_stylebox_override("panel", _depth_style(Color(0.035, 0.050, 0.090, 0.98), BRASS, 3, 5))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.035, 0.050, 0.090, 0.98), BRASS, 3, 5))
 	mission_board_popup.add_child(panel)
-	UiKit.add_bevel(mission_board_popup, Rect2(panel.position, panel.size))
 	_corner_pins(panel)
 
 	_board_label(panel, GameManager.text("CLUB MISSION", "俱乐部任务"), Vector2(22, 16), Vector2(220, 18), 12, BRASS)
@@ -2244,20 +1723,69 @@ func _open_mission_board() -> void:
 	var title := _board_label(panel, GameManager.dict_text(level, "title"), Vector2(22, 38), Vector2(660, 34), 24, WARM_TEXT)
 	title.max_lines_visible = 1
 	var target_name := GameManager.dict_text(target, "name")
+	if GameManager.level_requires_target_choice() and not GameManager.has_chosen_level_target():
+		target_name = GameManager.text("your choice (%d options)", "由你决定（%d 选 1）") % GameManager.target_choices().size()
 	_board_label(panel, GameManager.text("Target: ", "目标：") + target_name, Vector2(22, 78), Vector2(430, 22), 15, Color(0.96, 0.84, 0.46))
 	_board_label(panel, GameManager.text("Mode: ", "模式：") + _mission_observation_mode_text(), Vector2(462, 78), Vector2(228, 22), 14, CYAN)
 	_board_label(panel, _mission_readiness_text(route), Vector2(688, 78), Vector2(240, 22), 12, _mission_readiness_color(route), HORIZONTAL_ALIGNMENT_RIGHT)
 	_rect_to(panel, Vector2(20, 110), Vector2(912, 1), Color(0.35, 0.45, 0.62, 0.72))
 
-	var route_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("MISSION ROUTE", "任务路线"))
-	_build_mission_checklist(route_panel, route)
+	# An assessment level hands the decision to the player. Until a target is
+	# picked the route is meaningless, so the choice replaces it outright.
+	var choice_pending := GameManager.level_requires_target_choice() and not GameManager.has_chosen_level_target()
+	if choice_pending:
+		var choice_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("CHOOSE YOUR TARGET", "选择你的目标"))
+		_build_target_choice_panel(choice_panel)
+	else:
+		var route_panel := _board_section(panel, Vector2(20, 128), Vector2(514, 326), GameManager.text("MISSION ROUTE", "任务路线"))
+		_build_mission_checklist(route_panel, route)
+		if GameManager.level_requires_target_choice():
+			var change_button := _board_button(
+				panel,
+				GameManager.text("Change\nTarget", "更换目标"),
+				Vector2(24, 582),
+				Vector2(136, 42),
+				Color(0.10, 0.14, 0.26),
+				Color(0.52, 0.62, 0.86)
+			)
+			change_button.name = "ChangeTargetButton"
+			change_button.add_theme_font_size_override("font_size", 12)
+			change_button.pressed.connect(_reopen_target_choice)
 
 	var info_panel := _board_section(panel, Vector2(550, 128), Vector2(382, 326), GameManager.text("MAYA'S NOTE", "玛雅的提示"))
 	_build_mission_info_panel(info_panel, level, route)
 	_build_mission_reward_preview(panel, level)
 
-	var route_label := _board_label(panel, "", Vector2(26, 536), Vector2(900, 30), 14, Color(1.0, 0.82, 0.34), HORIZONTAL_ALIGNMENT_CENTER)
-	route_label.text = GameManager.text("Next: ", "下一步：") + str(route.get("action", ""))
+	# A level that involves pointing anywhere near the Sun's part of the sky
+	# carries a standing safety warning. It is never optional and never hidden
+	# behind a scroll, so it takes its own line above the route.
+	var safety_text := GameManager.dict_text(level, "safety_notice")
+	var route_y := 536.0
+	if safety_text != "":
+		var safety_strip := _rect_to(panel, Vector2(20, 518), Vector2(912, 22), Color(0.34, 0.16, 0.06, 0.85))
+		safety_strip.name = "SafetyNoticeStrip"
+		var safety_label := _board_label(
+			panel,
+			"⚠ " + safety_text,
+			Vector2(26, 521),
+			Vector2(900, 18),
+			10,
+			Color(1.0, 0.76, 0.42)
+		)
+		safety_label.name = "SafetyNoticeLabel"
+		safety_label.clip_text = true
+		route_y = 548.0
+
+	var route_label := _board_label(panel, "", Vector2(26, route_y), Vector2(900, 26), 14, Color(1.0, 0.82, 0.34), HORIZONTAL_ALIGNMENT_CENTER)
+	if choice_pending:
+		# The placeholder target must not be announced as the next action - the
+		# player has not picked anything yet.
+		route_label.text = GameManager.text(
+			"Next: choose one of the three targets above",
+			"下一步：从上面三个目标中选择一个"
+		)
+	else:
+		route_label.text = GameManager.text("Next: ", "下一步：") + str(route.get("action", ""))
 	route_label.clip_text = true
 
 	var go_button := _board_button(panel, GameManager.text("Show Route", "显示路线"), Vector2(168, 582), Vector2(250, 42), Color(0.08, 0.28, 0.22), Color(0.56, 0.90, 0.54))
@@ -2292,9 +1820,8 @@ func _open_graduated_mission_board() -> void:
 	panel.name = "GraduatedMissionBoardPanel"
 	panel.position = Vector2(112, 82)
 	panel.size = Vector2(800, 602)
-	panel.add_theme_stylebox_override("panel", _depth_style(Color(0.035, 0.050, 0.090, 0.99), BRASS, 3, 5))
+	panel.add_theme_stylebox_override("panel", _style(Color(0.035, 0.050, 0.090, 0.99), BRASS, 3, 5))
 	mission_board_popup.add_child(panel)
-	UiKit.add_bevel(mission_board_popup, Rect2(panel.position, panel.size))
 	_corner_pins(panel)
 
 	_board_label(panel, GameManager.text("ASTRONOMY CLUB RECORD", "天文俱乐部记录"), Vector2(28, 20), Vector2(744, 24), 13, BRASS, HORIZONTAL_ALIGNMENT_CENTER)
@@ -2342,8 +1869,6 @@ func _close_mission_board(show_guidance: bool) -> void:
 		InteractionFeedback.fade_then(popup, popup.queue_free)
 	if furniture_animator != null:
 		furniture_animator.play_close("mission")
-	if maya_npc != null:
-		maya_npc.react_to_interaction("mission", "close")
 	if show_guidance:
 		var route := _mission_board_route()
 		GameManager.set_room_guidance(str(route.get("target", "")), str(route.get("title", "")), str(route.get("hint", "")))
@@ -2375,6 +1900,8 @@ func _mission_observation_mode_text() -> String:
 
 
 func _mission_readiness_text(route: Dictionary) -> String:
+	if bool(route.get("choice_pending", false)):
+		return GameManager.text("CHOOSE A TARGET", "请先选择目标")
 	if bool(route.get("ready", false)):
 		return GameManager.text("READY TO OBSERVE", "可以观测")
 	var missing_names := _mission_missing_names()
@@ -2409,7 +1936,7 @@ func _mission_board_checklist(route: Dictionary) -> Array:
 	var level := GameManager.current_level()
 	var rows: Array = []
 	rows.append({"label": GameManager.text("Read Maya's note", "阅读玛雅的提示"), "done": true})
-	if GameManager.current_observation_mode() == "naked_eye":
+	if not GameManager.current_requires_telescope():
 		rows.append({"label": GameManager.text("Start naked-eye observation", "开始肉眼观测"), "done": false})
 	else:
 		var exact_missing := GameManager.missing_required_parts()
@@ -2462,18 +1989,30 @@ func _mission_special_rows(level: Dictionary) -> Array:
 	var rows: Array = []
 	match variation:
 		"eyepiece_comparison":
+			# Driven by the level's own mission_steps so the checklist always
+			# names the eyepieces the mission actually asks for, and the tick
+			# marks track the real step ids. (This used to hardcode a two-pass
+			# 20mm/10mm comparison, which silently went stale when the mission
+			# changed.)
 			var steps_done := GameManager.completed_mission_steps()
+			var all_done := true
+			for step_value in GameManager.mission_steps():
+				if not step_value is Dictionary:
+					continue
+				var step: Dictionary = step_value
+				var step_id := str(step.get("id", ""))
+				var step_done: bool = steps_done.has(step_id)
+				all_done = all_done and step_done
+				rows.append({
+					"label": GameManager.dict_text(step, "label"),
+					"done": step_done
+				})
 			rows.append({
-				"label": GameManager.text("Low power: use 20mm, focus, observe " + target_name, "低倍率：使用 20mm，对焦后观测" + target_name),
-				"done": steps_done.has("low_power")
-			})
-			rows.append({
-				"label": GameManager.text("High power: switch to 10mm, refocus, observe again", "高倍率：换 10mm，重新调焦后再观测"),
-				"done": steps_done.has("high_power")
-			})
-			rows.append({
-				"label": GameManager.text("Compare image size, brightness, and steadiness", "比较图像大小、亮度和稳定性"),
-				"done": steps_done.has("low_power") and steps_done.has("high_power")
+				"label": GameManager.text(
+					"Compare all three, then go back to the eyepiece that showed it best",
+					"比较三档倍率，再换回显示效果最好的那枚目镜"
+				),
+				"done": all_done
 			})
 		"low_altitude_seeing":
 			rows.append({"label": GameManager.text("Use low or medium power near the horizon", "低空目标使用低倍率或中倍率"), "done": false})
@@ -2586,7 +2125,13 @@ func _build_mission_info_panel(parent: Control, level: Dictionary, route: Dictio
 	var readiness := _mission_readiness_text(route)
 	var readiness_label := _board_label(parent, readiness, Vector2(14, 240), Vector2(354, 28), 12, _mission_readiness_color(route))
 	readiness_label.max_lines_visible = 2
-	var target_line := _board_label(parent, GameManager.text("Why this mission: ", "本关重点：") + GameManager.dict_text(level, "description"), Vector2(14, 276), Vector2(354, 38), 10, Color(0.73, 0.81, 0.90))
+	# Comparison missions are judged against an earlier night's record, so the
+	# board shows that baseline rather than repeating the description.
+	var baseline := GameManager.dict_text(level, "comparison_baseline")
+	var why_text := GameManager.text("Why this mission: ", "本关重点：") + GameManager.dict_text(level, "description")
+	if baseline != "":
+		why_text = GameManager.text("Compare against: ", "对照基线：") + baseline
+	var target_line := _board_label(parent, why_text, Vector2(14, 276), Vector2(354, 38), 10, Color(0.73, 0.81, 0.90))
 	target_line.max_lines_visible = 2
 
 
@@ -2601,7 +2146,7 @@ func _build_required_equipment_list(parent: Control) -> void:
 	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	list.add_theme_constant_override("separation", 2)
 	scroll.add_child(list)
-	if GameManager.current_observation_mode() == "naked_eye":
+	if not GameManager.current_requires_telescope():
 		_board_equipment_line(list, GameManager.text("No telescope equipment required", "无需望远镜设备"), true, GameManager.text("Naked eye", "肉眼"))
 		return
 	var assembly_state: Dictionary = GameManager.progress.get("assembly_state", {})
@@ -2712,13 +2257,90 @@ func _mission_badge_text(badge: String) -> String:
 	return GameManager.badge_display_name(badge)
 
 
+# The assessment levels hand target selection to the player. Each option
+# states what the object is like, not which eyepiece to fit - working the
+# power out from the description is the thing being assessed.
+func _build_target_choice_panel(parent: Control) -> void:
+	_board_label(
+		parent,
+		GameManager.text(
+			"Assessment: no hints tonight. Pick one, then choose its power yourself.",
+			"考核：今晚没有提示。自己选一个目标，再自己决定它该用多大倍率。"
+		),
+		Vector2(14, 34),
+		Vector2(486, 32),
+		12,
+		Color(0.96, 0.84, 0.46)
+	).autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+	var choices := GameManager.target_choices()
+	var row_y := 74.0
+	for choice_value in choices:
+		if not choice_value is Dictionary:
+			continue
+		var choice: Dictionary = choice_value
+		var object_id := str(choice.get("object_id", ""))
+		if object_id == "":
+			continue
+		var row := Panel.new()
+		row.position = Vector2(14, row_y)
+		row.size = Vector2(486, 78)
+		row.add_theme_stylebox_override("panel", _style(Color(0.040, 0.060, 0.105, 0.96), Color(0.30, 0.44, 0.66, 0.90), 1, 3))
+		parent.add_child(row)
+
+		var icon_path := "res://assets/celestial_icons/%s.png" % object_id
+		if ResourceLoader.exists(icon_path):
+			var icon := TextureRect.new()
+			icon.position = Vector2(10, 15)
+			icon.size = Vector2(48, 48)
+			icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+			icon.texture = load(icon_path)
+			row.add_child(icon)
+
+		_board_label(row, GameManager.dict_text(choice, "label"), Vector2(68, 10), Vector2(300, 20), 15, WARM_TEXT)
+		var blurb := _board_label(row, GameManager.dict_text(choice, "blurb"), Vector2(68, 32), Vector2(300, 40), 11, Color(0.74, 0.82, 0.94))
+		blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+		var pick := _board_button(
+			row,
+			GameManager.text("Choose", "选择"),
+			Vector2(378, 24),
+			Vector2(96, 32),
+			Color(0.08, 0.28, 0.22),
+			Color(0.56, 0.90, 0.54)
+		)
+		pick.name = "ChooseTarget_%s" % object_id
+		var captured_id := object_id
+		pick.pressed.connect(func() -> void: _choose_mission_target(captured_id))
+		row_y += 84.0
+
+
+func _choose_mission_target(object_id: String) -> void:
+	if not GameManager.set_level_target_choice(object_id):
+		return
+	_close_mission_board(false)
+	_open_mission_board()
+
+
+func _reopen_target_choice() -> void:
+	var level_id := str(GameManager.current_level().get("id", ""))
+	if level_id != "":
+		var overrides: Dictionary = GameManager.progress.get("level_target_overrides", {})
+		overrides.erase(level_id)
+		GameManager.progress["level_target_overrides"] = overrides
+		GameManager.last_sky_aim = {}
+		GameManager.save()
+	_close_mission_board(false)
+	_open_mission_board()
+
+
 func _board_section(parent: Control, pos: Vector2, section_size: Vector2, title: String) -> Panel:
 	var section := Panel.new()
 	section.position = pos
 	section.size = section_size
-	section.add_theme_stylebox_override("panel", _depth_style(Color(0.025, 0.040, 0.072, 0.94), Color(0.22, 0.34, 0.50, 0.92), 1, 3))
+	section.add_theme_stylebox_override("panel", _style(Color(0.025, 0.040, 0.072, 0.94), Color(0.22, 0.34, 0.50, 0.92), 1, 3))
 	parent.add_child(section)
-	UiKit.add_bevel(section, Rect2(Vector2.ZERO, section_size))
 	_board_label(section, title, Vector2(14, 10), Vector2(section_size.x - 28, 18), 12, BRASS)
 	_rect_to(section, Vector2(12, 28), Vector2(section_size.x - 24, 1), Color(0.30, 0.40, 0.55, 0.70))
 	return section
@@ -2731,8 +2353,8 @@ func _board_button(parent: Control, text: String, pos: Vector2, button_size: Vec
 	button.size = button_size
 	button.add_theme_font_size_override("font_size", 14)
 	button.add_theme_color_override("font_color", WARM_TEXT)
-	button.add_theme_stylebox_override("normal", _depth_style(normal_color, border_color, 2, 4))
-	button.add_theme_stylebox_override("hover", _depth_style(normal_color.lightened(0.12), border_color.lightened(0.12), 2, 4))
+	button.add_theme_stylebox_override("normal", _style(normal_color, border_color, 2, 4))
+	button.add_theme_stylebox_override("hover", _style(normal_color.lightened(0.12), border_color.lightened(0.12), 2, 4))
 	button.add_theme_stylebox_override("pressed", _style(normal_color.darkened(0.12), border_color, 2, 4))
 	parent.add_child(button)
 	return button
@@ -2796,33 +2418,39 @@ func _maybe_show_unlock_popup() -> void:
 		_popup_label_on(unlock_popup, "•  " + part_name, Vector2(x_text, y), Vector2(360, 22), 13, Color(0.60, 0.95, 0.70))
 		y += 26.0
 	y += 10.0
-	var opens_observation_pad := int(GameManager.current_level().get("level_number", 0)) == 6
-	var hint_text := GameManager.text(
-		"The 10mm eyepiece is now in your inventory. Return to the Observation Pad to continue.",
-		"10mm 目镜已加入库存，返回观星台继续。"
-	) if opens_observation_pad else GameManager.text(
-		"Equip them at the Parts Cabinet, then reassemble at the Assembly Table.",
-		"到零件柜装备它们，然后在组装台重新组装。"
-	)
 	var hint := _popup_label_on(unlock_popup,
-		hint_text,
+		GameManager.text("Equip them at the Parts Cabinet, then reassemble at the Assembly Table.", "到零件柜装备它们，然后在组装台重新组装。"),
 		Vector2(x_text, y), Vector2(360, 40), 11, Color(0.78, 0.86, 0.92))
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
-	# A single acknowledgement button. This used to also offer "Open Parts
-	# Cabinet" / "Open Observation Pad" shortcuts that teleported the player
-	# straight into the other screen - skipping the walk defeats the point of
-	# a room you move around in. Confirming here only dismisses the notice;
-	# getting there is on foot, like every other destination in the lobby.
-	var confirm := Button.new()
-	confirm.text = GameManager.text("OK", "确定")
-	confirm.position = Vector2(panel.position.x + (panel.size.x - 160.0) * 0.5, panel.position.y + panel_height - 52.0)
-	confirm.size = Vector2(160, 38)
-	confirm.add_theme_font_size_override("font_size", 13)
-	confirm.pressed.connect(func() -> void:
+	var later := Button.new()
+	later.text = GameManager.text("Later", "稍后")
+	later.position = Vector2(350, panel.position.y + panel_height - 52.0)
+	later.size = Vector2(132, 38)
+	later.add_theme_font_size_override("font_size", 13)
+	later.pressed.connect(func() -> void:
 		_close_unlock_popup(true)
 	)
-	unlock_popup.add_child(confirm)
+	unlock_popup.add_child(later)
+
+	var equip_now := Button.new()
+	equip_now.text = GameManager.text("Open Parts Cabinet", "打开零件柜")
+	equip_now.position = Vector2(492, panel.position.y + panel_height - 52.0)
+	equip_now.size = Vector2(220, 38)
+	equip_now.add_theme_font_size_override("font_size", 13)
+	equip_now.pressed.connect(func() -> void:
+		_close_unlock_popup(false)
+		GameManager.set_room_guidance(
+			"cabinet",
+			GameManager.text("Maya: Equip the New Parts", "玛雅：装备新零件"),
+			GameManager.text(
+				"Choose the newly unlocked parts here. After equipping them, the route continues to the Assembly Table.",
+				"在零件柜选择刚解锁的部件；装备后，引导会继续带你前往组装台安装。"
+			)
+		)
+		GameManager.go("parts")
+	)
+	unlock_popup.add_child(equip_now)
 
 
 func _close_unlock_popup(resume_guidance: bool) -> void:
@@ -3140,7 +2768,17 @@ func _update_room_guidance_panel() -> void:
 			route_edge_indicator.visible = false
 		_update_guidance_overlay({})
 		return
-	guidance_panel.visible = false
+	if not guidance_panel.visible:
+		# First appearance: slide down 8px + fade, matching the page style.
+		guidance_panel.visible = true
+		if not InteractionFeedback.is_reduced_motion():
+			var rest := guidance_panel.position
+			guidance_panel.position = rest + Vector2(0, -8)
+			guidance_panel.modulate.a = 0.0
+			var tween := guidance_panel.create_tween().set_parallel(true)
+			tween.tween_property(guidance_panel, "position", rest, 0.22).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+			tween.tween_property(guidance_panel, "modulate:a", 1.0, 0.18)
+	guidance_panel.visible = true
 	if guidance_maya_portrait != null:
 		MayaPortrait.apply_to(
 			guidance_maya_portrait,
@@ -3405,17 +3043,6 @@ func _style(color: Color, border: Color, border_width: int, radius: int) -> Styl
 	return style
 
 
-# Same as _style() but lifted off the background with a drop shadow - used
-# where a card needs to read as a real object sitting on the desk/console
-# rather than a flat rectangle painted onto the scene.
-func _depth_style(color: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:
-	var style := _style(color, border, border_width, radius)
-	style.shadow_color = Color(0, 0, 0, 0.45)
-	style.shadow_size = 10
-	style.shadow_offset = Vector2(0, 3)
-	return style
-
-
 func _corner_pins(parent: Control) -> void:
 	var pin_color := Color(1.0, 0.78, 0.36, 0.95)
 	_frame_rect(parent, Vector2(5, 5), Vector2(8, 2), pin_color)
@@ -3470,7 +3097,7 @@ func _on_guidance_highlights_changed(enabled: bool) -> void:
 	if route_edge_indicator != null and not enabled:
 		route_edge_indicator.visible = false
 	if guidance_panel != null:
-		guidance_panel.visible = false
+		guidance_panel.visible = enabled and GameManager.room_guidance_target != ""
 	_update_guidance_toggle_button()
 	if enabled:
 		_update_room_guidance_panel()

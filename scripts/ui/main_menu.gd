@@ -25,7 +25,6 @@ const BUTTON_RECTS_ZH := {
 var feedback_label: Label
 var button_visuals: Dictionary = {}
 var settings_panel: Panel
-var settings_scrim: ColorRect
 var _continue_available := false
 
 
@@ -44,10 +43,6 @@ const NO_SAVE_LAYOUT_ZH := {
 
 
 func _ready() -> void:
-	if GameManager.study_mode_active():
-		visible = false
-		call_deferred("_launch_study_route")
-		return
 	GameManager.language_changed.connect(_on_language_changed)
 	GameManager.progress_changed.connect(_on_progress_changed)
 	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
@@ -62,15 +57,6 @@ func _ready() -> void:
 	InteractionFeedback.page_enter(self)
 
 
-func _launch_study_route() -> void:
-	var is_new_campaign := not GameManager.has_save()
-	if is_new_campaign:
-		GameManager.new_game()
-	else:
-		GameManager.resume_saved_campaign()
-	GameManager.launch_study_current_level(is_new_campaign)
-
-
 func _build() -> void:
 	for child in get_children():
 		remove_child(child)
@@ -82,25 +68,8 @@ func _build() -> void:
 	custom_minimum_size = SCREEN_SIZE
 
 	_draw_background()
-	_draw_ambient()
 	_build_hotspots()
 	_build_feedback()
-
-
-func _draw_ambient() -> void:
-	# The title screen was completely still - the first thing a player sees was a
-	# flat picture. A slow drift of star-dust across the backdrop makes the menu
-	# feel like a window onto the sky rather than a poster. It sits above the
-	# background art but below every button, and never takes input.
-	var life := AmbientLife.new()
-	life.name = "AmbientLife"
-	life.configure({
-		"bounds": Rect2(Vector2.ZERO, SCREEN_SIZE),
-		"motes": 46,
-		"mote_tint": Color(0.82, 0.88, 1.0),
-		"seed": 8801,
-	})
-	add_child(life)
 
 
 func _draw_background() -> void:
@@ -132,6 +101,12 @@ func _build_hotspots() -> void:
 		_draw_no_save_menu_rows(rects, active_rects)
 	_add_button_feedback("new", active_rects["new"])
 	var new_button := _transparent_button("new", active_rects["new"])
+	new_button.disabled = not _cloud_progress_is_resolved()
+	if new_button.disabled:
+		new_button.tooltip_text = GameManager.text(
+			"Checking local and cloud saves...",
+			"正在检查本地与云端存档……"
+		)
 	new_button.pressed.connect(_on_new_game)
 	add_child(new_button)
 
@@ -199,11 +174,16 @@ func _draw_no_save_menu_rows(source_rects: Dictionary, target_rects: Dictionary)
 
 
 func _should_show_continue() -> bool:
-	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
-	if cloud_sync != null and cloud_sync.has_method("is_progress_availability_resolved") \
-			and not bool(cloud_sync.call("is_progress_availability_resolved")):
+	if not _cloud_progress_is_resolved():
 		return false
 	return GameManager.has_save()
+
+
+func _cloud_progress_is_resolved() -> bool:
+	var cloud_sync := get_node_or_null("/root/CloudSyncManager")
+	if cloud_sync != null and cloud_sync.has_method("is_progress_availability_resolved"):
+		return bool(cloud_sync.call("is_progress_availability_resolved"))
+	return true
 
 
 func _build_feedback() -> void:
@@ -236,6 +216,12 @@ func _build_feedback() -> void:
 
 
 func _on_new_game() -> void:
+	if not _cloud_progress_is_resolved():
+		_show_feedback(GameManager.text(
+			"Please wait while local and cloud saves are checked.",
+			"正在检查本地与云端存档，请稍候。"
+		))
+		return
 	GameManager.new_game()
 	if GameManager.try_story_event("intro", "observatory"):
 		return
@@ -254,29 +240,18 @@ func _on_settings() -> void:
 	if settings_panel != null and is_instance_valid(settings_panel):
 		settings_panel.queue_free()
 		settings_panel = null
-		if settings_scrim != null and is_instance_valid(settings_scrim):
-			settings_scrim.queue_free()
-		settings_scrim = null
 		return
-	# A dimming scrim: without it the painted title bled straight through the
-	# panel and the dialogue read as a transparent overlay rather than a card.
-	var scrim := ColorRect.new()
-	scrim.name = "SettingsScrim"
-	scrim.color = Color(0.0, 0.0, 0.02, 0.62)
-	scrim.position = Vector2.ZERO
-	scrim.size = SCREEN_SIZE
-	scrim.z_index = 99
-	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(scrim)
-
 	settings_panel = Panel.new()
 	settings_panel.position = Vector2(302, 248)
 	settings_panel.size = Vector2(420, 494)
 	settings_panel.z_index = 100
-	settings_panel.add_theme_stylebox_override("panel", UiKit.panel_box())
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.025, 0.040, 0.070, 0.98)
+	style.border_color = Color(0.96, 0.72, 0.30)
+	style.set_border_width_all(2)
+	style.set_corner_radius_all(5)
+	settings_panel.add_theme_stylebox_override("panel", style)
 	add_child(settings_panel)
-	UiKit.add_corner_brackets(settings_panel)
-	settings_scrim = scrim
 
 	var title := Label.new()
 	title.text = GameManager.text("SETTINGS", "设置")
@@ -434,12 +409,8 @@ func _on_settings() -> void:
 		if settings_panel != null:
 			settings_panel.queue_free()
 			settings_panel = null
-		if settings_scrim != null and is_instance_valid(settings_scrim):
-			settings_scrim.queue_free()
-		settings_scrim = null
 	)
 	settings_panel.add_child(close)
-	_style_settings_widgets()
 	InteractionFeedback.page_enter(settings_panel, Vector2(0, 6))
 
 
@@ -493,9 +464,6 @@ func _on_settings_legacy() -> void:
 	if settings_panel != null and is_instance_valid(settings_panel):
 		settings_panel.queue_free()
 		settings_panel = null
-		if settings_scrim != null and is_instance_valid(settings_scrim):
-			settings_scrim.queue_free()
-		settings_scrim = null
 		return
 	settings_panel = Panel.new()
 	settings_panel.position = Vector2(322, 376)
@@ -580,12 +548,8 @@ func _on_settings_legacy() -> void:
 		if settings_panel != null:
 			settings_panel.queue_free()
 			settings_panel = null
-		if settings_scrim != null and is_instance_valid(settings_scrim):
-			settings_scrim.queue_free()
-		settings_scrim = null
 	)
 	settings_panel.add_child(close)
-	_style_settings_widgets()
 	InteractionFeedback.page_enter(settings_panel, Vector2(0, 6))
 
 
@@ -701,22 +665,3 @@ func _on_cloud_sync_status_changed(status: String, _detail: String) -> void:
 		"merge_required": GameManager.text("Local progress is ready to merge from your account panel.", "游客进度等待在账号面板中一键合并。"),
 	}
 	_show_feedback(str(messages.get(status, "")))
-
-func _style_settings_widgets() -> void:
-	# Godot's default theme made this dialogue look like an editor overlay on top
-	# of the painted menu. Restyle in place - the nodes stay CheckButton /
-	# OptionButton so accessibility and the existing tests still see real toggles.
-	if settings_panel == null or not is_instance_valid(settings_panel):
-		return
-	for child in settings_panel.get_children():
-		if child is CheckButton:
-			UiKit.style_check(child as CheckButton)
-		elif child is OptionButton:
-			UiKit.style_option(child as OptionButton)
-		elif child is Button:
-			UiKit.style_button(child as Button, true)
-		elif child is Label:
-			var lbl := child as Label
-			# headings keep their accent colour; body copy gets a calmer tone
-			if lbl.get_theme_font_size("font_size") < 14:
-				lbl.add_theme_color_override("font_color", UiKit.MUTED)

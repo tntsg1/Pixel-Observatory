@@ -1,0 +1,36 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+--- L7 orion_nebula focus diagnostics (basic parts) ---
+  focus_value=0.7700 target_focus_value=0.4300 focus_error=0.3400 tolerance=0.0700
+  is_focus_acceptable=false is_quality_acceptable=false
+  ok: target_focus_value within 0..1 (0.430)
+  ok: deep-sky tolerance is not too narrow (0.070 >= 0.06)
+  after set to target: focus_error=0.00000 state=sharp acceptable=true quality=Fair
+  ok: focus_error ~0 at exact target
+  ok: is_focus_acceptable true at exact target
+  ok: _focus_state sharp at exact target
+  ok: exact focus uses the sharp nebula texture state
+  ok: slider value matches focus_value (within one step)
+  ok: L7 basic Orion remains Fair, not secretly Good
+  ok: L7 Fair quality is acceptable
+  ok: L7 focused Fair nebula can be identified
+  ok: L7 Fair feedback says ready, not equipment blocked
+  after +0.2 offset: focus_error=0.2000 state=blurry acceptable=false
+  ok: is_focus_acceptable false at +0.2 offset
+  ok: off-focus nebula keeps the blurry texture state
+  ok: off-focus feedback asks to adjust
+  ok: L7 Fair Orion mission completes
+  ok: L7 completion advances to L8
+--- L8 basic parts: quality=Fair can_identify=false feedback=Focus aligned, but the image is too faint. Equip a bigger lens / stable mount at the Parts Cabinet, then reassemble.
+  ok: L8 basic focus is acceptable at exact target
+  ok: L8 basic Orion is Fair
+  ok: L8 Fair quality is not acceptable
+  ok: L8 focused Fair nebula cannot be identified
+  ok: L8 feedback names equipment/aperture/stability
+  ok: L8 in-focus equipment blocker never says adjust focus
+--- upgraded parts: quality=Good can_identify=true
+  ok: upgraded telescope reaches acceptable quality on the nebula
+  ok: upgraded + focused nebula can be identified
+  ok: upgraded feedback says ready
+FOCUS NEBULA TEST PASS

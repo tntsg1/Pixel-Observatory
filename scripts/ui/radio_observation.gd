@@ -159,8 +159,6 @@ var fold_monitor_phase_residual := 0.0
 var fold_monitor_trim_requested := false
 var fold_monitor_trim_completed := false
 var fold_lock_sequence_running := false
-var fold_progression_queued := false
-var fold_lock_sequence_generation := 0
 var fold_lock_flash := 0.0
 var fold_lock_snapshot: Dictionary = {}
 var prediction_running := false
@@ -509,10 +507,6 @@ func _process(delta: float) -> void:
 		fold_capture_feedback_seconds = maxf(0.0, fold_capture_feedback_seconds - delta)
 		if scope != null and is_instance_valid(scope):
 			scope.queue_redraw()
-		# Recover from an interrupted deferred call or browser frame stall. Once
-		# three coherent captures exist, stage 3 must always expose verification.
-		if fold_candidate_ready and not fold_progression_queued and not fold_lock_sequence_running and not prediction_running and not prediction_confirmed:
-			_queue_fold_lock_sequence()
 	terminal_clock += delta
 	if terminal_emphasis_until > 0.0 and terminal_clock >= terminal_emphasis_until:
 		terminal_emphasis_until = 0.0
@@ -3432,26 +3426,34 @@ func _stop_fold_adjust_audio(fade_seconds := 0.035) -> void:
 	AudioManager.stop_event_loop("fast_fold_adjust", fade_seconds)
 
 
+func _fold_period_calibrated() -> bool:
+	# A visual fundamental candidate must also satisfy this level's report.
+	return (model != null and model.period_solution_state() == "fundamental"
+		and model.period_match() > model.period_threshold)
+
+
+func _fold_dm_calibrated() -> bool:
+	# Never disable DM adjustment below the final report's stricter threshold.
+	return (model != null and model.dm_match() >= 0.72
+		and model.dm_match() > model.dm_threshold)
+
+
+func _fold_phase_calibrated() -> bool:
+	# Capture and report must both accept the phase, including monitor drift.
+	return (model != null and model.phase_match() >= 0.72
+		and _fold_effective_phase_match() >= 0.72)
+
+
 func _current_fold_adjust_parameter() -> String:
 	if model == null or fold_candidate_ready:
 		return ""
-	if not _fold_period_ready():
+	if not _fold_period_calibrated():
 		return "period"
-	if not _fold_dm_ready():
+	if not _fold_dm_calibrated():
 		return "dm"
-	if model.phase_match() < 0.72 or absf(fold_monitor_phase_residual) > FOLD_MONITOR_TRIM_TOLERANCE:
+	if not _fold_phase_calibrated() or absf(fold_monitor_phase_residual) > FOLD_MONITOR_TRIM_TOLERANCE:
 		return "phase"
 	return ""
-
-
-func _fold_period_ready() -> bool:
-	return model != null \
-		and model.period_solution_state() == "fundamental" \
-		and model.period_match() >= model.period_threshold
-
-
-func _fold_dm_ready() -> bool:
-	return model != null and model.dm_match() >= model.dm_threshold
 
 
 func _fold_effective_phase_match() -> float:
@@ -3765,13 +3767,13 @@ func _fold_parameters_changed(parameter: String) -> void:
 func _fold_tutorial_parameter_action(parameter: String) -> void:
 	match parameter:
 		"dm":
-			if _fold_dm_ready():
+			if _fold_dm_calibrated():
 				_tutorial_action("fold_dm_adjust")
 		"phase":
-			if model.phase_match() >= 0.72:
+			if _fold_phase_calibrated():
 				_tutorial_action("fold_phase_adjust")
 		_:
-			if _fold_period_ready():
+			if _fold_period_calibrated():
 				_tutorial_action("fold_period_adjust")
 
 
@@ -3808,8 +3810,6 @@ func _reset_fold_capture_validation(reset_integration: bool) -> void:
 	fold_monitor_trim_requested = false
 	fold_monitor_trim_completed = false
 	fold_lock_sequence_running = false
-	fold_progression_queued = false
-	fold_lock_sequence_generation += 1
 	fold_lock_flash = 0.0
 	fold_lock_snapshot.clear()
 	if reset_integration and model != null:
@@ -3818,29 +3818,21 @@ func _reset_fold_capture_validation(reset_integration: bool) -> void:
 
 
 func _sync_fold_capture_state() -> void:
-	if not _fold_period_ready():
+	if not _fold_period_calibrated():
 		fold_step = 0
-	elif not _fold_dm_ready():
+	elif not _fold_dm_calibrated():
 		fold_step = 1
-	elif _fold_effective_phase_match() < 0.72:
+	elif not _fold_phase_calibrated():
 		fold_step = 2
 	else:
 		fold_step = 3
-	# Stage 4 owns the timing evidence only.  Do not gate its completion on the
-	# final report's aggregate success flag: that flag also includes pointing,
-	# tuning and RFI checks from earlier stages, which could leave a valid 3/3
-	# pulse capture stranded here with no next action.
-	fold_candidate_ready = fold_capture_count >= FOLD_CAPTURE_REQUIRED \
-		and model.integration_s >= model.required_integration_s \
-		and _fold_period_ready() \
-		and _fold_dm_ready() \
-		and _fold_effective_phase_match() >= 0.72
+	fold_candidate_ready = fold_capture_count >= FOLD_CAPTURE_REQUIRED and bool(model.report().get("success", false))
 
 
 func _fold_capture_available() -> bool:
 	if model == null or fold_lock_sequence_running or prediction_running or fold_candidate_ready:
 		return false
-	return fold_step >= 3 and _fold_period_ready() and _fold_dm_ready() and _fold_effective_phase_match() >= 0.72
+	return fold_step >= 3 and _fold_period_calibrated() and _fold_dm_calibrated() and _fold_phase_calibrated()
 
 
 func _fold_capture_target_phase() -> float:
@@ -3919,7 +3911,7 @@ func _record_fold_capture_success(target_phase: float, source: String) -> void:
 		if tutorial_active:
 			_finish_stage_tutorial()
 		_refresh_fold()
-		_queue_fold_lock_sequence()
+		call_deferred("_start_fold_lock_sequence")
 		return
 	_refresh_fold()
 
@@ -3936,17 +3928,22 @@ func _fold_solution_label(solution: String) -> String:
 
 
 func _fold_next_action_text() -> String:
-	if not _fold_period_ready():
+	if not _fold_period_calibrated():
 		return GameManager.text(
 			"Sweep the correlation belt: drag until the strongest repeating ridge locks to one fundamental period.",
 			"先扫相关度带：拖动到最强的重复脊线锁定为一个基频周期。"
 		)
-	if not _fold_dm_ready():
+	if not _fold_dm_calibrated():
 		return GameManager.text(
 			"Drag the upper sub-band arrivals until the diagonal sweep stands vertical.",
 			"拖动上方子频段到达轨迹，直到斜向扫频变为垂直。"
 		)
-	if _fold_effective_phase_match() < 0.72:
+	if not _fold_period_calibrated():
+		return GameManager.text(
+			"Drag the two-cycle profile until the peak stops drifting; reject split aliases.",
+			"拖动双周期轮廓，让峰停止漂移，并排除分裂的周期假解。"
+		)
+	if not _fold_phase_calibrated():
 		return GameManager.text(
 			"Rotate the arrival phase with Q/E or the wheel so the peak clears the plot edge.",
 			"用 Q/E 或滚轮调整到达相位，让峰完整进入观察窗。"
@@ -3989,17 +3986,22 @@ func _fold_step_heading() -> String:
 
 
 func _fold_compact_action_text() -> String:
-	if not _fold_period_ready():
+	if not _fold_period_calibrated():
 		return GameManager.text(
 			"NOW: drag the period correlation belt to the strongest fundamental ridge.",
 			"现在：拖动周期相关度带，锁定最强的基频脊线。"
 		)
-	if not _fold_dm_ready():
+	if not _fold_dm_calibrated():
 		return GameManager.text(
 			"NOW: hold DM -/+ until B1-B7 form one vertical column.",
 			"现在做：按住 DM -/+，直到 B1-B7 排成一条竖线。"
 		)
-	if _fold_effective_phase_match() < 0.72:
+	if not _fold_period_calibrated():
+		return GameManager.text(
+			"NOW: hold Period -/+ until drift and split peaks disappear.",
+			"现在做：按住周期 -/+，直到漂移和分裂峰消失。"
+		)
+	if not _fold_phase_calibrated():
 		return GameManager.text(
 			"NOW: hold Phase -/+ until the pulse enters the gold arrival gate.",
 			"现在做：按住相位 -/+，把脉冲送入金色到达门。"
@@ -4403,7 +4405,7 @@ func _draw_phase_wheel(plot: RadioPlot, center: Vector2, radius: float) -> void:
 	var wheel_color := GREEN if model.phase_match() >= 0.72 else AMBER
 	var phase_active := (
 		fold_step == 1
-		and model.period_solution_state() == "fundamental"
+		and _fold_period_calibrated()
 		and model.phase_match() < 0.72
 	)
 	if phase_active:
@@ -4439,23 +4441,10 @@ func _confirm_fold() -> void:
 	_attempt_fold_pulse_capture("compatibility")
 
 
-func _queue_fold_lock_sequence() -> void:
-	if fold_progression_queued or fold_lock_sequence_running or prediction_running or not fold_candidate_ready:
-		return
-	fold_progression_queued = true
-	# Start synchronously through the first frame so the third successful
-	# capture always produces visible handoff feedback.  The coroutine itself
-	# yields for the short lock animation before opening clock verification.
-	_start_fold_lock_sequence()
-
-
 func _start_fold_lock_sequence() -> void:
-	if fold_lock_sequence_running or prediction_running or not fold_candidate_ready or model == null:
-		fold_progression_queued = false
+	if fold_lock_sequence_running or prediction_running:
 		return
-	fold_progression_queued = false
 	fold_lock_sequence_running = true
-	var sequence_generation := fold_lock_sequence_generation
 	fold_lock_flash = 1.0
 	fold_lock_snapshot = model.report().duplicate(true)
 	var sky: Dictionary = fold_lock_snapshot.get("sky_position", {})
@@ -4468,21 +4457,18 @@ func _start_fold_lock_sequence() -> void:
 	if scope != null and is_instance_valid(scope):
 		scope.queue_redraw()
 	await get_tree().create_timer(FOLD_LOCK_FREEZE_SECONDS if not InteractionFeedback.is_reduced_motion() else 0.04).timeout
-	if not is_inside_tree() or model == null or sequence_generation != fold_lock_sequence_generation:
+	if not is_inside_tree() or model == null:
 		return
 	# A single deliberate lock cue has already fired when the third coherent
 	# window arrived. Keep this visual pulse silent to avoid layering old clicks.
 	await get_tree().create_timer(FOLD_LOCK_TRANSITION_SECONDS if not InteractionFeedback.is_reduced_motion() else 0.10).timeout
-	if not is_inside_tree() or model == null or sequence_generation != fold_lock_sequence_generation:
+	if not is_inside_tree() or model == null:
 		return
 	fold_lock_sequence_running = false
 	_start_pulse_prediction()
 
 
 func _start_pulse_prediction() -> void:
-	if prediction_overlay != null and is_instance_valid(prediction_overlay):
-		prediction_overlay.queue_free()
-	prediction_overlay = null
 	prediction_running = true
 	prediction_armed = false
 	prediction_confirmed = false

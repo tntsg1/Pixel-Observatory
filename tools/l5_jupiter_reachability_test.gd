@@ -52,10 +52,14 @@ func _complete_basic_refractor(gm: Node) -> void:
 func _complete_focus_training(gm: Node) -> void:
 	_check(int(gm.progress.get("current_level", 0)) == 4, "L4 follows L3")
 	_check(gm.install_part("focus_knob", 0, "basic_focus_knob") > 0, "L4 installs the unlocked focus knob")
-	gm.selected_object_id = "jupiter"
+	# L4's focus training now uses Betelgeuse (a point source). L5 is still the
+	# Jupiter magnification lesson this test exists to protect.
+	var l4_target := str(gm.current_target_object_id())
+	_check(l4_target == "betelgeuse", "L4 trains focus on Betelgeuse")
+	gm.selected_object_id = l4_target
 	var observation := _focused_jupiter_observation(gm)
-	_check(bool(observation.get("success", false)), "L4 focused Jupiter observation succeeds")
-	_check(gm.complete_current_mission("jupiter", observation), "L4 completes normally")
+	_check(bool(observation.get("success", false)), "L4 focused star observation succeeds")
+	_check(gm.complete_current_mission(l4_target, observation), "L4 completes normally")
 
 
 func _verify_l5_jupiter(gm: Node) -> void:

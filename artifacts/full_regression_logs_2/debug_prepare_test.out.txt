@@ -1,0 +1,72 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: L4 family is basic
+  ok: L4 slot 'tripod' installed after prepare
+  ok: L4 slot 'mount' installed after prepare
+  ok: L4 slot 'tube' installed after prepare
+  ok: L4 slot 'objective' installed after prepare
+  ok: L4 slot 'eyepiece' installed after prepare
+  ok: L4 slot 'focus_knob' installed after prepare
+  ok: L4 telescope READY
+  ok: L4 observation gate open
+  ok: L27 family is newtonian
+  ok: L27 slot 'tripod' installed after prepare
+  ok: L27 slot 'mount' installed after prepare
+  ok: L27 slot 'optical_tube_assembly' installed after prepare
+  ok: L27 slot 'finder_scope' installed after prepare
+  ok: L27 tube subassembly completed
+  ok: L27 tube part 'reflector_tube' installed
+  ok: L27 tube part 'mirror_cell' installed
+  ok: L27 tube part 'primary_mirror' installed
+  ok: L27 tube part 'secondary_spider' installed
+  ok: L27 tube part 'secondary_mirror' installed
+  ok: L27 tube part 'focuser' installed
+  ok: L27 tube part 'eyepiece' installed
+  ok: L27 tube part 'collimation_tool' installed
+  ok: L27 collimation prepared
+  ok: L27 telescope READY
+  ok: L27 observation gate open
+  ok: L37 family is dobsonian
+  ok: L37 slot 'mount' installed after prepare
+  ok: L37 slot 'optical_tube_assembly' installed after prepare
+  ok: L37 slot 'finder_scope' installed after prepare
+  ok: L37 tube subassembly completed
+  ok: L37 tube part 'reflector_tube' installed
+  ok: L37 tube part 'mirror_cell' installed
+  ok: L37 tube part 'primary_mirror' installed
+  ok: L37 tube part 'secondary_spider' installed
+  ok: L37 tube part 'secondary_mirror' installed
+  ok: L37 tube part 'focuser' installed
+  ok: L37 tube part 'eyepiece' installed
+  ok: L37 tube part 'collimation_tool' installed
+  ok: L37 collimation prepared
+  ok: L37 telescope READY
+  ok: L37 observation gate open
+  ok: L47 family is cassegrain
+  ok: L47 slot 'tripod' installed after prepare
+  ok: L47 slot 'mount' installed after prepare
+  ok: L47 slot 'optical_tube_assembly' installed after prepare
+  ok: L47 tube subassembly completed
+  ok: L47 tube part 'reflector_tube' installed
+  ok: L47 tube part 'primary_mirror' installed
+  ok: L47 tube part 'secondary_mirror' installed
+  ok: L47 tube part 'central_baffle' installed
+  ok: L47 tube part 'focuser' installed
+  ok: L47 tube part 'eyepiece' installed
+  ok: L47 telescope READY
+  ok: L47 observation gate open
+  ok: L57 family is gregorian
+  ok: L57 slot 'tripod' installed after prepare
+  ok: L57 slot 'mount' installed after prepare
+  ok: L57 slot 'optical_tube_assembly' installed after prepare
+  ok: L57 tube subassembly completed
+  ok: L57 tube part 'reflector_tube' installed
+  ok: L57 tube part 'primary_mirror' installed
+  ok: L57 tube part 'optical_support' installed
+  ok: L57 tube part 'secondary_mirror' installed
+  ok: L57 tube part 'focuser' installed
+  ok: L57 tube part 'eyepiece' installed
+  ok: L57 telescope READY
+  ok: L57 observation gate open
+DEBUG PREPARE TEST PASS

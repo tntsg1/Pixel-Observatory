@@ -1,0 +1,69 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: starts at level 1
+  ok: new game: seen_concept_briefs empty
+  ok: new game: completed_concept_cards empty
+  ok: L1 observation_mode naked_eye
+  ok: L1 does not require telescope
+  ok: L1 does not require focus
+  ok: L1 should show eye_imaging brief before observation
+  ok: L1 brief does not repeat after mark
+  ok: brief seen does not unlock completed concept card
+  ok: L1 can enter observation WITHOUT telescope
+  ok: L1 evaluate uses naked eye mode
+  ok: naked eye Moon observation succeeds
+  ok: naked eye Andromeda fails (too faint)
+  ok: L1 mission completes
+  ok: L1 unlocks eye_imaging concept card
+  ok: journal records concept card
+  ok: advanced to level 2
+  ok: L2 does not require telescope
+  ok: naked eye Polaris succeeds
+  ok: L2 unlocks refractor_basic stage
+  ok: advanced along campaign order after L2
+  ok: L3 observation_mode telescope
+  ok: L3 requires telescope
+  ok: L3 should show refractor brief before assembly
+  ok: L3 refractor brief does not repeat after mark
+  ok: L3 blocked without assembled telescope
+  ok: L3 block reason lists missing parts
+  ok: L3 requires 5 refractor core parts
+  ok: L3 enterable after assembly
+  ok: L3 telescope Moon observation succeeds
+  ok: L3 unlocks refractor_light_path card
+  ok: L3 unlocks the basic focus knob
+  ok: advanced along campaign order after L3
+  ok: L4 requires_focus true
+  ok: L4 should show focus brief before telescope view
+  ok: L4 focus brief does not repeat after mark
+  ok: L4 required parts include focus_knob
+  ok: L4 blocked before Focus Knob is installed
+  ok: L4 missing reason mentions Focus Knob
+  ok: Focus Knob starts uninstalled at L4
+  ok: L4 enterable after installing Focus Knob
+  ok: Focus Knob contributes focus_control_score
+  focus check: sharp=Good blurred=Poor
+  ok: large focus_error lowers observation quality
+  ok: focus_error above tolerance flags out_of_focus
+  ok: out of focus cannot be Excellent/Good
+  ok: out of focus feedback mentions the knob
+  ok: deep-sky focus tolerance widened (>= 0.06)
+  ok: orion_nebula at exact target focus is acceptable
+  ok: orion_nebula at exact target focus reads as sharp
+  ok: in-focus nebula never asks to adjust focus again
+  ok: L7 basic Orion quality is Fair
+  ok: L7 Orion focus acceptable at exact target
+  ok: L7 focused Fair Orion can be identified
+  ok: L8 basic Orion remains Fair
+  ok: L8 Fair Orion cannot complete aperture lesson
+  ok: L8 focused-but-low-quality feedback names equipment
+  ok: L8 focused-but-low-quality feedback does not ask to refocus
+  ok: L8 upgraded focused Orion can be identified
+  ok: learning card exists: eye_imaging
+  ok: diagram image exists: eye_imaging
+  ok: learning card exists: refractor_light_path
+  ok: diagram image exists: refractor_light_path
+  ok: learning card exists: focus_focal_plane
+  ok: diagram image exists: focus_focal_plane
+V2 PROGRESSION TEST PASS

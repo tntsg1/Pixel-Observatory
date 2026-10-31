@@ -111,22 +111,10 @@ func _test_free_observation_separation() -> void:
 
 
 func _test_below_horizon_route() -> void:
-	# Foundation levels (1-10) deliberately never route to the site map:
-	# target_requires_relocation() returns false outright for them, so a new
-	# player is not diverted into the site-map system before L11. This check
-	# used to run at L1 and so asserted the opposite of that design - and
-	# directly contradicted horizon_location_test's "L1 never enters the
-	# site-map workflow". Use the first post-foundation level instead, which is
-	# where below-horizon relocation is actually meant to kick in.
 	gm.new_game()
 	gm.progress["current_level"] = 1
 	gm.publish_sky_positions({"moon": {"altitude": -4.0, "azimuth": 80.0, "visible": false, "below_horizon": true, "source": "calculated"}})
-	_check(not gm.target_requires_relocation(),
-		"a foundation lesson never diverts to the world map, even below the horizon")
-	gm.progress["current_level"] = 11
-	gm.publish_sky_positions({"moon": {"altitude": -4.0, "azimuth": 80.0, "visible": false, "below_horizon": true, "source": "calculated"}})
-	_check(gm.target_requires_relocation(),
-		"below-horizon target requests the world map once past foundation training")
+	_check(gm.target_requires_relocation(), "below-horizon Moon requests the world map")
 
 
 func _api_payload(altitude: Variant, azimuth: Variant) -> Dictionary:

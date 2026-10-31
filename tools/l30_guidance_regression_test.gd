@@ -16,42 +16,23 @@ func _initialize() -> void:
 	gm.language_mode = "zh"
 	gm.progress["language_mode"] = "zh"
 	gm.debug_jump_to_level(30, true)
-	# L30 is a Newtonian lesson and its required_part_ids now prescribes
-	# reflector_mount (this used to be reversed - basic_mount was prescribed
-	# and reflector_mount was the "looks better but is wrong" trap; the
-	# family's part roster was reworked since, and reflector_mount became the
-	# correct Newtonian-family mount). basic_mount is a leftover refractor
-	# part now playing the same "wrong family, still equipped" trap role.
-	# equip_part() correctly REFUSES to switch into a family-incompatible
-	# part while already in Newtonian context (see nested_tube_assembly_test's
-	# "Gregorian mount is rejected by Cassegrain") - a leftover selection from
-	# an earlier refractor lesson has to be reproduced directly instead.
-	gm.progress["selected_parts"]["mount"] = "basic_mount"
-	gm.progress["assembly_state"]["mount"] = {"installed": false, "alignment_score": 0, "wrong_attempts": 0}
-	gm.progress["telescope_ready"] = false
-	_check(gm.equipped_part_id("mount") == "basic_mount", "test can reproduce a leftover refractor Basic Mount")
+	_check(gm.equip_part("reflector_mount"), "test can reproduce equipping the Newtonian Reflector Mount")
 	gm.update_room_guidance_for_level()
 	var wrong_route: Dictionary = gm.current_room_route()
 	_check(str(wrong_route.get("target", "")) == "cabinet", "wrong prescribed mount routes to the Parts Cabinet")
-	_check(str(wrong_route.get("required_part_id", "")) == "reflector_mount", "route identifies the Reflector Mount as the exact requirement")
-	_check(str(wrong_route.get("equipped_part_id", "")) == "basic_mount", "route reports the currently equipped refractor mount")
+	_check(str(wrong_route.get("required_part_id", "")) == "basic_mount", "route identifies Basic Mount as the exact requirement")
+	_check(str(wrong_route.get("equipped_part_id", "")) == "reflector_mount", "route reports the currently equipped Newtonian mount")
 	var wrong_hint := str(wrong_route.get("hint", ""))
-	_check(wrong_hint.contains("基础支架") and wrong_hint.contains("牛顿反射镜支架"), "Chinese hint names both current and required mounts")
-	_check(wrong_hint.contains("数值更高也不能替代"), "hint explains why a wrong part is not accepted regardless of stats")
+	_check(wrong_hint.contains("牛顿反射镜支架") and wrong_hint.contains("基础支架"), "Chinese hint names both current and required mounts")
+	_check(wrong_hint.contains("数值更高也不能替代"), "hint explains why the best-stat part is not accepted")
 
 	var auto_plan: Array = gm.auto_equip_plan()
-	_check(_planned_id_for_type(auto_plan, "mount") == "reflector_mount", "one-click loadout chooses the prescribed Reflector Mount")
+	_check(_planned_id_for_type(auto_plan, "mount") == "basic_mount", "one-click loadout chooses the prescribed Basic Mount")
 	var cabinet: Control = load("res://scenes/parts_cabinet.tscn").instantiate()
 	root.add_child(cabinet)
 	await _settle()
-	_check(bool(cabinet.call("_is_recommended", gm.get_part("reflector_mount"))), "Reflector Mount is highlighted as required")
-	_check(not bool(cabinet.call("_is_recommended", gm.get_part("basic_mount"))), "the refractor mount is no longer generically recommended on L30")
-	# The leftover Basic Mount is a different family than the current
-	# Newtonian tab, so it does not render there at all - switch to "All" the
-	# way a player checking on their old gear would, then look for the badge.
-	cabinet.set("selected_family", "all")
-	cabinet.call("_build")
-	await _settle()
+	_check(bool(cabinet.call("_is_recommended", gm.get_part("basic_mount"))), "Basic Mount is highlighted as required")
+	_check(not bool(cabinet.call("_is_recommended", gm.get_part("reflector_mount"))), "Newtonian mount is no longer generically recommended on L30")
 	var cabinet_text := _collect_control_text(cabinet)
 	_check(cabinet_text.contains("已装备，但不符合本关指定"), "cabinet marks the equipped incompatible part")
 	cabinet.queue_free()
@@ -68,7 +49,7 @@ func _initialize() -> void:
 	room.queue_free()
 	await process_frame
 
-	_check(gm.equip_part("reflector_mount"), "player can equip the prescribed Reflector Mount")
+	_check(gm.equip_part("basic_mount"), "player can equip the prescribed Basic Mount")
 	gm.install_part("mount", 0)
 	_check(gm.telescope_is_ready(), "hardware becomes ready after reinstalling the prescribed mount")
 	gm.set_collimation_score(0.0)

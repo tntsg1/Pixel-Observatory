@@ -1,26 +1,23 @@
-[gd_scene format=3 uid="uid://cyifbx613bm58"]
+[gd_scene load_steps=4 format=3 uid="uid://c1enemy001"]
 
 [ext_resource type="Script" path="res://scripts/enemy.gd" id="1_enemy"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_enemy"]
 radius = 14.0
 
-[node name="Enemy" type="CharacterBody2D" unique_id=167348122]
+[node name="Enemy" type="CharacterBody2D"]
 script = ExtResource("1_enemy")
 
-[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="." unique_id=1949814471]
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
 scale = Vector2(0.7, 0.7)
 
-[node name="HPBar" type="ColorRect" parent="." unique_id=1191322920]
-offset_right = 30.0
-offset_bottom = 3.0
+[node name="HPBar" type="ColorRect" parent="."]
 color = Color(0.2, 0.2, 0.2, 0.8)
+size = Vector2(30, 3)
 
-[node name="HPFill" type="ColorRect" parent="HPBar" unique_id=256512324]
-layout_mode = 0
-offset_right = 30.0
-offset_bottom = 3.0
+[node name="HPFill" type="ColorRect" parent="HPBar"]
 color = Color(1, 0.2, 0.2, 1)
+size = Vector2(30, 3)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=2070311353]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
 shape = SubResource("CircleShape2D_enemy")

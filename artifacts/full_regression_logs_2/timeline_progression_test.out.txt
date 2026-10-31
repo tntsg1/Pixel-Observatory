@@ -1,0 +1,435 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1. campaign appends expansion after the original 91 levels
+  ok: 16. L90 is NOT the final level
+  FAIL: 17. L91 (final report) closes the woven campaign
+  FAIL: 17b. constellation finale plays before the FAST block, not after the ending
+  ok: 2. L1 data has no Newtonian content []
+  ok: 2. L2 data has no Newtonian content []
+  ok: 2. L3 data has no Newtonian content []
+  ok: 2. L4 data has no Newtonian content []
+  ok: 2. L5 data has no Newtonian content []
+  ok: 2. L6 data has no Newtonian content []
+  ok: 2. L7 data has no Newtonian content []
+  ok: 2. L8 data has no Newtonian content []
+  ok: 2. L9 data has no Newtonian content []
+  ok: 2. L10 data has no Newtonian content []
+  ok: 2. L11 data has no Newtonian content []
+  ok: 2. L12 data has no Newtonian content []
+  ok: 2. L13 data has no Newtonian content []
+  ok: 2. L14 data has no Newtonian content []
+  ok: 2. L15 data has no Newtonian content []
+  ok: 2. L16 data has no Newtonian content []
+  ok: 2. L17 data has no Newtonian content []
+  ok: 2. L18 data has no Newtonian content []
+  ok: 2. L19 data has no Newtonian content []
+  ok: 2. L20 data has no Newtonian content []
+  ok: 2. L21 data has no Newtonian content []
+  ok: 2. L22 data has no Newtonian content []
+  ok: 2. L23 data has no Newtonian content []
+  ok: 2. L24 data has no Newtonian content []
+  ok: 3. pre-L25 unlock 'basic_tripod' is not Newtonian
+  ok: 3. pre-L25 unlock 'basic_mount' is not Newtonian
+  ok: 3. pre-L25 unlock 'starter_tube' is not Newtonian
+  ok: 3. pre-L25 unlock 'objective_60mm' is not Newtonian
+  ok: 3. pre-L25 unlock 'eyepiece_20mm' is not Newtonian
+  ok: 3. pre-L25 unlock 'basic_focus_knob' is not Newtonian
+  ok: 3. pre-L25 unlock 'basic_finder_scope' is not Newtonian
+  ok: 3. pre-L25 unlock 'eyepiece_10mm' is not Newtonian
+  ok: 3. pre-L25 unlock 'objective_100mm' is not Newtonian
+  ok: 3. pre-L25 unlock 'stable_mount' is not Newtonian
+  ok: 3b. 'reflector_mount' unlock_level does not leak early
+  ok: 3b. 'newtonian_reflector_tube' unlock_level does not leak early
+  ok: 3b. 'newtonian_primary_mirror' unlock_level does not leak early
+  ok: 3b. 'newtonian_mirror_cell' unlock_level does not leak early
+  ok: 3b. 'newtonian_secondary_spider' unlock_level does not leak early
+  ok: 3b. 'newtonian_secondary_mirror' unlock_level does not leak early
+  ok: 3b. 'newtonian_focuser' unlock_level does not leak early
+  ok: 3b. 'newtonian_25mm_eyepiece' unlock_level does not leak early
+  ok: 3b. 'newtonian_collimation_cap' unlock_level does not leak early
+  ok: 3b. 'dobsonian_rocker_mount' unlock_level does not leak early
+  ok: 3b. 'dobsonian_reflector_tube' unlock_level does not leak early
+  ok: 3b. 'dobsonian_primary_mirror' unlock_level does not leak early
+  ok: 3b. 'dobsonian_secondary_mirror' unlock_level does not leak early
+  ok: 3b. 'dobsonian_crayford_focuser' unlock_level does not leak early
+  ok: 3b. 'dobsonian_30mm_eyepiece' unlock_level does not leak early
+  ok: 3b. 'cassegrain_fork_mount' unlock_level does not leak early
+  ok: 3b. 'cassegrain_compact_tube' unlock_level does not leak early
+  ok: 3b. 'cassegrain_primary_mirror' unlock_level does not leak early
+  ok: 3b. 'cassegrain_convex_secondary' unlock_level does not leak early
+  ok: 3b. 'cassegrain_rear_focuser' unlock_level does not leak early
+  ok: 3b. 'cassegrain_12mm_eyepiece' unlock_level does not leak early
+  ok: 3b. 'gregorian_equatorial_mount' unlock_level does not leak early
+  ok: 3b. 'gregorian_optical_tube' unlock_level does not leak early
+  ok: 3b. 'gregorian_primary_mirror' unlock_level does not leak early
+  ok: 3b. 'gregorian_concave_secondary' unlock_level does not leak early
+  ok: 3b. 'gregorian_focuser' unlock_level does not leak early
+  ok: 3b. 'gregorian_18mm_eyepiece' unlock_level does not leak early
+  ok: 3b. 'segmented_primary_array' unlock_level does not leak early
+  ok: 3b. 'space_secondary_mirror' unlock_level does not leak early
+  ok: 3b. 'infrared_instrument_package' unlock_level does not leak early
+  ok: 3b. 'space_sunshield' unlock_level does not leak early
+  ok: 3b. 'fast_active_dish' unlock_level does not leak early
+  ok: 3b. 'fast_feed_cabin' unlock_level does not leak early
+  ok: 3b. 'fast_signal_processor' unlock_level does not leak early
+  ok: 3b. 'dobsonian_mirror_cell' unlock_level does not leak early
+  ok: 3b. 'dobsonian_secondary_spider' unlock_level does not leak early
+  ok: 3b. 'cassegrain_central_baffle' unlock_level does not leak early
+  ok: 3b. 'gregorian_optical_support' unlock_level does not leak early
+  ok: 3b. 'dobsonian_collimation_tool' unlock_level does not leak early
+  ok: 4/28. L23 has chromatic_aberration
+  ok: 4. L23 targets Vega
+  ok: 5. L24 story does not say 牛顿
+  ok: 5. L24 story does not say Newtonian
+  ok: 5. L24 story does not say 牛顿
+  ok: 5. L24 story does not say Newtonian
+  ok: 5. L24 story does not say 牛顿
+  ok: 5. L24 story does not say Newtonian
+  ok: 5. L24 story does not say 牛顿
+  ok: 5. L24 story does not say Newtonian
+  ok: 5. L24 story does not say 牛顿
+  ok: 5. L24 story does not say Newtonian
+  ok: 5. L24 story does not say 牛顿
+  ok: 5. L24 story does not say Newtonian
+  ok: 5. L24 carries the storeroom hook
+  ok: 6. L25 remains a refractor level
+  ok: 7. L25 unlocks Newtonian parts
+  ok: 8-14. newtonian level L26 stays inside its block
+  ok: 8-14. newtonian level L27 stays inside its block
+  ok: 8-14. newtonian level L28 stays inside its block
+  ok: 8-14. newtonian level L29 stays inside its block
+  ok: 8-14. newtonian level L30 stays inside its block
+  ok: 8-14. newtonian level L31 stays inside its block
+  ok: 8-14. newtonian level L32 stays inside its block
+  ok: 8-14. newtonian level L33 stays inside its block
+  ok: 8-14. newtonian level L34 stays inside its block
+  ok: 8-14. newtonian level L35 stays inside its block
+  ok: 15. newtonian has exactly 10 dedicated levels (got 10)
+  ok: 8-14. dobsonian level L36 stays inside its block
+  ok: 8-14. dobsonian level L37 stays inside its block
+  ok: 8-14. dobsonian level L38 stays inside its block
+  ok: 8-14. dobsonian level L39 stays inside its block
+  ok: 8-14. dobsonian level L40 stays inside its block
+  ok: 8-14. dobsonian level L41 stays inside its block
+  ok: 8-14. dobsonian level L42 stays inside its block
+  ok: 8-14. dobsonian level L43 stays inside its block
+  ok: 8-14. dobsonian level L44 stays inside its block
+  ok: 8-14. dobsonian level L45 stays inside its block
+  ok: 15. dobsonian has exactly 10 dedicated levels (got 10)
+  ok: 8-14. cassegrain level L46 stays inside its block
+  ok: 8-14. cassegrain level L47 stays inside its block
+  ok: 8-14. cassegrain level L48 stays inside its block
+  ok: 8-14. cassegrain level L49 stays inside its block
+  ok: 8-14. cassegrain level L50 stays inside its block
+  ok: 8-14. cassegrain level L51 stays inside its block
+  ok: 8-14. cassegrain level L52 stays inside its block
+  ok: 8-14. cassegrain level L53 stays inside its block
+  ok: 8-14. cassegrain level L54 stays inside its block
+  ok: 8-14. cassegrain level L55 stays inside its block
+  ok: 15. cassegrain has exactly 10 dedicated levels (got 10)
+  ok: 8-14. gregorian level L56 stays inside its block
+  ok: 8-14. gregorian level L57 stays inside its block
+  ok: 8-14. gregorian level L58 stays inside its block
+  ok: 8-14. gregorian level L59 stays inside its block
+  ok: 8-14. gregorian level L60 stays inside its block
+  ok: 8-14. gregorian level L61 stays inside its block
+  ok: 8-14. gregorian level L62 stays inside its block
+  ok: 8-14. gregorian level L63 stays inside its block
+  ok: 8-14. gregorian level L64 stays inside its block
+  ok: 8-14. gregorian level L65 stays inside its block
+  ok: 15. gregorian has exactly 10 dedicated levels (got 10)
+  ok: 8-14. space_segmented level L66 stays inside its block
+  ok: 8-14. space_segmented level L67 stays inside its block
+  ok: 8-14. space_segmented level L68 stays inside its block
+  ok: 8-14. space_segmented level L69 stays inside its block
+  ok: 8-14. space_segmented level L70 stays inside its block
+  ok: 8-14. space_segmented level L71 stays inside its block
+  ok: 8-14. space_segmented level L72 stays inside its block
+  ok: 8-14. space_segmented level L73 stays inside its block
+  ok: 8-14. space_segmented level L74 stays inside its block
+  ok: 8-14. space_segmented level L75 stays inside its block
+  ok: 15. space_segmented has exactly 10 dedicated levels (got 10)
+  ok: 8-14. fast_radio level L76 stays inside its block
+  ok: 8-14. fast_radio level L77 stays inside its block
+  ok: 8-14. fast_radio level L78 stays inside its block
+  ok: 8-14. fast_radio level L79 stays inside its block
+  ok: 8-14. fast_radio level L80 stays inside its block
+  ok: 8-14. fast_radio level L81 stays inside its block
+  ok: 8-14. fast_radio level L82 stays inside its block
+  ok: 8-14. fast_radio level L83 stays inside its block
+  ok: 8-14. fast_radio level L84 stays inside its block
+  ok: 8-14. fast_radio level L85 stays inside its block
+  ok: 15. fast_radio has exactly 10 dedicated levels (got 10)
+  ok: 8-14. multi_device level L86 stays inside its block
+  ok: 8-14. multi_device level L87 stays inside its block
+  ok: 8-14. multi_device level L88 stays inside its block
+  ok: 8-14. multi_device level L89 stays inside its block
+  ok: 8-14. multi_device level L90 stays inside its block
+  ok: 8-14. multi_device level L91 stays inside its block
+  ok: 15. multi_device has exactly 6 dedicated levels (got 6)
+  ok: 18. L25 has a before-story
+  ok: 18. L25 has an after-story
+  ok: 19. L25 board note exists
+  ok: 18. L26 has a before-story
+  ok: 18. L26 has an after-story
+  ok: 19. L26 board note exists
+  ok: 18. L27 has a before-story
+  ok: 18. L27 has an after-story
+  ok: 19. L27 board note exists
+  ok: 18. L28 has a before-story
+  ok: 18. L28 has an after-story
+  ok: 19. L28 board note exists
+  ok: 18. L29 has a before-story
+  ok: 18. L29 has an after-story
+  ok: 19. L29 board note exists
+  ok: 18. L30 has a before-story
+  ok: 18. L30 has an after-story
+  ok: 19. L30 board note exists
+  ok: 18. L31 has a before-story
+  ok: 18. L31 has an after-story
+  ok: 19. L31 board note exists
+  ok: 18. L32 has a before-story
+  ok: 18. L32 has an after-story
+  ok: 19. L32 board note exists
+  ok: 18. L33 has a before-story
+  ok: 18. L33 has an after-story
+  ok: 19. L33 board note exists
+  ok: 18. L34 has a before-story
+  ok: 18. L34 has an after-story
+  ok: 19. L34 board note exists
+  ok: 18. L35 has a before-story
+  ok: 18. L35 has an after-story
+  ok: 19. L35 board note exists
+  ok: 18. L36 has a before-story
+  ok: 18. L36 has an after-story
+  ok: 19. L36 board note exists
+  ok: 18. L37 has a before-story
+  ok: 18. L37 has an after-story
+  ok: 19. L37 board note exists
+  ok: 18. L38 has a before-story
+  ok: 18. L38 has an after-story
+  ok: 19. L38 board note exists
+  ok: 18. L39 has a before-story
+  ok: 18. L39 has an after-story
+  ok: 19. L39 board note exists
+  ok: 18. L40 has a before-story
+  ok: 18. L40 has an after-story
+  ok: 19. L40 board note exists
+  ok: 18. L41 has a before-story
+  ok: 18. L41 has an after-story
+  ok: 19. L41 board note exists
+  ok: 18. L42 has a before-story
+  ok: 18. L42 has an after-story
+  ok: 19. L42 board note exists
+  ok: 18. L43 has a before-story
+  ok: 18. L43 has an after-story
+  ok: 19. L43 board note exists
+  ok: 18. L44 has a before-story
+  ok: 18. L44 has an after-story
+  ok: 19. L44 board note exists
+  ok: 18. L45 has a before-story
+  ok: 18. L45 has an after-story
+  ok: 19. L45 board note exists
+  ok: 18. L46 has a before-story
+  ok: 18. L46 has an after-story
+  ok: 19. L46 board note exists
+  ok: 18. L47 has a before-story
+  ok: 18. L47 has an after-story
+  ok: 19. L47 board note exists
+  ok: 18. L48 has a before-story
+  ok: 18. L48 has an after-story
+  ok: 19. L48 board note exists
+  ok: 18. L49 has a before-story
+  ok: 18. L49 has an after-story
+  ok: 19. L49 board note exists
+  ok: 18. L50 has a before-story
+  ok: 18. L50 has an after-story
+  ok: 19. L50 board note exists
+  ok: 18. L51 has a before-story
+  ok: 18. L51 has an after-story
+  ok: 19. L51 board note exists
+  ok: 18. L52 has a before-story
+  ok: 18. L52 has an after-story
+  ok: 19. L52 board note exists
+  ok: 18. L53 has a before-story
+  ok: 18. L53 has an after-story
+  ok: 19. L53 board note exists
+  ok: 18. L54 has a before-story
+  ok: 18. L54 has an after-story
+  ok: 19. L54 board note exists
+  ok: 18. L55 has a before-story
+  ok: 18. L55 has an after-story
+  ok: 19. L55 board note exists
+  ok: 18. L56 has a before-story
+  ok: 18. L56 has an after-story
+  ok: 19. L56 board note exists
+  ok: 18. L57 has a before-story
+  ok: 18. L57 has an after-story
+  ok: 19. L57 board note exists
+  ok: 18. L58 has a before-story
+  ok: 18. L58 has an after-story
+  ok: 19. L58 board note exists
+  ok: 18. L59 has a before-story
+  ok: 18. L59 has an after-story
+  ok: 19. L59 board note exists
+  ok: 18. L60 has a before-story
+  ok: 18. L60 has an after-story
+  ok: 19. L60 board note exists
+  ok: 18. L61 has a before-story
+  ok: 18. L61 has an after-story
+  ok: 19. L61 board note exists
+  ok: 18. L62 has a before-story
+  ok: 18. L62 has an after-story
+  ok: 19. L62 board note exists
+  ok: 18. L63 has a before-story
+  ok: 18. L63 has an after-story
+  ok: 19. L63 board note exists
+  ok: 18. L64 has a before-story
+  ok: 18. L64 has an after-story
+  ok: 19. L64 board note exists
+  ok: 18. L65 has a before-story
+  ok: 18. L65 has an after-story
+  ok: 19. L65 board note exists
+  ok: 18. L66 has a before-story
+  ok: 18. L66 has an after-story
+  ok: 19. L66 board note exists
+  ok: 18. L67 has a before-story
+  ok: 18. L67 has an after-story
+  ok: 19. L67 board note exists
+  ok: 18. L68 has a before-story
+  ok: 18. L68 has an after-story
+  ok: 19. L68 board note exists
+  ok: 18. L69 has a before-story
+  ok: 18. L69 has an after-story
+  ok: 19. L69 board note exists
+  ok: 18. L70 has a before-story
+  ok: 18. L70 has an after-story
+  ok: 19. L70 board note exists
+  ok: 18. L71 has a before-story
+  ok: 18. L71 has an after-story
+  ok: 19. L71 board note exists
+  ok: 18. L72 has a before-story
+  ok: 18. L72 has an after-story
+  ok: 19. L72 board note exists
+  ok: 18. L73 has a before-story
+  ok: 18. L73 has an after-story
+  ok: 19. L73 board note exists
+  ok: 18. L74 has a before-story
+  ok: 18. L74 has an after-story
+  ok: 19. L74 board note exists
+  ok: 18. L75 has a before-story
+  ok: 18. L75 has an after-story
+  ok: 19. L75 board note exists
+  ok: 18. L76 has a before-story
+  ok: 18. L76 has an after-story
+  ok: 19. L76 board note exists
+  ok: 18. L77 has a before-story
+  ok: 18. L77 has an after-story
+  ok: 19. L77 board note exists
+  ok: 18. L78 has a before-story
+  ok: 18. L78 has an after-story
+  ok: 19. L78 board note exists
+  ok: 18. L79 has a before-story
+  ok: 18. L79 has an after-story
+  ok: 19. L79 board note exists
+  ok: 18. L80 has a before-story
+  ok: 18. L80 has an after-story
+  ok: 19. L80 board note exists
+  ok: 18. L81 has a before-story
+  ok: 18. L81 has an after-story
+  ok: 19. L81 board note exists
+  ok: 18. L82 has a before-story
+  ok: 18. L82 has an after-story
+  ok: 19. L82 board note exists
+  ok: 18. L83 has a before-story
+  ok: 18. L83 has an after-story
+  ok: 19. L83 board note exists
+  ok: 18. L84 has a before-story
+  ok: 18. L84 has an after-story
+  ok: 19. L84 board note exists
+  ok: 18. L85 has a before-story
+  ok: 18. L85 has an after-story
+  ok: 19. L85 board note exists
+  ok: 18. L86 has a before-story
+  ok: 18. L86 has an after-story
+  ok: 19. L86 board note exists
+  ok: 18. L87 has a before-story
+  ok: 18. L87 has an after-story
+  ok: 19. L87 board note exists
+  ok: 18. L88 has a before-story
+  ok: 18. L88 has an after-story
+  ok: 19. L88 board note exists
+  ok: 18. L89 has a before-story
+  ok: 18. L89 has an after-story
+  ok: 19. L89 board note exists
+  ok: 18. L90 has a before-story
+  ok: 18. L90 has an after-story
+  ok: 19. L90 board note exists
+  ok: 18. L91 has a before-story
+  ok: 18. L91 has an after-story
+  ok: 19. L91 board note exists
+  ok: 20. newtonian tab shows newtonian parts
+  ok: 20. newtonian tab shows universal parts
+  ok: 20. newtonian tab hides FAST parts
+  ok: 20. All tab shows everything
+  ok: 20. FAST tab hides universal optics
+  ok: 21. L26 auto-equip compatible (basic_tripod)
+  ok: 21. L26 auto-equip compatible (tracking_mount)
+  ok: 21. L26 auto-equip compatible (basic_finder_scope)
+  ok: 21. L26 auto-equip compatible (newtonian_reflector_tube)
+  ok: 21. L26 auto-equip compatible (newtonian_mirror_cell)
+  ok: 21. L26 auto-equip compatible (newtonian_primary_mirror)
+  ok: 21. L26 auto-equip compatible (newtonian_secondary_spider)
+  ok: 21. L26 auto-equip compatible (newtonian_secondary_mirror)
+  ok: 21. L26 auto-equip compatible (newtonian_focuser)
+  ok: 21. L26 auto-equip compatible (newtonian_25mm_eyepiece)
+  ok: 21. L26 auto-equip compatible (newtonian_collimation_cap)
+  ok: 21. FAST auto-equip picks no objective/eyepiece
+  ok: 21. FAST auto-equip picks no objective/eyepiece
+  ok: 21. FAST auto-equip picks no objective/eyepiece
+  ok: 21. infrared auto-equip picks no optical eyepiece
+  ok: 21. infrared auto-equip picks no optical eyepiece
+  ok: 21. infrared auto-equip picks no optical eyepiece
+  ok: 21. infrared auto-equip picks no optical eyepiece
+  ok: 22. hints default ON
+  ok: 22. hints turn OFF
+  ok: 23. hints OFF persisted into progress
+  ok: 24. res://scripts/ui/assembly_ui_template.gd readable
+  ok: 24. res://scripts/ui/telescope_assembly_screen.gd readable
+  ok: 24. res://scripts/ui/advanced_assembly.gd readable
+  ok: 24. res://scripts/ui/optical_tube_assembly.gd readable
+  ok: 24. res://scripts/ui/parts_cabinet.gd readable
+  ok: 24. res://scripts/systems/game_manager.gd readable
+  ok: 24. res://scripts/systems/story_manager.gd readable
+  ok: 24. res://scripts/ui/constellation_observation.gd readable
+  ok: 24. res://scripts/ui/telescope_view.gd readable
+  ok: 24. res://data/expansion/levels.json readable
+  ok: 24. res://data/expansion/story_dialogues.json readable
+  ok: 24. res://data/expansion/constellations.json readable
+  ok: 24. res://data/expansion/celestial_objects.json readable
+  ok: 24. res://data/expansion/learning_cards.json readable
+  ok: 25. old save L40 migrates to L41
+  ok: 25. completed levels shift with content
+  FAIL: 25. campaign version stamped
+  ok: 26. L26 story plays
+  ok: 27. L26 story never replays
+  ok: 29. L32 Earth-rotation drift is real
+  ok: 30. L33 seeing and clouds are real
+  ok: 31. L76 runs radio mode
+  ok: 31. L77 runs radio mode
+  ok: 31. L78 runs radio mode
+  ok: 31. L79 runs radio mode
+  ok: 31. L80 runs radio mode
+  ok: 31. L81 runs radio mode
+  ok: 31. L82 runs radio mode
+  ok: 31. L83 runs radio mode
+  ok: 31. L84 runs radio mode
+  ok: 31. L85 runs radio mode
+  ok: 32. L86 runs multi-device mode
+  ok: 32. L87 runs multi-device mode
+  ok: 32. L88 runs multi-device mode
+  ok: 32. L89 runs multi-device mode
+  ok: 32. L90 runs multi-device mode
+  ok: 32. L91 runs multi-device mode
+TIMELINE PROGRESSION TEST FAIL (3)

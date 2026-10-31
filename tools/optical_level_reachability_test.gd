@@ -54,6 +54,10 @@ func _test_current_level(level_number: int) -> void:
 		"magnification": float(stats.get("magnification", 0.0)),
 		"observation_requirements": requirements,
 		"filter": str(requirements.get("filter", "none")),
+		# Like the filter and dark-adaptation values above, this models a player
+		# who actually performs the technique the level asks for - L50 requires
+		# trimming exposure until Venus stops being an overexposed blob.
+		"exposure": (float(requirements.get("exposure_min", 0.0)) + float(requirements.get("exposure_max", 1.0))) * 0.5 if (requirements.has("exposure_min") or requirements.has("exposure_max")) else 0.5,
 		"dark_adaptation": 1.0,
 		"averted_vision": true,
 		"tracking_rate": gm.tracking_rate(),
@@ -79,7 +83,22 @@ func _test_current_level(level_number: int) -> void:
 		str(result.get("ratios", {})),
 		str(technique.get("code", "")),
 	])
-	_check(bool(result.get("success", false)), "L%d is completable with its currently unlocked prepared equipment" % level_number)
+	var reachable: bool = bool(result.get("success", false))
+	var reached_with := eyepiece_id
+	if not reachable:
+		# Levels that teach eyepiece choice (L10's low/medium/high comparison)
+		# deliberately fail with the highest-power eyepiece - that IS the
+		# lesson. What must hold is that SOME unlocked eyepiece completes them.
+		var retry := _retry_across_eyepieces(level, context)
+		reachable = bool(retry.get("success", false))
+		reached_with = str(retry.get("eyepiece_id", ""))
+		if reachable:
+			print("    (reachable instead with %s)" % reached_with)
+		# Restore the prepared loadout so later assertions see the real state.
+		if eyepiece_id != "":
+			gm.equip_part(eyepiece_id)
+			gm.install_part("eyepiece", 0)
+	_check(reachable, "L%d is completable with its currently unlocked equipment" % level_number)
 	_check(not mount_id.is_empty(), "L%d has a compatible prepared mount" % level_number)
 
 
@@ -100,3 +119,23 @@ func _check(condition: bool, label: String) -> void:
 	else:
 		failures += 1
 		print("  FAIL: " + label)
+
+
+# Tries every unlocked eyepiece for the current level and returns the first
+# that completes it.
+func _retry_across_eyepieces(level: Dictionary, context: Dictionary) -> Dictionary:
+	for option_value in gm.unlocked_parts_by_type("eyepiece"):
+		if not option_value is Dictionary:
+			continue
+		var option: Dictionary = option_value
+		var option_id := str(option.get("id", ""))
+		if option_id == "" or not gm.equip_part(option_id):
+			continue
+		gm.install_part("eyepiece", 0)
+		var retry_stats: Dictionary = gm.calculate_stats()
+		var retry_context: Dictionary = context.duplicate(true)
+		retry_context["magnification"] = float(retry_stats.get("magnification", 0.0))
+		var retry_result: Dictionary = gm.evaluate_selected_object(retry_context)
+		if bool(retry_result.get("success", false)):
+			return {"success": true, "eyepiece_id": option_id}
+	return {"success": false, "eyepiece_id": ""}

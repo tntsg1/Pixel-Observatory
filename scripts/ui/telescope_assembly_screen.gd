@@ -156,25 +156,8 @@ func _build() -> void:
 	_draw_title_bar()
 	_build_parts_panel()
 	_build_blueprint_panel()
-	# After the blueprint panel, so its opaque body cannot paint over this.
-	# This bench is the game's first one and covers L1-25, but unlike the
-	# advanced benches it drew its own panel instead of going through
-	# AssemblyUITemplate.add_blueprint_panel(), so it never picked up that
-	# shared idle shimmer and sat completely still.
-	_draw_ambient()
 	_build_inspector_panel()
 	_refresh_all()
-
-
-func _draw_ambient() -> void:
-	var life := AmbientLife.new()
-	life.name = "BlueprintAmbientLife"
-	life.configure({
-		"twinkle_zone": AssemblyUITemplate.BLUEPRINT_PANEL_RECT,
-		"twinkle_count": 16,
-		"seed": 20260827,
-	})
-	add_child(life)
 
 
 func _draw_title_bar() -> void:

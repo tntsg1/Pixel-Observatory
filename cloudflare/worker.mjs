@@ -15,35 +15,13 @@ const MAX_MESSAGE_LENGTH = 4_000;
 const MAX_COMMUNITY_BODY = 3_000;
 const MAX_OBSERVATION_SHARE_BYTES = 24_000;
 const OBSERVATION_SHARE_ID_PATTERN = /^OBS-[A-Z0-9]{8,40}$/;
-const STUDY_PARTICIPANT_PATTERN = /^STUDY-[A-Z0-9_-]{8,48}$/;
-const STUDY_TOKEN_PATTERN = /^[a-zA-Z0-9_-]{32,128}$/;
-const STUDY_MIN_GAME_SECONDS = 300;
-const STUDY_PHASES = new Set(["pre", "reading_post", "post", "experience"]);
-const STUDY_PHASE_NEXT_STAGE = {
-	pre: "reading",
-	reading_post: "game",
-	post: "experience",
-	experience: "complete",
-};
-const STUDY_ANSWER_KEY = {
-	workflow: "finder",
-	magnification: "short",
-	focus: "focuser",
-	seeing: "lower",
-	tracking: "rotation",
-	chromatic: "refraction",
-	light: "glow",
-	aperture: "collect",
-	alignment: "agree",
-	deep_sky: "expected",
-};
-const STUDY_QUESTIONNAIRE_VERSION = "foundation_1_24_v1";
 const PUBLIC_SITE_ORIGIN = "https://pixelobservatorygame.com";
 const ONLINE_WINDOW_SECONDS = 120;
 const PLAYTIME_HEARTBEAT_CAP_SECONDS = 90;
 const PLAYTIME_LEASE_STALE_SECONDS = 75;
 const PERMANENT_MUTE_UNTIL = 4_102_444_800;
 const ADMIN_PROFILE_THEMES = new Set(["command-gold", "aurora-glass", "deep-space"]);
+const SPECIAL_AVATAR_FRAMES = new Set(["signal-gold"]);
 const OBSERVATORY_ACTIVITIES = new Set([
 	"menu",
 	"observatory",
@@ -426,8 +404,10 @@ async function sessionForRequest(env, request) {
 	const tokenHash = await sha256(token);
 	const now = Math.floor(Date.now() / 1000);
 	const row = await env.DB.prepare(
-		`SELECT users.id, users.username, users.role, sessions.token_hash
+		`SELECT users.id, users.username, users.role, sessions.token_hash,
+		   COALESCE(user_entitlements.developer_console, 0) AS developer_console
 		 FROM sessions JOIN users ON users.id = sessions.user_id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE sessions.token_hash = ? AND sessions.expires_at > ?`,
 	).bind(tokenHash, now).first();
 	if (!row) return null;
@@ -448,7 +428,12 @@ async function createSession(env, request, userId) {
 }
 
 function publicUser(user) {
-	return { id: user.id, username: user.username, role: user.role };
+	return {
+		id: user.id,
+		username: user.username,
+		role: user.role,
+		developerConsole: user.role === "admin" || Number(user.developer_console || 0) === 1,
+	};
 }
 
 async function communicationRestriction(env, user) {
@@ -510,7 +495,10 @@ async function handleLogin(request, env) {
 	const usernameKey = String(body.username || "").trim().toLowerCase();
 	const password = String(body.password || "");
 	const user = await env.DB.prepare(
-		"SELECT id, username, role, password_hash, password_salt, password_iterations FROM users WHERE username_key = ?",
+		`SELECT users.id, users.username, users.role, users.password_hash, users.password_salt, users.password_iterations,
+		   COALESCE(user_entitlements.developer_console, 0) AS developer_console
+		 FROM users LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
+		 WHERE users.username_key = ?`,
 	).bind(usernameKey).first();
 	if (!user) return apiError("Observer name or password is incorrect.", 401, "invalid_credentials");
 	const candidate = await passwordHash(password, base64ToBytes(user.password_salt), Number(user.password_iterations));
@@ -622,13 +610,22 @@ async function handleSavePut(request, env) {
 		return apiError("The save is too large or invalid.", 413, "invalid_save");
 	}
 	if (!body.progress || typeof body.progress !== "object" || Array.isArray(body.progress)) return apiError("Invalid save data.", 400, "invalid_save");
+	const resetCampaign = body.resetCampaign === true;
+	if (resetCampaign) {
+		const isFreshCampaign = Number(body.progress.current_level || 1) === 1
+			&& Number(body.progress.credits || 0) === 0
+			&& Array.isArray(body.progress.completed_levels) && body.progress.completed_levels.length === 0
+			&& Array.isArray(body.progress.journal_entries) && body.progress.journal_entries.length === 0
+			&& body.progress.program_completed !== true;
+		if (!isFreshCampaign) return apiError("A campaign reset must contain a fresh level-one save.", 400, "invalid_campaign_reset");
+	}
 	const progressJson = JSON.stringify(body.progress);
 	if (new TextEncoder().encode(progressJson).length > MAX_SAVE_BYTES) return apiError("The save is too large.", 413, "invalid_save");
 	const existing = await env.DB.prepare("SELECT version, progress_json FROM cloud_saves WHERE user_id = ?").bind(user.id).first();
 	const currentVersion = Number(existing?.version || 0);
 	const baseVersion = Number(body.baseVersion || 0);
 	if (existing && baseVersion !== currentVersion) return json({ ok: false, error: "version_conflict", currentVersion }, 409);
-	if (existing) {
+	if (existing && !resetCampaign) {
 		let currentProgress = {};
 		try {
 			currentProgress = JSON.parse(existing.progress_json || "{}");
@@ -1275,10 +1272,17 @@ function socialProfile(row, viewerId = "") {
 		bio: row.bio || "",
 		avatarId: Number(row.avatar_id || 1),
 		selectedTitle: row.selected_title || rank.id,
+		specialTitle: {
+			en: row.special_title_en || "",
+			zh: row.special_title_zh || "",
+		},
 		profileTheme: row.role === "admin" && ADMIN_PROFILE_THEMES.has(row.profile_theme)
 			? row.profile_theme
 			: "standard",
-		honor: row.role === "admin" ? "Observatory Director" : "",
+		avatarFrame: SPECIAL_AVATAR_FRAMES.has(row.avatar_frame) ? row.avatar_frame : "standard",
+		honor: row.role === "admin"
+			? { en: "Observatory Director", zh: "天文台台长" }
+			: { en: row.honor_en || "", zh: row.honor_zh || "" },
 		playSeconds: Number(row.play_seconds || 0),
 		rank,
 		online: Number(row.last_active_at || 0) >= Math.floor(Date.now() / 1000) - ONLINE_WINDOW_SECONDS,
@@ -1311,12 +1315,15 @@ async function selectProfile(env, userId, viewerId = "", viewerRole = "") {
 		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
 		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame,
 		   ? = 'admin' AS viewer_is_admin, user_moderation.muted_until,
 		   user_moderation.reason AS moderation_reason,
 		   (SELECT status FROM friendships
 		    WHERE pair_key = CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
 		    LIMIT 1) AS friendship_status
 		 FROM users JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 LEFT JOIN user_moderation ON user_moderation.user_id = users.id
 		 WHERE users.id = ?`,
 	).bind(viewerRole, viewerId, viewerId, viewerId, userId).first();
@@ -1482,8 +1489,11 @@ async function handleLeaderboard(request, env) {
 	const result = await env.DB.prepare(
 		`SELECT users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
-		   user_profiles.activity_key, user_profiles.activity_updated_at
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM user_profiles JOIN users ON users.id = user_profiles.user_id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 ORDER BY user_profiles.play_seconds DESC, users.created_at ASC LIMIT 100`,
 	).all();
 	return json({
@@ -1500,10 +1510,13 @@ async function handleFriendsGet(request, env) {
 		`SELECT friendships.id AS friendship_id, friendships.status, friendships.requester_id,
 		   users.id, users.username, users.role, user_profiles.bio, user_profiles.avatar_id,
 		   user_profiles.selected_title, user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
-		   user_profiles.activity_key, user_profiles.activity_updated_at
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM friendships
 		 JOIN users ON users.id = CASE WHEN friendships.requester_id = ? THEN friendships.addressee_id ELSE friendships.requester_id END
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE friendships.requester_id = ? OR friendships.addressee_id = ?
 		 ORDER BY friendships.updated_at DESC`,
 	).bind(user.id, user.id, user.id).all();
@@ -1532,9 +1545,12 @@ async function handleObserverSearch(request, env, url) {
 		   friendships.requester_id, users.id, users.username, users.role,
 		   user_profiles.bio, user_profiles.avatar_id, user_profiles.selected_title,
 		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
-		   user_profiles.activity_key, user_profiles.activity_updated_at
+		   user_profiles.activity_key, user_profiles.activity_updated_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM users
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 LEFT JOIN friendships ON friendships.pair_key =
 		   CASE WHEN users.id < ? THEN users.id || ':' || ? ELSE ? || ':' || users.id END
 		 WHERE users.id <> ? AND users.username_key LIKE ? ESCAPE '\\'
@@ -1701,9 +1717,12 @@ async function handleCommunityPostsGet(request, env) {
 		`SELECT community_posts.id, community_posts.title, community_posts.body,
 		   community_posts.reply_count, community_posts.created_at, community_posts.updated_at,
 		   users.id AS user_id, users.username, users.role, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM community_posts JOIN users ON users.id = community_posts.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE community_posts.deleted_at = 0
 		 ORDER BY community_posts.updated_at DESC LIMIT 60`,
 	).all();
@@ -1752,9 +1771,12 @@ async function handleCommunityPostGet(request, env, postId) {
 	const post = await env.DB.prepare(
 		`SELECT community_posts.*, users.id AS author_id, users.username, users.role,
 		   user_profiles.avatar_id, user_profiles.selected_title, user_profiles.profile_theme,
-		   user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM community_posts JOIN users ON users.id = community_posts.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 WHERE community_posts.id = ? AND community_posts.deleted_at = 0`,
 	).bind(postId).first();
 	if (!post) return apiError("Community post not found.", 404, "not_found");
@@ -1762,9 +1784,12 @@ async function handleCommunityPostGet(request, env, postId) {
 		`SELECT community_replies.id, community_replies.body, community_replies.created_at,
 		   community_replies.parent_reply_id, parent_user.username AS reply_to_username,
 		   users.id AS user_id, users.username, users.role, user_profiles.avatar_id, user_profiles.selected_title,
-		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at
+		   user_profiles.profile_theme, user_profiles.play_seconds, user_profiles.last_active_at,
+		   user_entitlements.developer_console, user_entitlements.special_title_en, user_entitlements.special_title_zh,
+		   user_entitlements.honor_en, user_entitlements.honor_zh, user_entitlements.avatar_frame
 		 FROM community_replies JOIN users ON users.id = community_replies.user_id
 		 LEFT JOIN user_profiles ON user_profiles.user_id = users.id
+		 LEFT JOIN user_entitlements ON user_entitlements.user_id = users.id
 		 LEFT JOIN community_replies AS parent_reply ON parent_reply.id = community_replies.parent_reply_id
 		 LEFT JOIN users AS parent_user ON parent_user.id = parent_reply.user_id
 		 WHERE community_replies.post_id = ? AND community_replies.deleted_at = 0
@@ -1831,236 +1856,6 @@ async function handleCommunityReplyCreate(request, env, postId) {
 	return json({ ok: true, replyId: id }, 201);
 }
 
-function normalizeStudyParticipantId(value) {
-	const participantId = String(value || "").trim();
-	return STUDY_PARTICIPANT_PATTERN.test(participantId) ? participantId : "";
-}
-
-function normalizeStudyToken(value) {
-	const token = String(value || "").trim();
-	return STUDY_TOKEN_PATTERN.test(token) ? token : "";
-}
-
-function normalizeStudyAnswers(value) {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-	const answers = {};
-	for (const [key, answer] of Object.entries(value)) {
-		if (!/^[a-z_]{2,40}$/.test(key)) continue;
-		answers[key] = String(answer || "").trim().slice(0, 4_000);
-	}
-	return answers;
-}
-
-function studyScore(answers) {
-	let score = 0;
-	for (const [key, correctAnswer] of Object.entries(STUDY_ANSWER_KEY)) {
-		if (answers[key] === correctAnswer) score += 1;
-	}
-	return { score, maxScore: Object.keys(STUDY_ANSWER_KEY).length };
-}
-
-function studyQualityFlags(answers, durationSeconds) {
-	const flags = [];
-	if (durationSeconds > 0 && durationSeconds < 45) flags.push("very_fast_response");
-	const values = Object.values(answers).filter(Boolean);
-	if (values.length >= 6 && new Set(values).size === 1) flags.push("uniform_response_pattern");
-	return flags;
-}
-
-async function studyParticipantForPayload(env, payload) {
-	const participantId = normalizeStudyParticipantId(payload.participantId);
-	const token = normalizeStudyToken(payload.token);
-	if (!participantId || !token) return null;
-	const tokenHash = await sha256(token);
-	return env.DB.prepare(
-		`SELECT id, language, status, next_stage, game_active_seconds, game_event_count,
-		        pretest_completed_at, reading_started_at, reading_completed_at,
-		        reading_posttest_completed_at, game_started_at, game_completed_at,
-		        posttest_completed_at, experience_completed_at
-		 FROM study_participants WHERE id = ? AND study_token_hash = ?`,
-	).bind(participantId, tokenHash).first();
-}
-
-function publicStudyState(row) {
-	return {
-		participantId: row.id,
-		language: row.language,
-		status: row.status,
-		nextStage: row.next_stage,
-		gameActiveSeconds: Number(row.game_active_seconds || 0),
-		minimumGameSeconds: STUDY_MIN_GAME_SECONDS,
-		completed: {
-			pretest: Number(row.pretest_completed_at || 0) > 0,
-			reading: Number(row.reading_completed_at || 0) > 0,
-			readingPosttest: Number(row.reading_posttest_completed_at || 0) > 0,
-			game: Number(row.game_completed_at || 0) > 0,
-			posttest: Number(row.posttest_completed_at || 0) > 0,
-			experience: Number(row.experience_completed_at || 0) > 0,
-		},
-	};
-}
-
-async function handleStudyEnroll(request, env) {
-	if (!(await rateLimit(env, request, "study_enroll", 8, 3_600))) return apiError("Too many study enrolment attempts. Please wait.", 429, "rate_limited");
-	let body;
-	try {
-		body = await readJson(request, 4_000);
-	} catch {
-		return apiError("Invalid study enrolment request.");
-	}
-	if (String(body.website || "").trim()) return apiError("Verification failed.", 400, "verification_failed");
-	if (body.consent !== true) return apiError("Consent is required before starting the study.", 400, "consent_required");
-	const language = body.language === "zh" ? "zh" : "en";
-	const token = randomToken(32);
-	const participantId = `STUDY-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
-	const now = Math.floor(Date.now() / 1000);
-	await env.DB.prepare(
-		`INSERT INTO study_participants
-		 (id, study_token_hash, language, consent_version, status, next_stage, created_at, updated_at)
-		 VALUES (?, ?, ?, '2026-08-05', 'enrolled', 'pretest', ?, ?)`,
-	).bind(participantId, await sha256(token), language, now, now).run();
-	return json({
-		ok: true,
-		participantId,
-		token,
-		state: { participantId, language, status: "enrolled", nextStage: "pretest", gameActiveSeconds: 0, minimumGameSeconds: STUDY_MIN_GAME_SECONDS, completed: {} },
-	}, 201);
-}
-
-async function handleStudyState(request, env) {
-	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study session."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	return json({ ok: true, state: publicStudyState(participant) });
-}
-
-async function handleStudyAdvance(request, env) {
-	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study update."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	const action = String(body.action || "");
-	const now = Math.floor(Date.now() / 1000);
-	if (action === "start_reading") {
-		if (participant.next_stage !== "reading") return apiError("Complete the baseline questions first.", 409, "invalid_study_stage");
-		await env.DB.prepare("UPDATE study_participants SET status = 'reading', reading_started_at = CASE WHEN reading_started_at = 0 THEN ? ELSE reading_started_at END, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else if (action === "finish_reading") {
-		if (participant.next_stage !== "reading") return apiError("Reading is not the current study stage.", 409, "invalid_study_stage");
-		await env.DB.prepare("UPDATE study_participants SET status = 'reading', next_stage = 'reading_posttest', reading_completed_at = ?, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else if (action === "start_game") {
-		if (participant.next_stage !== "game") return apiError("Complete the reading check first.", 409, "invalid_study_stage");
-		await env.DB.prepare("UPDATE study_participants SET status = 'game', game_started_at = CASE WHEN game_started_at = 0 THEN ? ELSE game_started_at END, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else if (action === "finish_game") {
-		if (participant.next_stage !== "game") return apiError("The game stage is not currently active.", 409, "invalid_study_stage");
-		if (Number(participant.game_active_seconds || 0) < STUDY_MIN_GAME_SECONDS) {
-			return apiError(`Please keep observing for at least ${Math.ceil(STUDY_MIN_GAME_SECONDS / 60)} active minutes before continuing.`, 409, "insufficient_game_time");
-		}
-		await env.DB.prepare("UPDATE study_participants SET status = 'post_game', next_stage = 'posttest', game_completed_at = ?, updated_at = ? WHERE id = ?")
-			.bind(now, now, participant.id).run();
-	} else {
-		return apiError("Unknown study action.", 400, "invalid_study_action");
-	}
-	const updated = await env.DB.prepare("SELECT * FROM study_participants WHERE id = ?").bind(participant.id).first();
-	return json({ ok: true, state: publicStudyState(updated) });
-}
-
-async function handleStudySubmit(request, env) {
-	if (!(await rateLimit(env, request, "study_submit", 60, 3_600))) return apiError("Too many study submissions. Please wait.", 429, "rate_limited");
-	let body;
-	try { body = await readJson(request, 16_000); } catch { return apiError("Invalid study response."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	const phase = String(body.phase || "");
-	if (!STUDY_PHASES.has(phase)) return apiError("Unknown study phase.", 400, "invalid_study_phase");
-	const allowedStage = { pre: "pretest", reading_post: "reading_posttest", post: "posttest", experience: "experience" }[phase];
-	if (participant.next_stage !== allowedStage) return apiError("That study stage is not available yet.", 409, "invalid_study_stage");
-	const answers = normalizeStudyAnswers(body.answers);
-	const durationSeconds = Math.max(0, Math.min(7_200, Math.floor(Number(body.durationSeconds || 0))));
-	const now = Math.floor(Date.now() / 1000);
-	const knowledgePhase = phase !== "experience";
-	if (knowledgePhase) answers.questionnaire_version = STUDY_QUESTIONNAIRE_VERSION;
-	const result = knowledgePhase ? studyScore(answers) : { score: null, maxScore: null };
-	const flags = studyQualityFlags(answers, durationSeconds);
-	const responseId = `SR-${Date.now().toString(36).toUpperCase()}-${randomToken(4).toUpperCase()}`;
-	try {
-		await env.DB.prepare(
-			`INSERT INTO study_responses (id, participant_id, phase, responses_json, score, max_score, duration_seconds, quality_flags_json, created_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		).bind(responseId, participant.id, phase, JSON.stringify(answers), result.score, result.maxScore, durationSeconds, JSON.stringify(flags), now).run();
-	} catch (error) {
-		return apiError("This study stage has already been submitted.", 409, "study_phase_already_submitted");
-	}
-	const completionColumn = {
-		pre: "pretest_completed_at",
-		reading_post: "reading_posttest_completed_at",
-		post: "posttest_completed_at",
-		experience: "experience_completed_at",
-	}[phase];
-	const nextStage = STUDY_PHASE_NEXT_STAGE[phase];
-	const status = phase === "experience" ? "completed" : participant.status;
-	await env.DB.prepare(`UPDATE study_participants SET ${completionColumn} = ?, next_stage = ?, status = ?, updated_at = ? WHERE id = ?`)
-		.bind(now, nextStage, status, now, participant.id).run();
-	const updated = await env.DB.prepare("SELECT * FROM study_participants WHERE id = ?").bind(participant.id).first();
-	return json({ ok: true, result, qualityFlags: flags, state: publicStudyState(updated) });
-}
-
-async function handleStudyGameEvent(request, env) {
-	if (!(await rateLimit(env, request, "study_game_event", 180, 3_600))) return apiError("Too many game study updates. Please wait.", 429, "rate_limited");
-	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid game study update."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	if (participant.next_stage !== "game") return apiError("The game study stage is not active.", 409, "invalid_study_stage");
-	const eventType = new Set(["opened", "heartbeat", "hidden", "leave"]).has(body.event) ? body.event : "heartbeat";
-	const activeSeconds = Math.max(0, Math.min(90, Math.floor(Number(body.activeSeconds || 0))));
-	const now = Math.floor(Date.now() / 1000);
-	await env.DB.batch([
-		env.DB.prepare(
-			"UPDATE study_participants SET status = 'game', game_started_at = CASE WHEN game_started_at = 0 THEN ? ELSE game_started_at END, game_active_seconds = game_active_seconds + ?, game_event_count = game_event_count + 1, updated_at = ? WHERE id = ?",
-		).bind(now, activeSeconds, now, participant.id),
-		env.DB.prepare("INSERT INTO study_events (id, participant_id, event_type, payload_json, created_at) VALUES (?, ?, ?, ?, ?)")
-			.bind(`SE-${Date.now().toString(36).toUpperCase()}-${randomToken(3).toUpperCase()}`, participant.id, `game_${eventType}`, JSON.stringify({ activeSeconds }), now),
-	]);
-	return json({ ok: true, activeSeconds: Number(participant.game_active_seconds || 0) + activeSeconds, minimumGameSeconds: STUDY_MIN_GAME_SECONDS });
-}
-
-async function handleStudyWithdraw(request, env) {
-	let body;
-	try { body = await readJson(request, 4_000); } catch { return apiError("Invalid study session."); }
-	const participant = await studyParticipantForPayload(env, body);
-	if (!participant) return apiError("Study session not found.", 401, "invalid_study_session");
-	const now = Math.floor(Date.now() / 1000);
-	await env.DB.prepare("UPDATE study_participants SET status = 'withdrawn', updated_at = ? WHERE id = ?").bind(now, participant.id).run();
-	return json({ ok: true });
-}
-
-function csvCell(value) {
-	return `"${String(value ?? "").replaceAll('"', '""')}"`;
-}
-
-async function handleAdminStudyExport(request, env) {
-	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
-	const result = await env.DB.prepare(
-		`SELECT p.id AS participant_id, p.language, p.status, p.created_at, p.updated_at, p.game_active_seconds,
-		 r.phase, r.score, r.max_score, r.duration_seconds, r.quality_flags_json, r.responses_json, r.created_at AS response_created_at
-		 FROM study_participants p LEFT JOIN study_responses r ON r.participant_id = p.id
-		 ORDER BY p.created_at DESC, r.created_at ASC`,
-	).all();
-	const header = ["participant_id", "language", "status", "created_at", "updated_at", "game_active_seconds", "phase", "score", "max_score", "duration_seconds", "quality_flags", "responses_json", "response_created_at"];
-	const rows = (result.results || []).map(row => header.map(key => csvCell(row[key])).join(","));
-	return new Response([header.join(","), ...rows].join("\n"), {
-		headers: {
-			"Content-Type": "text/csv; charset=utf-8",
-			"Content-Disposition": "attachment; filename=pixel-observatory-study-export.csv",
-			"Cache-Control": "no-store",
-		},
-	});
-}
-
 async function handleApi(request, env, url) {
 	if (request.method !== "GET" && !requestOriginAllowed(request)) return apiError("Request origin rejected.", 403, "origin_rejected");
 	if (url.pathname === "/api/config" && request.method === "GET") {
@@ -2069,13 +1864,6 @@ async function handleApi(request, env, url) {
 			: (env.TURNSTILE_SITE_KEY || "");
 		return json({ turnstileSiteKey: siteKey, cloudSync: true, feedback: true, mailbox: true, social: true });
 	}
-	if (url.pathname === "/api/study/enroll" && request.method === "POST") return handleStudyEnroll(request, env);
-	if (url.pathname === "/api/study/session" && request.method === "POST") return handleStudyState(request, env);
-	if (url.pathname === "/api/study/advance" && request.method === "POST") return handleStudyAdvance(request, env);
-	if (url.pathname === "/api/study/submit" && request.method === "POST") return handleStudySubmit(request, env);
-	if (url.pathname === "/api/study/game-event" && request.method === "POST") return handleStudyGameEvent(request, env);
-	if (url.pathname === "/api/study/withdraw" && request.method === "POST") return handleStudyWithdraw(request, env);
-	if (url.pathname === "/api/admin/study/export" && request.method === "GET") return handleAdminStudyExport(request, env);
 	if (url.pathname === "/api/auth/register" && request.method === "POST") return handleRegister(request, env);
 	if (url.pathname === "/api/auth/login" && request.method === "POST") return handleLogin(request, env);
 	if (url.pathname === "/api/auth/logout" && request.method === "POST") return handleLogout(request, env);
@@ -2163,20 +1951,6 @@ function withIsolationHeaders(response) {
 export default {
 	async fetch(request, env, context) {
 		const url = new URL(request.url);
-		// Cloudflare Assets canonicalises *.html routes to extensionless paths.
-		// Serve this private text asset directly so /study cannot be redirected
-		// back to itself by that canonicalisation rule.
-		if ((url.pathname === "/study" || url.pathname === "/study/") && request.method === "GET") {
-			const studyAsset = await env.ASSETS.fetch(new Request(new URL("/study-entry.txt", url), request));
-			const headers = new Headers(studyAsset.headers);
-			headers.set("Content-Type", "text/html; charset=utf-8");
-			headers.set("Cache-Control", "no-store, max-age=0");
-			return withIsolationHeaders(new Response(studyAsset.body, {
-				status: studyAsset.status,
-				statusText: studyAsset.statusText,
-				headers,
-			}));
-		}
 		if (url.pathname === "/api/visits") {
 			const counter = env.VISITOR_COUNTER.get(env.VISITOR_COUNTER.idFromName("global"));
 			return counter.fetch(request);
@@ -2218,7 +1992,7 @@ export default {
 		const observationPageMatch = url.pathname.match(/^\/observation\/OBS-[A-Z0-9]{8,40}\/?$/);
 		const assetRequest = observationPageMatch
 			? new Request(new URL("/observation", url), request)
-				: request;
+			: request;
 		const response = await env.ASSETS.fetch(assetRequest);
 		if (url.pathname === "/game" || url.pathname === "/game/" || url.pathname === "/game/index.html") {
 			const headers = new Headers(response.headers);

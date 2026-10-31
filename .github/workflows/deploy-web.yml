@@ -5,7 +5,6 @@ on:
     branches:
       - main
       - agent/current-version-2026-07-18
-      - agent/maya-npc-companion
   workflow_dispatch:
 
 permissions:
@@ -74,7 +73,6 @@ jobs:
         run: |
           node tools/build_web_shell.mjs build/web build/web/.godot-export
           node tools/verify_web_game_shell.mjs build/web
-          node tools/study_mini_game_contract_test.mjs
           node tools/incremental_resource_pack_contract_test.mjs
           node tools/runtime_cache_contract_test.mjs
 

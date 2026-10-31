@@ -1,0 +1,15 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: pre-quiz guide blocks background focus input
+PASS: focus help stays hidden before the player struggles
+PASS: clear-zone marker is initially hidden
+PASS: repeated near misses trigger novice focus guidance
+PASS: focus guidance panel becomes visible
+PASS: green clear-zone marker becomes visible
+PASS: guidance names the correct key and direction
+PASS: guidance explains when to stop
+PASS: target focus value is accepted
+PASS: successful focus clears the struggling state
+PASS: focus help automatically hides after success
+FOCUS NOVICE GUIDANCE TEST PASS

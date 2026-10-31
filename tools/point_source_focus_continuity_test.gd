@@ -24,7 +24,6 @@ func _initialize() -> void:
 
 	await _check_target("sirius", 22)
 	await _check_target("vega", 23)
-	await _check_target("arcturus", 17)
 	_finish(0 if failures == 0 else 1)
 
 
@@ -138,15 +137,6 @@ func _check_headless_material_response(
 	_check(material != null, "%s uses the shared point-source PSF material" % object_id)
 	if material == null:
 		return
-	if object_id == "arcturus":
-		var tint: Color = material.get_shader_parameter("source_tint")
-		_check(tint.r > tint.g and tint.g > tint.b, "Arcturus keeps a warm orange catalog hue")
-		var source := FileAccess.get_file_as_string("res://scripts/ui/telescope_view.gd")
-		_check(
-			not source.contains("max(source_tint.rgb")
-			and source.contains("source_core = smoothstep"),
-			"point-source shader removes baked halo edges without forcing a pink channel floor"
-		)
 	var sharp_defocus := 1.0
 	var farthest_defocus := 0.0
 	var previous_value := -1.0

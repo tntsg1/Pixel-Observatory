@@ -36,7 +36,7 @@ func _initialize() -> void:
 		var part_type := str(part_type_value)
 		_check(campaign_types.has(part_type), "campaign auto-equip includes required " + part_type)
 	for part_type in install_types:
-		if not campaign_required.has(part_type):
+		if not campaign_required.has(part_type) and part_type != gm.recommended_space_instrument_type():
 			_check(not campaign_types.has(part_type), "campaign auto-equip leaves optional " + part_type + " free")
 	gm.apply_auto_equip(campaign_plan)
 	for part_type_value in campaign_required:

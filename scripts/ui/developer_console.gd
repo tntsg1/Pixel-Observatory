@@ -112,30 +112,19 @@ func _build() -> void:
 		GameManager.debug_launch("sky")
 	)
 	panel.add_child(sky)
-	var telescope := _action_button(GameManager.text("Prepared Telescope View", "望远镜视野快速测试"), Vector2(30, 428), Vector2(300, 42), Color(0.16, 0.12, 0.25))
+	var telescope := _action_button(GameManager.text("Prepared Telescope View", "望远镜视野快速测试"), Vector2(30, 428), Vector2(350, 42), Color(0.16, 0.12, 0.25))
 	telescope.pressed.connect(func() -> void:
 		GameManager.debug_jump_to_level(selected_level, true)
 		GameManager.debug_launch("telescope")
 	)
 	panel.add_child(telescope)
-	var prep := _action_button(GameManager.text("Prepare Equipment", "准备本关设备"), Vector2(348, 428), Vector2(210, 42), Color(0.16, 0.24, 0.12))
+	var prep := _action_button(GameManager.text("Prepare Equipment", "准备本关设备"), Vector2(398, 428), Vector2(250, 42), Color(0.16, 0.24, 0.12))
 	prep.pressed.connect(func() -> void:
 		GameManager.debug_jump_to_level(selected_level, true)
 		status_label.text = _readiness_text()
 		_refresh_selected_label()
 	)
 	panel.add_child(prep)
-	var auto_graduate := _action_button(GameManager.text("Auto Graduate", "自动毕业"), Vector2(576, 428), Vector2(206, 42), Color(0.28, 0.18, 0.06))
-	auto_graduate.name = "AutoGraduateButton"
-	auto_graduate.tooltip_text = GameManager.text(
-		"Complete every remaining lesson and enter the graduation ceremony.",
-		"完成全部剩余课程，并直接进入毕业典礼。"
-	)
-	auto_graduate.pressed.connect(func() -> void:
-		if _prepare_auto_graduation():
-			GameManager.debug_launch("graduation")
-	)
-	panel.add_child(auto_graduate)
 
 	var note_panel := Panel.new()
 	note_panel.position = Vector2(30, 478)
@@ -150,60 +139,6 @@ func _build() -> void:
 	var close := _action_button(GameManager.text("Close", "关闭"), Vector2(632, 590), Vector2(150, 32), Color(0.12, 0.14, 0.20))
 	close.pressed.connect(_close)
 	panel.add_child(close)
-
-
-func _prepare_auto_graduation() -> bool:
-	var mission_manager := get_node_or_null("/root/MissionManager")
-	if mission_manager == null or mission_manager.campaign_order.is_empty():
-		if status_label != null:
-			status_label.text = GameManager.text(
-				"Auto graduation failed: campaign data is unavailable.",
-				"自动毕业失败：无法读取课程数据。"
-			)
-		return false
-
-	var campaign: Array = mission_manager.campaign_order
-	var final_level := int(campaign[-1])
-	# Reuse the final lesson's normal developer setup before completing progress.
-	GameManager.debug_jump_to_level(final_level, true)
-
-	var completed: Array = GameManager.progress.get("completed_levels", []).duplicate()
-	var unlocked_parts: Array = GameManager.progress.get("unlocked_parts", []).duplicate()
-	var badges: Array = GameManager.progress.get("badges", []).duplicate()
-	var concept_cards: Array = GameManager.progress.get("completed_concept_cards", []).duplicate()
-	var credits := int(GameManager.progress.get("credits", 0))
-
-	for level_value in campaign:
-		var level_number := int(level_value)
-		var level: Dictionary = mission_manager.get_level(level_number)
-		var was_completed := completed.has(level_number) or completed.has(str(level_number))
-		if not was_completed:
-			completed.append(level_number)
-			credits += int(level.get("reward_credits", 0))
-		for part_id_value in level.get("unlock_parts", []):
-			var part_id := str(part_id_value)
-			if part_id != "" and not unlocked_parts.has(part_id):
-				unlocked_parts.append(part_id)
-		var badge := str(level.get("badge", ""))
-		if badge != "" and not badges.has(badge):
-			badges.append(badge)
-		var concept_card := str(level.get("required_concept_card", ""))
-		if concept_card != "" and not concept_cards.has(concept_card):
-			concept_cards.append(concept_card)
-
-	GameManager.progress["current_level"] = final_level
-	GameManager.progress["completed_levels"] = completed
-	GameManager.progress["unlocked_parts"] = unlocked_parts
-	GameManager.progress["badges"] = badges
-	GameManager.progress["completed_concept_cards"] = concept_cards
-	GameManager.progress["credits"] = credits
-	GameManager.progress["program_completed"] = true
-	GameManager.progress["graduation_seen"] = false
-	GameManager.progress["graduation_pending"] = true
-	GameManager.progress["pending_unlock_notice"] = []
-	GameManager.progress["save_initialized"] = true
-	GameManager.save()
-	return true
 
 
 func _readiness_text() -> String:

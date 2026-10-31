@@ -1,0 +1,22 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: test can reproduce equipping the Newtonian Reflector Mount
+PASS: wrong prescribed mount routes to the Parts Cabinet
+PASS: route identifies Basic Mount as the exact requirement
+PASS: route reports the currently equipped Newtonian mount
+PASS: Chinese hint names both current and required mounts
+PASS: hint explains why the best-stat part is not accepted
+PASS: one-click loadout chooses the prescribed Basic Mount
+PASS: Basic Mount is highlighted as required
+PASS: Newtonian mount is no longer generically recommended on L30
+PASS: cabinet marks the equipped incompatible part
+PASS: room panel keeps the detailed equipment diagnostic visible
+PASS: player can equip the prescribed Basic Mount
+PASS: hardware becomes ready after reinstalling the prescribed mount
+PASS: unfinished collimation routes to the Assembly Table
+PASS: collimation hint shows current and required percentages
+PASS: Collimate Mirrors button is enabled when hardware is complete
+PASS: completed prescribed loadout proceeds to observation
+PASS: generic deep-sky upgrade advice cannot override L30's prescribed loadout
+L30 GUIDANCE REGRESSION TEST PASS

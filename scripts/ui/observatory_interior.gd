@@ -19,17 +19,6 @@ func _build() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 	_rect(Vector2.ZERO, Vector2(W, H), Color(0.035, 0.045, 0.065))
-	# Before the title bar and content, so both still draw over it. The dome
-	# interior is a room you stand inside - a dead flat fill read as a
-	# placeholder rather than a place.
-	var life := AmbientLife.new()
-	life.name = "AmbientLife"
-	life.configure({
-		"twinkle_zone": Rect2(0, 62, W, H - 62),
-		"twinkle_count": 20,
-		"seed": 20260827,
-	})
-	add_child(life)
 	_rect(Vector2(0, 0), Vector2(W, 62), Color(0.08, 0.11, 0.17))
 	_label(GameManager.text("Observatory Interior", "天文台内部"), Vector2(28, 16), Vector2(520, 30), 24)
 

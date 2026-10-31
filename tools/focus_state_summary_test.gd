@@ -32,16 +32,7 @@ func _initialize() -> void:
 	_check(all_text.contains("失焦"), "Chinese summary labels the out-of-focus state")
 	_check(all_text.contains("接近焦点"), "Chinese summary labels the near-focus state")
 	_check(all_text.contains("准焦"), "Chinese summary labels the in-focus state")
-	# The comparison is three cells (out of / near / in focus), each ONE real
-	# target texture. The defocus is applied with a shader material or an
-	# authored "blurry" variant - it used to be a stacked overlay texture, which
-	# is why this asserted ">= 4 layered textures". That count can no longer be
-	# reached by the current design, so assert the guarantee that actually
-	# matters: three real images, genuinely differentiated rather than the same
-	# flat picture repeated three times.
-	_check(_focus_area_texture_count(view) == 3, "focus comparison shows three real target textures")
-	_check(_focus_area_defocus_count(view) >= 1,
-		"out-of-focus states are really defocused (shader or authored blur), not a repeated flat image")
+	_check(_focus_area_texture_count(view) >= 4, "focus comparison uses layered real target textures")
 	await _capture("jupiter_focus_states_zh.png")
 
 	view.queue_free()
@@ -84,20 +75,6 @@ func _observation() -> Dictionary:
 		"effective_clarity": 78.0,
 		"ratios": {"light": 1.0, "clarity": 1.0, "stability": 0.9}
 	}
-
-
-func _focus_area_defocus_count(node: Node) -> int:
-	# A cell counts as really defocused if it carries a blur ShaderMaterial, or
-	# if it uses a different (authored "blurry") texture than the in-focus cell.
-	var count := 0
-	if node is TextureRect:
-		var rect := node as TextureRect
-		if rect.position.x >= 228.0 and rect.position.x <= 540.0 and rect.position.y >= 184.0 and rect.position.y <= 290.0:
-			if rect.material is ShaderMaterial:
-				count += 1
-	for child in node.get_children():
-		count += _focus_area_defocus_count(child)
-	return count
 
 
 func _focus_area_texture_count(node: Node) -> int:

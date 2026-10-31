@@ -1,0 +1,709 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: L1 exists
+  ok: L1 has a story or teaching entry
+  ok: L1 concept card 'eye_imaging' exists
+  ok: L1 teaching trigger 'before_observation' is wired in UI
+  ok: L1 step card 'eye_imaging' exists
+  ok: L1 has a mission board note
+  ok: L2 exists
+  ok: L2 has a story or teaching entry
+  ok: L2 concept card 'naked_eye_limits' exists
+  ok: L2 teaching trigger 'before_observation' is wired in UI
+  ok: L2 step card 'naked_eye_limits' exists
+  ok: L2 has a mission board note
+  ok: L3 exists
+  ok: L3 has a story or teaching entry
+  ok: L3 concept card 'refractor_light_path' exists
+  ok: L3 teaching trigger 'before_assembly' is wired in UI
+  ok: L3 step card 'refractor_light_path' exists
+  ok: L3 has a mission board note
+  ok: L4 exists
+  ok: L4 has a story or teaching entry
+  ok: L4 concept card 'focus_focal_plane' exists
+  ok: L4 teaching trigger 'before_focus' is wired in UI
+  ok: L4 step card 'focus_focal_plane' exists
+  ok: L4 has a mission board note
+  ok: L5 exists
+  ok: L5 has a story or teaching entry
+  ok: L5 concept card 'magnification_field_of_view' exists
+  ok: L5 teaching trigger 'before_focus' is wired in UI
+  ok: L5 step card 'magnification_field_of_view' exists
+  ok: L5 has a mission board note
+  ok: L6 exists
+  ok: L6 has a story or teaching entry
+  ok: L6 concept card 'finder_scope_alignment' exists
+  ok: L6 teaching trigger 'before_assembly' is wired in UI
+  ok: L6 step card 'finder_scope_alignment' exists
+  ok: L6 has a mission board note
+  ok: L7 exists
+  ok: L7 has a story or teaching entry
+  ok: L7 concept card 'aperture_light_gathering' exists
+  ok: L7 teaching trigger 'before_assembly' is wired in UI
+  ok: L7 step card 'aperture_light_gathering' exists
+  ok: L7 has a mission board note
+  ok: L8 exists
+  ok: L8 has a story or teaching entry
+  ok: L8 concept card 'aperture_light_gathering' exists
+  ok: L8 teaching trigger 'before_focus' is wired in UI
+  ok: L8 step card 'aperture_light_gathering' exists
+  ok: L8 has a mission board note
+  ok: L9 exists
+  ok: L9 has a story or teaching entry
+  ok: L9 concept card 'deep_sky_observation' exists
+  ok: L9 teaching trigger 'before_focus' is wired in UI
+  ok: L9 step card 'deep_sky_observation' exists
+  ok: L9 has a mission board note
+  ok: L10 exists
+  ok: L10 has a story or teaching entry
+  ok: L10 concept card 'magnification_field_of_view' exists
+  ok: L10 teaching trigger 'before_observation' is wired in UI
+  ok: L10 step card 'magnification_tradeoff' exists
+  ok: L10 has a mission board note
+  ok: L11 exists
+  ok: L11 has a story or teaching entry
+  ok: L11 concept card 'magnification_field_of_view' exists
+  ok: L11 teaching trigger 'before_observation' is wired in UI
+  ok: L11 step card 'seeing_turbulence' exists
+  ok: L11 has a mission board note
+  ok: L12 exists
+  ok: L12 has a story or teaching entry
+  ok: L12 concept card 'magnification_field_of_view' exists
+  ok: L12 teaching trigger 'before_focus' is wired in UI
+  ok: L12 step card 'magnification_field_of_view' exists
+  ok: L12 has a mission board note
+  ok: L13 exists
+  ok: L13 has a story or teaching entry
+  ok: L13 concept card 'magnification_field_of_view' exists
+  ok: L13 teaching trigger 'before_focus' is wired in UI
+  ok: L13 step card 'magnification_field_of_view' exists
+  ok: L13 has a mission board note
+  ok: L14 exists
+  ok: L14 has a story or teaching entry
+  ok: L14 concept card 'finder_scope_alignment' exists
+  ok: L14 teaching trigger 'before_focus' is wired in UI
+  ok: L14 step card 'finder_scope_alignment' exists
+  ok: L14 has a mission board note
+  ok: L15 exists
+  ok: L15 has a story or teaching entry
+  ok: L15 concept card 'finder_scope_alignment' exists
+  ok: L15 teaching trigger 'before_focus' is wired in UI
+  ok: L15 step card 'finder_scope_alignment' exists
+  ok: L15 has a mission board note
+  ok: L16 exists
+  ok: L16 has a story or teaching entry
+  ok: L16 concept card 'finder_scope_alignment' exists
+  ok: L16 teaching trigger 'before_focus' is wired in UI
+  ok: L16 step card 'finder_scope_alignment' exists
+  ok: L16 has a mission board note
+  ok: L17 exists
+  ok: L17 has a story or teaching entry
+  ok: L17 concept card 'finder_scope_alignment' exists
+  ok: L17 teaching trigger 'before_observation' is wired in UI
+  ok: L17 step card 'cloud_waiting' exists
+  ok: L17 has a mission board note
+  ok: L18 exists
+  ok: L18 has a story or teaching entry
+  ok: L18 concept card 'deep_sky_observation' exists
+  ok: L18 teaching trigger 'before_observation' is wired in UI
+  ok: L18 step card 'dark_adaptation_averted_vision' exists
+  ok: L18 has a mission board note
+  ok: L19 exists
+  ok: L19 has a story or teaching entry
+  ok: L19 concept card 'deep_sky_observation' exists
+  ok: L19 teaching trigger 'before_focus' is wired in UI
+  ok: L19 step card 'deep_sky_observation' exists
+  ok: L19 has a mission board note
+  ok: L20 exists
+  ok: L20 has a story or teaching entry
+  ok: L20 concept card 'deep_sky_observation' exists
+  ok: L20 teaching trigger 'before_observation' is wired in UI
+  ok: L20 step card 'light_pollution_compare' exists
+  ok: L20 has a mission board note
+  ok: L21 exists
+  ok: L21 has a story or teaching entry
+  ok: L21 concept card 'deep_sky_observation' exists
+  ok: L21 teaching trigger 'before_focus' is wired in UI
+  ok: L21 step card 'deep_sky_observation' exists
+  ok: L21 has a mission board note
+  ok: L22 exists
+  ok: L22 has a story or teaching entry
+  ok: L22 concept card 'deep_sky_observation' exists
+  ok: L22 teaching trigger 'before_observation' is wired in UI
+  ok: L22 step card 'earth_rotation_tracking' exists
+  ok: L22 has a mission board note
+  ok: L23 exists
+  ok: L23 has a story or teaching entry
+  ok: L23 concept card 'chromatic_aberration' exists
+  ok: L23 teaching trigger 'before_identify' is wired in UI
+  ok: L23 step card 'chromatic_aberration' exists
+  ok: L23 has a mission board note
+  ok: L24 exists
+  ok: L24 has a story or teaching entry
+  ok: L24 concept card 'deep_sky_observation' exists
+  ok: L24 teaching trigger 'before_focus' is wired in UI
+  ok: L24 step card 'deep_sky_observation' exists
+  ok: L24 has a mission board note
+  ok: L25 exists
+  ok: L25 has a story or teaching entry
+  ok: L25 concept card 'chromatic_aberration' exists
+  ok: L25 teaching trigger 'before_focus' is wired in UI
+  ok: L25 step card 'chromatic_aberration' exists
+  ok: L25 has authored story content
+  ok: L25 has completion epilogue lines
+  ok: L25 has a mission board note
+  ok: L26 exists
+  ok: L26 has a story or teaching entry
+  ok: L26 concept card 'newtonian_light_path' exists
+  ok: L26 teaching trigger 'before_assembly' is wired in UI
+  ok: L26 step card 'newtonian_light_path' exists
+  ok: L26 teaching trigger 'before_collimation' is wired in UI
+  ok: L26 step card 'collimation_alignment' exists
+  ok: L26 has authored story content
+  ok: L26 has completion epilogue lines
+  ok: L26 has a mission board note
+  ok: L27 exists
+  ok: L27 has a story or teaching entry
+  ok: L27 concept card 'chromatic_aberration' exists
+  ok: L27 teaching trigger 'before_focus' is wired in UI
+  ok: L27 step card 'chromatic_aberration' exists
+  ok: L27 has authored story content
+  ok: L27 has completion epilogue lines
+  ok: L27 has a mission board note
+  ok: L28 exists
+  ok: L28 has a story or teaching entry
+  ok: L28 concept card 'focus_focal_plane' exists
+  ok: L28 teaching trigger 'before_focus' is wired in UI
+  ok: L28 step card 'focus_focal_plane' exists
+  ok: L28 has authored story content
+  ok: L28 has completion epilogue lines
+  ok: L28 has a mission board note
+  ok: L29 exists
+  ok: L29 has a story or teaching entry
+  ok: L29 concept card 'collimation_alignment' exists
+  ok: L29 teaching trigger 'before_focus' is wired in UI
+  ok: L29 step card 'collimation_alignment' exists
+  ok: L29 has authored story content
+  ok: L29 has completion epilogue lines
+  ok: L29 has a mission board note
+  ok: L30 exists
+  ok: L30 has a story or teaching entry
+  ok: L30 concept card 'aperture_light_gathering' exists
+  ok: L30 teaching trigger 'before_focus' is wired in UI
+  ok: L30 step card 'aperture_light_gathering' exists
+  ok: L30 has authored story content
+  ok: L30 has completion epilogue lines
+  ok: L30 has a mission board note
+  ok: L31 exists
+  ok: L31 has a story or teaching entry
+  ok: L31 concept card 'dark_adaptation_averted_vision' exists
+  ok: L31 teaching trigger 'before_focus' is wired in UI
+  ok: L31 step card 'dark_adaptation_averted_vision' exists
+  ok: L31 has authored story content
+  ok: L31 has completion epilogue lines
+  ok: L31 has a mission board note
+  ok: L32 exists
+  ok: L32 has a story or teaching entry
+  ok: L32 concept card 'earth_rotation_tracking' exists
+  ok: L32 teaching trigger 'before_focus' is wired in UI
+  ok: L32 step card 'earth_rotation_tracking' exists
+  ok: L32 has authored story content
+  ok: L32 has completion epilogue lines
+  ok: L32 has a mission board note
+  ok: L33 exists
+  ok: L33 has a story or teaching entry
+  ok: L33 concept card 'seeing_turbulence' exists
+  ok: L33 teaching trigger 'before_focus' is wired in UI
+  ok: L33 step card 'seeing_turbulence' exists
+  ok: L33 has authored story content
+  ok: L33 has completion epilogue lines
+  ok: L33 has a mission board note
+  ok: L34 exists
+  ok: L34 has a story or teaching entry
+  ok: L34 concept card 'chromatic_aberration' exists
+  ok: L34 teaching trigger 'before_focus' is wired in UI
+  ok: L34 step card 'chromatic_aberration' exists
+  ok: L34 has authored story content
+  ok: L34 has completion epilogue lines
+  ok: L34 has a mission board note
+  ok: L35 exists
+  ok: L35 has a story or teaching entry
+  ok: L35 concept card 'newtonian_light_path' exists
+  ok: L35 teaching trigger 'before_focus' is wired in UI
+  ok: L35 step card 'newtonian_light_path' exists
+  ok: L35 has authored story content
+  ok: L35 has completion epilogue lines
+  ok: L35 has a mission board note
+  ok: L36 exists
+  ok: L36 has a story or teaching entry
+  ok: L36 concept card 'dobsonian_manual_altaz' exists
+  ok: L36 teaching trigger 'before_assembly' is wired in UI
+  ok: L36 step card 'dobsonian_manual_altaz' exists
+  ok: L36 has authored story content
+  ok: L36 has completion epilogue lines
+  ok: L36 has a mission board note
+  ok: L37 exists
+  ok: L37 has a story or teaching entry
+  ok: L37 concept card 'earth_rotation_tracking' exists
+  ok: L37 teaching trigger 'before_focus' is wired in UI
+  ok: L37 step card 'earth_rotation_tracking' exists
+  ok: L37 has authored story content
+  ok: L37 has completion epilogue lines
+  ok: L37 has a mission board note
+  ok: L38 exists
+  ok: L38 has a story or teaching entry
+  ok: L38 concept card 'earth_rotation_tracking' exists
+  ok: L38 teaching trigger 'before_focus' is wired in UI
+  ok: L38 step card 'earth_rotation_tracking' exists
+  ok: L38 has authored story content
+  ok: L38 has completion epilogue lines
+  ok: L38 has a mission board note
+  ok: L39 exists
+  ok: L39 has a story or teaching entry
+  ok: L39 concept card 'aperture_light_gathering' exists
+  ok: L39 teaching trigger 'before_focus' is wired in UI
+  ok: L39 step card 'aperture_light_gathering' exists
+  ok: L39 has authored story content
+  ok: L39 has completion epilogue lines
+  ok: L39 has a mission board note
+  ok: L40 exists
+  ok: L40 has a story or teaching entry
+  ok: L40 concept card 'magnification_tradeoff' exists
+  ok: L40 teaching trigger 'before_focus' is wired in UI
+  ok: L40 step card 'magnification_tradeoff' exists
+  ok: L40 has authored story content
+  ok: L40 has completion epilogue lines
+  ok: L40 has a mission board note
+  ok: L41 exists
+  ok: L41 has a story or teaching entry
+  ok: L41 concept card 'cloud_waiting' exists
+  ok: L41 teaching trigger 'before_focus' is wired in UI
+  ok: L41 step card 'cloud_waiting' exists
+  ok: L41 has authored story content
+  ok: L41 has completion epilogue lines
+  ok: L41 has a mission board note
+  ok: L42 exists
+  ok: L42 has a story or teaching entry
+  ok: L42 concept card 'seeing_turbulence' exists
+  ok: L42 teaching trigger 'before_focus' is wired in UI
+  ok: L42 step card 'seeing_turbulence' exists
+  ok: L42 has authored story content
+  ok: L42 has completion epilogue lines
+  ok: L42 has a mission board note
+  ok: L43 exists
+  ok: L43 has a story or teaching entry
+  ok: L43 concept card 'earth_rotation_tracking' exists
+  ok: L43 teaching trigger 'before_focus' is wired in UI
+  ok: L43 step card 'earth_rotation_tracking' exists
+  ok: L43 has authored story content
+  ok: L43 has completion epilogue lines
+  ok: L43 has a mission board note
+  ok: L44 exists
+  ok: L44 has a story or teaching entry
+  ok: L44 concept card 'deep_sky_observation' exists
+  ok: L44 teaching trigger 'before_focus' is wired in UI
+  ok: L44 step card 'deep_sky_observation' exists
+  ok: L44 has authored story content
+  ok: L44 has completion epilogue lines
+  ok: L44 has a mission board note
+  ok: L45 exists
+  ok: L45 has a story or teaching entry
+  ok: L45 concept card 'dobsonian_manual_altaz' exists
+  ok: L45 teaching trigger 'before_focus' is wired in UI
+  ok: L45 step card 'dobsonian_manual_altaz' exists
+  ok: L45 has authored story content
+  ok: L45 has completion epilogue lines
+  ok: L45 has a mission board note
+  ok: L46 exists
+  ok: L46 has a story or teaching entry
+  ok: L46 concept card 'cassegrain_folded_path' exists
+  ok: L46 teaching trigger 'before_assembly' is wired in UI
+  ok: L46 step card 'cassegrain_folded_path' exists
+  ok: L46 has authored story content
+  ok: L46 has completion epilogue lines
+  ok: L46 has a mission board note
+  ok: L47 exists
+  ok: L47 has a story or teaching entry
+  ok: L47 concept card 'magnification_tradeoff' exists
+  ok: L47 teaching trigger 'before_focus' is wired in UI
+  ok: L47 step card 'magnification_tradeoff' exists
+  ok: L47 has authored story content
+  ok: L47 has completion epilogue lines
+  ok: L47 has a mission board note
+  ok: L48 exists
+  ok: L48 has a story or teaching entry
+  ok: L48 concept card 'finder_scope_alignment' exists
+  ok: L48 teaching trigger 'before_focus' is wired in UI
+  ok: L48 step card 'finder_scope_alignment' exists
+  ok: L48 has authored story content
+  ok: L48 has completion epilogue lines
+  ok: L48 has a mission board note
+  ok: L49 exists
+  ok: L49 has a story or teaching entry
+  ok: L49 concept card 'seeing_turbulence' exists
+  ok: L49 teaching trigger 'before_focus' is wired in UI
+  ok: L49 step card 'seeing_turbulence' exists
+  ok: L49 has authored story content
+  ok: L49 has completion epilogue lines
+  ok: L49 has a mission board note
+  ok: L50 exists
+  ok: L50 has a story or teaching entry
+  ok: L50 concept card 'seeing_turbulence' exists
+  ok: L50 teaching trigger 'before_focus' is wired in UI
+  ok: L50 step card 'seeing_turbulence' exists
+  ok: L50 has authored story content
+  ok: L50 has completion epilogue lines
+  ok: L50 has a mission board note
+  ok: L51 exists
+  ok: L51 has a story or teaching entry
+  ok: L51 concept card 'earth_rotation_tracking' exists
+  ok: L51 teaching trigger 'before_focus' is wired in UI
+  ok: L51 step card 'earth_rotation_tracking' exists
+  ok: L51 has authored story content
+  ok: L51 has completion epilogue lines
+  ok: L51 has a mission board note
+  ok: L52 exists
+  ok: L52 has a story or teaching entry
+  ok: L52 concept card 'magnification_tradeoff' exists
+  ok: L52 teaching trigger 'before_focus' is wired in UI
+  ok: L52 step card 'magnification_tradeoff' exists
+  ok: L52 has authored story content
+  ok: L52 has completion epilogue lines
+  ok: L52 has a mission board note
+  ok: L53 exists
+  ok: L53 has a story or teaching entry
+  ok: L53 concept card 'cassegrain_folded_path' exists
+  ok: L53 teaching trigger 'before_focus' is wired in UI
+  ok: L53 step card 'cassegrain_folded_path' exists
+  ok: L53 has authored story content
+  ok: L53 has completion epilogue lines
+  ok: L53 has a mission board note
+  ok: L54 exists
+  ok: L54 has a story or teaching entry
+  ok: L54 concept card 'cloud_waiting' exists
+  ok: L54 teaching trigger 'before_focus' is wired in UI
+  ok: L54 step card 'cloud_waiting' exists
+  ok: L54 has authored story content
+  ok: L54 has completion epilogue lines
+  ok: L54 has a mission board note
+  ok: L55 exists
+  ok: L55 has a story or teaching entry
+  ok: L55 concept card 'cassegrain_folded_path' exists
+  ok: L55 teaching trigger 'before_focus' is wired in UI
+  ok: L55 step card 'cassegrain_folded_path' exists
+  ok: L55 has authored story content
+  ok: L55 has completion epilogue lines
+  ok: L55 has a mission board note
+  ok: L56 exists
+  ok: L56 has a story or teaching entry
+  ok: L56 concept card 'gregorian_concave_secondary' exists
+  ok: L56 teaching trigger 'before_assembly' is wired in UI
+  ok: L56 step card 'gregorian_concave_secondary' exists
+  ok: L56 has authored story content
+  ok: L56 has completion epilogue lines
+  ok: L56 has a mission board note
+  ok: L57 exists
+  ok: L57 has a story or teaching entry
+  ok: L57 concept card 'focus_focal_plane' exists
+  ok: L57 teaching trigger 'before_focus' is wired in UI
+  ok: L57 step card 'focus_focal_plane' exists
+  ok: L57 has authored story content
+  ok: L57 has completion epilogue lines
+  ok: L57 has a mission board note
+  ok: L58 exists
+  ok: L58 has a story or teaching entry
+  ok: L58 concept card 'gregorian_concave_secondary' exists
+  ok: L58 teaching trigger 'before_focus' is wired in UI
+  ok: L58 step card 'gregorian_concave_secondary' exists
+  ok: L58 has authored story content
+  ok: L58 has completion epilogue lines
+  ok: L58 has a mission board note
+  ok: L59 exists
+  ok: L59 has a story or teaching entry
+  ok: L59 concept card 'collimation_alignment' exists
+  ok: L59 teaching trigger 'before_focus' is wired in UI
+  ok: L59 step card 'collimation_alignment' exists
+  ok: L59 has authored story content
+  ok: L59 has completion epilogue lines
+  ok: L59 has a mission board note
+  ok: L60 exists
+  ok: L60 has a story or teaching entry
+  ok: L60 concept card 'magnification_tradeoff' exists
+  ok: L60 teaching trigger 'before_focus' is wired in UI
+  ok: L60 step card 'magnification_tradeoff' exists
+  ok: L60 has authored story content
+  ok: L60 has completion epilogue lines
+  ok: L60 has a mission board note
+  ok: L61 exists
+  ok: L61 has a story or teaching entry
+  ok: L61 concept card 'deep_sky_observation' exists
+  ok: L61 teaching trigger 'before_focus' is wired in UI
+  ok: L61 step card 'deep_sky_observation' exists
+  ok: L61 has authored story content
+  ok: L61 has completion epilogue lines
+  ok: L61 has a mission board note
+  ok: L62 exists
+  ok: L62 has a story or teaching entry
+  ok: L62 concept card 'earth_rotation_tracking' exists
+  ok: L62 teaching trigger 'before_focus' is wired in UI
+  ok: L62 step card 'earth_rotation_tracking' exists
+  ok: L62 has authored story content
+  ok: L62 has completion epilogue lines
+  ok: L62 has a mission board note
+  ok: L63 exists
+  ok: L63 has a story or teaching entry
+  ok: L63 concept card 'seeing_turbulence' exists
+  ok: L63 teaching trigger 'before_focus' is wired in UI
+  ok: L63 step card 'seeing_turbulence' exists
+  ok: L63 has authored story content
+  ok: L63 has completion epilogue lines
+  ok: L63 has a mission board note
+  ok: L64 exists
+  ok: L64 has a story or teaching entry
+  ok: L64 concept card 'gregorian_concave_secondary' exists
+  ok: L64 teaching trigger 'before_focus' is wired in UI
+  ok: L64 step card 'gregorian_concave_secondary' exists
+  ok: L64 has authored story content
+  ok: L64 has completion epilogue lines
+  ok: L64 has a mission board note
+  ok: L65 exists
+  ok: L65 has a story or teaching entry
+  ok: L65 concept card 'gregorian_concave_secondary' exists
+  ok: L65 teaching trigger 'before_focus' is wired in UI
+  ok: L65 step card 'gregorian_concave_secondary' exists
+  ok: L65 has authored story content
+  ok: L65 has completion epilogue lines
+  ok: L65 has a mission board note
+  ok: L66 exists
+  ok: L66 has a story or teaching entry
+  ok: L66 concept card 'infrared_space_observing' exists
+  ok: L66 teaching trigger 'before_assembly' is wired in UI
+  ok: L66 step card 'infrared_space_observing' exists
+  ok: L66 has authored story content
+  ok: L66 has completion epilogue lines
+  ok: L66 has a mission board note
+  ok: L67 exists
+  ok: L67 has a story or teaching entry
+  ok: L67 concept card 'infrared_space_observing' exists
+  ok: L67 teaching trigger 'before_assembly' is wired in UI
+  ok: L67 step card 'infrared_space_observing' exists
+  ok: L67 has authored story content
+  ok: L67 has completion epilogue lines
+  ok: L67 has a mission board note
+  ok: L68 exists
+  ok: L68 has a story or teaching entry
+  ok: L68 concept card 'infrared_space_observing' exists
+  ok: L68 teaching trigger 'before_assembly' is wired in UI
+  ok: L68 step card 'infrared_space_observing' exists
+  ok: L68 has authored story content
+  ok: L68 has completion epilogue lines
+  ok: L68 has a mission board note
+  ok: L69 exists
+  ok: L69 has a story or teaching entry
+  ok: L69 concept card 'infrared_space_observing' exists
+  ok: L69 teaching trigger 'before_assembly' is wired in UI
+  ok: L69 step card 'infrared_space_observing' exists
+  ok: L69 has authored story content
+  ok: L69 has completion epilogue lines
+  ok: L69 has a mission board note
+  ok: L70 exists
+  ok: L70 has a story or teaching entry
+  ok: L70 concept card 'infrared_space_observing' exists
+  ok: L70 teaching trigger 'before_assembly' is wired in UI
+  ok: L70 step card 'infrared_space_observing' exists
+  ok: L70 has authored story content
+  ok: L70 has completion epilogue lines
+  ok: L70 has a mission board note
+  ok: L71 exists
+  ok: L71 has a story or teaching entry
+  ok: L71 concept card 'multi_wavelength_evidence' exists
+  ok: L71 teaching trigger 'before_assembly' is wired in UI
+  ok: L71 step card 'multi_wavelength_evidence' exists
+  ok: L71 has authored story content
+  ok: L71 has completion epilogue lines
+  ok: L71 has a mission board note
+  ok: L72 exists
+  ok: L72 has a story or teaching entry
+  ok: L72 concept card 'infrared_space_observing' exists
+  ok: L72 teaching trigger 'before_assembly' is wired in UI
+  ok: L72 step card 'infrared_space_observing' exists
+  ok: L72 has authored story content
+  ok: L72 has completion epilogue lines
+  ok: L72 has a mission board note
+  ok: L73 exists
+  ok: L73 has a story or teaching entry
+  ok: L73 concept card 'infrared_space_observing' exists
+  ok: L73 teaching trigger 'before_assembly' is wired in UI
+  ok: L73 step card 'infrared_space_observing' exists
+  ok: L73 has authored story content
+  ok: L73 has completion epilogue lines
+  ok: L73 has a mission board note
+  ok: L74 exists
+  ok: L74 has a story or teaching entry
+  ok: L74 concept card 'infrared_space_observing' exists
+  ok: L74 teaching trigger 'before_assembly' is wired in UI
+  ok: L74 step card 'infrared_space_observing' exists
+  ok: L74 has authored story content
+  ok: L74 has completion epilogue lines
+  ok: L74 has a mission board note
+  ok: L75 exists
+  ok: L75 has a story or teaching entry
+  ok: L75 concept card 'infrared_space_observing' exists
+  ok: L75 teaching trigger 'before_assembly' is wired in UI
+  ok: L75 step card 'infrared_space_observing' exists
+  ok: L75 has authored story content
+  ok: L75 has completion epilogue lines
+  ok: L75 has a mission board note
+  ok: L76 exists
+  ok: L76 has a story or teaching entry
+  ok: L76 concept card 'radio_signal_observing' exists
+  ok: L76 teaching trigger 'before_assembly' is wired in UI
+  ok: L76 step card 'radio_signal_observing' exists
+  ok: L76 has authored story content
+  ok: L76 has completion epilogue lines
+  ok: L76 has a mission board note
+  ok: L77 exists
+  ok: L77 has a story or teaching entry
+  ok: L77 concept card 'radio_signal_observing' exists
+  ok: L77 teaching trigger 'before_assembly' is wired in UI
+  ok: L77 step card 'radio_signal_observing' exists
+  ok: L77 has authored story content
+  ok: L77 has completion epilogue lines
+  ok: L77 has a mission board note
+  ok: L78 exists
+  ok: L78 has a story or teaching entry
+  ok: L78 concept card 'radio_signal_observing' exists
+  ok: L78 teaching trigger 'before_assembly' is wired in UI
+  ok: L78 step card 'radio_signal_observing' exists
+  ok: L78 has authored story content
+  ok: L78 has completion epilogue lines
+  ok: L78 has a mission board note
+  ok: L79 exists
+  ok: L79 has a story or teaching entry
+  ok: L79 concept card 'radio_signal_observing' exists
+  ok: L79 teaching trigger 'before_assembly' is wired in UI
+  ok: L79 step card 'radio_signal_observing' exists
+  ok: L79 has authored story content
+  ok: L79 has completion epilogue lines
+  ok: L79 has a mission board note
+  ok: L80 exists
+  ok: L80 has a story or teaching entry
+  ok: L80 concept card 'radio_signal_observing' exists
+  ok: L80 teaching trigger 'before_assembly' is wired in UI
+  ok: L80 step card 'radio_signal_observing' exists
+  ok: L80 has authored story content
+  ok: L80 has completion epilogue lines
+  ok: L80 has a mission board note
+  ok: L81 exists
+  ok: L81 has a story or teaching entry
+  ok: L81 concept card 'radio_signal_observing' exists
+  ok: L81 teaching trigger 'before_assembly' is wired in UI
+  ok: L81 step card 'radio_signal_observing' exists
+  ok: L81 has authored story content
+  ok: L81 has completion epilogue lines
+  ok: L81 has a mission board note
+  ok: L82 exists
+  ok: L82 has a story or teaching entry
+  ok: L82 concept card 'radio_signal_observing' exists
+  ok: L82 teaching trigger 'before_assembly' is wired in UI
+  ok: L82 step card 'radio_signal_observing' exists
+  ok: L82 has authored story content
+  ok: L82 has completion epilogue lines
+  ok: L82 has a mission board note
+  ok: L83 exists
+  ok: L83 has a story or teaching entry
+  ok: L83 concept card 'radio_signal_observing' exists
+  ok: L83 teaching trigger 'before_assembly' is wired in UI
+  ok: L83 step card 'radio_signal_observing' exists
+  ok: L83 has authored story content
+  ok: L83 has completion epilogue lines
+  ok: L83 has a mission board note
+  ok: L84 exists
+  ok: L84 has a story or teaching entry
+  ok: L84 concept card 'radio_signal_observing' exists
+  ok: L84 teaching trigger 'before_assembly' is wired in UI
+  ok: L84 step card 'radio_signal_observing' exists
+  ok: L84 has authored story content
+  ok: L84 has completion epilogue lines
+  ok: L84 has a mission board note
+  ok: L85 exists
+  ok: L85 has a story or teaching entry
+  ok: L85 concept card 'radio_signal_observing' exists
+  ok: L85 teaching trigger 'before_assembly' is wired in UI
+  ok: L85 step card 'radio_signal_observing' exists
+  ok: L85 has authored story content
+  ok: L85 has completion epilogue lines
+  ok: L85 has a mission board note
+  ok: L86 exists
+  ok: L86 has a story or teaching entry
+  ok: L86 concept card 'multi_wavelength_evidence' exists
+  ok: L86 teaching trigger 'before_observation' is wired in UI
+  ok: L86 step card 'multi_wavelength_evidence' exists
+  ok: L86 has authored story content
+  ok: L86 has completion epilogue lines
+  ok: L86 has a mission board note
+  ok: L87 exists
+  ok: L87 has a story or teaching entry
+  ok: L87 concept card 'multi_wavelength_evidence' exists
+  ok: L87 teaching trigger 'before_assembly' is wired in UI
+  ok: L87 step card 'multi_wavelength_evidence' exists
+  ok: L87 has authored story content
+  ok: L87 has completion epilogue lines
+  ok: L87 has a mission board note
+  ok: L88 exists
+  ok: L88 has a story or teaching entry
+  ok: L88 concept card 'multi_wavelength_evidence' exists
+  ok: L88 teaching trigger 'before_assembly' is wired in UI
+  ok: L88 step card 'multi_wavelength_evidence' exists
+  ok: L88 has authored story content
+  ok: L88 has completion epilogue lines
+  ok: L88 has a mission board note
+  ok: L89 exists
+  ok: L89 has a story or teaching entry
+  ok: L89 concept card 'multi_wavelength_evidence' exists
+  ok: L89 teaching trigger 'before_assembly' is wired in UI
+  ok: L89 step card 'multi_wavelength_evidence' exists
+  ok: L89 has authored story content
+  ok: L89 has completion epilogue lines
+  ok: L89 has a mission board note
+  ok: L90 exists
+  ok: L90 has a story or teaching entry
+  ok: L90 concept card 'multi_wavelength_evidence' exists
+  ok: L90 teaching trigger 'before_assembly' is wired in UI
+  ok: L90 step card 'multi_wavelength_evidence' exists
+  ok: L90 has authored story content
+  ok: L90 has completion epilogue lines
+  ok: L90 has a mission board note
+  ok: L91 exists
+  ok: L91 has a story or teaching entry
+  ok: L91 concept card 'multi_wavelength_evidence' exists
+  ok: L91 teaching trigger 'before_assembly' is wired in UI
+  ok: L91 step card 'multi_wavelength_evidence' exists
+  ok: L91 has authored story content
+  ok: L91 has completion epilogue lines
+  ok: L91 has a mission board note
+  ok: family 'newtonian' has an authored intro event at L26
+  ok: family 'dobsonian' has an authored intro event at L36
+  ok: family 'cassegrain' has an authored intro event at L46
+  ok: family 'gregorian' has an authored intro event at L56
+  ok: family 'space_segmented' has an authored intro event at L66
+  ok: family 'fast_radio' has an authored intro event at L76
+  ok: family 'multi_device' has an authored intro event at L86
+  ok: mechanic 'tube_subassembly' has a first-time story
+  ok: mechanic 'collimation' has a first-time story
+  ok: L25 before-story plays the first time
+  ok: L25 before-story refuses to replay
+  ok: L27 epilogue plays after completion
+  ok: L27 epilogue refuses to replay
+  ok: L12 keeps recap-only behavior (no epilogue)
+  ok: L36 dobsonian brief intercepts on first assembly
+  ok: L36 brief begins
+  ok: L36 brief never re-intercepts
+  ok: two journal entries recorded
+  ok: first entry marked as first experiment
+  ok: repeat entry marked as comparison
+  ok: repeat entry does not clone the knowledge card
+  ok: has_seen tolerates empty progress
+  ok: get_pending_step tolerates empty progress
+STORY AUDIT TEST PASS

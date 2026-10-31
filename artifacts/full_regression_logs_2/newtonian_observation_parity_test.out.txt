@@ -1,0 +1,45 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: L22 keeps its intended comparison target
+  ok: L22 shows refractor chromatic aberration
+  ok: L23 keeps its intended comparison target
+  ok: L23 shows refractor chromatic aberration
+  ok: L24 keeps its intended comparison target
+  ok: L24 shows refractor chromatic aberration
+  ok: L25 keeps its intended comparison target
+  ok: L25 shows refractor chromatic aberration
+  ok: L25 begins with the refractor
+  ok: L25 observes Vega
+  ok: L25 enables visible chromatic aberration
+  ok: official Vega clear texture loads
+  ok: official Vega blurry texture loads
+  ok: official Vega dim texture loads
+  ok: L25 keeps focus interaction
+  ok: current L26 data has no stale Basic Mount gate
+  ok: migration is a no-op when the level has no support-part hard gate
+  ok: Basic Mount no longer locks Identify
+  ok: L26 gives the Newtonian a first-light target
+  ok: L26 introduces the Newtonian family
+  ok: L26 enables focus
+  ok: L26 defines seeing
+  ok: Newtonian tube focuser enables focus input
+  ok: Telescope View no longer reports Basic Mount missing
+  ok: Telescope View exposes Newtonian focus control
+  ok: Newtonian focuser contributes a nonzero control score
+  ok: L26 explanation precedes Newtonian assembly
+  ok: dialogue explains refractor chromatic aberration
+  ok: dialogue introduces the Newtonian solution
+  ok: dialogue explains the Newtonian light path
+  ok: L27 repeats Vega with the Newtonian
+  ok: L27 removes the refractor color fringe
+  ok: L27 keeps focus interaction
+  ok: L32 enables focus
+  ok: L32 enables Earth-rotation drift
+  ok: L32 requires center hold
+  ok: L32 defines seeing and clouds
+  ok: L35 enables focus
+  ok: L35 enables Earth-rotation drift
+  ok: L35 requires center hold
+  ok: L35 defines seeing and clouds
+NEWTONIAN OBSERVATION PARITY TEST PASS

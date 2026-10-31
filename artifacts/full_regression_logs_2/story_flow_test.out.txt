@@ -1,0 +1,37 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: new game: seen_story_events empty
+  ok: intro not seen at start
+  ok: intro plays on new game
+  ok: intro routed to story dialogue scene
+  ok: intro has multiple lines
+  ok: intro recorded in seen_story_events
+  ok: intro returns to observatory
+  ok: intro guides player to observation pad
+  ok: intro does not replay
+  ok: L1 before_observation story plays
+  ok: L1 story on dialogue scene
+  ok: level_1_before recorded
+  ok: L1 story chains into concept brief
+  ok: chained card is a brief
+  FAIL: device-triggered brief continues straight to sky observation
+  ok: L1 story does not replay
+  ok: L1 mission completes
+  ok: mission complete payload has Maya recap
+  ok: mission complete sets next-step room guidance
+  ok: at level 3
+  ok: L3 before_assembly story plays
+  ok: level_3_before_assembly recorded
+  ok: L3 story chains into refractor brief
+  ok: device-triggered L3 brief continues straight to assembly
+  ok: L3 story does not replay
+  ok: at level 4
+  ok: L4 before_focus story plays
+  ok: level_4_before_focus recorded
+  ok: L4 story chains into focus brief
+  ok: selection survives story + brief chain
+  ok: L4 focus brief continues straight to telescope view
+  ok: L4 story does not replay
+  ok: mission board has a Maya note for current level
+STORY FLOW TEST FAIL (1 failures)

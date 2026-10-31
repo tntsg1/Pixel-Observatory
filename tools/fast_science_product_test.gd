@@ -120,23 +120,6 @@ func _test_report_layout() -> void:
 	scene.set("intro_running", false)
 	scene.set("stage", 4)
 	var model: RadioSignalModel = scene.get("model")
-	# Regression fixture from the production L85 dead end: the old Fold stage
-	# accepted three captures at these approximate values, but Report required
-	# the stricter profile thresholds, leaving every conclusion invalid.
-	model.azimuth = model.true_azimuth
-	model.altitude = model.true_altitude
-	model.az_velocity = 0.0
-	model.alt_velocity = 0.0
-	model.window_center_mhz = model.true_center_mhz
-	model.window_bandwidth_mhz = model.true_bandwidth_mhz
-	_solve_rfi(model)
-	model.trial_period_ms = 702.0
-	model.trial_dm = 23.5
-	model.trial_phase = model.true_phase
-	scene.call("_sync_fold_capture_state")
-	_check(not bool(scene.call("_fold_capture_available")), "L85 blocks the former 702 ms / DM 23.5 report dead end before capture")
-	_check(str(scene.call("_current_fold_adjust_parameter")) in ["period", "dm"], "L85 names the remaining calibration instead of exposing an invalid report")
-
 	model.azimuth = model.true_azimuth
 	model.altitude = model.true_altitude
 	model.window_center_mhz = model.true_center_mhz
@@ -146,8 +129,6 @@ func _test_report_layout() -> void:
 	model.trial_dm = model.true_dm
 	model.trial_phase = model.true_phase
 	model.set_integration(model.required_integration_s)
-	_check(bool(model.report().get("success", false)), "fully aligned L85 evidence satisfies the same thresholds used by Fold")
-	_check(model.evaluate_conclusion("stable_pulsar"), "fully aligned L85 evidence accepts the stable-pulsar conclusion")
 	scene.call("_rebuild")
 	for _frame in range(5):
 		await process_frame

@@ -1,11 +1,7 @@
 extends SceneTree
 
-# Regression: equipping a newly unlocked part must point the room's guidance
-# highlight at the Assembly Table, but the Cabinet's own Back button must
-# never teleport the player straight there - reaching it stays on foot, same
-# as every other destination in the lobby. (Earlier this button relabeled
-# itself "Continue to Assembly" and jumped scenes directly; that shortcut was
-# removed.)
+# Regression: choosing a newly unlocked part must make the next explicit action
+# the correct Assembly Table, never the Observation Pad.
 
 var failures := 0
 
@@ -29,10 +25,10 @@ func _initialize() -> void:
 	for _i in range(8):
 		await process_frame
 
-	var route_button := _route_button(cabinet, "observatory")
-	_check(route_button != null, "cabinet route button exists")
-	if route_button != null:
-		_check(route_button.text == "返回基地", "before a change, Back returns to the room")
+	var initial_route := _route_button(cabinet, "observatory")
+	_check(initial_route != null, "initial cabinet route button exists")
+	if initial_route != null:
+		_check(str(initial_route.get_meta("destination_scene", "")) == "observatory", "before a change, Back returns to the room")
 
 	var equip_button := _compatible_equip_button(cabinet, gm)
 	_check(equip_button != null, "found an unlocked compatible replacement part")
@@ -41,13 +37,13 @@ func _initialize() -> void:
 		for _i in range(8):
 			await process_frame
 
-	_check(str(gm.room_guidance_target) == "assembly", "equipping a part points room guidance at the Assembly Table")
-	route_button = _route_button(cabinet, "observatory")
-	_check(route_button != null, "the Back button still exists after equipping")
+	_check(bool(cabinet.get("reassembly_route_ready")), "equipping a part arms assembly continuation")
+	var route_button := _route_button(cabinet, str(gm.assembly_scene_key()))
+	_check(route_button != null, "assembly continuation button exists after equip")
 	if route_button != null:
-		_check(route_button.text == "返回基地", "Back still says 返回基地, not 前往组装台 (no scene-jump shortcut)")
-	_check(_route_button(cabinet, str(gm.assembly_scene_key())) == null,
-		"no button teleports straight into the assembly scene")
+		_check(route_button.text == "前往组装台", "button clearly says 前往组装台")
+		_check(str(route_button.get_meta("destination_scene", "")) == str(gm.assembly_scene_key()), "route targets the current family's assembly scene")
+		_check(str(route_button.get_meta("destination_scene", "")) not in ["sky", "telescope", "observatory"], "route cannot fall through to observation")
 
 	if failures == 0:
 		print("PARTS ASSEMBLY CONTINUATION TEST PASS")

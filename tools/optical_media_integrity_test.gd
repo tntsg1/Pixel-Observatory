@@ -142,7 +142,15 @@ func _test_registry_coverage() -> void:
 func _test_official_runtime_images() -> void:
 	for object_id in OFFICIAL_IDS:
 		var path := OpticalMediaRegistry.master_path(object_id)
-		_expect(path.contains("/official/"), "%s is not routed to official media" % object_id)
+		var media_entry := OpticalMediaRegistry.entry(object_id)
+		var asset_class := str(media_entry.get("asset_class", ""))
+		# Runtime-safe tone derivatives remain traceable to their credited
+		# official source, while allowing an eyepiece-scale phase or contrast
+		# treatment (Venus uses this to keep its narrow crescent readable).
+		_expect(
+			path.contains("/official/") or asset_class == "display_tone_derivative",
+			"%s is not routed to official or credited derivative media" % object_id
+		)
 		var texture := load(path) as Texture2D
 		if texture == null:
 			continue

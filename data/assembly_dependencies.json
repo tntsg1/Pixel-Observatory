@@ -105,19 +105,8 @@
   "fast_radio": {
     "main": {
       "radio_dish": [],
-      "panel_segment": ["radio_dish"],
-      "panel_actuator": ["panel_segment"],
-      "cable_system": ["radio_dish"],
-      "tension_controller": ["cable_system"],
-      "receiver": ["cable_system"],
-      "feed_receiver": ["receiver"],
-      "rf_receiver": ["feed_receiver"],
-      "signal_processor": ["rf_receiver"],
-      "spectrum_monitor": ["signal_processor"],
-      "timing_console": ["signal_processor"],
-      "data_recorder": ["signal_processor"],
-      "rfi_monitor": ["spectrum_monitor"],
-      "control_terminal": ["panel_actuator", "tension_controller", "signal_processor"]
+      "receiver": ["radio_dish"],
+      "signal_processor": ["receiver"]
     }
   }
 }

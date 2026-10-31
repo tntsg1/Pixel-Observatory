@@ -1,0 +1,23 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 1. mission target is Jupiter
+  ok: 1. selecting the mission target is NOT free
+  ok: 1. selecting a non-target IS free
+  ok: 2. free object detail: is_mission_target=false
+  ok: 2. mission object detail: is_mission_target=true
+  ok: 2. detail carries magnitude
+  ok: 2. advice generated for a nebula
+  ok: 3. telescope view enters free mode
+  ok: 3. no identify choices in free mode
+  ok: 4. current level unchanged after free log
+  ok: 4. no level marked complete
+  ok: 5. first free record is new
+  ok: 5. exactly one free_observation journal entry
+  ok: 5. identical repeat does NOT add a duplicate
+  ok: 5. a different quality is a new record
+  ok: 6. mission target selected -> not free
+  ok: 6. mission target completes the mission normally
+  ok: 7. (Sirius up at home this run - horizon check skipped)
+  ok: 8. sky Back sets observatory spawn (not assembly)
+FREE OBSERVATION TEST PASS

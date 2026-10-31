@@ -1,0 +1,15 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: Mission Board opens
+  ok: L1 route targets Observation Pad
+  ok: Route indicator remains visible away from target
+  ok: Player can reach the routed interaction range
+  ok: Route indicator yields to the E prompt in range
+  ok: L1 naked-eye observation succeeds
+  ok: L1 completion succeeds
+  ok: Completion advances to L2
+  ok: Completion resolves the next physical route
+  ok: Completion keeps one historical log entry
+  ok: Log entry stores setup, environment, action, and knowledge
+CORE TASK FLOW TEST PASS

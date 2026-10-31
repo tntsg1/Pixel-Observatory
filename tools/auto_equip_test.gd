@@ -1,6 +1,6 @@
 extends SceneTree
 
-# Auto-equip rework acceptance (user checklist 1-10): newest-generation
+# Auto-equip rework acceptance (user checklist 1-10): scored best-part
 # selection, teaching pins with reasons, family compatibility, no optics on
 # IR/FAST, preview==apply, cancel==no-op, bilingual reasons.
 
@@ -30,21 +30,11 @@ func _initialize() -> void:
 			gm.progress["unlocked_parts"].append(part_id)
 	var plan: Array = gm.auto_equip_plan()
 	_check(str(_plan_entry(plan, "eyepiece").get("part_id", "")) == "eyepiece_10mm",
-		"1. newest unlocked generation picks the 10mm over the basic 20mm eyepiece")
+		"1. planet task picks the 10mm over the basic 20mm eyepiece")
 	_check(str(_plan_entry(plan, "mount").get("part_id", "")) == "tracking_mount",
-		"2. newest unlocked generation picks Tracking Mount, not Basic Mount")
+		"2. free task picks the best mount, not Basic Mount")
 	_check(str(_plan_entry(plan, "objective").get("part_id", "")) == "objective_100mm",
-		"2b. newest unlocked generation picks the 100mm objective")
-
-	# (2c) Generation, not a hidden mission score, decides ties in purpose.
-	# The later 40mm Cassegrain eyepiece has lower quality than the older 12mm,
-	# so this specifically fails under the removed score-based selector.
-	gm.debug_jump_to_level(48, true)
-	for part_id in ["cassegrain_12mm_eyepiece", "cassegrain_40mm_eyepiece"]:
-		if not gm.progress["unlocked_parts"].has(part_id):
-			gm.progress["unlocked_parts"].append(part_id)
-	_check(str(gm.best_part_for_type("eyepiece").get("id", "")) == "cassegrain_40mm_eyepiece",
-		"2c. later unlock wins even when its raw quality number is lower")
+		"2b. free task picks the 100mm objective")
 
 	# (3) L25 pins Basic Mount for the chromatic experiment: kept + reasoned.
 	gm.debug_jump_to_level(25, false)

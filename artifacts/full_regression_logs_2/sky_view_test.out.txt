@@ -1,0 +1,38 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+shortest_angle_degrees: ok
+_format_dms: ok
+--- tonight's positions (offline/calculated pass) ---
+albireo        alt  -27.38  az  350.88  calculated Below horizon
+alpha_centauri alt  -41.94  az  144.06  calculated Below horizon
+andromeda      alt   19.79  az  307.08  calculated Visible tonight
+arcturus       alt   -5.09  az   62.72  calculated Below horizon
+betelgeuse     alt   60.09  az  210.37  calculated Visible tonight
+canopus        alt    3.00  az  184.56  calculated Low on horizon
+jupiter        alt   64.81  az  119.00  calculated Visible tonight
+lagoon_nebula  alt  -75.37  az   51.97  calculated Below horizon
+m13            alt  -13.03  az   26.79  calculated Below horizon
+mars           alt   62.16  az  253.43  calculated Visible tonight
+mercury        alt   73.72  az  168.23  calculated Visible tonight
+moon           alt  -21.04  az   95.69  calculated Below horizon
+moon_crater_copernicus alt  -21.04  az   95.69  calculated Below horizon
+moon_mare_tranquillitatis alt  -21.04  az   95.69  calculated Below horizon
+moon_terminator alt  -21.04  az   95.69  calculated Below horizon
+neptune        alt   -7.54  az  275.51  calculated Below horizon
+orion_nebula   alt   46.38  az  209.11  calculated Visible tonight
+pleiades       alt   48.40  az  268.94  calculated Visible tonight
+polaris        alt   34.35  az  359.19  calculated Visible tonight
+proxima        alt  -40.66  az  146.42  calculated Below horizon
+ring_nebula    alt  -22.92  az    0.11  calculated Below horizon
+saturn         alt  -13.52  az  275.77  calculated Below horizon
+sirius         alt   39.19  az  182.76  calculated Visible tonight
+sombrero_galaxy alt   -3.61  az  101.60  calculated Below horizon
+uranus         alt   51.44  az  260.86  calculated Visible tonight
+vega           alt  -17.06  az    3.49  calculated Below horizon
+venus          alt   28.11  az  100.58  calculated Visible tonight
+--- default view az 180 alt 45 ---
+FOV 28 deg -> in view: sirius
+FOV 45 deg -> in view: sirius
+icon files: ok
+SKY VIEW TEST: ALL PASSED
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)

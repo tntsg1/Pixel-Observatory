@@ -1,0 +1,42 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: autoloads available
+  ok: main_progression_test: new game starts at L1
+  ok: main_progression_test: L1 -> L2
+  ok: main_progression_test: L2 -> L3
+  ok: main_progression_test: L3 -> L4
+  ok: main_progression_test: L4 -> L5
+  ok: main_progression_test: L5 -> L6
+  ok: main_progression_test: L6 -> L7
+  ok: main_progression_test: L7 -> L8
+  ok: main_progression_test: L8 -> L9
+  ok: main_progression_test: L9 -> L10
+  ok: main_progression_test: L10 -> L11
+  ok: main_progression_test: first ten lessons are contiguous
+  ok: main_progression_test: first ten never jump above L24
+  ok: main_progression_test: first 24 never jump into expansion
+  ok: unlock_consistency_test: every level has legal parts, target, cards, and feedback
+  ok: old_save_migration_test: old L114 jump resumes at L3
+  ok: old_save_migration_test: credits are retained
+  ok: old_save_migration_test: historic completion is retained
+  ok: old_save_migration_test: leaked advanced equipment is removed
+  ok: old_save_migration_test: invalid current level safely returns to the next legal lesson
+  ok: campaign_order_integrity_test: no duplicates, missing levels, or invalid ids
+  ok: campaign_order_integrity_test: all 131 levels are present
+  ok: campaign_order_integrity_test: expansion begins after L91
+  ok: assembly_gate_test: finder requirement is locked before its teaching
+  ok: assembly_gate_test: locked equipment cannot enter observation
+  ok: assembly_gate_test: locked equipment routes to Parts Cabinet
+  ok: assembly_gate_test: locked finder cannot be installed
+  ok: finder_scope_progression_test: L6 is the first finder requirement
+  ok: finder_scope_progression_test: L1 does not require finder early
+  ok: finder_scope_progression_test: L2 does not require finder early
+  ok: finder_scope_progression_test: L3 does not require finder early
+  ok: finder_scope_progression_test: L4 does not require finder early
+  ok: finder_scope_progression_test: L5 does not require finder early
+  ok: finder_scope_progression_test: L5 unlocks the finder
+  ok: finder_scope_progression_test: finder introduction has Maya teaching
+  ok: finder_scope_progression_test: L6 begins finder calibration
+  ok: finder_scope_progression_test: finder principle appears before installation
+PROGRESSION VALIDATION TEST PASS

@@ -381,27 +381,10 @@ void fragment() {
 	status_label.max_lines_visible = 2
 	_refresh_headline()
 
-	# This used to be a bare Control - a dozen text rows floating directly on
-	# the map with no frame at all, which read as an unfinished debug overlay
-	# rather than a real instrument readout.
-	info_panel = Panel.new()
+	info_panel = Control.new()
 	info_panel.position = Vector2(784, 150)
 	info_panel.size = Vector2(228, 452)
-	var info_style := StyleBoxFlat.new()
-	info_style.bg_color = Color(0.020, 0.032, 0.058, 0.94)
-	info_style.border_color = GOLD
-	info_style.set_border_width_all(2)
-	info_style.set_corner_radius_all(5)
-	info_style.content_margin_left = 10.0
-	info_style.content_margin_right = 10.0
-	info_style.content_margin_top = 10.0
-	info_style.content_margin_bottom = 10.0
-	info_style.shadow_color = Color(0, 0, 0, 0.55)
-	info_style.shadow_size = 14
-	info_style.shadow_offset = Vector2(0, 5)
-	info_panel.add_theme_stylebox_override("panel", info_style)
 	add_child(info_panel)
-	UiKit.add_bevel(self, Rect2(info_panel.position, info_panel.size))
 
 	# Buttons live at FIXED positions and never move with the animation.
 	confirm_button = _button(GameManager.text("Confirm Site", "确认地点"), Vector2(784, 614), Vector2(228, 46), GOLD)
@@ -1348,13 +1331,13 @@ func _refresh_info() -> void:
 	var v: Dictionary = site_visibility.get(selected_id, {})
 	var site: Dictionary = v.get("site", {})
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(10, 8)
-	scroll.size = Vector2(208, 436)
+	scroll.position = Vector2(0, 0)
+	scroll.size = Vector2(228, 452)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	info_panel.add_child(scroll)
 	var body := VBoxContainer.new()
-	body.custom_minimum_size = Vector2(196, 0)
-	body.add_theme_constant_override("separation", 4)
+	body.custom_minimum_size = Vector2(210, 0)
+	body.add_theme_constant_override("separation", 3)
 	scroll.add_child(body)
 
 	_prow(body, GameManager.text("SELECTED SITE", "选中地点"), "", GOLD, 13, 0)
@@ -1368,10 +1351,8 @@ func _refresh_info() -> void:
 	_prow(body, GameManager.text("Observing target", "观测目标"), GameManager.dict_text(target_object, "name"), CYAN, 11, 1)
 	_prow(body, GameManager.text("Current site", "当前地点"), GameManager.dict_text(current_site, "name"), DIM, 11, 2)
 	_prow(body, GameManager.text("Current target Alt", "当前目标高度角"), "%.1f°" % target_alt_now, RED if target_below else TEXT, 11, 3)
-	_pdivider(body)
 	_prow(body, GameManager.dict_text(site, "name"), "", GOLD_BRIGHT, 16, 1)
 	_prow(body, GameManager.dict_text(site, "country"), "", DIM, 11, 2)
-	_pdivider(body)
 	var rows := [
 		[GameManager.text("Latitude", "纬度"), "%.2f°" % float(site.get("lat", 0.0))],
 		[GameManager.text("Longitude", "经度"), "%.2f°" % float(site.get("lon", 0.0))],
@@ -1379,22 +1360,15 @@ func _refresh_info() -> void:
 		[GameManager.text("Target Az", "目标方位角"), "%.1f° %s" % [float(v.get("azimuth", 0.0)), str(v.get("direction_text", ""))]],
 		[GameManager.text("Local time", "当地时间"), str(v.get("local_time", "--:--"))],
 		[GameManager.text("Visible for", "可见时长"), "%.1f h" % float(v.get("visible_hours", 0.0))],
-	]
-	var step := 3
-	for row in rows:
-		_prow(body, str(row[0]), str(row[1]), TEXT, 11, step)
-		step += 1
-	_pdivider(body)
-	var condition_rows := [
 		[GameManager.text("Sky quality", "天空条件"), "Bortle %d" % int(site.get("bortle", 5))],
 		[GameManager.text("Conditions", "观测条件"), GameManager.dict_text(site, "condition")],
 		[GameManager.text("Cloud cover", "云量"), "%d%% (%s)" % [int(round(float(v.get("cloud_cover", 0.0)) * 100.0)), GameManager.text("local site estimate", "本地站点估计")]],
 		[GameManager.text("Seeing", "视宁度"), str(v.get("seeing", "average")).capitalize()],
 	]
-	for row in condition_rows:
+	var step := 3
+	for row in rows:
 		_prow(body, str(row[0]), str(row[1]), TEXT, 11, step)
 		step += 1
-	_pdivider(body)
 	var vis := bool(v.get("visible", false))
 	var comfort := bool(v.get("comfortable", false))
 	var visibility_text := GameManager.text("Comfortably above the horizon", "适合观测") if comfort else GameManager.text("Above the horizon, but low", "已升起，但高度较低")
@@ -1406,20 +1380,6 @@ func _refresh_info() -> void:
 		_prow(body,
 			GameManager.text("The target will be %.1f° above the horizon.", "目标在这里的高度角为 %.1f°。") % float(v.get("altitude", 0.0)),
 			"", TEXT, 11, step + 3)
-
-
-func _pdivider(parent: Control) -> void:
-	# A quiet hairline instead of another text row - the panel used to be one
-	# unbroken stack of a dozen key/value pairs with no visual grouping at all.
-	var line := ColorRect.new()
-	line.color = Color(GOLD.r, GOLD.g, GOLD.b, 0.22)
-	line.custom_minimum_size = Vector2(196, 1)
-	line.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(line)
-	var spacer := Control.new()
-	spacer.custom_minimum_size = Vector2(196, 2)
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	parent.add_child(spacer)
 
 
 func _prow(parent: Control, key: String, value: String, color: Color, size_px: int, order: int) -> void:

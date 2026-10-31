@@ -49,17 +49,6 @@ func _build() -> void:
 	select_buttons.clear()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	_panel(Vector2.ZERO, Vector2(1024, 768), BG, BG)
-	# Added straight after the flat background fill and before any content, so
-	# every card and strip below still draws on top of it. This desk had no
-	# _process at all - it was one of the last completely frozen screens.
-	var life := AmbientLife.new()
-	life.name = "AmbientLife"
-	life.configure({
-		"twinkle_zone": Rect2(0, 0, 1024, 768),
-		"twinkle_count": 22,
-		"seed": 20260827,
-	})
-	add_child(life)
 	_label(GameManager.text("MULTI-OBSERVATORY EVIDENCE DESK", "多观测台证据工作台"), Vector2(32, 18), Vector2(960, 32), 24, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
 	var target := GameManager.current_target()
 	_label(GameManager.text("Target: ", "目标：") + GameManager.dict_text(target, "name"), Vector2(50, 58), Vector2(924, 26), 16, CYAN, HORIZONTAL_ALIGNMENT_CENTER)

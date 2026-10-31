@@ -1,0 +1,73 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: reflector_tube has a live central hit target
+  ok: reflector_tube hit target uses mapped image coordinates
+  ok: reflector_tube installs through the visible slot center
+  ok: reflector_tube renders its installed PNG in the blueprint
+  ok: mirror_cell has a live central hit target
+  ok: mirror_cell hit target uses mapped image coordinates
+  ok: mirror_cell installs through the visible slot center
+  ok: mirror_cell renders its installed PNG in the blueprint
+  ok: primary_mirror has a live central hit target
+  ok: primary_mirror hit target uses mapped image coordinates
+  ok: primary_mirror installs through the visible slot center
+  ok: primary_mirror renders its installed PNG in the blueprint
+  ok: secondary_spider has a live central hit target
+  ok: secondary_spider hit target uses mapped image coordinates
+  ok: secondary_spider installs through the visible slot center
+  ok: secondary_spider renders its installed PNG in the blueprint
+  ok: secondary_mirror has a live central hit target
+  ok: secondary_mirror hit target uses mapped image coordinates
+  ok: secondary_mirror installs through the visible slot center
+  ok: secondary_mirror renders its installed PNG in the blueprint
+  ok: focuser has a live central hit target
+  ok: focuser hit target uses mapped image coordinates
+  ok: focuser installs through the visible slot center
+  ok: focuser renders its installed PNG in the blueprint
+  ok: eyepiece has a live central hit target
+  ok: eyepiece hit target uses mapped image coordinates
+  ok: eyepiece installs through the visible slot center
+  ok: eyepiece renders its installed PNG in the blueprint
+  ok: collimation_tool has a live central hit target
+  ok: collimation_tool hit target uses mapped image coordinates
+  ok: collimation_tool installs through the visible slot center
+  ok: collimation_tool renders its installed PNG in the blueprint
+  ok: reflector_tube and mirror_cell hit areas do not overlap
+  ok: reflector_tube and primary_mirror hit areas do not overlap
+  ok: reflector_tube and secondary_spider hit areas do not overlap
+  ok: reflector_tube and secondary_mirror hit areas do not overlap
+  ok: reflector_tube and focuser hit areas do not overlap
+  ok: reflector_tube and eyepiece hit areas do not overlap
+  ok: reflector_tube and collimation_tool hit areas do not overlap
+  ok: mirror_cell and primary_mirror hit areas do not overlap
+  ok: mirror_cell and secondary_spider hit areas do not overlap
+  ok: mirror_cell and secondary_mirror hit areas do not overlap
+  ok: mirror_cell and focuser hit areas do not overlap
+  ok: mirror_cell and eyepiece hit areas do not overlap
+  ok: mirror_cell and collimation_tool hit areas do not overlap
+  ok: primary_mirror and secondary_spider hit areas do not overlap
+  ok: primary_mirror and secondary_mirror hit areas do not overlap
+  ok: primary_mirror and focuser hit areas do not overlap
+  ok: primary_mirror and eyepiece hit areas do not overlap
+  ok: primary_mirror and collimation_tool hit areas do not overlap
+  ok: secondary_spider and secondary_mirror hit areas do not overlap
+  ok: secondary_spider and focuser hit areas do not overlap
+  ok: secondary_spider and eyepiece hit areas do not overlap
+  ok: secondary_spider and collimation_tool hit areas do not overlap
+  ok: secondary_mirror and focuser hit areas do not overlap
+  ok: secondary_mirror and eyepiece hit areas do not overlap
+  ok: secondary_mirror and collimation_tool hit areas do not overlap
+  ok: focuser and eyepiece hit areas do not overlap
+  ok: focuser and collimation_tool hit areas do not overlap
+  ok: eyepiece and collimation_tool hit areas do not overlap
+  ok: reflector_tube installed texture survives scene reload
+  ok: mirror_cell installed texture survives scene reload
+  ok: primary_mirror installed texture survives scene reload
+  ok: secondary_spider installed texture survives scene reload
+  ok: secondary_mirror installed texture survives scene reload
+  ok: focuser installed texture survives scene reload
+  ok: eyepiece installed texture survives scene reload
+  ok: collimation_tool installed texture survives scene reload
+  ok: tube installation state survives scene reload
+NEWTONIAN TUBE SLOT TEST PASS

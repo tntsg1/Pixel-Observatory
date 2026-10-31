@@ -3,10 +3,7 @@ import { access, readFile, readdir, stat } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export async function verifyWebGameShell(outputPath = "build/web", {
-	requireRuntime = true,
-	allowedStaticPacks = [],
-} = {}) {
+export async function verifyWebGameShell(outputPath = "build/web", { requireRuntime = true } = {}) {
 const outputDir = resolve(outputPath);
 const gameDir = join(outputDir, "game");
 const gameIndex = join(gameDir, "index.html");
@@ -64,14 +61,13 @@ if (!requireRuntime) {
 		return results;
 	};
 	const packedFiles = await findPackedFiles(outputDir);
-	assert.deepEqual(
-		packedFiles.sort(),
-		[...allowedStaticPacks].sort(),
-		`Cloudflare static assets contain an unexpected PCK set: ${packedFiles.join(", ")}`,
-	);
+	assert.deepEqual(packedFiles, [], `Cloudflare static assets must not retain PCK files: ${packedFiles.join(", ")}`);
 }
 await access(join(outputDir, "game-loader.js"));
 await access(join(outputDir, "game-loader.css"));
+const announcement = JSON.parse(await readFile(join(outputDir, "release-announcement.json"), "utf8"));
+assert.equal(announcement.schema, 1, "Release announcement schema must be supported.");
+assert.equal(announcement.audience, "registered", "Release announcement must target registered observers.");
 return gameIndex;
 }
 

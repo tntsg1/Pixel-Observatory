@@ -1,10 +1,8 @@
 extends SceneTree
 
 # Regression for the compact free-observation action area at 1024x768.
-# The mission return and two secondary actions must remain inside the
-# existing right panel without overlapping at 1024x768. (The view used to
-# also offer a "Change Equipment" shortcut that teleported straight into the
-# Parts Cabinet; that shortcut was removed, so it is no longer checked here.)
+# The mission return, two secondary actions, and equipment action must remain
+# inside the existing right panel without overlapping at 1024x768.
 
 const SAVE_PATH := "user://savegame.json"
 const RIGHT_PANEL_RECT := Rect2(752.0, 106.0, 236.0, 594.0)
@@ -37,6 +35,12 @@ func _initialize() -> void:
 	var log_button := view.find_child("FreeObservationLogButton", true, false) as Button
 	var back_button := view.find_child("FreeObservationBackButton", true, false) as Button
 	var mission_button := view.find_child("FreeObservationMissionButton", true, false) as Button
+	var equipment_button: Button = null
+	for node in view.find_children("*", "Button", true, false):
+		var candidate := node as Button
+		if candidate != null and candidate.text.contains("Change Equipment"):
+			equipment_button = candidate
+			break
 
 	_check(log_button != null, "logbook button exists")
 	_check(back_button != null, "back-to-sky button exists")
@@ -50,10 +54,17 @@ func _initialize() -> void:
 		_check(_inside_panel(back_rect), "back-to-sky button stays inside the right panel")
 		_check(not log_rect.intersects(back_rect), "primary actions do not overlap")
 		_check(back_rect.end.x <= 1024.0, "back-to-sky button stays on screen at 1024x768")
-	if mission_button != null and log_button != null and back_button != null:
-		_check(not mission_button.get_global_rect().intersects(log_button.get_global_rect())
-			and not mission_button.get_global_rect().intersects(back_button.get_global_rect()),
-			"return-to-mission action does not overlap other actions")
+	if equipment_button != null and log_button != null and back_button != null:
+		var equipment_rect := equipment_button.get_global_rect()
+		_check(_inside_panel(equipment_rect), "equipment button stays inside the right panel")
+		_check(not equipment_rect.intersects(log_button.get_global_rect())
+			and not equipment_rect.intersects(back_button.get_global_rect()),
+			"equipment action does not overlap the primary actions")
+		if mission_button != null:
+			_check(not mission_button.get_global_rect().intersects(log_button.get_global_rect())
+				and not mission_button.get_global_rect().intersects(back_button.get_global_rect())
+				and not mission_button.get_global_rect().intersects(equipment_rect),
+				"return-to-mission action does not overlap other actions")
 
 	view.queue_free()
 	await process_frame

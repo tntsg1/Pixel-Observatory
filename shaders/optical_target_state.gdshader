@@ -54,41 +54,12 @@ void fragment() {
 	}
 	float average_alpha = weighted_alpha / max(kernel_weight, 0.0001);
 	vec3 blurred_rgb = weighted_rgb / max(weighted_alpha, 0.0001);
-	// Close to focus, retain a solid centre. Far from focus, do not threshold
-	// the convolution back into a recognisable hard-edged planet disk.
-	float blurred_alpha = smoothstep(0.010, 0.36, average_alpha);
-
-	// At severe defocus the detector receives a broad, low-contrast circle of
-	// confusion, not a larger copy of the source photograph. Flatten local
-	// surface markings toward a small central colour average and replace the
-	// source silhouette with a long Gaussian falloff. The centre stays opaque
-	// enough to prevent background stars leaking through, while the limb no
-	// longer reveals whether the sharp source was a disk, crescent, or rings.
-	vec4 tone_0 = texture(TEXTURE, vec2(0.500, 0.500));
-	vec4 tone_1 = texture(TEXTURE, vec2(0.475, 0.500));
-	vec4 tone_2 = texture(TEXTURE, vec2(0.525, 0.500));
-	vec4 tone_3 = texture(TEXTURE, vec2(0.500, 0.475));
-	vec4 tone_4 = texture(TEXTURE, vec2(0.500, 0.525));
-	float tone_alpha = tone_0.a + tone_1.a + tone_2.a + tone_3.a + tone_4.a;
-	vec3 flat_rgb = (
-		tone_0.rgb * tone_0.a
-		+ tone_1.rgb * tone_1.a
-		+ tone_2.rgb * tone_2.a
-		+ tone_3.rgb * tone_3.a
-		+ tone_4.rgb * tone_4.a
-	) / max(tone_alpha, 0.0001);
-	float severe_mix = smoothstep(0.48, 0.92, defocus_amount);
-	vec2 haze_axis = (UV - vec2(0.5)) / vec2(0.34, 0.31);
-	float severe_haze = exp(-dot(haze_axis, haze_axis) * 1.18);
-	blurred_rgb = mix(blurred_rgb, flat_rgb, severe_mix * 0.90);
-	blurred_alpha = mix(blurred_alpha, severe_haze, severe_mix * 0.94);
+	// Preserve an opaque core while allowing a short, naturally fading PSF
+	// edge. This keeps stars from shining through a planet without retaining
+	// the source PNG's sharp silhouette.
+	float blurred_alpha = smoothstep(0.015, 0.42, average_alpha);
 	vec4 defocused = vec4(blurred_rgb, blurred_alpha);
 	float convolution_mix = smoothstep(0.0, 0.55, defocus_amount);
 	vec4 optical_sample = mix(source, defocused, convolution_mix);
-	// COLOR already contains a texture lookup at the control's unexpanded UV.
-	// Multiplying by it sampled the source twice with two different UV maps:
-	// the transformed Venus crescent was masked by a dark/transparent pixel
-	// from the oversized canvas. Brightness is supplied explicitly, and solid
-	// bodies keep node alpha at one, so write the optical sample directly.
-	COLOR = vec4(optical_sample.rgb * brightness, optical_sample.a);
+	COLOR = vec4(optical_sample.rgb * brightness, optical_sample.a) * COLOR;
 }

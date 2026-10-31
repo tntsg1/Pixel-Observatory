@@ -7,14 +7,41 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
-## 2026-08-04 - Crab Side-view and Latest-generation Auto Equip
+## 2026-10-04 - v0.9.8 Level 26 Assembly Hotfix
 
-- Classified supernova remnants such as the Crab as extended diffuse targets,
-  so L30 now uses the same visible Shift hold, confirmation, contrast gain and
-  quality calculation as the Sombrero and other averted-vision observations.
-- Replaced hidden task-score auto-equipping with a deterministic newest-unlocked
-  generation rule, while retaining exact lesson-pinned parts and telescope-family
-  compatibility.
+- Fixed the Level 26 Newtonian assembly lock caused by refractor-family state
+  and incompatible starter optics surviving the transition from Level 25.
+- Existing saves now synchronize the assembly family when they load, while the
+  parts cabinet and equipment path reject refractor-only parts on reflector
+  benches.
+- Separated the in-game developer console entitlement from the website
+  administrator role. A rewarded observer can use the testing console without
+  gaining moderation, feedback-console or deployment access.
+- Added a permanent field-research honor, signal-gold avatar frame and special
+  observer title for the player who supplied the reproducible report.
+
+## 2026-09-18 - v0.9.5 Observatory Website Copy Update
+
+- Rewrote the Chinese public landing page from the opening and Maya introduction
+  through assembly, optics, observing and advanced instrument explanations.
+- Removed generic promotional phrasing in favor of shorter, more concrete
+  observatory language while preserving the existing visual structure.
+- Corrected the dark-adaptation explanation to refer to rod-cell sensitivity and
+  clarified terminology around focus, chromatic aberration, seeing and tracking.
+- Verified the revised copy at desktop and mobile widths without clipped cards
+  or horizontal text overflow.
+
+## 2026-09-17 - v0.9.4 Cloud Campaign Reliability Update
+
+- Fixed registered observers starting a new campaign and being returned to an
+  older cloud checkpoint, including the reported Level 43 case. New campaigns
+  now use an explicit, validated reset while ordinary saves retain monotonic
+  progress protection.
+- Held the New Game action until account and cloud-save discovery completes,
+  removing the startup synchronization race.
+- Added a formal bilingual release bulletin for registered observers. It opens
+  once on the game main screen for each version and remains available from the
+  account panel afterward.
 
 ## 2026-08-04 - Dialogue Portrait Matches the Protagonist
 

@@ -1,0 +1,94 @@
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_lobby (res://tools/capture_observation_ui_responsibility.gd:42)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_lobby (res://tools/capture_observation_ui_responsibility.gd:42)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_mission_board (res://tools/capture_observation_ui_responsibility.gd:77)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_mission_board (res://tools/capture_observation_ui_responsibility.gd:77)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_sky (res://tools/capture_observation_ui_responsibility.gd:66)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_sky (res://tools/capture_observation_ui_responsibility.gd:66)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_below_horizon (res://tools/capture_observation_ui_responsibility.gd:100)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_below_horizon (res://tools/capture_observation_ui_responsibility.gd:100)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_map_recommendation (res://tools/capture_observation_ui_responsibility.gd:111)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_map_recommendation (res://tools/capture_observation_ui_responsibility.gd:111)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_returned_target (res://tools/capture_observation_ui_responsibility.gd:134)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_returned_target (res://tools/capture_observation_ui_responsibility.gd:134)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_free_details (res://tools/capture_observation_ui_responsibility.gd:159)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_free_details (res://tools/capture_observation_ui_responsibility.gd:159)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+ERROR: Parameter "t" is null.
+   at: texture_2d_get (./servers/rendering/dummy/storage/texture_storage.h:110)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_telescope_types (res://tools/capture_observation_ui_responsibility.gd:170)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)
+SCRIPT ERROR: Cannot call method 'save_png' on a null value.
+   at: _save (res://tools/capture_observation_ui_responsibility.gd:188)
+   GDScript backtrace (most recent call first):
+       [0] _save (res://tools/capture_observation_ui_responsibility.gd:188)
+       [1] _capture_telescope_types (res://tools/capture_observation_ui_responsibility.gd:170)
+       [2] _settle (res://tools/capture_observation_ui_responsibility.gd:183)

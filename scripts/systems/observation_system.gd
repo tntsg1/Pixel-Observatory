@@ -89,8 +89,9 @@ static func _evaluate_telescope(stats: Dictionary, celestial_object: Dictionary,
 		"dark_adaptation": 1.0,
 		"averted_vision": 1.0
 	}
-	var visual_detection_target := _uses_visual_detection_techniques(celestial_object, extra_context)
-	if visual_detection_target and bool(extra_context.get("visual_detection_techniques_enabled", false)):
+	var type_lower := str(celestial_object.get("type_en", "")).to_lower()
+	var diffuse_target := type_lower.contains("nebula") or type_lower.contains("galaxy")
+	if diffuse_target and bool(extra_context.get("visual_detection_techniques_enabled", false)):
 		# These are observer-side detectability gains, not upgrades to the
 		# telescope. They improve faint-structure light/contrast while leaving
 		# mount stability untouched.
@@ -304,32 +305,6 @@ static func _nebula_filter_eligible(celestial_object: Dictionary) -> bool:
 		"lagoon_nebula",
 		"dumbbell_nebula",
 	]
-
-
-static func _is_diffuse_target(celestial_object: Dictionary) -> bool:
-	# A supernova remnant is an extended low-surface-brightness source even
-	# when its catalog type does not contain the word "nebula". The Crab used
-	# to miss both dark-adaptation and averted-vision gains for exactly that
-	# naming reason, while galaxies passed through the same flow correctly.
-	var type_lower := str(celestial_object.get("type_en", "")).to_lower()
-	var visual_profile := str(celestial_object.get("visual_profile", "")).to_lower()
-	return (
-		type_lower.contains("nebula")
-		or type_lower.contains("galaxy")
-		or type_lower.contains("supernova remnant")
-		or visual_profile == "supernova_remnant"
-	)
-
-
-static func _uses_visual_detection_techniques(celestial_object: Dictionary, context: Dictionary) -> bool:
-	if _is_diffuse_target(celestial_object):
-		return true
-	var requirements_value: Variant = context.get("observation_requirements", {})
-	var requirements: Dictionary = requirements_value if requirements_value is Dictionary else {}
-	var type_lower := str(celestial_object.get("type_en", "")).to_lower()
-	# Only clusters whose mission explicitly asks for averted vision belong in
-	# this detection path. Bright open clusters keep their normal presentation.
-	return type_lower.contains("cluster") and bool(requirements.get("require_averted_vision", false))
 
 
 static func _quality_rank(quality: String) -> int:

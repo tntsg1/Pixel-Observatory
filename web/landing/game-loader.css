@@ -689,15 +689,6 @@ body {
 .game-compact-controls[hidden] { display: none !important; }
 .game-compact-actions[hidden] { display: none !important; }
 
-/* Research sessions use the original Godot lesson controls inside an embed.
-   Website-level rails and floating actions would cover its bottom navigation. */
-html.game-study-mode .game-social-rail,
-html.game-study-mode .game-feedback-dock,
-html.game-study-mode .game-compact-controls,
-html.game-study-mode .game-friend-toast {
-  display: none !important;
-}
-
 /* A 1920×1080 viewport leaves two 240px gutters around the fixed 4:3
    game canvas: enough room for the compact full rails.  Collapse only once
    either gutter is materially narrower, so ordinary 16:9 desktop players do

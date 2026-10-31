@@ -1,0 +1,31 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+PASS: detailed telescope view has no barrel, crosshair, or center-circle overlay
+PASS: pre-quiz object guide appears before identification
+PASS: object guide modal stays above shared tutorial and HUD layers
+PASS: focus/weather/tracking tutorials wait until the object guide closes
+PASS: answer buttons remain hidden during the guide
+PASS: quiz builds four unique candidates
+PASS: guide teaches every candidate shown in the quiz
+PASS: shuffle 1 retains the correct answer
+PASS: shuffle 2 retains the correct answer
+PASS: shuffle 3 retains the correct answer
+PASS: shuffle 4 retains the correct answer
+PASS: shuffle 5 retains the correct answer
+PASS: shuffle 6 retains the correct answer
+PASS: shuffle 7 retains the correct answer
+PASS: shuffle 8 retains the correct answer
+PASS: shuffle 9 retains the correct answer
+PASS: shuffle 10 retains the correct answer
+PASS: shuffle 11 retains the correct answer
+PASS: shuffle 12 retains the correct answer
+PASS: correct answer is not fixed at A
+PASS: A-D choices appear only after the guide is dismissed
+PASS: answer buttons are labeled A-D
+PASS: Scope mode enables the dynamic reticle overlay
+PASS: Scope reticle renders above the centered planet
+PASS: aiming reticle renders above city-sky brightness layers
+PASS: Eye mode keeps the aiming reticle visible
+PASS: Finder mode keeps the aiming reticle visible
+IDENTIFY QUIZ AND SCOPE LAYER TEST PASS

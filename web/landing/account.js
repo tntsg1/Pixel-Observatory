@@ -6,6 +6,9 @@ const state = {
     widgetId:null,
     feedbackFrame:0,
     cloudSave:window.__pixelObservatoryCloudSave||{status:"local_saved"},
+    announcement:null,
+    announcementPresented:false,
+    sessionResolved:false,
 };
 
 window.pixelObservatoryCloudRequest = async request => {
@@ -36,11 +39,14 @@ window.pixelObservatoryCloudRequest = async request => {
 
   document.body.insertAdjacentHTML("beforeend", `
     <section class="po-modal" id="po-account-modal" hidden aria-modal="true" role="dialog"><div class="po-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-account-content"></div></div></section>
-    <section class="po-modal po-feedback-modal" id="po-feedback-modal" hidden aria-modal="true" role="dialog" aria-labelledby="po-feedback-title"><div class="po-dialog po-feedback-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-feedback-content"></div></div></section>`);
+    <section class="po-modal po-feedback-modal" id="po-feedback-modal" hidden aria-modal="true" role="dialog" aria-labelledby="po-feedback-title"><div class="po-dialog po-feedback-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-feedback-content"></div></div></section>
+    <section class="po-modal po-release-modal" id="po-release-modal" hidden aria-modal="true" role="dialog" aria-labelledby="po-release-title"><div class="po-dialog po-release-dialog"><button class="po-close" type="button" aria-label="Close">&times;</button><div id="po-release-content"></div></div></section>`);
   const accountModal = document.getElementById("po-account-modal");
   const feedbackModal = document.getElementById("po-feedback-modal");
+  const releaseModal = document.getElementById("po-release-modal");
   const accountContent = document.getElementById("po-account-content");
   const feedbackContent = document.getElementById("po-feedback-content");
+  const releaseContent = document.getElementById("po-release-content");
 
   function open(modal){
     clearTimeout(closeTimers.get(modal));
@@ -63,6 +69,7 @@ window.pixelObservatoryCloudRequest = async request => {
       modal.classList.remove("is-closing");
       document.body.style.overflow="";
       if(state.widgetId!==null && window.turnstile){ try{window.turnstile.remove(state.widgetId);}catch(_){} state.widgetId=null; }
+      if(modal!==releaseModal) setTimeout(maybeShowReleaseAnnouncement,80);
     },260));
   }
   document.querySelectorAll(".po-modal").forEach(modal=>{
@@ -117,7 +124,63 @@ window.pixelObservatoryCloudRequest = async request => {
     gameContext.scene=String(detail.scene||"").replace(/[^a-z0-9_./-]/gi,"").slice(0,120);
     gameContext.level=String(detail.level||"").replace(/[^0-9]/g,"").slice(0,6);
     gameContext.language=/^(zh|en)$/i.test(String(detail.language||""))?String(detail.language).toLowerCase():"";
+    maybeShowReleaseAnnouncement();
   });
+
+  const localized = value => value&&typeof value==="object" ? String(value[isZh()?"zh":"en"]||value.en||value.zh||"") : String(value||"");
+  const releaseSeenKey = announcement => `po-release-announcement:${state.user?.id||"guest"}:${announcement.version}`;
+  function releaseWasSeen(announcement){
+    try{return localStorage.getItem(releaseSeenKey(announcement))==="seen";}catch(_){return false;}
+  }
+  function markReleaseSeen(){
+    if(!state.user||!state.announcement)return;
+    try{localStorage.setItem(releaseSeenKey(state.announcement),"seen");}catch(_){}
+  }
+  function validAnnouncement(value){
+    return value&&value.schema===1&&value.audience==="registered"
+      &&/^v\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i.test(String(value.version||""))
+      &&Array.isArray(value.sections)&&value.sections.length>0;
+  }
+  async function loadReleaseAnnouncement(){
+    try{
+      const response=await fetch("/release-announcement.json",{cache:"no-store",credentials:"same-origin"});
+      const data=await response.json();
+      if(!response.ok||!validAnnouncement(data))return;
+      state.announcement=data;
+      maybeShowReleaseAnnouncement();
+    }catch(_){}
+  }
+  function renderReleaseAnnouncement(force=false){
+    const announcement=state.announcement;
+    if(!state.user||!announcement)return;
+    if(!force&&releaseWasSeen(announcement)){state.announcementPresented=true;return;}
+    const sections=announcement.sections.map(section=>`<section class="po-release-section">
+      <h3>${esc(localized(section.heading))}</h3>
+      <ul>${(Array.isArray(section.items)?section.items:[]).map(item=>`<li>${esc(localized(item))}</li>`).join("")}</ul>
+    </section>`).join("");
+    releaseContent.innerHTML=`<header class="po-release-head">
+        <span class="po-release-seal" aria-hidden="true"><i></i></span>
+        <div><span class="po-release-kicker">${t("OBSERVATORY RELEASE BULLETIN","天文台版本公告")}</span>
+        <div class="po-release-meta"><strong>${esc(announcement.version)}</strong><time datetime="${esc(announcement.published_at||"")}">${esc(announcement.published_at||"")}</time></div></div>
+      </header>
+      <h2 id="po-release-title">${esc(localized(announcement.title))}</h2>
+      <p class="po-release-summary">${esc(localized(announcement.summary))}</p>
+      <div class="po-release-rule" aria-hidden="true"><i></i></div>
+      <div class="po-release-body">${sections}</div>
+      <footer class="po-release-footer"><p>${esc(localized(announcement.footer))}</p>
+        <button class="po-primary po-release-ack" id="po-release-ack" type="button">${t("Acknowledge and enter observatory","已阅，进入天文台")}</button>
+      </footer>`;
+    document.getElementById("po-release-ack").onclick=()=>{markReleaseSeen();close(releaseModal);};
+    state.announcementPresented=true;
+    open(releaseModal);
+  }
+  function maybeShowReleaseAnnouncement(){
+    if(state.announcementPresented||!state.sessionResolved||!state.user||!state.announcement)return;
+    if(!/^\/game\/?$/i.test(location.pathname))return;
+    if(!String(gameContext.scene||"").toLowerCase().includes("main_menu"))return;
+    if(document.querySelector(".po-modal:not([hidden])"))return;
+    renderReleaseAnnouncement();
+  }
   function feedbackContext(){
     const canvas=document.getElementById("canvas");
     const loader=document.getElementById("status");
@@ -142,6 +205,7 @@ window.pixelObservatoryCloudRequest = async request => {
     const label=document.getElementById("account-label");
     if(label) label.textContent=state.user?.username||t("Account","账号");
   }
+  document.addEventListener("po:language-changed",updateNav);
 
   function notifyGameSessionChanged(){
     document.dispatchEvent(new CustomEvent("po:session-changed"));
@@ -196,6 +260,7 @@ window.pixelObservatoryCloudRequest = async request => {
         ${cloudSaveMarkup()}
         <button class="po-secondary" id="po-open-profile" type="button">${t("Open observer profile","打开个人主页")}</button>
         <button class="po-secondary" id="po-open-friends" type="button">${t("Friends and online status","好友与在线状态")}</button>
+        ${state.announcement?`<button class="po-secondary po-release-reopen" id="po-open-release" type="button">${t("Latest update","最新公告")} · ${esc(state.announcement.version)}</button>`:""}
         ${state.user.role==="admin"?'<a class="po-secondary" href="admin/" style="display:grid;place-items:center;text-decoration:none">Open feedback console</a>':""}
         <button class="po-secondary" id="po-change-password" type="button">${t("Change password","修改密码")}</button>
         <button class="po-secondary" id="po-logout" type="button">${t("Sign out","退出登录")}</button></div>`;
@@ -203,7 +268,9 @@ window.pixelObservatoryCloudRequest = async request => {
       bindCloudSaveActions();
       document.getElementById("po-open-profile").onclick=()=>{close(accountModal);document.dispatchEvent(new CustomEvent("po:open-social",{detail:{tab:"profile"}}));};
       document.getElementById("po-open-friends").onclick=()=>{close(accountModal);document.dispatchEvent(new CustomEvent("po:open-social",{detail:{tab:"friends"}}));};
-      document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; updateNav(); notifyGameSessionChanged(); renderAccount(); };
+      const releaseButton=document.getElementById("po-open-release");
+      if(releaseButton)releaseButton.onclick=()=>{close(accountModal);setTimeout(()=>renderReleaseAnnouncement(true),320);};
+      document.getElementById("po-logout").onclick=async()=>{ await api("/api/auth/logout",{method:"POST",body:"{}"}); state.user=null; state.announcementPresented=false; updateNav(); notifyGameSessionChanged(); renderAccount(); };
       return;
     }
     accountContent.innerHTML=`<h2>${t("Observer account","观测员账号")}</h2>
@@ -225,7 +292,7 @@ window.pixelObservatoryCloudRequest = async request => {
       status.textContent=""; submit.disabled=true;
       try{
         const data=await api(`/api/auth/${mode}`,{method:"POST",body:JSON.stringify({username:form.get("username"),password:form.get("password"),website:form.get("website"),turnstileToken:mode==="register"?challengeToken():undefined})});
-        state.user=data.user; updateNav(); notifyGameSessionChanged(); renderAccount();
+        state.user=data.user; state.announcementPresented=false; updateNav(); notifyGameSessionChanged(); renderAccount(); maybeShowReleaseAnnouncement();
       }catch(error){ status.textContent=error.message; if(mode==="register"&&state.widgetId!==null) window.turnstile?.reset(state.widgetId); }
       finally{ submit.disabled=false; }
     };
@@ -312,5 +379,14 @@ window.pixelObservatoryCloudRequest = async request => {
   ["pointerdown","pointerup","click","wheel","keydown","keyup"].forEach(type=>{
     feedbackModal.addEventListener(type,event=>event.stopPropagation());
   });
-  api("/api/auth/session").then(data=>{state.user=data.user;updateNav();}).catch(updateNav);
+  ["pointerdown","pointerup","click","wheel","keyup"].forEach(type=>{
+    releaseModal.addEventListener(type,event=>event.stopPropagation());
+  });
+  releaseModal.addEventListener("keydown",event=>{
+    if(event.key==="Escape"){markReleaseSeen();close(releaseModal);}
+    event.stopPropagation();
+  });
+  releaseModal.querySelector(".po-close").addEventListener("click",markReleaseSeen);
+  loadReleaseAnnouncement();
+  api("/api/auth/session").then(data=>{state.user=data.user;state.sessionResolved=true;updateNav();maybeShowReleaseAnnouncement();}).catch(()=>{state.sessionResolved=true;updateNav();});
 })();

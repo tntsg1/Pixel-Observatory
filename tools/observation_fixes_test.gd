@@ -53,14 +53,7 @@ func _initialize() -> void:
 
 	# --- ISSUE 7: observing location + selection persist across save/reload ---
 	gm.new_game()
-	# Deliberately NOT debug_jump_to_level(): that activates the developer
-	# sandbox, and SaveManager.save_progress() intentionally refuses to write
-	# while a sandbox jump is active ("a developer jump is a runtime sandbox,
-	# not campaign progression"). Asserting persistence from inside the sandbox
-	# tested the one mode where saving is disabled on purpose, so this check
-	# failed for a reason that has nothing to do with location persistence.
-	# Set the level directly to get the same context without the sandbox flag.
-	gm.progress["current_level"] = 6
+	gm.debug_jump_to_level(6, false)
 	var away := {"id": "siding_spring", "name_en": "Siding Spring", "name_zh": "赛丁泉", "lat": -31.27, "lon": 149.06, "bortle": 3}
 	gm.set_observing_location(away)
 	gm.selected_object_id = "sirius"

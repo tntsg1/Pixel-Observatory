@@ -81,6 +81,7 @@ var parts_scroll: ScrollContainer
 var next_step_part_type := ""
 var selected_family := ""
 var auto_equip_popup: Control
+var reassembly_route_ready := false
 
 # --- Mobile touch scrolling -------------------------------------------------
 # Driven from _input (which runs BEFORE gui propagation) so a swipe scrolls the
@@ -134,7 +135,6 @@ func _build() -> void:
 
 	_rect(Vector2.ZERO, SCREEN_SIZE, Color(0.010, 0.016, 0.032))
 	_draw_star_grid()
-	_draw_ambient()
 	_draw_title_bar()
 	if not GameManager.postgraduate_free_build() and GameManager.current_equipment_stage() == "eye":
 		_draw_empty_eye_stage()
@@ -149,21 +149,21 @@ func _draw_title_bar() -> void:
 	var title := _label_to(self, GameManager.text("Parts Cabinet", "零件柜"), Vector2(252, 24), Vector2(520, 32), 24, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
 
-	# Always walks back to the room, never teleports straight to the Assembly
-	# Table - equipping still points the room's highlight there (see
-	# GameManager.set_room_guidance_for_scene("assembly") below), but reaching
-	# it is on foot like every other destination in the lobby.
-	var back := _button(GameManager.text("Back to Base", "返回基地"), Vector2(842, 22), Vector2(144, 40))
+	var back_text := GameManager.text("Continue to Assembly", "前往组装台") if reassembly_route_ready else GameManager.text("Back to Base", "返回基地")
+	var back := _button(back_text, Vector2(842, 22), Vector2(144, 40))
 	back.name = "CabinetPrimaryRouteButton"
-	back.set_meta("destination_scene", "observatory")
+	back.set_meta("destination_scene", GameManager.assembly_scene_key() if reassembly_route_ready else "observatory")
 	back.pressed.connect(func() -> void:
-		GameManager.set_observatory_spawn("cabinet")
-		GameManager.go("observatory")
+		if reassembly_route_ready:
+			_go_to_assembly_after_equipping()
+		else:
+			GameManager.set_observatory_spawn("cabinet")
+			GameManager.go("observatory")
 	)
 	add_child(back)
 
 	if GameManager.current_equipment_stage() != "eye":
-		var auto_button := _button(GameManager.text("Equip Latest", "一键装备最先进"), Vector2(652, 22), Vector2(182, 40))
+		var auto_button := _button(GameManager.text("Auto Equip Best", "一键装备最佳组合"), Vector2(652, 22), Vector2(182, 40))
 		auto_button.add_theme_font_size_override("font_size", 13)
 		auto_button.pressed.connect(_show_auto_equip_preview)
 		add_child(auto_button)
@@ -225,7 +225,8 @@ func _show_auto_equip_preview() -> void:
 		var applied: int = GameManager.apply_auto_equip(plan)
 		auto_equip_popup.queue_free()
 		auto_equip_popup = null
-		if applied > 0:
+		reassembly_route_ready = applied > 0
+		if reassembly_route_ready:
 			GameManager.set_room_guidance_for_scene("assembly")
 		_show_feedback(GameManager.text("Equipped %d parts. Reassemble at the Assembly Table.", "已更换 %d 件零件。请回组装台重新安装。") % applied, GREEN)
 	)
@@ -370,29 +371,20 @@ func _part_card(part: Dictionary) -> Control:
 	var part_id := str(part.get("id", ""))
 	var type_info: Dictionary = {"en": _type_label(part_type, "en"), "zh": _type_label(part_type, "zh"), "role": _type_label(part_type, "role")}
 	var unlocked := _is_unlocked(part_id)
-	var equipped := GameManager.equipped_part_id(part_type) == part_id
+	var compatible := GameManager.is_part_compatible_with_current_level(part)
+	var equipped := compatible and GameManager.equipped_part_id(part_type) == part_id
 	var exact_required_id := _required_id_for_type(part_type)
 	var exact_required := exact_required_id == part_id
 	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
 	var pending_step_required := pending_step_part_id == part_id
-	var incompatible_equipped := equipped and exact_required_id != "" and not exact_required
-	# A part sitting in the "All" tab from a different telescope family (e.g.
-	# an old refractor mount, seen while browsing on a Newtonian mission).
-	# Equip used to show a live "Equip" button here that silently no-oped on
-	# click - GameManager.equip_part() correctly refuses the family mismatch,
-	# but nothing told the player why nothing happened.
-	var family_incompatible := unlocked and not equipped and not GameManager.is_part_compatible_with_current_level(part)
-	# A wrong-family part can never actually fill this mission's slot, so it
-	# is not "required" in any actionable sense - without this check it wore
-	# the same gold "Required for current mission" ribbon as the real
-	# candidates, directly contradicting its own greyed-out Equip button.
-	var required_for_mission := not family_incompatible and pending_step_part_id == "" and (
+	var required_for_mission := pending_step_part_id == "" and (
 		GameManager.required_part_types_for_current_level().has(part_type)
 		or (
 			GameManager.assembly_context_family() == "space_segmented"
 			and GameManager.space_segmented_install_types().has(part_type)
 		)
 	)
+	var incompatible_equipped := equipped and exact_required_id != "" and not exact_required
 	var recommended := _is_recommended(part)
 	var is_next_step := (
 		part_type == next_step_part_type
@@ -413,14 +405,14 @@ func _part_card(part: Dictionary) -> Control:
 		border = GREEN
 	elif exact_required or pending_step_required or required_for_mission or recommended or is_next_step:
 		border = GOLD
-	elif not unlocked or family_incompatible:
+	elif not unlocked:
 		bg = CARD_LOCKED
 		border = Color(0.18, 0.20, 0.24)
 
 	var panel := Panel.new()
 	panel.position = Vector2.ZERO
 	panel.size = CARD_SIZE
-	panel.add_theme_stylebox_override("panel", _depth_style(bg, border, 3 if incompatible_equipped or exact_required or recommended else 2, 5, 10))
+	panel.add_theme_stylebox_override("panel", _style(bg, border, 3 if incompatible_equipped or exact_required or recommended else 2, 5))
 	root.add_child(panel)
 	_panel_corners_to(root, Vector2.ZERO, CARD_SIZE, border)
 
@@ -435,14 +427,14 @@ func _part_card(part: Dictionary) -> Control:
 	elif recommended:
 		_badge_to(root, GameManager.text("Recommended for current mission", "当前任务推荐"), Vector2(122, 10), Vector2(322, 22), GOLD)
 	elif pending_step_part_id == "" and unlocked and GameManager.pinned_part_id(part_type) == "" and str(GameManager.best_part_for_type(part_type).get("id", "")) == part_id:
-		_badge_to(root, GameManager.text("Newest unlocked generation", "当前已解锁的最新一代"), Vector2(122, 10), Vector2(300, 22), GOLD)
+		_badge_to(root, GameManager.text("Best available for this mission", "本关可用的最佳零件"), Vector2(122, 10), Vector2(300, 22), GOLD)
 	elif is_next_step:
 		_badge_to(root, GameManager.text("Next assembly step", "下一步安装"), Vector2(122, 10), Vector2(220, 22), WARNING)
 	# Free-slot upgrade warning: equipped part beaten by an unlocked one.
 	if equipped and pending_step_part_id == "" and GameManager.pinned_part_id(part_type) == "":
 		var best_part: Dictionary = GameManager.best_part_for_type(part_type)
 		if not best_part.is_empty() and str(best_part.get("id", "")) != part_id:
-			_badge_to(root, GameManager.text("Newer available: ", "已有更新一代：") + GameManager.dict_text(best_part, "name"), Vector2(446, 10), Vector2(286, 22), Color(1.0, 0.55, 0.40))
+			_badge_to(root, GameManager.text("Better available: ", "可用更佳设备：") + GameManager.dict_text(best_part, "name"), Vector2(446, 10), Vector2(286, 22), Color(1.0, 0.55, 0.40))
 
 	var icon_box := _rect_to(root, Vector2(18, 34), Vector2(70, 70), Color(0.070, 0.090, 0.120))
 	icon_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -460,7 +452,7 @@ func _part_card(part: Dictionary) -> Control:
 	desc_label.max_lines_visible = 2
 
 	_draw_stat_chips(root, part, Vector2(18, 132), unlocked)
-	_draw_action_column(root, part, unlocked, equipped, incompatible_equipped, family_incompatible)
+	_draw_action_column(root, part, unlocked, equipped, incompatible_equipped, compatible)
 
 	# Tap-selection marker: an inner outline, so the equipped / locked / required
 	# border colours above stay exactly as they are.
@@ -476,7 +468,7 @@ func _part_card(part: Dictionary) -> Control:
 	return root
 
 
-func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipped: bool, incompatible_equipped: bool, family_incompatible: bool = false) -> void:
+func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipped: bool, incompatible_equipped: bool, compatible: bool) -> void:
 	var part_id := str(part.get("id", ""))
 	var part_type := str(part.get("type", ""))
 	var column_x := CARD_SIZE.x - 174.0
@@ -488,9 +480,9 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 	elif equipped:
 		badge_text = GameManager.text("Equipped", "已装备")
 		badge_color = GREEN
-	elif family_incompatible:
-		badge_text = GameManager.text("Different telescope type", "机型不符")
-		badge_color = Color(0.52, 0.56, 0.62)
+	elif unlocked and not compatible:
+		badge_text = GameManager.text("Other telescope", "其他镜型")
+		badge_color = MUTED
 	elif unlocked:
 		badge_text = GameManager.text("Available", "可装备")
 		badge_color = GOLD
@@ -507,27 +499,21 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 		button.disabled = true
 		button.add_theme_stylebox_override("disabled", _style(Color(0.18, 0.075, 0.045), WARNING, 2, 3) if incompatible_equipped else _style(Color(0.07, 0.14, 0.10), GREEN, 2, 3))
 		button.add_theme_color_override("font_disabled_color", Color(1.0, 0.78, 0.48) if incompatible_equipped else Color(0.72, 1.0, 0.76))
-	elif not unlocked:
-		button.text = GameManager.text("Locked", "未解锁")
-		button.disabled = true
-		button.add_theme_stylebox_override("disabled", _style(Color(0.05, 0.055, 0.065), Color(0.16, 0.17, 0.19), 2, 3))
-		button.add_theme_color_override("font_disabled_color", Color(0.42, 0.44, 0.48))
-	elif family_incompatible:
-		# Owned and unlocked, just not for this telescope - equip_part() would
-		# silently refuse this anyway, so say so instead of offering a dead click.
-		button.text = GameManager.text("Wrong type", "机型不符")
+	elif not unlocked or not compatible:
+		button.text = GameManager.text("Locked", "未解锁") if not unlocked else GameManager.text("Other telescope", "其他镜型")
 		button.disabled = true
 		button.add_theme_stylebox_override("disabled", _style(Color(0.05, 0.055, 0.065), Color(0.16, 0.17, 0.19), 2, 3))
 		button.add_theme_color_override("font_disabled_color", Color(0.42, 0.44, 0.48))
 	else:
 		button.text = GameManager.text("Equip", "装备")
-		button.add_theme_stylebox_override("normal", _depth_style(Color(0.08, 0.13, 0.22), BLUE_EDGE, 2, 3))
-		button.add_theme_stylebox_override("hover", _depth_style(Color(0.13, 0.22, 0.34), BRASS, 2, 3))
+		button.add_theme_stylebox_override("normal", _style(Color(0.08, 0.13, 0.22), BLUE_EDGE, 2, 3))
+		button.add_theme_stylebox_override("hover", _style(Color(0.13, 0.22, 0.34), BRASS, 2, 3))
 		button.add_theme_stylebox_override("pressed", _style(Color(0.20, 0.14, 0.08), BRASS, 2, 3))
 		button.pressed.connect(func() -> void:
 			if GameManager.equip_part(part_id):
 				feedback_color = GREEN
 				feedback_text = GameManager.text("Equipped %s. Reassembly required." % str(part.get("name_en", part_id)), "已装备%s。请回组装台重新安装。" % _safe_zh_name(part, str(part_type)))
+				reassembly_route_ready = true
 				GameManager.set_room_guidance_for_scene("assembly")
 				_build()
 				call_deferred("_scroll_to_part_type", part_type)
@@ -536,6 +522,12 @@ func _draw_action_column(root: Control, part: Dictionary, unlocked: bool, equipp
 
 	var lock_note := _unlock_note(part, unlocked)
 	_label_to(root, lock_note, Vector2(column_x - 2, 110), Vector2(154, 28), 10, MUTED if unlocked else Color(0.45, 0.47, 0.50), HORIZONTAL_ALIGNMENT_CENTER)
+
+
+func _go_to_assembly_after_equipping() -> void:
+	GameManager.set_room_guidance_for_scene("assembly")
+	GameManager.set_observatory_spawn("assembly")
+	GameManager.go(GameManager.assembly_scene_key())
 
 
 func _draw_stat_chips(parent: Control, part: Dictionary, pos: Vector2, unlocked: bool) -> void:
@@ -641,6 +633,8 @@ func _grouped_parts() -> Dictionary:
 		var part: Dictionary = part_value
 		if not _part_visible_in_tab(str(part.get("telescope_family", ""))):
 			continue
+		if selected_family not in ["all", "refractor"] and str(part.get("type", "")) in ["tube", "objective", "focus_knob"]:
+			continue
 		var category := _category_for_part(part)
 		if not grouped.has(category):
 			grouped[category] = []
@@ -703,6 +697,8 @@ func _is_recommended(part: Dictionary) -> bool:
 	var pending_step_part_id := GameManager.pending_mission_step_part_id(part_type)
 	if pending_step_part_id != "":
 		return part_id == pending_step_part_id
+	if part_type == "eyepiece":
+		return _is_unlocked(part_id) and part_id == str(GameManager.best_part_for_type("eyepiece").get("id", ""))
 	if _array_has_string(level.get("recommended_part_ids", []), part_id):
 		return true
 	var target_id := str(level.get("target_object_id", ""))
@@ -1009,27 +1005,12 @@ func _draw_star_grid() -> void:
 		_rect(Vector2(x, y), Vector2(1, 1), Color(0.6, 0.75, 0.95, alpha))
 
 
-func _draw_ambient() -> void:
-	# The 90 dots above are baked once and never move - this whole screen was
-	# otherwise a dead backdrop behind the cards. A quiet twinkle is enough;
-	# added before the panels so cards still draw on top of it.
-	var life := AmbientLife.new()
-	life.name = "AmbientLife"
-	life.configure({
-		"twinkle_zone": Rect2(Vector2.ZERO, SCREEN_SIZE),
-		"twinkle_count": 26,
-		"seed": 20260827,
-	})
-	add_child(life)
-
-
 func _panel(pos: Vector2, panel_size: Vector2, color: Color, border: Color) -> Panel:
 	var panel := Panel.new()
 	panel.position = pos
 	panel.size = panel_size
-	panel.add_theme_stylebox_override("panel", _depth_style(color, border, 3, 5, 14))
+	panel.add_theme_stylebox_override("panel", _style(color, border, 3, 5))
 	add_child(panel)
-	UiKit.add_bevel(self, Rect2(pos, panel_size))
 	_panel_corners_to(self, pos, panel_size, border)
 	return panel
 
@@ -1040,8 +1021,8 @@ func _button(text: String, pos: Vector2, button_size: Vector2) -> Button:
 	button.position = pos
 	button.size = button_size
 	button.add_theme_font_size_override("font_size", 12)
-	button.add_theme_stylebox_override("normal", _depth_style(Color(0.08, 0.13, 0.22), BLUE_EDGE, 2, 3))
-	button.add_theme_stylebox_override("hover", _depth_style(Color(0.13, 0.22, 0.34), BRASS, 2, 3))
+	button.add_theme_stylebox_override("normal", _style(Color(0.08, 0.13, 0.22), BLUE_EDGE, 2, 3))
+	button.add_theme_stylebox_override("hover", _style(Color(0.13, 0.22, 0.34), BRASS, 2, 3))
 	button.add_theme_stylebox_override("pressed", _style(Color(0.20, 0.14, 0.08), BRASS, 2, 3))
 	return button
 
@@ -1061,16 +1042,6 @@ func _style(color: Color, border: Color, border_width: int, radius: int) -> Styl
 	style.border_color = border
 	style.set_border_width_all(border_width)
 	style.set_corner_radius_all(radius)
-	return style
-
-
-# Same as _style() but with a drop shadow - lifts the cabinet's shelves and
-# part cards off the flat background instead of reading as painted rectangles.
-func _depth_style(color: Color, border: Color, border_width: int, radius: int, shadow_size: int = 8) -> StyleBoxFlat:
-	var style := _style(color, border, border_width, radius)
-	style.shadow_color = Color(0, 0, 0, 0.45)
-	style.shadow_size = shadow_size
-	style.shadow_offset = Vector2(0, 3)
 	return style
 
 

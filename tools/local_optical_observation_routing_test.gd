@@ -1,7 +1,6 @@
 extends SceneTree
 
 const TEST_TIMEOUT_SECONDS := 30.0
-const ISOLATED_USER_MARKER := "pixel_observatory_test_user"
 
 var failures := 0
 var finished := false
@@ -10,14 +9,6 @@ var saved_bytes := PackedByteArray()
 
 
 func _initialize() -> void:
-	var active_user_dir := ProjectSettings.globalize_path("user://").replace("\\", "/")
-	if not active_user_dir.contains(ISOLATED_USER_MARKER):
-		push_error(
-			"Local optical routing test refused to run against the player profile. "
-			+ "Launch it with APPDATA pointing at an isolated pixel_observatory_test_user directory."
-		)
-		quit(2)
-		return
 	_start_watchdog()
 	_backup_save()
 	await process_frame
@@ -62,46 +53,6 @@ func _initialize() -> void:
 	_check(str(gm.local_optical_observation_context.get("family", "")) == "dobsonian", "selected ground family is preserved")
 	_check(gm.selected_object_id != gm.current_target_object_id(), "local sky starts on a real optical catalog object, not the radio mission target")
 	_check(gm.remote_observation_context.is_empty(), "central pad does not open a remote instrument context")
-	var campaign_level_before_maya := int(gm.progress.get("current_level", 0))
-	var maya_instrument := {
-		"id": "refractor_80",
-		"name_en": "80 mm refractor",
-		"name_zh": "80 毫米折射镜",
-	}
-	_check(gm.go_to_maya_companion_observation("jupiter", maya_instrument, "telescope"), "Maya can invite the graduate into her live target")
-	await process_frame
-	await process_frame
-	_check(gm.is_maya_companion_observation(), "Maya's invitation owns an explicit companion observation context")
-	_check(gm.selected_object_id == "jupiter", "companion observation opens the exact target shown in Maya's work bubble")
-	_check(str(gm.local_optical_observation_context.get("companion_instrument_id", "")) == "refractor_80", "Maya's assembled instrument follows her into observation")
-	_check(gm.is_free_observation(), "observing with Maya remains optional free observation")
-	_check(int(gm.progress.get("current_level", 0)) == campaign_level_before_maya, "joining Maya never changes campaign progress")
-	_check(
-		current_scene != null
-		and current_scene.get_script() != null
-		and str(current_scene.get_script().resource_path) == "res://scripts/ui/sky_observation.gd",
-		"Maya's invitation opens the real sky observation scene"
-	)
-	var companion_result: Dictionary = gm.evaluate_selected_object()
-	_check(str(companion_result.get("object_id", "")) == "jupiter", "a real eyepiece evaluation is stamped with Maya's target")
-	var consumed_companion_result: Dictionary = gm.consume_maya_companion_observation_return()
-	_check(
-		str(consumed_companion_result.get("object_id", "")) == "jupiter"
-		and int(consumed_companion_result.get("result_serial", 0)) > 0,
-		"returning from an actual eyepiece view yields one authoritative companion result"
-	)
-	_check(not gm.is_maya_companion_observation(), "consuming Maya's result closes the transient companion session")
-	gm.local_optical_observation_context = {
-		"active": true,
-		"companion": "maya",
-		"companion_target_id": "jupiter",
-		"started_observation_serial": gm.observation_result_serial,
-	}
-	_check(
-		gm.consume_maya_companion_observation_return().is_empty(),
-		"backing out without a newer eyepiece result never invents a completed night"
-	)
-	_check(gm.local_optical_observation_context.is_empty(), "an abandoned companion visit is closed without replaying stale data")
 
 	gm.begin_remote_campaign("radio")
 	_check(not gm.is_local_optical_free_observation(), "lower-right remote console cleanly takes ownership")
@@ -143,30 +94,6 @@ func _initialize() -> void:
 	gm.progress["active_optical_telescope_id"] = ""
 	_check(not gm.begin_local_optical_free_observation(), "central pad refuses entry when no optical telescope is equipped")
 	_check(str(gm.remote_observation_context.get("kind", "")) != "radio", "missing optical equipment never falls back to FAST")
-	var maya_owned_instrument := {
-		"id": "newtonian_130",
-		"name_en": "130 mm Newtonian",
-		"name_zh": "130 毫米牛顿反射镜",
-		"night_id": "thin_clouds",
-	}
-	_check(
-		gm.go_to_maya_companion_observation("jupiter", maya_owned_instrument, "telescope"),
-		"Maya's completed project remains joinable without a separately equipped player telescope"
-	)
-	_check(gm.active_optical_telescope_family() == "", "borrowing Maya's instrument does not silently equip or mutate the player's telescope")
-	_check(gm.telescope_is_ready() and gm.focus_control_installed(), "Maya's assembled instrument supplies its own ready optical controls")
-	var maya_stats: Dictionary = gm.calculate_stats()
-	_check(
-		float(maya_stats.get("light_score", 0.0)) >= 85.0
-		and float(maya_stats.get("clarity_score", 0.0)) >= 80.0,
-		"Maya's named instrument drives real observation stats instead of an empty player loadout"
-	)
-	var maya_environment: Dictionary = gm.current_environment()
-	_check(
-		float(maya_environment.get("cloud_cover", 0.0)) > 0.2,
-		"the eyepiece session uses the same thin-cloud night condition Maya described in the hall"
-	)
-	gm.consume_maya_companion_observation_return()
 
 	print("LOCAL OPTICAL OBSERVATION ROUTING TEST %s" % ("PASS" if failures == 0 else "FAIL"))
 	_finish(0 if failures == 0 else 1)

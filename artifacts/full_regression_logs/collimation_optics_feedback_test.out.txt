@@ -1,0 +1,13 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: collimation bench contains a live focused-star preview
+  ok: initial mirror error produces an asymmetric star preview
+  ok: aligned mirrors produce a symmetric Airy-disc preview
+  poor-collimation ghost alpha: 0.312
+  ok: poor collimation maps to strong optical aberration
+  ok: poor collimation leaves visible coma even at exact focus
+  ok: perfect collimation removes the coma severity
+  ok: perfect collimation removes residual coma at exact focus
+  ok: the same collimation value also changes real clarity scoring
+COLLIMATION OPTICS FEEDBACK TEST PASS

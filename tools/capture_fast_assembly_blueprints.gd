@@ -20,33 +20,27 @@ func _initialize() -> void:
 	gm.new_game()
 	gm.language_mode = "en"
 	gm.progress["language_mode"] = "en"
-	gm.debug_jump_to_level(83, true)
+	gm.debug_jump_to_level(76, true)
 	gm.reset_assembly()
 
 	var bench := load("res://scenes/advanced_assembly.tscn").instantiate() as Control
 	root.add_child(bench)
 	current_scene = bench
 	await _settle()
-	_save("03_runtime_overview_page_1024x768.png")
-	bench.call("_set_fast_blueprint_page", "dish")
-	await _settle()
-	_save("04_runtime_dish_page_1024x768.png")
-	bench.call("_set_fast_blueprint_page", "feed")
-	await _settle()
-	_save("05_runtime_feed_page_1024x768.png")
-	bench.call("_set_fast_blueprint_page", "signal")
-	await _settle()
-	_save("06_runtime_signal_page_1024x768.png")
+	_save("03_runtime_uninstalled_1024x768.png")
 
-	for part_type_value in gm.current_level().get("assembly_order", []):
-		await _install(bench, str(part_type_value))
+	await _install(bench, "radio_dish")
+	_save("04_runtime_partial_1024x768.png")
+
+	await _install(bench, "receiver")
+	await _install(bench, "signal_processor")
 	bench.call("_set_fast_blueprint_page", "signal")
 	await _settle()
-	_save("07_runtime_complete_1024x768.png")
+	_save("05_runtime_complete_1024x768.png")
 
 	root.size = Vector2i(1280, 720)
 	await _settle()
-	_save("08_runtime_complete_1280x720.png")
+	_save("06_runtime_complete_1280x720.png")
 	print("FAST ASSEMBLY BLUEPRINT CAPTURE PASS")
 	quit(0)
 

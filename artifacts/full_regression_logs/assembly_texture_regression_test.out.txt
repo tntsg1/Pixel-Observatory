@@ -1,0 +1,17 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: starter_tube resolves its formal texture
+  ok: starter_tube loads as Texture2D
+  ok: objective_100mm resolves its formal texture
+  ok: objective_100mm loads as Texture2D
+  ok: dobsonian_rocker_mount resolves its formal texture
+  ok: dobsonian_rocker_mount loads as Texture2D
+  ok: dobsonian_30mm_eyepiece resolves its formal texture
+  ok: dobsonian_30mm_eyepiece loads as Texture2D
+  ok: icon_path-only part renders in the central slot
+  ok: installed texture rect matches the slot rect
+  ok: installed texture ignores native size
+  ok: installed texture keeps aspect and stays centered
+  ok: installed texture uses nearest-neighbor filtering
+ASSEMBLY TEXTURE REGRESSION TEST PASS

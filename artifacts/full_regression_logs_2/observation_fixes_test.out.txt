@@ -1,0 +1,22 @@
+Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org
+
+[godot_ai game_helper] registered mcp capture (debugger active=false, logger=true)
+  ok: 2. jupiter resolves real RA/Dec (not a fixed fallback)
+  ok: 2. mars resolves real RA/Dec
+  ok: 2. moon resolves a real lunar position
+  ok: 4. interior does NOT call go("sky") directly (bypass removed)
+  ok: 4. interior uses the unified go_to_observation entry
+  ok: 4. GameManager exposes the single observation entry
+  ok: 5. sky object count unchanged after mission completion
+  ok: 5. jupiter marked observed (task state)
+  ok: 5. jupiter still has a full detail record after completion
+  ok: 5. observed jupiter is still selectable for free observation
+  ok: 6. planet position source is Local/Live, not Offline
+  ok: 6. position source never says Offline
+  ok: 6. detail exposes weather source + last updated
+  ok: 6. online -> Live position
+  ok: 6. fallback -> Teaching simulation
+  ok: 7. observing location persists across reload
+  ok: 6b. altitude is deterministic (weather-independent)
+  ok: 8. (sirius up this run - recommendation not needed)
+OBSERVATION FIXES TEST PASS
