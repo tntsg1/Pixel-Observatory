@@ -2307,7 +2307,34 @@
       "cloud_cover": 0,
       "sky_brightness": "suburban"
     },
+<<<<<<< ours
     "requires_focus": true
+=======
+    "requires_focus": true,
+    "secondary_target": {
+      "object_id": "triton",
+      "name_en": "Triton",
+      "name_zh": "海卫一",
+      "label_en": "Confirm Triton beside Neptune",
+      "label_zh": "在海王星旁确认海卫一",
+      "separation_px": 96,
+      "position_angle_deg": 138,
+      "detect_radius_px": 34,
+      "hint_en": "Click the faint point beside Neptune to confirm Triton; first center and focus the planet.",
+      "hint_zh": "点击海王星旁的微弱光点，确认海卫一；先保持行星居中并调清楚。",
+      "found_en": "Triton confirmed. You have logged a planetary system, not just a planet.",
+      "found_zh": "已确认海卫一。你记录下的是一个行星系统，而不只是一颗行星。"
+    },
+    "observation_success_feedback_en": "Neptune holds as a small blue disk, and the faint point of Triton sits just off its edge.",
+    "observation_success_feedback_zh": "海王星稳定地呈现为一个小小的蓝色圆面，海卫一微弱的光点就在它边缘之外。",
+    "target_requirement_overrides": {
+      "required_light_score": 78,
+      "required_stability": 68
+    },
+    "observation_requirements": {
+      "magnification_min": 90
+    }
+>>>>>>> theirs
   },
   {
     "id": "level_56",
