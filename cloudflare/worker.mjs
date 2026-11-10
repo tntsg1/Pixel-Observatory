@@ -1011,7 +1011,7 @@ async function createFeedbackConversation(env, user, feedback) {
 		).bind(conversationId, user.id, now),
 		env.DB.prepare(
 			`INSERT INTO messages (id, conversation_id, sender_user_id, sender_label, body, message_kind, created_at)
-			 VALUES (?, ?, NULL, 'Starlight Observatory', ?, ?, ?)`,
+			 VALUES (?, ?, NULL, 'Pixel Observatory', ?, ?, ?)`,
 		).bind(messageId, conversationId, body, isBug ? "ai" : "system", now),
 	];
 	for (const admin of admins.results || []) {
@@ -1060,7 +1060,7 @@ async function handleConversationList(request, env) {
 		     FROM conversation_members peers
 		     JOIN users ON users.id = peers.user_id
 		     WHERE peers.conversation_id = conversations.id AND peers.user_id != ?
-		   ), 'Starlight Observatory') AS title,
+		   ), 'Pixel Observatory') AS title,
 		   COALESCE((
 		     SELECT users.username
 		     FROM conversation_members peers

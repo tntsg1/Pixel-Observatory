@@ -57,12 +57,12 @@ replaceOnce(
 );
 replaceOnce(
   /<title>[^<]*<\/title>/i,
-  "<title>Starlight Observatory</title>",
+  "<title>Pixel Observatory</title>",
   "English document title",
 );
 replaceOnce(
   /<meta name="description"[^>]*>/i,
-  '<meta name="description" content="Starlight Observatory is a pixel astronomy simulation. Build your telescope, read the sky, and discover more.">',
+  '<meta name="description" content="Pixel Observatory is a pixel astronomy simulation. Build your telescope, read the sky, and discover more.">',
   "English meta description",
 );
 
@@ -96,18 +96,18 @@ replaceAllOnce(
 // --- bilingual wordmarks ---------------------------------------------------
 
 replaceOnce(
-  '<h1>STARLIGHT OBSERVATORY<span class="sub">',
-  '<h1>STARLIGHT OBSERVATORY<span class="sub zh">',
+  '<h1>PIXEL OBSERVATORY<span class="sub">',
+  '<h1>PIXEL OBSERVATORY<span class="sub zh">',
   "hero subtitle only in Chinese mode",
 );
 replaceOnce(
-  /(<p class="eyebrow rv" style="text-align:center">)Starlight Observatory[^<]*(<\/p>)/,
-  '$1<span class="en">Starlight Observatory</span><span class="zh">&#26143;&#20809;&#22825;&#25991;&#21488;</span>$2',
+  /(<p class="eyebrow rv" style="text-align:center">)Pixel Observatory[^<]*(<\/p>)/,
+  '$1<span class="en">Pixel Observatory</span><span class="zh">&#20687;&#32032;&#35266;&#27979;&#31449;</span>$2',
   "bilingual finale eyebrow",
 );
 replaceOnce(
-  /<b>STARLIGHT OBSERVATORY[^<]*<\/b>/,
-  '<b><span class="en">STARLIGHT OBSERVATORY</span><span class="zh">&#26143;&#20809;&#22825;&#25991;&#21488;</span></b>',
+  /<b>PIXEL OBSERVATORY[^<]*<\/b>/,
+  '<b><span class="en">PIXEL OBSERVATORY</span><span class="zh">&#20687;&#32032;&#35266;&#27979;&#31449;</span></b>',
   "bilingual footer wordmark",
 );
 
@@ -125,7 +125,7 @@ replaceOnce(
 );
 replaceOnce(
   /var TITLES = \{[^;]+;/,
-  "var TITLES = {zh:'\\u661f\\u5149\\u5929\\u6587\\u53f0', en:'Starlight Observatory'};",
+  "var TITLES = {zh:'\\u661f\\u5149\\u5929\\u6587\\u53f0', en:'Pixel Observatory'};",
   "document titles per language",
 );
 replaceOnce(

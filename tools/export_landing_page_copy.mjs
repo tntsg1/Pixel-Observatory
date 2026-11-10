@@ -142,7 +142,7 @@ const header = `PIXEL OBSERVATORY · 官网首页文案修改稿
 修改方法
 1. 直接改 EN:、ZH: 或 TEXT: 后面的文字。
 2. 请保留 [LANDING-xxx] 编号，方便把修改准确同步回网页。
-3. Maya、Starlight Observatory、数值和专业术语也可以改，但请确认是有意修改。
+3. Maya、Pixel Observatory、数值和专业术语也可以改，但请确认是有意修改。
 4. 修改完成后把这份 TXT 交还给我即可。
 
 来源：web/landing/promo.html
