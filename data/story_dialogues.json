@@ -2034,6 +2034,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "space_console",
       "text_en": "What if the telescope simply... left the atmosphere behind? Come back tomorrow. I have something special to show you.",
       "text_zh": "如果望远镜干脆……离开大气层呢？明天再来。我有特别的东西给你看。"
     }

@@ -4,28 +4,19 @@ extends Control
 # at a time; Space / Enter / click advances. Pure presentation - all flow
 # decisions live in StoryManager.
 
-const BG := Color(0.012, 0.020, 0.045)
 const PANEL_BG := Color(0.030, 0.045, 0.085, 0.97)
 const BORDER := Color(0.78, 0.56, 0.28)
 const NAME_COLOR := Color(0.98, 0.82, 0.50)
 const TEXT_COLOR := Color(0.94, 0.94, 0.90)
 const MUTED := Color(0.66, 0.74, 0.84)
+const CYAN := Color(0.36, 0.82, 0.94)
+const STORY_VISUAL_RESOLVER = preload("res://scripts/ui/story_visual_resolver.gd")
+const OBSERVATORY_BACKGROUND: Texture2D = preload("res://assets/reference/observatory_room_hall_1024.png")
 
 const PLAYER_PORTRAIT_ATLAS: Texture2D = preload("res://assets/characters/player_observer_smooth_8dir.png")
 const PLAYER_PORTRAIT_REGION := Rect2(0, 0, 64, 96)
 const MAYA_PORTRAIT_POSITION := Vector2(-24, -2)
 const PLAYER_PORTRAIT_POSITION := Vector2(-24, -18)
-
-const TARGET_VISUALS := {
-	"moon": "res://assets/telescope_view/moon_large.png",
-	"mars": "res://assets/telescope_view/mars_large.png",
-	"jupiter": "res://assets/telescope_view/jupiter_large.png",
-	"polaris": "res://assets/telescope_view/star_white_large.png",
-	"sirius": "res://assets/telescope_view/star_blue_large.png",
-	"betelgeuse": "res://assets/telescope_view/star_red_large.png",
-	"orion_nebula": "res://assets/telescope_view/orion_nebula_large.png",
-	"andromeda": "res://assets/telescope_view/andromeda_large.png"
-}
 
 var line_index := 0
 var speaker_label: Label
@@ -36,7 +27,12 @@ var portrait_rect: TextureRect
 var next_button: Button
 var diagram_rect: TextureRect
 var diagram_tween: Tween
-var default_visual_rect: TextureRect
+var line_tween: Tween
+var visual_frame: Panel
+var visual_title_label: Label
+var visual_caption_label: Label
+var dialogue_panel: Panel
+var context_line_label: Label
 var chapter_label: Label
 var beat_label: Label
 var reason_label: Label
@@ -63,62 +59,101 @@ func _input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and event.pressed:
 		var mouse := event as InputEventMouseButton
 		if mouse.button_index == MOUSE_BUTTON_LEFT:
+			# The button emits `pressed` on release. Let it own clicks inside its
+			# bounds so one physical click cannot advance two dialogue lines.
+			if next_button != null and next_button.get_global_rect().has_point(mouse.position):
+				return
 			_advance()
 
 
 func _build() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	_rect(Vector2.ZERO, Vector2(1024, 768), BG)
-	_draw_night_sky()
 
-	# Astronomy Club plaque
+	var background := TextureRect.new()
+	background.position = Vector2.ZERO
+	background.size = Vector2(1024, 768)
+	background.texture = OBSERVATORY_BACKGROUND
+	background.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	background.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+	background.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	background.modulate = Color(0.55, 0.62, 0.74, 0.54)
+	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(background)
+	_rect(Vector2.ZERO, Vector2(1024, 768), Color(0.008, 0.015, 0.032, 0.76))
+
 	var plaque := Panel.new()
-	plaque.position = Vector2(342, 60)
-	plaque.size = Vector2(340, 64)
-	plaque.add_theme_stylebox_override("panel", _style(Color(0.16, 0.11, 0.05, 0.96), BORDER, 3, 4))
+	plaque.name = "StoryHeader"
+	plaque.position = Vector2(54, 24)
+	plaque.size = Vector2(916, 70)
+	plaque.add_theme_stylebox_override("panel", _style(Color(0.025, 0.040, 0.075, 0.98), BORDER, 2, 5))
 	plaque.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(plaque)
 	club_label = _label(
 		GameManager.text("ASTRONOMY CLUB", "天文俱乐部"),
-		Vector2(342, 76),
-		Vector2(340, 36),
-		22,
+		Vector2(80, 40),
+		Vector2(480, 36),
+		24,
 		NAME_COLOR,
-		HORIZONTAL_ALIGNMENT_CENTER
+		HORIZONTAL_ALIGNMENT_LEFT
 	)
 	club_label.name = "StoryClubName"
+	counter_label = _label("", Vector2(820, 44), Vector2(122, 28), 12, MUTED, HORIZONTAL_ALIGNMENT_RIGHT)
 
-	# dialogue panel
-	var panel := Panel.new()
-	panel.position = Vector2(72, 520)
-	panel.size = Vector2(880, 190)
-	panel.add_theme_stylebox_override("panel", _style(PANEL_BG, BORDER, 3, 5))
-	panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(panel)
+	visual_frame = Panel.new()
+	visual_frame.name = "StoryVisualFrame"
+	visual_frame.position = Vector2(54, 110)
+	visual_frame.size = Vector2(916, 360)
+	visual_frame.add_theme_stylebox_override("panel", _style(Color(0.018, 0.031, 0.060, 0.98), Color(0.27, 0.60, 0.75), 2, 5))
+	visual_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(visual_frame)
 
-	# A compact narrative compass connects Maya's explanation to the physical
-	# observatory. It is deliberately separate from the spoken text: the player
-	# can always see why this scene exists and where the next action happens.
-	var context_panel := Panel.new()
-	context_panel.position = Vector2(72, 430)
-	context_panel.size = Vector2(880, 76)
-	context_panel.add_theme_stylebox_override("panel", _style(Color(0.022, 0.038, 0.071, 0.96), Color(0.30, 0.57, 0.70), 2, 4))
-	context_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(context_panel)
-	chapter_label = _label("", Vector2(92, 438), Vector2(420, 20), 13, NAME_COLOR)
-	reason_label = _label("", Vector2(92, 460), Vector2(420, 38), 10, MUTED)
-	reason_label.max_lines_visible = 2
-	route_label = _label("", Vector2(530, 440), Vector2(398, 60), 10, Color(0.55, 0.91, 0.96), HORIZONTAL_ALIGNMENT_RIGHT)
-	route_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var image_well := Panel.new()
+	image_well.position = Vector2(66, 122)
+	image_well.size = Vector2(634, 336)
+	image_well.add_theme_stylebox_override("panel", _style(Color(0.005, 0.010, 0.022, 1.0), Color(0.16, 0.31, 0.46), 1, 3))
+	image_well.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(image_well)
+
+	diagram_rect = TextureRect.new()
+	diagram_rect.name = "StoryVisualImage"
+	diagram_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	diagram_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	diagram_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	diagram_rect.position = Vector2(72, 128)
+	diagram_rect.size = Vector2(622, 324)
+	diagram_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	diagram_rect.modulate = Color(1, 1, 1, 0)
+	add_child(diagram_rect)
+
+	_rect(Vector2(714, 126), Vector2(1, 318), Color(0.25, 0.53, 0.68, 0.55))
+	visual_title_label = _label("", Vector2(736, 136), Vector2(210, 56), 20, NAME_COLOR)
+	visual_title_label.name = "StoryVisualTitle"
+	visual_title_label.max_lines_visible = 2
+	visual_caption_label = _label("", Vector2(736, 198), Vector2(210, 80), 13, TEXT_COLOR)
+	visual_caption_label.name = "StoryVisualCaption"
+	visual_caption_label.max_lines_visible = 4
+	chapter_label = _label("", Vector2(736, 282), Vector2(210, 38), 10, CYAN)
+	chapter_label.name = "StoryChapter"
+	chapter_label.max_lines_visible = 2
+	reason_label = _label("", Vector2(736, 324), Vector2(210, 72), 9, MUTED)
+	reason_label.name = "StoryReason"
+	reason_label.max_lines_visible = 6
+	route_label = _label("", Vector2(736, 400), Vector2(210, 44), 9, Color(0.58, 0.91, 0.96))
+	route_label.name = "StoryRoute"
 	route_label.max_lines_visible = 3
 
-	# Maya belongs to the dialogue, not to the sky. The clipped portrait well
-	# presents a readable head-and-torso crop while keeping the supplied PNG
-	# untouched and preserving her face and both gesturing hands.
+	dialogue_panel = Panel.new()
+	dialogue_panel.name = "StoryDialoguePanel"
+	dialogue_panel.position = Vector2(54, 486)
+	dialogue_panel.size = Vector2(916, 252)
+	dialogue_panel.add_theme_stylebox_override("panel", _style(PANEL_BG, BORDER, 3, 5))
+	dialogue_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(dialogue_panel)
+
 	portrait_frame = Panel.new()
 	portrait_frame.name = "DialoguePortraitFrame"
-	portrait_frame.position = Vector2(92, 538)
-	portrait_frame.size = Vector2(132, 156)
+	portrait_frame.position = Vector2(74, 506)
+	portrait_frame.size = Vector2(144, 208)
 	portrait_frame.clip_contents = true
 	portrait_frame.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait_frame.add_theme_stylebox_override(
@@ -133,81 +168,45 @@ func _build() -> void:
 	portrait_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	portrait_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	portrait_rect.position = Vector2(-24, -18)
-	portrait_rect.size = Vector2(180, 270)
+	portrait_rect.size = Vector2(192, 288)
 	portrait_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	portrait_frame.add_child(portrait_rect)
 
-	speaker_label = _label("", Vector2(244, 540), Vector2(420, 28), 19, NAME_COLOR)
+	speaker_label = _label("", Vector2(240, 505), Vector2(400, 32), 20, NAME_COLOR)
 	speaker_label.name = "StorySpeaker"
-	beat_label = _label("", Vector2(676, 542), Vector2(236, 22), 11, Color(0.54, 0.91, 0.96), HORIZONTAL_ALIGNMENT_RIGHT)
-	text_label = _label("", Vector2(244, 574), Vector2(668, 82), 16, TEXT_COLOR)
+	beat_label = _label("", Vector2(650, 508), Vector2(290, 26), 12, CYAN, HORIZONTAL_ALIGNMENT_RIGHT)
+	text_label = _label("", Vector2(240, 546), Vector2(700, 98), 16, TEXT_COLOR)
 	text_label.name = "StoryDialogueText"
-	text_label.max_lines_visible = 4
+	text_label.max_lines_visible = 5
+	text_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 
-	counter_label = _label("", Vector2(244, 682), Vector2(120, 20), 11, MUTED)
-
-	# Per-line learning diagram overlay. Sized to fit within the upper play
-	# area without covering the dialogue panel (which starts at y=520) or
-	# the plaque (which ends around y=124). Hidden (alpha 0) by default;
-	# lines with an "image" field fade it in centered over the night sky.
-	diagram_rect = TextureRect.new()
-	diagram_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	diagram_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	diagram_rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	diagram_rect.position = Vector2(278, 136)
-	diagram_rect.size = Vector2(594, 280)
-	diagram_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	diagram_rect.modulate = Color(1, 1, 1, 0)
-	add_child(diagram_rect)
+	context_line_label = _label("", Vector2(240, 652), Vector2(530, 52), 11, MUTED)
+	context_line_label.name = "StoryContextLine"
+	context_line_label.max_lines_visible = 3
 
 	next_button = Button.new()
 	next_button.name = "StoryContinueButton"
-	next_button.position = Vector2(812, 664)
-	next_button.size = Vector2(120, 38)
+	next_button.focus_mode = Control.FOCUS_NONE
+	next_button.position = Vector2(790, 670)
+	next_button.size = Vector2(156, 48)
 	next_button.add_theme_font_size_override("font_size", 14)
+	next_button.add_theme_stylebox_override("normal", _style(Color(0.09, 0.16, 0.27, 1.0), Color(0.42, 0.76, 0.88), 2, 4))
+	next_button.add_theme_stylebox_override("hover", _style(Color(0.13, 0.26, 0.37, 1.0), Color(0.62, 0.91, 0.98), 2, 4))
+	next_button.add_theme_stylebox_override("pressed", _style(Color(0.19, 0.14, 0.07, 1.0), NAME_COLOR, 2, 4))
 	next_button.pressed.connect(_advance)
 	add_child(next_button)
 
-	continue_hint_label = _label(GameManager.text("Space / Enter / Click to continue", "空格 / 回车 / 点击继续"), Vector2(382, 682), Vector2(390, 24), 9, MUTED)
-	continue_hint_label.max_lines_visible = 2
-
-
-func _draw_night_sky() -> void:
-	# Generic starfield. A target visual is only shown for current-target
-	# observation story events; equipment/assembly teaching stays generic.
-	for i in range(90):
-		var x := 14.0 + fmod(float(i * 89), 996.0)
-		var y := 10.0 + fmod(float(i * 53), 480.0)
-		var b := 0.45 + fmod(float(i), 5.0) * 0.10
-		_rect(Vector2(x, y), Vector2(2, 2), Color(b, b, 0.95, 0.7))
-	var visual_id := _story_visual_id()
-	if visual_id == "":
-		return
-	var visual_path: String = TARGET_VISUALS.get(visual_id, "")
-	if visual_path == "" or not ResourceLoader.exists(visual_path):
-		return
-	var moon := TextureRect.new()
-	moon.texture = load(visual_path)
-	moon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	moon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	moon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	moon.position = Vector2(790, 150)
-	moon.size = Vector2(160, 160)
-	moon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	moon.modulate = Color(1, 1, 1, 0.9)
-	add_child(moon)
-	default_visual_rect = moon
-
-
-func _story_visual_id() -> String:
-	var event_id := StoryManager.active_event_id
-	if event_id.contains("assembly") or event_id.contains("focus") or event_id == "intro":
-		return ""
-	return GameManager.current_target_object_id()
+	continue_hint_label = _label(GameManager.text("Space / Enter / Click", "空格 / 回车 / 点击"), Vector2(356, 708), Vector2(330, 18), 9, MUTED)
+	continue_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
 
 func _show_line() -> void:
 	var line: Dictionary = StoryManager.active_lines[line_index]
+	var event_id := str(line.get("_story_event_id", StoryManager.active_event_id))
+	var event_line_index := int(line.get("_story_line_index", line_index))
+	var event_context: Dictionary = StoryManager.context_for_event(event_id)
+	if event_context.is_empty():
+		event_context = StoryManager.active_context
 	var speaker := str(line.get("speaker", "Maya"))
 	if speaker == "You":
 		speaker_label.text = GameManager.text("You", "你")
@@ -224,11 +223,14 @@ func _show_line() -> void:
 	if portrait_id == "maya" or speaker.to_lower() == "maya":
 		portrait_rect.position = MAYA_PORTRAIT_POSITION
 		portrait_rect.set_meta("player_source_path", "")
+		var event_line_count := StoryManager.get_dialogue(event_id).size()
+		if event_line_count <= 0:
+			event_line_count = StoryManager.active_lines.size()
 		var pose := MayaPortrait.story_pose(
 			line,
-			StoryManager.active_event_id,
-			line_index,
-			StoryManager.active_lines.size()
+			event_id,
+			event_line_index,
+			event_line_count
 		)
 		MayaPortrait.apply_to(portrait_rect, pose)
 	elif portrait_id in ["player", "you"]:
@@ -247,8 +249,9 @@ func _show_line() -> void:
 		next_button.text = GameManager.text("Let's go!", "出发！").replace("\n", " · ")
 	else:
 		next_button.text = GameManager.text("Next", "继续").replace("\n", " · ")
-	_update_line_image(line)
-	_update_context_panel()
+	_update_line_image(line, event_id, event_context, event_line_index)
+	_update_context_panel(event_context)
+	_animate_dialogue_line()
 
 
 func _player_portrait_texture() -> AtlasTexture:
@@ -261,52 +264,97 @@ func _player_portrait_texture() -> AtlasTexture:
 	return texture
 
 
-func _update_context_panel() -> void:
-	var context: Dictionary = StoryManager.active_context
+func _update_context_panel(context: Dictionary) -> void:
 	if context.is_empty():
 		chapter_label.text = ""
 		reason_label.text = ""
 		route_label.text = ""
+		context_line_label.text = ""
 		return
 	chapter_label.text = GameManager.text(
 		str(context.get("chapter_en", "Astronomy Club")),
 		str(context.get("chapter_zh", "天文俱乐部"))
 	)
 	reason_label.text = GameManager.text(
-		"WHY NOW  " + str(context.get("reason_en", "")),
-		"为什么是现在  " + str(context.get("reason_zh", ""))
+		"WHY THIS MATTERS\n" + str(context.get("reason_en", "")),
+		"为什么要做这一步\n" + str(context.get("reason_zh", ""))
 	)
 	route_label.text = GameManager.text(
-		"%s  >  %s\n%s" % [
+		"ROUTE\n%s  >  %s" % [
 			str(context.get("from_en", "")),
-			str(context.get("to_en", "")),
-			str(context.get("action_en", ""))
+			str(context.get("to_en", ""))
 		],
-		"%s  >  %s\n%s" % [
+		"路线\n%s  >  %s" % [
 			str(context.get("from_zh", "")),
-			str(context.get("to_zh", "")),
-			str(context.get("action_zh", ""))
+			str(context.get("to_zh", ""))
 		]
+	)
+	var current_beat_en := beat_label.text if GameManager.language_mode == "en" else ""
+	var current_beat_zh := beat_label.text if GameManager.language_mode == "zh" else ""
+	context_line_label.text = GameManager.text(
+		"CURRENT  %s\nNEXT  %s" % [current_beat_en if current_beat_en != "" else visual_title_label.text, str(context.get("action_en", ""))],
+		"当前  %s\n下一步  %s" % [current_beat_zh if current_beat_zh != "" else visual_title_label.text, str(context.get("action_zh", ""))]
 	)
 
 
-func _update_line_image(line: Dictionary) -> void:
-	var image_path := str(line.get("image", ""))
+func _update_line_image(line: Dictionary, event_id: String, context: Dictionary, event_line_index: int) -> void:
+	var target := _target_for_context(context)
+	var family := _family_for_context(context)
+	var visual: Dictionary = STORY_VISUAL_RESOLVER.resolve(event_id, line, context, target, family, event_line_index)
+	var image_path := str(visual.get("path", ""))
+	visual_title_label.text = GameManager.text(str(visual.get("title_en", "")), str(visual.get("title_zh", "")))
+	_fit_wrapped_label(visual_title_label, 20, 13)
+	visual_caption_label.text = GameManager.text(str(visual.get("caption_en", "")), str(visual.get("caption_zh", "")))
 	if diagram_tween:
 		diagram_tween.kill()
-	diagram_tween = create_tween()
-	if image_path != "" and ResourceLoader.exists(image_path):
-		# Swap texture while invisible, then fade in; covers the default
-		# target visual so the two never show at once.
+	if image_path == "" or not ResourceLoader.exists(image_path):
+		diagram_rect.texture = null
 		diagram_rect.modulate.a = 0.0
-		diagram_rect.texture = load(image_path)
-		if default_visual_rect:
-			diagram_tween.tween_property(default_visual_rect, "modulate:a", 0.0, 0.2)
-		diagram_tween.parallel().tween_property(diagram_rect, "modulate:a", 1.0, 0.25)
-	else:
-		diagram_tween.tween_property(diagram_rect, "modulate:a", 0.0, 0.2)
-		if default_visual_rect:
-			diagram_tween.parallel().tween_property(default_visual_rect, "modulate:a", 0.9, 0.25)
+		return
+	diagram_rect.modulate.a = 0.0
+	diagram_rect.position.x = 78.0
+	diagram_rect.texture = load(image_path)
+	diagram_rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED if str(visual.get("fit", "contain")) == "cover" else TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	diagram_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	diagram_tween.tween_property(diagram_rect, "position:x", 72.0, 0.18)
+	diagram_tween.parallel().tween_property(diagram_rect, "modulate:a", 1.0, 0.18)
+
+
+func _target_for_context(context: Dictionary) -> Dictionary:
+	var level := _level_for_context(context)
+	var target_id := str(level.get("target_object_id", GameManager.current_target_object_id()))
+	if int(level.get("level_number", 0)) == int(GameManager.current_level().get("level_number", 0)):
+		target_id = GameManager.current_target_object_id()
+	return GameManager.get_object(target_id)
+
+
+func _family_for_context(context: Dictionary) -> String:
+	return str(_level_for_context(context).get("telescope_family", GameManager.current_level().get("telescope_family", "refractor")))
+
+
+func _level_for_context(context: Dictionary) -> Dictionary:
+	var current: Dictionary = GameManager.current_level()
+	var level_number := int(context.get("level_number", current.get("level_number", 0)))
+	if level_number == int(current.get("level_number", 0)):
+		return current
+	var mission_manager := get_node_or_null("/root/MissionManager")
+	if mission_manager != null and mission_manager.has_method("get_level"):
+		var resolved: Dictionary = mission_manager.get_level(level_number)
+		if not resolved.is_empty():
+			return resolved
+	return current
+
+
+func _animate_dialogue_line() -> void:
+	if line_tween:
+		line_tween.kill()
+	text_label.modulate.a = 0.0
+	text_label.position.y = 550.0
+	context_line_label.modulate.a = 0.0
+	line_tween = create_tween().set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	line_tween.tween_property(text_label, "position:y", 546.0, 0.16)
+	line_tween.parallel().tween_property(text_label, "modulate:a", 1.0, 0.16)
+	line_tween.parallel().tween_property(context_line_label, "modulate:a", 1.0, 0.2)
 
 
 func _advance() -> void:
@@ -350,6 +398,14 @@ func _label(text: String, pos: Vector2, size: Vector2, font_size: int, color: Co
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(label)
 	return label
+
+
+func _fit_wrapped_label(label: Label, preferred_size: int, minimum_size: int) -> void:
+	var font_size := preferred_size
+	label.add_theme_font_size_override("font_size", font_size)
+	while label.get_line_count() > label.max_lines_visible and font_size > minimum_size:
+		font_size -= 1
+		label.add_theme_font_size_override("font_size", font_size)
 
 func _on_language_changed() -> void:
 	if club_label != null:

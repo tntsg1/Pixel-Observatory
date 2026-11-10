@@ -328,6 +328,13 @@ func context_for_event(event_id: String) -> Dictionary:
 	elif event_id.contains("_before"):
 		from_id = "mission_board"
 		to_id = _observation_location_for_level(narrative_level)
+	# Authored routes describe deliberate handoffs between chapters. Apply them
+	# after the generic phase defaults so an `*_after` transition is not forced
+	# back to the logbook when the next instrument is part of the same dialogue.
+	if override.has("from"):
+		from_id = str(override["from"])
+	if override.has("to"):
+		to_id = str(override["to"])
 
 	var from_info: Dictionary = locations.get(from_id, {})
 	var to_info: Dictionary = locations.get(to_id, {})
@@ -394,7 +401,11 @@ func _begin_events(event_ids: Array, scene_key: String, follow_trigger: String =
 		if lines.is_empty():
 			continue
 		playable_ids.append(event_id)
-		combined_lines.append_array(lines)
+		for line_index in range(lines.size()):
+			var tagged_line: Dictionary = lines[line_index].duplicate(true)
+			tagged_line["_story_event_id"] = event_id
+			tagged_line["_story_line_index"] = line_index
+			combined_lines.append(tagged_line)
 		if context_event_id == "" or event_id.begins_with(SKILL_EVENT_PREFIX):
 			context_event_id = event_id
 	if playable_ids.is_empty():

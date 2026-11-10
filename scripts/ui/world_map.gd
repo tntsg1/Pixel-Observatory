@@ -1,5 +1,7 @@
 extends Control
 
+const ObservatoryUIStyle = preload("res://scripts/ui/observatory_ui_style.gd")
+
 # World Map — astronomical navigation transition.
 #
 # The map is the authored image (assets/world_map/world_map_base.png, 1672x941),
@@ -381,9 +383,14 @@ void fragment() {
 	status_label.max_lines_visible = 2
 	_refresh_headline()
 
-	info_panel = Control.new()
-	info_panel.position = Vector2(784, 150)
-	info_panel.size = Vector2(228, 452)
+	info_panel = Panel.new()
+	info_panel.name = "SiteInfoPanel"
+	info_panel.position = Vector2(772, 138)
+	info_panel.size = Vector2(248, 468)
+	info_panel.add_theme_stylebox_override(
+		"panel",
+		ObservatoryUIStyle.panel(Color(0.012, 0.025, 0.050, 0.96), Color(0.22, 0.40, 0.56, 0.88), 1, 6)
+	)
 	add_child(info_panel)
 
 	# Buttons live at FIXED positions and never move with the animation.
@@ -1331,8 +1338,8 @@ func _refresh_info() -> void:
 	var v: Dictionary = site_visibility.get(selected_id, {})
 	var site: Dictionary = v.get("site", {})
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 0)
-	scroll.size = Vector2(228, 452)
+	scroll.position = Vector2(10, 10)
+	scroll.size = Vector2(228, 448)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	info_panel.add_child(scroll)
 	var body := VBoxContainer.new()

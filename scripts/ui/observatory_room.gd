@@ -2,6 +2,7 @@ extends Control
 
 const FurnitureAnimator = preload("res://scripts/ui/observatory_furniture_animator.gd")
 const MayaHallNPCScript = preload("res://scripts/ui/maya_hall_npc.gd")
+const AmbientDirector = preload("res://scripts/ui/observatory_ambient_director.gd")
 const W := 1024.0
 const H := 768.0
 const ROOM_RECT := Rect2(34, 100, 956, 578)
@@ -210,6 +211,7 @@ var control_bar_toggle: Button
 var control_bar_expanded := false
 var control_bar_manual_revision := 0
 var furniture_animator: ObservatoryFurnitureAnimator
+var ambient_director: Node2D
 var furniture_occluders: Array[Dictionary] = []
 var interactables: Array[Dictionary] = []
 var obstacles: Array[Rect2] = []
@@ -445,6 +447,7 @@ func _build() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
 	_draw_full_background()
+	_draw_ambient_motion()
 	_draw_furniture_animation_overlays()
 	_register_hitboxes()
 	_draw_player()
@@ -586,6 +589,13 @@ func _draw_furniture_animation_overlays() -> void:
 	furniture_animator.name = "FurnitureAnimator"
 	add_child(furniture_animator)
 	furniture_animator.setup()
+
+
+func _draw_ambient_motion() -> void:
+	ambient_director = AmbientDirector.new() as Node2D
+	ambient_director.name = "ObservatoryAmbientDirector"
+	add_child(ambient_director)
+	ambient_director.setup()
 
 
 func _animate_arrival_furniture_close() -> void:

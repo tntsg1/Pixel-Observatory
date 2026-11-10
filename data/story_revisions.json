@@ -3,6 +3,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "observatory",
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "You made it! People have watched this sky for ages. Tonight, you join that long chain with a record of your own.",
@@ -12,6 +13,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "image": "res://assets/reference/observatory_room_hall_1024.png",
+      "visual_role": "naked_eye",
       "beat_en": "BEFORE",
       "beat_zh": "此前",
       "text_en": "Hands off the telescope for one minute. Start with the Moon and your own eyes—shape, dark patches, and all the detail that refuses to show itself.",
@@ -21,6 +23,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "image": "res://assets/reference/observatory_room_hall_1024.png",
+      "visual_role": "workflow",
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "Our routine is simple: take the question from the board, choose parts at the Parts Cabinet, build at the Assembly Table, observe, then keep the evidence in the Club Logbook.",
@@ -29,6 +32,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "observation_pad",
       "beat_en": "BREAKTHROUGH",
       "beat_zh": "突破",
       "text_en": "The round platform in the middle is our Observation Pad. The green terminal can wait; tonight, your eyes get the first shift.",
@@ -37,6 +41,7 @@
     {
       "speaker": "You",
       "portrait": "player",
+      "visual_role": "naked_eye",
       "text_en": "So the first record is not supposed to be perfect?",
       "text_zh": "所以第一份记录本来就不需要完美？"
     },
@@ -44,6 +49,7 @@
       "speaker": "Maya",
       "portrait": "maya",
       "image": "res://assets/telescope_view/moon_large.png",
+      "visual_role": "target",
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Exactly. Record the shape and dark patches first; on our second Moon visit, a refractor will show us the crater rims for comparison.",
@@ -52,6 +58,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "observation_pad",
       "beat_en": "HANDOFF",
       "beat_zh": "交给你",
       "text_en": "Our first ten lessons stay here at the club, so you can learn the routine without rushing. Walk over with WASD, press E at the Observation Pad, then center the Moon with A/D and W/S. I'll wait for your notes in the hall.",
@@ -68,6 +75,8 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "assembly",
+      "visual_family": "refractor",
       "text_en": "So let's build a bigger eye. Check the Mission Board, collect the parts, and meet me at the Assembly Table.",
       "text_zh": "那就给眼睛加个外挂吧~先看任务板，再拿齐零件，我们组装台见。"
     }
@@ -227,6 +236,8 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "assembly",
+      "visual_family": "newtonian",
       "text_en": "That failure gives us the reason to change telescope families. At the blueprint selector, choose the Newtonian: mirrors reflect all visible colors along the same path.",
       "text_zh": "所以我们换一种思路。去蓝图选择器切到牛顿式，镜面反射不会把不同颜色拆开。"
     }
@@ -268,6 +279,8 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "assembly",
+      "visual_family": "dobsonian",
       "text_en": "Next we keep that same optical path but simplify the mount. The saved complexity becomes a larger mirror, and tracking moves from machinery into your hands.",
       "text_zh": "下一台还用牛顿光路，但把支架做得更简单，省下的钱换成更大的主镜。代价是追踪得靠手推。"
     }
@@ -309,6 +322,8 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "assembly",
+      "visual_family": "cassegrain",
       "text_en": "But aperture and a wide manual sweep are not ideal for every target. Fine planetary structure asks for a long focal length in a compact, precisely aimed tube.",
       "text_zh": "但大口径和宽广的手动扫掠并不适合所有目标。细小的行星结构需要长焦距、紧凑镜筒和更精确的指向。"
     }
@@ -350,6 +365,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "space_console",
       "text_en": "The next limits cannot be fixed by another ground-telescope shape: our atmosphere blocks wavelengths and blurs detail. We move to the Space Telescope Console and change both location and wavelength.",
       "text_zh": "再换地面镜筒也绕不过大气：有些波段会被挡住，细节也会被扰动抹掉。下一站去空间望远镜控制台。"
     }
@@ -391,6 +407,7 @@
     {
       "speaker": "Maya",
       "portrait": "maya",
+      "visual_role": "radio_console",
       "text_en": "FAST takes the final step: there is no eyepiece picture at all. At the radio console, frequency, timing and signal strength become the observation.",
       "text_zh": "FAST 更不一样，它根本不给你目镜画面。你要看的，是频率、周期和信号强度。"
     }

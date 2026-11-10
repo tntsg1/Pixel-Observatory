@@ -12,7 +12,8 @@ assert.match(landing, /localStorage\.setItem\('so-lang', l\)/, "homepage persist
 assert.match(landing, /updateGameLinks\(l\)/, "homepage refreshes game links when language changes");
 assert.match(landing, /url\.searchParams\.set\('lang', l\)/, "game links carry an explicit language handoff");
 
-assert.match(loader, /new URLSearchParams\(location\.search\)\.get\("lang"\)/, "game shell accepts the explicit URL language");
+assert.match(loader, /const launchParams = new URLSearchParams\(location\.search\)/, "game shell parses the launch URL once");
+assert.match(loader, /normalizeLanguage\(launchParams\.get\("lang"\)\)/, "game shell accepts the explicit URL language");
 assert.match(loader, /localStorage\.getItem\(languageStorageKey\)/, "game shell falls back to the shared persisted language");
 assert.match(loader, /const zh = language === "zh"/, "loader copy uses the resolved language");
 assert.match(loader, /window\.POLanguage\?\.current\(\) === "zh"/, "game social rails use the same resolved language");

@@ -1,0 +1,88 @@
+  ok: GameManager is available
+  ok: sirius uses the shared point-source PSF material
+sirius focus 0.000 expected defocus 1.0000 material 1.0000
+  ok: sirius material follows shared focus at 0.000
+  ok: sirius defocus remains normalized
+sirius focus 0.167 expected defocus 1.0000 material 1.0000
+  ok: sirius material follows shared focus at 0.167
+  ok: sirius defocus remains normalized
+sirius focus 0.333 expected defocus 0.2206 material 0.2206
+  ok: sirius material follows shared focus at 0.333
+  ok: sirius defocus remains normalized
+sirius focus 0.395 expected defocus 0.0000 material 0.0000
+  ok: sirius material follows shared focus at 0.395
+  ok: sirius defocus remains normalized
+sirius focus 0.500 expected defocus 0.5134 material 0.5134
+  ok: sirius material follows shared focus at 0.500
+  ok: sirius defocus remains normalized
+sirius focus 0.667 expected defocus 1.0000 material 1.0000
+  ok: sirius material follows shared focus at 0.667
+  ok: sirius defocus remains normalized
+sirius focus 0.833 expected defocus 1.0000 material 1.0000
+  ok: sirius material follows shared focus at 0.833
+  ok: sirius defocus remains normalized
+sirius focus 1.000 expected defocus 1.0000 material 1.0000
+  ok: sirius material follows shared focus at 1.000
+  ok: sirius defocus remains normalized
+  ok: sirius exact focus keeps the point source sharp
+  ok: sirius severe focus error expands the point-source PSF
+  note: pixel continuity is captured by the non-headless visual acceptance script
+  ok: vega uses the shared point-source PSF material
+vega focus 0.000 expected defocus 1.0000 material 1.0000
+  ok: vega material follows shared focus at 0.000
+  ok: vega defocus remains normalized
+vega focus 0.167 expected defocus 1.0000 material 1.0000
+  ok: vega material follows shared focus at 0.167
+  ok: vega defocus remains normalized
+vega focus 0.333 expected defocus 0.3819 material 0.3819
+  ok: vega material follows shared focus at 0.333
+  ok: vega defocus remains normalized
+vega focus 0.425 expected defocus 0.0000 material 0.0000
+  ok: vega material follows shared focus at 0.425
+  ok: vega defocus remains normalized
+vega focus 0.500 expected defocus 0.2610 material 0.2610
+  ok: vega material follows shared focus at 0.500
+  ok: vega defocus remains normalized
+vega focus 0.667 expected defocus 1.0000 material 1.0000
+  ok: vega material follows shared focus at 0.667
+  ok: vega defocus remains normalized
+vega focus 0.833 expected defocus 1.0000 material 1.0000
+  ok: vega material follows shared focus at 0.833
+  ok: vega defocus remains normalized
+vega focus 1.000 expected defocus 1.0000 material 1.0000
+  ok: vega material follows shared focus at 1.000
+  ok: vega defocus remains normalized
+  ok: vega exact focus keeps the point source sharp
+  ok: vega severe focus error expands the point-source PSF
+  note: pixel continuity is captured by the non-headless visual acceptance script
+  ok: arcturus uses the shared point-source PSF material
+  ok: Arcturus keeps a warm orange catalog hue
+  ok: point-source shader removes baked halo edges without forcing a pink channel floor
+arcturus focus 0.000 expected defocus 1.0000 material 1.0000
+  ok: arcturus material follows shared focus at 0.000
+  ok: arcturus defocus remains normalized
+arcturus focus 0.167 expected defocus 1.0000 material 1.0000
+  ok: arcturus material follows shared focus at 0.167
+  ok: arcturus defocus remains normalized
+arcturus focus 0.333 expected defocus 0.5847 material 0.5847
+  ok: arcturus material follows shared focus at 0.333
+  ok: arcturus defocus remains normalized
+arcturus focus 0.445 expected defocus 0.0000 material 0.0000
+  ok: arcturus material follows shared focus at 0.445
+  ok: arcturus defocus remains normalized
+arcturus focus 0.500 expected defocus 0.2157 material 0.2157
+  ok: arcturus material follows shared focus at 0.500
+  ok: arcturus defocus remains normalized
+arcturus focus 0.667 expected defocus 1.0000 material 1.0000
+  ok: arcturus material follows shared focus at 0.667
+  ok: arcturus defocus remains normalized
+arcturus focus 0.833 expected defocus 1.0000 material 1.0000
+  ok: arcturus material follows shared focus at 0.833
+  ok: arcturus defocus remains normalized
+arcturus focus 1.000 expected defocus 1.0000 material 1.0000
+  ok: arcturus material follows shared focus at 1.000
+  ok: arcturus defocus remains normalized
+  ok: arcturus exact focus keeps the point source sharp
+  ok: arcturus severe focus error expands the point-source PSF
+  note: pixel continuity is captured by the non-headless visual acceptance script
+POINT SOURCE FOCUS CONTINUITY TEST PASS

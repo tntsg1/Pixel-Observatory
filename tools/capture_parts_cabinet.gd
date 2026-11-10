@@ -28,15 +28,13 @@ func _initialize() -> void:
 	var scene: Control = load("res://scenes/parts_cabinet.tscn").instantiate()
 	root.add_child(scene)
 	current_scene = scene
-	await process_frame
-	await process_frame
+	await create_timer(0.4).timeout
 	_save("parts_top.png")
 
 	var scroll: ScrollContainer = _find_scroll(scene)
 	if scroll != null:
 		scroll.scroll_vertical = 99999
-	await process_frame
-	await process_frame
+	await create_timer(0.4).timeout
 	_save("parts_bottom.png")
 
 	gm.equip_part("objective_100mm")
@@ -45,8 +43,7 @@ func _initialize() -> void:
 	scene = load("res://scenes/parts_cabinet.tscn").instantiate()
 	root.add_child(scene)
 	current_scene = scene
-	await process_frame
-	await process_frame
+	await create_timer(0.4).timeout
 	_save("parts_after_equip.png")
 	print("saved parts_top.png, parts_bottom.png, parts_after_equip.png")
 	quit(0)

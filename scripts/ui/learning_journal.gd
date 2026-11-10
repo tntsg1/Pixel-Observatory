@@ -1,5 +1,7 @@
 extends Control
 
+const ObservatoryUIStyle = preload("res://scripts/ui/observatory_ui_style.gd")
+
 const QUALITY_COLORS := {
 	"Excellent": Color(0.30, 0.95, 0.50),
 	"Good": Color(0.50, 0.85, 0.30),
@@ -71,38 +73,34 @@ func _build() -> void:
 		child.queue_free()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
-	var bg := ColorRect.new()
-	bg.color = Color(0.025, 0.035, 0.070)
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
-	for i in range(72):
-		var dot := ColorRect.new()
-		dot.color = Color(0.70, 0.78, 0.95, 0.16)
-		dot.position = Vector2(fmod(float(i * 151), 1000.0) + 12.0, fmod(float(i * 89), 700.0) + 54.0)
-		dot.size = Vector2(2, 2)
-		dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		add_child(dot)
+	ObservatoryUIStyle.add_observatory_backdrop(self, 0.84)
 
 	var top := Panel.new()
-	top.position = Vector2(22, 12)
-	top.size = Vector2(980, 52)
-	top.add_theme_stylebox_override("panel", _style(Color(0.045, 0.070, 0.120, 0.96), Color(0.86, 0.62, 0.28), 2))
+	top.name = "ArchiveHeader"
+	top.position = Vector2(18, 12)
+	top.size = Vector2(988, 64)
+	top.add_theme_stylebox_override("panel", _style(ObservatoryUIStyle.NAVY, ObservatoryUIStyle.BRASS, 2))
 	add_child(top)
-	var title := _label(GameManager.text("CLUB LOGBOOK", "俱乐部观测日志"), Vector2(24, 9), Vector2(620, 30), 24, Color(0.96, 0.91, 0.76))
+	ObservatoryUIStyle.add_frame_corners(self, top.position, top.size, Color(ObservatoryUIStyle.BRASS, 0.72), 14.0, 2.0)
+	var eyebrow := _label(GameManager.text("OBSERVATORY ARCHIVE / FIELD RECORDS", "天文台档案 / 观测记录"), Vector2(28, 5), Vector2(440, 16), 9, ObservatoryUIStyle.CYAN)
+	top.add_child(eyebrow)
+	var title := _label(GameManager.text("CLUB LOGBOOK", "俱乐部观测日志"), Vector2(28, 19), Vector2(520, 36), 24, ObservatoryUIStyle.WARM_TEXT)
 	top.add_child(title)
-	var summary := _label(_summary_text(), Vector2(540, 15), Vector2(260, 20), 12, Color(0.58, 0.84, 1.0), HORIZONTAL_ALIGNMENT_RIGHT)
+	var summary := _label(_summary_text(), Vector2(568, 22), Vector2(244, 24), 12, ObservatoryUIStyle.CYAN, HORIZONTAL_ALIGNMENT_RIGHT)
 	top.add_child(summary)
 	var back := Button.new()
+	back.name = "ArchiveBackButton"
 	back.text = GameManager.text("Back", "返回")
-	back.position = Vector2(834, 9)
-	back.size = Vector2(124, 32)
-	back.add_theme_font_size_override("font_size", 14)
+	back.position = Vector2(834, 11)
+	back.size = Vector2(132, 42)
+	ObservatoryUIStyle.apply_button(back, ObservatoryUIStyle.BRASS, false, 14)
 	back.pressed.connect(_go_back)
 	top.add_child(back)
 
 	_scroll = ScrollContainer.new()
-	_scroll.position = Vector2(28, 78)
-	_scroll.size = Vector2(968, 662)
+	_scroll.name = "ArchiveScroll"
+	_scroll.position = Vector2(28, 88)
+	_scroll.size = Vector2(968, 652)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	_scroll.clip_contents = true
@@ -119,7 +117,7 @@ func _populate() -> void:
 	var entries: Array = GameManager.progress.get("journal_entries", [])
 	var remote_entries: Array = GameManager.progress.get("remote_observation_archive", [])
 	if entries.is_empty() and remote_entries.is_empty():
-		var empty := _label(GameManager.text("No observations recorded yet.\nComplete a mission to create your first observing report.", "还没有观测记录。\n完成任务后，这里会保存你的第一份观测报告。"), Vector2(0, 180), Vector2(938, 70), 18, Color(0.82, 0.86, 0.94), HORIZONTAL_ALIGNMENT_CENTER)
+		var empty := _label(GameManager.text("No observations recorded yet.\nComplete a mission to create your first observing report.", "还没有观测记录。\n完成任务后，这里会保存你的第一份观测报告。"), Vector2(0, 180), Vector2(938, 70), 18, ObservatoryUIStyle.BODY_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		_entry_list.add_child(empty)
 		return
@@ -150,7 +148,8 @@ func _build_entry_card(index: int, entry: Dictionary) -> Control:
 	var card := Panel.new()
 	card.custom_minimum_size = Vector2(938, 194 + 24 * extra_rows)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_stylebox_override("panel", _style(Color(0.045, 0.060, 0.105, 0.96), Color(accent.r, accent.g, accent.b, 0.78), 2))
+	card.add_theme_stylebox_override("panel", _style(ObservatoryUIStyle.NAVY_SOFT, Color(ObservatoryUIStyle.BRASS_DIM, 0.88), 1))
+	_decorate_card(card, accent, 194 + 24 * extra_rows)
 
 	var name := GameManager.text(str(entry.get("object_name_en", entry.get("object_id", ""))), str(entry.get("object_name_zh", entry.get("object_id", ""))))
 	var level := int(entry.get("level_completed", 0))
@@ -196,8 +195,9 @@ func _build_heritage_card(index: int, entry: Dictionary) -> Control:
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	card.add_theme_stylebox_override(
 		"panel",
-		_style(Color(0.040, 0.055, 0.090, 0.98), Color(0.78, 0.56, 0.28, 0.92), 2)
+		_style(ObservatoryUIStyle.NAVY_SOFT, Color(ObservatoryUIStyle.BRASS_DIM, 0.92), 1)
 	)
+	_decorate_card(card, ObservatoryUIStyle.BRASS, 218)
 	var title := GameManager.text(
 		str(entry.get("object_name_en", "")),
 		str(entry.get("object_name_zh", ""))
@@ -299,7 +299,8 @@ func _build_radio_archive_card(index: int, entry: Dictionary, observation: Dicti
 	var card := Panel.new()
 	card.custom_minimum_size = Vector2(938, 236)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_stylebox_override("panel", _style(Color(0.030, 0.058, 0.074, 0.98), Color(0.34, 0.82, 0.78, 0.88), 2))
+	card.add_theme_stylebox_override("panel", _style(Color(0.024, 0.064, 0.078, 0.94), Color(ObservatoryUIStyle.BRASS_DIM, 0.88), 1))
+	_decorate_card(card, Color(0.34, 0.82, 0.78), 236)
 	card.add_child(_label("#%02d   %s" % [index, GameManager.text(target_en, target_zh)], Vector2(18, 12), Vector2(510, 28), 20, Color(0.88, 0.96, 0.84)))
 	card.add_child(_label(GameManager.text("FAST SIGNAL ARCHIVE", "FAST 信号档案"), Vector2(570, 15), Vector2(338, 20), 13, Color(0.46, 0.88, 0.86), HORIZONTAL_ALIGNMENT_RIGHT))
 	card.add_child(_label("%s · %s" % [candidate, str(sky.get("label", ""))], Vector2(20, 44), Vector2(548, 20), 12, Color(0.94, 0.78, 0.46)))
@@ -326,7 +327,8 @@ func _build_remote_observation_card(index: int, entry: Dictionary) -> Control:
 	var card := Panel.new()
 	card.custom_minimum_size = Vector2(938, 190)
 	card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	card.add_theme_stylebox_override("panel", _style(Color(0.034, 0.052, 0.074, 0.98), accent, 2))
+	card.add_theme_stylebox_override("panel", _style(ObservatoryUIStyle.NAVY_SOFT, Color(ObservatoryUIStyle.BRASS_DIM, 0.88), 1))
+	_decorate_card(card, accent, 190)
 	var target_name := GameManager.text(
 		str(entry.get("target_name_en", entry.get("target_id", ""))),
 		str(entry.get("target_name_zh", entry.get("target_id", ""))))
@@ -377,6 +379,16 @@ func _add_record_line(parent: Control, heading: String, value: String, y: float,
 	parent.add_child(content)
 
 
+func _decorate_card(card: Control, accent: Color, height: float) -> void:
+	var stripe := ColorRect.new()
+	stripe.position = Vector2(0, 8)
+	stripe.size = Vector2(3, maxf(24.0, height - 16.0))
+	stripe.color = accent
+	stripe.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(stripe)
+	ObservatoryUIStyle.add_frame_corners(card, Vector2.ZERO, Vector2(938, height), Color(ObservatoryUIStyle.BRASS, 0.52), 10.0, 1.0)
+
+
 func _entry_text(entry: Dictionary, prefix: String, fallback: String) -> String:
 	var language_key := prefix + "_en" if GameManager.language_mode == "en" else prefix + "_zh"
 	return str(entry.get(language_key, fallback))
@@ -407,15 +419,7 @@ func _label(text_value: String, pos: Vector2, size_value: Vector2, font_size: in
 
 
 func _style(background: Color, border: Color, width: int) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = background
-	style.border_color = border
-	style.set_border_width_all(width)
-	style.corner_radius_top_left = 4
-	style.corner_radius_top_right = 4
-	style.corner_radius_bottom_left = 4
-	style.corner_radius_bottom_right = 4
-	return style
+	return ObservatoryUIStyle.panel(background, border, width, 5)
 
 
 func _on_language_changed() -> void:

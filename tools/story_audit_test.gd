@@ -32,6 +32,8 @@ func _initialize() -> void:
 		_check(not level.is_empty(), "L%d exists" % level_number)
 		if level.is_empty():
 			continue
+		var chapter: Dictionary = sm.call("_chapter_for_level", level_number)
+		_check(not chapter.is_empty(), "L%d belongs to an authored narrative chapter" % level_number)
 		# 1. Trackable entry: a story event mapped for the level OR at least
 		# one teaching step (explicit or fallback from required_concept_card).
 		var has_story := false

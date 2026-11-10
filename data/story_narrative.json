@@ -205,6 +205,42 @@
       "to": "site_map",
       "action_en": "Keep the same target and choose a site where it has already risen.",
       "action_zh": "保留同一目标，选择一个它已经升起的观测地点。"
+    },
+    "level_2_after": {
+      "from": "observation_pad",
+      "to": "assembly_table",
+      "action_en": "Check the Mission Board, collect the refractor parts, then meet Maya at the Assembly Table.",
+      "action_zh": "先看任务板，拿齐折射镜零件，再去组装台找玛雅。"
+    },
+    "level_25_after": {
+      "from": "observation_pad",
+      "to": "assembly_table",
+      "action_en": "Open the blueprint selector at the Assembly Table and choose the Newtonian reflector.",
+      "action_zh": "到组装台打开蓝图选择器，选择牛顿反射望远镜。"
+    },
+    "level_35_after": {
+      "from": "observation_pad",
+      "to": "assembly_table",
+      "action_en": "Return to the Assembly Table and choose the Dobsonian blueprint with its manual rocker mount.",
+      "action_zh": "回到组装台，选择带手动摇臂底座的多布森蓝图。"
+    },
+    "level_45_after": {
+      "from": "observation_pad",
+      "to": "assembly_table",
+      "action_en": "Return to the Assembly Table and choose the compact long-focus Cassegrain blueprint.",
+      "action_zh": "回到组装台，选择紧凑长焦的卡塞格林蓝图。"
+    },
+    "level_55_after": {
+      "from": "observation_pad",
+      "to": "space_console",
+      "action_en": "Save the final ground-telescope record, then open the Space Telescope Console.",
+      "action_zh": "保存最后一份地面望远镜记录，再打开空间望远镜控制台。"
+    },
+    "level_75_after": {
+      "from": "space_console",
+      "to": "radio_console",
+      "action_en": "Leave the infrared record in the logbook, then open the FAST Control Console and begin listening to the sky.",
+      "action_zh": "保存红外观测记录，再打开 FAST 控制台，开始聆听天空。"
     }
   }
 }

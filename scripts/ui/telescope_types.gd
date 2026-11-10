@@ -1,5 +1,7 @@
 extends Control
 
+const ObservatoryUIStyle = preload("res://scripts/ui/observatory_ui_style.gd")
+
 # Telescope Type Selection screen.
 #
 # Two jobs:
@@ -13,13 +15,12 @@ extends Control
 # scene for the family the player is looking at; the recommended family is only
 # highlighted, not enforced.
 
-const GOLD := Color("e0aa46")
+const GOLD := ObservatoryUIStyle.BRASS
 const GOLD_DIM := Color("8a6a2c")
-const CYAN := Color("55c7df")
-const GREEN := Color("6fdf8a")
-const TEXT := Color("ece8dc")
-const DIM := Color("8391a6")
-const BG := Color("05070f")
+const CYAN := ObservatoryUIStyle.CYAN
+const GREEN := ObservatoryUIStyle.GREEN
+const TEXT := ObservatoryUIStyle.WARM_TEXT
+const DIM := ObservatoryUIStyle.MUTED_TEXT
 const PANEL := Color("0b1424")
 const LOCK := Color("4a5568")
 const PREVIEW_PANEL_POS := Vector2(362, 116)
@@ -171,11 +172,7 @@ func _build() -> void:
 		child.queue_free()
 	cards.clear()
 	set_anchors_preset(Control.PRESET_FULL_RECT)
-	var bg := ColorRect.new()
-	bg.color = BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
+	ObservatoryUIStyle.add_observatory_backdrop(self, 0.92)
 
 	_label(GameManager.text("INSTRUMENT CATALOG  /  06 DESIGNS", "仪器目录  /  06 种设计"), Vector2(28, 14), Vector2(968, 20), 10, CYAN, HORIZONTAL_ALIGNMENT_CENTER)
 	title_label = _label(GameManager.text("SELECT A TELESCOPE TYPE", "选择望远镜类型"), Vector2(28, 31), Vector2(968, 38), 25, GOLD, HORIZONTAL_ALIGNMENT_CENTER)
@@ -547,13 +544,4 @@ func _button(value: String, pos: Vector2, button_size: Vector2, tint: Color) -> 
 
 
 func _style(fill: Color, border: Color, width: int, horizontal_margin: int = 12) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.set_border_width_all(width)
-	style.set_corner_radius_all(6)
-	style.content_margin_left = horizontal_margin
-	style.content_margin_right = horizontal_margin
-	style.content_margin_top = 6
-	style.content_margin_bottom = 6
-	return style
+	return ObservatoryUIStyle.panel(fill, border, width, 6, horizontal_margin)

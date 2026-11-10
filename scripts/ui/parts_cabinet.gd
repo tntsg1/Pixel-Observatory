@@ -1,17 +1,19 @@
 extends Control
 
+const ObservatoryUIStyle = preload("res://scripts/ui/observatory_ui_style.gd")
+
 const SCREEN_SIZE := Vector2(1024, 768)
 const PANEL := Color(0.045, 0.065, 0.115, 0.96)
 const PANEL_DARK := Color(0.020, 0.030, 0.055, 0.98)
 const CARD_BG := Color(0.040, 0.058, 0.100, 0.96)
 const CARD_EQUIPPED := Color(0.050, 0.075, 0.070, 0.98)
 const CARD_LOCKED := Color(0.035, 0.040, 0.052, 0.92)
-const BRASS := Color(0.78, 0.56, 0.28)
-const GOLD := Color(0.96, 0.76, 0.38)
-const BLUE_EDGE := Color(0.18, 0.28, 0.44)
-const WARM_TEXT := Color(0.95, 0.93, 0.86)
-const MUTED := Color(0.68, 0.76, 0.80)
-const GREEN := Color(0.45, 0.95, 0.56)
+const BRASS := ObservatoryUIStyle.BRASS_DIM
+const GOLD := ObservatoryUIStyle.BRASS
+const BLUE_EDGE := ObservatoryUIStyle.STEEL_EDGE
+const WARM_TEXT := ObservatoryUIStyle.WARM_TEXT
+const MUTED := ObservatoryUIStyle.MUTED_TEXT
+const GREEN := ObservatoryUIStyle.GREEN
 const WARNING := Color(1.0, 0.70, 0.34)
 
 const HEADER_RECT := Rect2(18, 14, 988, 56)
@@ -134,8 +136,7 @@ func _build() -> void:
 		var current_family := GameManager.assembly_context_family()
 		selected_family = current_family if current_family != "" else "refractor"
 
-	_rect(Vector2.ZERO, SCREEN_SIZE, Color(0.010, 0.016, 0.032))
-	_draw_star_grid()
+	ObservatoryUIStyle.add_observatory_backdrop(self, 0.88)
 	_draw_title_bar()
 	if not GameManager.postgraduate_free_build() and GameManager.current_equipment_stage() == "eye":
 		_draw_empty_eye_stage()
@@ -146,7 +147,8 @@ func _build() -> void:
 
 
 func _draw_title_bar() -> void:
-	_panel(HEADER_RECT.position, HEADER_RECT.size, Color(0.030, 0.045, 0.085, 0.98), BLUE_EDGE)
+	var header := _panel(HEADER_RECT.position, HEADER_RECT.size, ObservatoryUIStyle.NAVY, GOLD)
+	header.name = "CabinetHeader"
 	var title := _label_to(self, GameManager.text("Parts Cabinet", "零件柜"), Vector2(252, 24), Vector2(520, 32), 24, WARM_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
 	title.autowrap_mode = TextServer.AUTOWRAP_OFF
 
@@ -1035,14 +1037,6 @@ func _stage_label(stage: String) -> String:
 	return stage
 
 
-func _draw_star_grid() -> void:
-	for index in range(90):
-		var x := fmod(float(index * 89), SCREEN_SIZE.x)
-		var y := fmod(float(index * 53), SCREEN_SIZE.y)
-		var alpha := 0.08 + fmod(float(index), 5.0) * 0.025
-		_rect(Vector2(x, y), Vector2(1, 1), Color(0.6, 0.75, 0.95, alpha))
-
-
 func _panel(pos: Vector2, panel_size: Vector2, color: Color, border: Color) -> Panel:
 	var panel := Panel.new()
 	panel.position = pos
@@ -1058,10 +1052,7 @@ func _button(text: String, pos: Vector2, button_size: Vector2) -> Button:
 	button.text = text
 	button.position = pos
 	button.size = button_size
-	button.add_theme_font_size_override("font_size", 12)
-	button.add_theme_stylebox_override("normal", _style(Color(0.08, 0.13, 0.22), BLUE_EDGE, 2, 3))
-	button.add_theme_stylebox_override("hover", _style(Color(0.13, 0.22, 0.34), BRASS, 2, 3))
-	button.add_theme_stylebox_override("pressed", _style(Color(0.20, 0.14, 0.08), BRASS, 2, 3))
+	ObservatoryUIStyle.apply_button(button, GOLD, false, 12)
 	return button
 
 
@@ -1075,27 +1066,11 @@ func _badge_to(parent: Control, text: String, pos: Vector2, badge_size: Vector2,
 
 
 func _style(color: Color, border: Color, border_width: int, radius: int) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.border_color = border
-	style.set_border_width_all(border_width)
-	style.set_corner_radius_all(radius)
-	return style
+	return ObservatoryUIStyle.panel(color, border, border_width, radius)
 
 
 func _panel_corners_to(parent: Control, pos: Vector2, panel_size: Vector2, color: Color) -> void:
-	_rect_to(parent, pos + Vector2(4, 4), Vector2(12, 3), color)
-	_rect_to(parent, pos + Vector2(4, 4), Vector2(3, 12), color)
-	_rect_to(parent, pos + Vector2(panel_size.x - 16, 4), Vector2(12, 3), color)
-	_rect_to(parent, pos + Vector2(panel_size.x - 7, 4), Vector2(3, 12), color)
-	_rect_to(parent, pos + Vector2(4, panel_size.y - 7), Vector2(12, 3), color)
-	_rect_to(parent, pos + Vector2(4, panel_size.y - 16), Vector2(3, 12), color)
-	_rect_to(parent, pos + Vector2(panel_size.x - 16, panel_size.y - 7), Vector2(12, 3), color)
-	_rect_to(parent, pos + Vector2(panel_size.x - 7, panel_size.y - 16), Vector2(3, 12), color)
-
-
-func _rect(pos: Vector2, rect_size: Vector2, color: Color) -> ColorRect:
-	return _rect_to(self, pos, rect_size, color)
+	ObservatoryUIStyle.add_frame_corners(parent, pos, panel_size, color, 12.0, 2.0)
 
 
 func _rect_to(parent: Control, pos: Vector2, rect_size: Vector2, color: Color) -> ColorRect:
