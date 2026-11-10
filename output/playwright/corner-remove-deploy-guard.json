@@ -1,0 +1,24 @@
+{
+  "command": [
+    "node",
+    "C:\\Users\\tntsg\\AppData\\Local\\npm-cache\\_npx\\c943b712072b77c4\\node_modules\\wrangler\\bin\\wrangler.js",
+    "deploy"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 25138.24,
+    "commit_headroom_mb": 14138.7,
+    "memory_load_percent": 61
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 86420,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 334.53,
+  "windows_peak_process_counter_mb": 256.15,
+  "elapsed_seconds": 8.61,
+  "after": {
+    "available_mb": 25081.24,
+    "commit_headroom_mb": 14116.59,
+    "memory_load_percent": 61
+  }
+}

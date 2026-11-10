@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Changelog · Starlight Observatory</title>
-<meta name="description" content="Every Starlight Observatory / Pixel Observatory update, from the first prototype to the latest release.">
+<title>Changelog · Pixel Observatory</title>
+<meta name="description" content="Every Pixel Observatory update, from the first prototype to the latest release.">
 <meta name="theme-color" content="#05070d">
 <link rel="canonical" href="https://pixelobservatorygame.com/changelog/">
 <style>
-  /* 星光天文台 · 更新日志。沿用官网的墨蓝底、金色、玻璃卡片；只用同源资源（站点开启了 COEP）。 */
+  /* 像素观测站 · 更新日志。沿用官网的墨蓝底、金色、玻璃卡片；只用同源资源（站点开启了 COEP）。 */
   :root{
     --ink-0:#05070d;--ink-1:#0a0f1e;--ink-2:#101a33;--line:#1c2742;
     --txt-hi:#e8ecf4;--txt-mid:#a8b2c8;--txt-low:#5d6880;
@@ -93,7 +93,7 @@
 <body>
 <canvas id="sky" aria-hidden="true"></canvas>
 <nav class="gnav glass" aria-label="Main navigation">
-  <a class="gnav-brand" href="/"><span class="dot" aria-hidden="true"></span>Starlight Observatory</a>
+  <a class="gnav-brand" href="/"><span class="dot" aria-hidden="true"></span>Pixel Observatory</a>
   <div class="gnav-links">
     <a href="/"><span class="en">Home</span><span class="zh">首页</span></a>
     <a href="#milestones"><span class="en">Milestones</span><span class="zh">早期里程碑</span></a>
@@ -128,7 +128,7 @@
   </section>
 </main>
 
-<footer><div class="wrap"><span>© 2026 Pixel Observatory</span><span><a href="/"><span class="en">Starlight Observatory</span><span class="zh">星光天文台</span></a> · <a href="/game/"><span class="en">Play</span><span class="zh">在线游玩</span></a> · <a href="https://github.com/tntsg1/Pixel-Observatory" target="_blank" rel="noopener">GitHub</a></span></div></footer>
+<footer><div class="wrap"><span>© 2026 Pixel Observatory</span><span><a href="/"><span class="en">Pixel Observatory</span><span class="zh">像素观测站</span></a> · <a href="/game/"><span class="en">Play</span><span class="zh">在线游玩</span></a> · <a href="https://github.com/tntsg1/Pixel-Observatory" target="_blank" rel="noopener">GitHub</a></span></div></footer>
 
 <script>
 (function () {
@@ -144,7 +144,7 @@
   function setLang(l, remember) {
     root.dataset.lang = l;
     root.lang = l === "zh" ? "zh-CN" : "en";
-    document.title = l === "zh" ? "更新日志 · 星光天文台" : "Changelog · Starlight Observatory";
+    document.title = l === "zh" ? "更新日志 · 像素观测站" : "Changelog · Pixel Observatory";
     btnZh.setAttribute("aria-pressed", String(l === "zh"));
     btnEn.setAttribute("aria-pressed", String(l === "en"));
     if (remember) { try { localStorage.setItem("so-lang", l); } catch (e) {} }

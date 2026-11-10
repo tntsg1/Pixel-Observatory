@@ -1,0 +1,23 @@
+{
+  "command": [
+    "node",
+    "E:\\godot\\po-l10-live-hotfix\\output\\playwright\\verify-corner-removal.mjs"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 25354.06,
+    "commit_headroom_mb": 14412.89,
+    "memory_load_percent": 61
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 58072,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 830.59,
+  "windows_peak_process_counter_mb": 263.82,
+  "elapsed_seconds": 7.92,
+  "after": {
+    "available_mb": 25366.71,
+    "commit_headroom_mb": 14457.73,
+    "memory_load_percent": 61
+  }
+}
