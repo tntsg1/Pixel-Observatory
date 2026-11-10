@@ -42,6 +42,9 @@
   let activeFlow = null;
   let restoreFocusTo = null;
   let sessionSilenced = false;
+  const requestedRoute = new URLSearchParams(window.location.search).get("research_route") === "archive_text"
+    ? "archive_text"
+    : "field_gameplay";
 
   function readStoredState() {
     try {
@@ -288,7 +291,11 @@
 
   async function enroll() {
     try {
-      const result = await request("/enroll", { consent: true, language: selectedLanguage() });
+      const result = await request("/enroll", {
+        consent: true,
+        language: selectedLanguage(),
+        routeArm: requestedRoute,
+      });
       if (typeof result?.participantId !== "string" || typeof result?.token !== "string") {
         throw new Error("Research service returned invalid credentials.");
       }
@@ -306,8 +313,8 @@
       const result = await request("/submit", authenticatedBody({ nodeId, answers, durationSeconds }));
       const nextState = updateServerState(result);
       saveState({ pendingSubmission: null });
-      if (result?.rewardOffer) showRewardChoice(result.rewardOffer, () => showAssignment(nextState.routeArm));
-      else showAssignment(nextState.routeArm);
+      if (result?.rewardOffer) showRewardChoice(result.rewardOffer, completeResearch);
+      else completeResearch();
       return { keepOpen: true };
     });
   }
@@ -449,6 +456,11 @@
       progress.className = "po-research-progress";
       progress.dataset.researchProgress = `${index + 1} of ${questions.length}`;
       progress.textContent = `${index + 1} of ${questions.length} / 第 ${index + 1} 题，共 ${questions.length} 题`;
+      const notice = document.createElement("p");
+      notice.className = "po-research-question-notice";
+      notice.textContent = selectedLanguage() === "zh"
+        ? "这是一份自愿的匿名学习问卷；回答正确与否不会影响游戏进度或奖励。"
+        : "This is a voluntary anonymous learning questionnaire. Correctness does not affect progress or rewards.";
       const prompt = document.createElement("h2");
       prompt.className = "po-research-question";
       prompt.textContent = localize(question?.prompt) || "Please choose an answer. / 请选择一个答案。";
@@ -472,7 +484,7 @@
         choices.append(label);
       });
       const actions = document.createElement("div");
-      actions.className = "po-research-actions";
+      actions.className = "po-research-actions po-research-question-actions";
       const next = makeButton(index === questions.length - 1 ? "Submit / 提交" : "Next / 下一题", "po-research-primary", async () => {
         if (!answers[question.id]) return;
         if (index < questions.length - 1) {
@@ -489,8 +501,11 @@
         }
       });
       next.disabled = !answers[question.id];
-      actions.append(next, makeButton("Later / 稍后", "po-research-secondary", deferResearch));
-      content.append(progress, prompt, choices, actions);
+      actions.append(
+        makeButton("Skip entire questionnaire / 跳过整个问卷", "po-research-link po-research-skip-survey", skipResearch),
+        next,
+      );
+      content.append(progress, notice, prompt, choices, actions);
       showOverlay(content, kind);
     };
     render();
@@ -559,6 +574,22 @@
     completeResearch();
   }
 
+  async function skipResearch() {
+    const nodeId = currentServerNode();
+    if (!hasCredentials() || !nodeId) {
+      completeResearch();
+      return;
+    }
+    try {
+      const result = await request("/skip", authenticatedBody({ nodeId }));
+      updateServerState(result);
+      saveState({ pendingSubmission: null });
+      completeResearch();
+    } catch (error) {
+      showError(error, skipResearch, "retry-skip");
+    }
+  }
+
   function completeResearch() {
     removeOverlay();
     continueGodot();
@@ -575,7 +606,7 @@
       window.__poResearchExitToArchive();
       return;
     }
-    window.location.assign("/study/");
+    window.location.assign("/study/text/");
   }
 
   function openSettings() {
@@ -599,7 +630,7 @@
     activeCheckpoint = event?.detail || {};
     if (activeNodeId() === "baseline") {
       if (!hasCredentials()) {
-        showInvitation();
+        await enroll();
         return;
       }
       try {

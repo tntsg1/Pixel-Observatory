@@ -47,16 +47,17 @@ function answersFor(state) {
 
 const enrolled = await Promise.all(Array.from({ length: 40 }, async (_, index) => {
 	const ip = testIp(index + 1);
+	const routeArm = index < 20 ? "archive_text" : "field_gameplay";
 	const result = await post("/api/research/enroll", {
 		consent: true,
 		language: "en",
-		routeArm: "field_gameplay",
+		routeArm,
 	}, { expectedStatus: 201, ip });
 	assert.equal(result.state.currentNode, "baseline");
 	assert.equal(Object.hasOwn(result.state, "routeArm"), false, "Route assignment stays hidden before baseline.");
 	assert.equal(result.state.questions.length, 3);
 	assert.ok(result.state.questions.every(question => question.options.length === 4));
-	return { ...result, ip, state: result.state, baselineAnswers: answersFor(result.state) };
+	return { ...result, ip, routeArm, state: result.state, baselineAnswers: answersFor(result.state) };
 }));
 
 const sample = enrolled[0];
@@ -82,8 +83,7 @@ const assigned = await Promise.all(enrolled.map(async (participant, index) => {
 	return participant;
 }));
 
-assert.ok(assigned.some(participant => participant.state.routeArm === "archive_text"), "Server assignment includes archive_text.");
-assert.ok(assigned.some(participant => participant.state.routeArm === "field_gameplay"), "Forged routeArm cannot force every participant into field_gameplay.");
+assert.ok(assigned.every(participant => participant.state.routeArm === participant.routeArm), "Each fixed study URL preserves its requested research route.");
 
 const duplicateBaseline = await post("/api/research/submit", {
 	participantId: sample.participantId,
@@ -104,6 +104,27 @@ assert.ok(completedTextParticipant, "A second text-route participant is availabl
 const fieldParticipant = assigned.find(participant => participant.state.routeArm === "field_gameplay");
 assert.ok(fieldParticipant, "A field-route participant is available for checkpoint coverage.");
 assert.equal(fieldParticipant.state.currentNode, null, "Field questionnaires wait for their gameplay checkpoint.");
+const skippingFieldParticipant = assigned.find(participant => participant !== fieldParticipant && participant.state.routeArm === "field_gameplay");
+assert.ok(skippingFieldParticipant, "A second field-route participant is available for skip coverage.");
+const skipCheckpoint = await post("/api/research/checkpoint", {
+	participantId: skippingFieldParticipant.participantId,
+	token: skippingFieldParticipant.token,
+	level: 6,
+}, { ip: skippingFieldParticipant.ip });
+assert.equal(skipCheckpoint.state.currentNode, "A");
+const skippedA = await post("/api/research/skip", {
+	participantId: skippingFieldParticipant.participantId,
+	token: skippingFieldParticipant.token,
+	nodeId: "A",
+}, { ip: skippingFieldParticipant.ip });
+assert.ok(skippedA.state.completedNodes.includes("A"), "A skipped node advances without an answer row.");
+assert.equal(skippedA.state.currentNode, null, "The next gameplay questionnaire waits for its own checkpoint after a skip.");
+const repeatedSkipA = await post("/api/research/skip", {
+	participantId: skippingFieldParticipant.participantId,
+	token: skippingFieldParticipant.token,
+	nodeId: "A",
+}, { ip: skippingFieldParticipant.ip });
+assert.deepEqual(repeatedSkipA.state.completedNodes, skippedA.state.completedNodes, "Retrying a skip is idempotent.");
 
 const invalidToken = `${fieldParticipant.token.slice(0, -1)}${fieldParticipant.token.endsWith("A") ? "B" : "A"}`;
 const invalidSession = await post("/api/research/session", {

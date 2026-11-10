@@ -27,7 +27,8 @@ assert.ok(
   correctOptionPositionCounts.every(count => count > 0),
   `correct answers use all four source positions: ${correctOptionPositionCounts}`,
 );
-assert.deepEqual(Object.keys(TEXT_ARCHIVE_MODULES), ["A", "B", "C", "D", "E"]);
+assert.deepEqual(Object.keys(TEXT_ARCHIVE_MODULES), ["baseline", "A", "B", "C", "D", "E"]);
+assert.equal(Object.keys(TEXT_ARCHIVE_MODULES).length * 3, 18, "The text route presents six matched learning sections for 18 questions.");
 assert.equal(COSMETIC_BUNDLES.length, 12);
 assert.equal(new Set(COSMETIC_BUNDLES.map(bundle => bundle.id)).size, 12);
 console.log("research content contract: ok");

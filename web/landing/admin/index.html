@@ -1,4 +1,55 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Feedback Console - Starlight Observatory</title><link rel="stylesheet" href="admin.css"></head>
-<body><header><div><small>STARLIGHT OBSERVATORY</small><h1>Feedback Console</h1></div><a href="../">Back to observatory</a></header>
-<main><section class="toolbar"><select id="status-filter"><option value="">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="planned">Planned</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select><select id="category-filter"><option value="">All categories</option><option value="bug">Bug</option><option value="idea">Idea</option><option value="visual">Visual</option><option value="audio">Audio</option><option value="story">Story</option><option value="other">Other</option></select><button id="refresh">Refresh</button><span id="count"></span></section><p id="notice" role="status"></p><section id="feedback-list" aria-live="polite"></section></main><script src="admin.js"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Observatory Admin Console</title>
+  <link rel="stylesheet" href="admin.css?v=research-20260809">
+</head>
+<body>
+  <header>
+    <div><small>STARLIGHT OBSERVATORY</small><h1>Admin Console</h1></div>
+    <a href="../">Back to observatory</a>
+  </header>
+  <main>
+    <nav class="admin-tabs" aria-label="Admin sections">
+      <button class="is-active" type="button" data-tab="feedback">Feedback</button>
+      <button type="button" data-tab="overview">Research Overview</button>
+      <button type="button" data-tab="participants">Participants</button>
+      <button type="button" data-tab="export">Export</button>
+    </nav>
+    <p id="notice" role="status"></p>
+
+    <section class="admin-panel is-active" data-panel="feedback">
+      <div class="toolbar">
+        <select id="status-filter"><option value="">All statuses</option><option value="new">New</option><option value="reviewing">Reviewing</option><option value="planned">Planned</option><option value="resolved">Resolved</option><option value="closed">Closed</option></select>
+        <select id="category-filter"><option value="">All categories</option><option value="bug">Bug</option><option value="idea">Idea</option><option value="visual">Visual</option><option value="audio">Audio</option><option value="story">Story</option><option value="other">Other</option></select>
+        <button id="refresh-feedback" type="button">Refresh</button><span id="feedback-count"></span>
+      </div>
+      <section id="feedback-list" aria-live="polite"></section>
+    </section>
+
+    <section class="admin-panel" data-panel="overview">
+      <div class="panel-heading"><div><small>ANONYMOUS STUDY DATA</small><h2>Research Overview</h2></div><button id="refresh-overview" type="button">Refresh</button></div>
+      <section id="research-metrics" class="metric-grid" aria-live="polite"></section>
+      <div class="research-grid"><section><h3>Questionnaire nodes</h3><div id="node-summary"></div></section><section><h3>Answer distribution</h3><div id="option-summary"></div></section></div>
+    </section>
+
+    <section class="admin-panel" data-panel="participants">
+      <div class="panel-heading"><div><small>RECORD REVIEW</small><h2>Participants</h2></div></div>
+      <div class="toolbar">
+        <input id="participant-search" type="search" placeholder="Anonymous participant ID">
+        <select id="participant-route"><option value="">Both routes</option><option value="archive_text">Text route</option><option value="field_gameplay">Gameplay route</option></select>
+        <button id="search-participants" type="button">Search</button>
+      </div>
+      <div class="participant-layout"><section id="participant-list" class="participant-list" aria-live="polite"></section><aside id="participant-detail"><p>Select a participant to inspect question-level evidence.</p></aside></div>
+    </section>
+
+    <section class="admin-panel" data-panel="export">
+      <div class="export-card"><small>RESEARCH ARCHIVE</small><h2>Export analysis data</h2><p>Download one CSV row per answer, including anonymous route, node, question version, selected answer, correct answer, score, duration and completion state.</p><button id="download-research" class="primary" type="button">Download CSV</button><p id="export-status" role="status"></p></div>
+    </section>
+  </main>
+  <script src="admin.js?v=research-20260809"></script>
+</body>
+</html>

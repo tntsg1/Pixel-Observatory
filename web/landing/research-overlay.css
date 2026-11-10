@@ -362,6 +362,31 @@
   .po-research-options { gap: 10px; }
 }
 
+.po-research-question-notice {
+  margin: 0 0 14px;
+  padding: 9px 11px;
+  border-left: 3px solid rgba(126, 221, 255, .75);
+  color: #b8ccd8;
+  background: rgba(65, 153, 190, .09);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.po-research-question-actions {
+  width: 100%;
+  justify-content: space-between;
+}
+
+.po-research-question-actions .po-research-primary {
+  order: 0;
+  margin-left: auto;
+}
+
+.po-research-skip-survey {
+  order: 0;
+  color: #b7c7d0;
+}
+
 @media (max-width: 1023px) {
   .po-research-overlay { padding: 20px; }
   .po-research-dialog { max-block-size: calc(100dvh - 40px); }

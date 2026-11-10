@@ -182,6 +182,7 @@ function createHarness({ stored = {}, locationSearch = "", responses = [] } = {}
     console,
     JSON,
     Date,
+    URLSearchParams,
     CustomEvent: class CustomEvent { constructor(type, init = {}) { this.type = type; this.detail = init.detail; } },
   });
   return {
@@ -258,9 +259,10 @@ const study = createHarness({ responses: [
 ] });
 
 await study.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "baseline", completedLevel: 1, language: "zh" } });
-assert.match(study.document.body.textContent, /Join the study/, "L1 dispatch offers the invitation without a local eligibility precheck.");
-await findButton(study.document, "Join the study").click();
+assert.doesNotMatch(study.document.body.textContent, /Join the study/, "L1 dispatch does not interrupt the game with a detached invitation screen.");
 assert.match(study.document.body.textContent, /Chinese baseline question 1/, "Bilingual question objects render in the current game language.");
+assert.match(study.document.body.textContent, /voluntary anonymous|自愿的匿名/, "The first question carries a concise voluntary-participation notice.");
+assert.ok(findButton(study.document, "Skip entire questionnaire"), "Every question offers a visible way to skip the entire questionnaire.");
 assert.doesNotMatch(study.document.body.textContent, /\[object Object\]/, "Question objects never stringify as objects.");
 assert.deepEqual(study.stored(), { participantId: "RSP-1", token: "token-1" }, "Only server credentials are persisted after enrollment.");
 await answerAll(study.document);
@@ -268,8 +270,6 @@ assert.equal(study.document.querySelectorAll(".po-research-reward-card").length,
 await findButton(study.document, "Solar Crown").click();
 assert.match(study.document.body.textContent, /Research Prestige 1/, "A confirmed baseline reward shows its separate research prestige level.");
 await findButton(study.document, "Continue").click();
-assert.match(study.document.body.textContent, /Study route ready/, "The server assignment is shown after baseline confirmation.");
-await findButton(study.document, "Continue gameplay").click();
 assert.deepEqual(study.continuations, [JSON.stringify({ nodeId: "baseline" })], "Baseline continuation sends the exact pending bridge node as JSON.");
 
 await study.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "A", completedLevel: 6, language: "zh" } });
@@ -304,6 +304,7 @@ assert.deepEqual(study.calls.map(call => [call.url, call.method]), [
 assert.deepEqual(study.calls[2].body, {
   participantId: "RSP-1", token: "token-1", offerId: "RO-BASE", bundleId: "R01",
 }, "Reward choice is authenticated and can only consume the offered bundle.");
+assert.equal(study.calls[0].body.routeArm, "field_gameplay", "The game URL enrolls directly into the fixed gameplay route.");
 assert.deepEqual(study.calls[3].body, { participantId: "RSP-1", token: "token-1" }, "Session refresh is authenticated at the top level.");
 assert.deepEqual(study.calls[4].body, { participantId: "RSP-1", token: "token-1", level: 6 }, "Checkpoint posts authenticated top-level level data from Godot.");
 assert.deepEqual({ ...study.calls[1].body, durationSeconds: 0 }, {
@@ -383,26 +384,23 @@ assert.deepEqual(checkpointFlow.calls.slice(4, 6), [
 ], "The same verified session dispatches an authenticated Level 11 checkpoint after A.");
 assert.match(checkpointFlow.document.body.textContent, /English B prompt 1/, "The Level 11 checkpoint response opens node B questions.");
 
-const deferredState = { ...fieldAState, participantId: "RSP-2", currentNode: "B", deferCounts: { B: 1 }, questions: questions("zh", "B") };
+const checkpointBeforeCState = { ...fieldWaitingState, participantId: "RSP-2", completedNodes: ["baseline", "A", "B"] };
+const checkpointCState = { ...checkpointBeforeCState, currentNode: "C", questions: questions("zh", "C") };
+const checkpointAfterCState = { ...checkpointBeforeCState, completedNodes: ["baseline", "A", "B", "C"] };
 const deferral = createHarness({ stored: { participantId: "RSP-2", token: "token-2", baselineComplete: true, routeArm: "field_gameplay" }, responses: [
-  { body: { state: deferredState } },
-  { body: { state: deferredState, checkpoint: { level: 16, nodeId: "C" } } },
-  { body: { state: { ...deferredState, deferCounts: { B: 2 } }, deferCount: 2 } },
+  { body: { state: checkpointBeforeCState } },
+  { body: { state: checkpointCState, checkpoint: { level: 16, nodeId: "C" } } },
+  { body: { state: checkpointAfterCState, skippedNode: "C" } },
 ] });
 await deferral.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "C", completedLevel: 16, language: "zh" } });
-await findButton(deferral.document, "Later").click();
+await findButton(deferral.document, "Skip entire questionnaire").click();
 assert.deepEqual(deferral.calls, [
   { url: "/api/research/session", method: "POST", body: { participantId: "RSP-2", token: "token-2" } },
   { url: "/api/research/checkpoint", method: "POST", body: { participantId: "RSP-2", token: "token-2", level: 16 } },
-  { url: "/api/research/defer", method: "POST", body: { participantId: "RSP-2", token: "token-2", nodeId: "B" } },
-], "Deferral is authenticated and targets the current server node, not the checkpoint node.");
-assert.match(deferral.document.body.textContent, /Stop reminders for this session/, "The second Later offers a session-only silence action.");
-await findButton(deferral.document, "Stop reminders for this session").click();
-assert.deepEqual(deferral.continuations, [JSON.stringify({ nodeId: "C" })], "Deferral still resumes the bridge's pending checkpoint node.");
-assert.equal(deferral.stored().sessionSilenced, undefined, "Session-only reminder silence is never persisted.");
-deferral.window.PixelObservatoryResearch.openSettings();
-await findButton(deferral.document, "Enable reminders").click();
-assert.equal(deferral.calls.length, 3, "Settings clears local reminder silence without inventing a server payload.");
+  { url: "/api/research/skip", method: "POST", body: { participantId: "RSP-2", token: "token-2", nodeId: "C" } },
+], "Skipping a questionnaire is authenticated and targets the current server node, not the checkpoint node.");
+assert.deepEqual(deferral.continuations, [JSON.stringify({ nodeId: "C" })], "Skipping resumes the bridge's pending checkpoint node.");
+assert.equal(deferral.stored().pendingSubmission, undefined, "Skipping never persists or submits empty answers.");
 
 const forged = createHarness({
   stored: { participantId: "forged", token: "forged", baselineComplete: true, declined: false, routeArm: "field_gameplay" },
@@ -415,10 +413,21 @@ assert.equal(forged.window.PixelObservatoryResearch.hasVerifiedGameplaySession()
 assert.doesNotMatch(forged.document.body.textContent, /English A prompt|Chinese A question/, "Forged browser state cannot unlock questions.");
 assert.deepEqual(forged.continuations, [JSON.stringify({ nodeId: "A" })], "Rejected browser state falls through to the game.");
 
+const baselineSkip = createHarness({ responses: [
+  { status: 201, body: { participantId: "RSP-SKIP", token: "token-skip", state: { ...baselineState, participantId: "RSP-SKIP" } } },
+  { body: { state: { ...fieldWaitingState, participantId: "RSP-SKIP" }, skippedNode: "baseline" } },
+] });
+await baselineSkip.window.PixelObservatoryResearch.handleCheckpoint({ detail: { nodeId: "baseline", completedLevel: 1, language: "en" } });
+assert.match(baselineSkip.document.body.textContent, /Chinese baseline question 1/, "A fresh player sees the first baseline question immediately in the server-selected language.");
+await findButton(baselineSkip.document, "Skip entire questionnaire").click();
+assert.deepEqual(baselineSkip.continuations, [JSON.stringify({ nodeId: "baseline" })], "Skipping the full baseline questionnaire returns directly to the game.");
+assert.deepEqual(baselineSkip.calls.map(call => call.url), ["/api/research/enroll", "/api/research/skip"], "Skipping records enrollment and a skip event, never an empty questionnaire submission.");
+
 // Supplementary build-shell assertions; behavior above is the protocol coverage.
 assert.match(overlay, /observatory:research-checkpoint/);
 assert.match(overlay, /JSON\.stringify\(\{ nodeId/);
 assert.match(styles, /prefers-reduced-motion:\s*reduce/);
+assert.match(styles, /po-research-skip-survey/);
 assert.match(builder, /research-overlay\.js/);
 assert.match(patcher, /research-overlay\.js/);
 assert.match(verifier, /research-overlay\.js/);

@@ -14,14 +14,23 @@ assert.ok(
 assert.ok(source.includes("TEXT_ARCHIVE_MODULES"), "Archive-text sessions must consume the shared content module.");
 assert.ok(source.includes("/api/research/session"), "Restored sessions must load their server state.");
 assert.ok(source.includes("/api/research/submit"), "The three-question form must submit to the research API.");
-assert.ok(source.includes("/api/research/defer"), "The controller must support the two-reminder deferral API.");
+assert.ok(source.includes('routeArm: "archive_text"'), "The text URL must enroll into the fixed archive route.");
+assert.ok(
+  source.includes('!serverState.routeArm && routeMode === "archive_text"'),
+  "The fixed text URL must render its baseline while the server keeps assignment details hidden.",
+);
+assert.ok(source.includes("research_route=field_gameplay"), "The game URL must launch the fixed gameplay route.");
 assert.ok(source.includes("/api/research/exposure"), "Ordinary-game cross exposure must be recorded first.");
 assert.ok(source.includes("/api/research/withdraw"), "Confirmed withdrawal must reach the research API.");
 assert.ok(source.includes("noRemindSessionNodes"), "No-reminder choices must remain session-local.");
 assert.ok(source.includes("po:research-reward-offer"), "Completed nodes must emit their reward offer event.");
 assert.ok(source.includes("research_intro=1"), "Fresh entry must preserve the original Godot introduction.");
 assert.ok(source.includes("study_reset"), "Fresh entry must reset the isolated Level 1 session.");
-assert.match(page, /<script[^>]*src="study\.js/);
+assert.match(page, /<script[^>]*src="\/study\/study\.js/);
+assert.match(source, /\/study\/text\//, "The route chooser must expose the text-learning URL.");
+assert.match(source, /\/study\/game\//, "The route chooser must expose the gameplay URL.");
+assert.ok(source.includes("Read all six sections"), "The text route must provide one learning section for every questionnaire node.");
+assert.match(source, /18 questions|18 道题/, "The text route must clearly expose the full 18-question instrument.");
 assert.match(styles, /@media \(max-width: 600px\)/);
 assert.match(styles, /prefers-reduced-motion/);
 assert.doesNotMatch(

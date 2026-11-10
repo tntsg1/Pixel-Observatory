@@ -745,6 +745,16 @@ export const QUESTION_FORMS = freezeDeep({
 });
 
 export const TEXT_ARCHIVE_MODULES = freezeDeep({
+  baseline: {
+    id: "baseline",
+    title: bilingual("First Light", "初见星光"),
+    body: bilingual(
+      "A telescope shows only a small part of the sky, so target finding works best as a sequence. First locate the bright target with your eyes, then centre it in the finder scope, and only then move to the main telescope. Each step narrows the field of view. Skipping the finder can leave the target outside the main telescope's much smaller view even when the telescope is pointing close to the correct place.\n\nA soft, round star is usually a focus problem. The focuser changes where the converging light reaches a sharp point; it does not change the telescope's aperture or the target's true position. Adjust it in small steps and compare the star before and after each movement. The sharpest setting is the one that produces the smallest, cleanest star image.\n\nAperture is the diameter of the main light-collecting lens or mirror. A larger aperture gathers more light, so faint objects can be easier to detect and more detail may become available under suitable conditions. Aperture is different from magnification: an eyepiece can enlarge an image, but it cannot replace light that the telescope never collected.",
+      "望远镜一次只能显示天空中的一小部分，因此寻找目标最好按顺序进行。先用肉眼找到明亮目标，再把它放到寻星镜中央，最后才切换到主望远镜。每一步都会缩小视野。如果跳过寻星镜，即使望远镜已经大致指向正确方向，目标也可能仍在主望远镜狭窄视野之外。\n\n柔软、圆钝的星点通常说明调焦有问题。调焦器改变会聚光线形成清晰焦点的位置，不会改变望远镜口径，也不会改变目标的真实位置。应当小幅调整，并比较每次移动前后的星点。能形成最小、最干净星像的位置就是最清晰的焦点。\n\n口径是主要集光透镜或镜面的直径。更大的口径能够收集更多光线，因此在条件合适时，暗弱天体更容易被发现，也可能呈现更多细节。口径不同于倍率：目镜可以放大图像，却不能补回望远镜从未收集到的光。"
+    ),
+    diagrams: [],
+    conceptIds: ["baseline-finder-sequence", "baseline-focus", "baseline-aperture"],
+  },
   A: {
     id: "A",
     title: bilingual("Finding and Focusing", "寻星与调焦"),

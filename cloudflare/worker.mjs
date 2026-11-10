@@ -6,7 +6,7 @@ import {
 	scoreAnswers,
 	selectQuestionForm,
 } from "./research-program.mjs";
-import { RESEARCH_NODES, RESEARCH_VERSION } from "../web/landing/study/research-content.mjs";
+import { QUESTION_FORMS, RESEARCH_NODES, RESEARCH_VERSION } from "../web/landing/study/research-content.mjs";
 
 const ISOLATION_HEADERS = {
 	"Cross-Origin-Embedder-Policy": "require-corp",
@@ -2004,12 +2004,16 @@ async function handleResearchEnroll(request, env) {
 	const token = randomToken(32);
 	const now = Math.floor(Date.now() / 1_000);
 	const participantId = researchId("RSP");
+	const requestedRoute = String(body.routeArm || "");
+	const routeArm = requestedRoute === "archive_text" || requestedRoute === "field_gameplay"
+		? requestedRoute
+		: assignRoute(crypto.getRandomValues(new Uint32Array(1))[0]);
 	const participant = {
 		participant_id: participantId,
 		study_token_hash: await sha256(`${participantId}:${token}`),
 		language: body.language === "zh" ? "zh" : "en",
 		consent_version: RESEARCH_CONSENT_VERSION,
-		route_arm: assignRoute(crypto.getRandomValues(new Uint32Array(1))[0]),
+		route_arm: routeArm,
 		current_node: "baseline",
 		completed_nodes_json: "[]",
 		defer_counts_json: "{}",
@@ -2043,7 +2047,7 @@ async function handleResearchEnroll(request, env) {
 			participant.created_at,
 			participant.updated_at,
 		),
-		researchEvent(env, participant.participant_id, "enrolled", { language: participant.language }, now),
+		researchEvent(env, participant.participant_id, "enrolled", { language: participant.language, routeArm }, now),
 	]);
 	return json({
 		participantId: participant.participant_id,
@@ -2273,6 +2277,59 @@ async function handleResearchDefer(request, env) {
 	return json({ state: await researchStateForParticipant(env, updatedParticipant), deferCount });
 }
 
+async function handleResearchSkip(request, env) {
+	if (!(await rateLimit(env, request, "research_skip", 60, 3_600))) return apiError("Too many research skip requests. Please wait.", 429, "rate_limited");
+	let body;
+	try {
+		body = await readJson(request, 4_000);
+	} catch {
+		return apiError("Invalid research skip request.");
+	}
+	const participant = await researchParticipantForPayload(env, body);
+	if (!participant) return apiError("Research session not found.", 401, "invalid_research_session");
+	if (researchIsWithdrawn(participant)) return apiError("This research record has been withdrawn.", 409, "research_withdrawn");
+	if (participant.route_arm !== "field_gameplay") {
+		return apiError("Questionnaires cannot be skipped on this research route.", 409, "research_skip_unavailable");
+	}
+	const nodeId = String(body.nodeId || "");
+	const existingSkip = await env.RESEARCH_DB.prepare(
+		`SELECT event_id FROM research_events
+		 WHERE participant_id = ? AND event_type = 'questionnaire_skipped'
+		 AND json_extract(payload_json, '$.nodeId') = ? LIMIT 1`,
+	).bind(participant.participant_id, nodeId).first();
+	if (existingSkip) {
+		return json({ state: await researchStateForParticipant(env, participant), skippedNode: nodeId });
+	}
+	const { responseRows, evidence, state } = await researchStateDataForParticipant(env, participant);
+	if (responseRows.some(row => row.node_id === nodeId)) {
+		return apiError("This research node has already been submitted.", 409, "research_node_submitted");
+	}
+	if (state.currentNode !== nodeId) {
+		return apiError("That research node is not available.", 409, "research_node_unavailable");
+	}
+	const completedNodes = [...state.completedNodes, nodeId];
+	const nextNode = researchProjectedCurrentNode(participant.route_arm, completedNodes, evidence);
+	const now = Math.floor(Date.now() / 1_000);
+	const updatedParticipant = {
+		...participant,
+		current_node: nextNode || "",
+		completed_nodes_json: JSON.stringify(completedNodes),
+		updated_at: now,
+	};
+	await env.RESEARCH_DB.batch([
+		env.RESEARCH_DB.prepare(
+			`UPDATE research_participants
+			 SET current_node = ?, completed_nodes_json = ?, updated_at = ?
+			 WHERE participant_id = ?`,
+		).bind(nextNode || "", updatedParticipant.completed_nodes_json, now, participant.participant_id),
+		researchEvent(env, participant.participant_id, "questionnaire_skipped", { nodeId }, now),
+	]);
+	return json({
+		state: await researchPublicState(updatedParticipant, responseRows, null, evidence),
+		skippedNode: nodeId,
+	});
+}
+
 async function handleResearchExposure(request, env) {
 	let body;
 	try {
@@ -2403,6 +2460,319 @@ async function handleResearchRewardChoose(request, env) {
 	return researchRewardChoiceResponse(env, participant, offerId, bundleId);
 }
 
+function parseResearchJson(value, fallback) {
+	try {
+		const parsed = JSON.parse(value || "");
+		return parsed && typeof parsed === "object" ? parsed : fallback;
+	} catch {
+		return fallback;
+	}
+}
+
+function researchFormById(formId) {
+	for (const forms of Object.values(QUESTION_FORMS)) {
+		const form = forms.find(candidate => candidate.id === formId);
+		if (form) return form;
+	}
+	return null;
+}
+
+function researchAnswerRows(response, language = "en") {
+	const form = researchFormById(response.question_form_id);
+	const answers = parseResearchJson(response.answers_json, {});
+	if (!form) return [];
+	return form.questions.map(question => {
+		const selectedId = String(answers[question.id] || "");
+		const selected = question.options.find(option => option.id === selectedId);
+		const correct = question.options.find(option => option.id === question.correctOptionId);
+		return {
+			questionId: question.id,
+			prompt: question.prompt?.[language] || question.prompt?.en || "",
+			selectedAnswer: selected?.[language] || selected?.en || "",
+			selectedAnswerId: selectedId,
+			correctAnswer: correct?.[language] || correct?.en || "",
+			correctAnswerId: question.correctOptionId,
+			correct: selectedId === question.correctOptionId,
+		};
+	});
+}
+
+function researchParticipantComplete(participant) {
+	const completed = parseResearchJson(participant.completed_nodes_json, []);
+	return Array.isArray(completed) && RESEARCH_NODES.every(node => completed.includes(node.id));
+}
+
+async function handleAdminResearchSummary(request, env) {
+	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
+	const [participantResult, responseResult, eventResult] = await Promise.all([
+		env.RESEARCH_DB.prepare(
+			`SELECT participant_id, language, route_arm, completed_nodes_json, withdrawn_at, created_at, updated_at
+			 FROM research_participants ORDER BY created_at DESC LIMIT 5000`,
+		).all(),
+		env.RESEARCH_DB.prepare(
+			`SELECT participant_id, node_id, question_form_id, answers_json, score, max_score,
+			 duration_seconds, late_response, created_at FROM research_responses
+			 ORDER BY created_at DESC LIMIT 30000`,
+		).all(),
+		env.RESEARCH_DB.prepare(
+			`SELECT participant_id, event_type, payload_json, created_at FROM research_events
+			 WHERE event_type IN ('questionnaire_deferred', 'questionnaire_skipped', 'withdrawn') ORDER BY created_at DESC LIMIT 20000`,
+		).all(),
+	]);
+	const participants = participantResult.results || [];
+	const responses = responseResult.results || [];
+	const events = eventResult.results || [];
+	const routeCounts = { archive_text: 0, field_gameplay: 0 };
+	const languageCounts = { en: 0, zh: 0 };
+	const routeCompleted = { archive_text: 0, field_gameplay: 0 };
+	for (const participant of participants) {
+		routeCounts[participant.route_arm] = Number(routeCounts[participant.route_arm] || 0) + 1;
+		languageCounts[participant.language] = Number(languageCounts[participant.language] || 0) + 1;
+		if (researchParticipantComplete(participant)) routeCompleted[participant.route_arm] += 1;
+	}
+	const nodeSubmissions = Object.fromEntries(RESEARCH_NODES.map(node => [node.id, 0]));
+	const optionDistributions = {};
+	const questionLabels = {};
+	const optionLabels = {};
+	let totalScore = 0;
+	let totalPossible = 0;
+	let totalDuration = 0;
+	let lateResponses = 0;
+	for (const response of responses) {
+		nodeSubmissions[response.node_id] = Number(nodeSubmissions[response.node_id] || 0) + 1;
+		totalScore += Number(response.score || 0);
+		totalPossible += Number(response.max_score || 0);
+		totalDuration += Number(response.duration_seconds || 0);
+		lateResponses += Number(response.late_response || 0) ? 1 : 0;
+		for (const answer of researchAnswerRows(response, "en")) {
+			optionDistributions[answer.questionId] ||= {};
+			optionDistributions[answer.questionId][answer.selectedAnswerId] = Number(optionDistributions[answer.questionId][answer.selectedAnswerId] || 0) + 1;
+			questionLabels[answer.questionId] ||= answer.prompt;
+			optionLabels[answer.questionId] ||= {};
+			optionLabels[answer.questionId][answer.selectedAnswerId] ||= answer.selectedAnswer;
+		}
+	}
+	const deferredEvents = events.filter(event => event.event_type === "questionnaire_deferred").length;
+	const skippedEvents = events.filter(event => event.event_type === "questionnaire_skipped").length;
+	const withdrawn = participants.filter(participant => Number(participant.withdrawn_at || 0) > 0).length;
+	const completed = participants.filter(researchParticipantComplete).length;
+	return json({
+		ok: true,
+		summary: {
+			totalParticipants: participants.length,
+			routeCounts,
+			languageCounts,
+			completed,
+			incomplete: Math.max(0, participants.length - completed - withdrawn),
+			withdrawn,
+			incompleteRate: participants.length ? Math.max(0, participants.length - completed - withdrawn) / participants.length : 0,
+			withdrawalRate: participants.length ? withdrawn / participants.length : 0,
+			routeCompletionRates: {
+				archive_text: routeCounts.archive_text ? routeCompleted.archive_text / routeCounts.archive_text : 0,
+				field_gameplay: routeCounts.field_gameplay ? routeCompleted.field_gameplay / routeCounts.field_gameplay : 0,
+			},
+			nodeSubmissions,
+			averageScore: totalPossible ? totalScore / totalPossible : 0,
+			averageDurationSeconds: responses.length ? totalDuration / responses.length : 0,
+			deferredEvents,
+			skippedEvents,
+			skipRate: responses.length + skippedEvents ? skippedEvents / (responses.length + skippedEvents) : 0,
+			lateResponses,
+			optionDistributions,
+			questionLabels,
+			optionLabels,
+		},
+	});
+}
+
+async function handleAdminResearchParticipants(request, env) {
+	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
+	const url = new URL(request.url);
+	const route = url.searchParams.get("route") || "";
+	const query = String(url.searchParams.get("q") || "").trim().slice(0, 80);
+	const conditions = [];
+	const values = [];
+	if (route === "archive_text" || route === "field_gameplay") {
+		conditions.push("p.route_arm = ?");
+		values.push(route);
+	}
+	if (query) {
+		conditions.push("p.participant_id LIKE ?");
+		values.push(`%${query}%`);
+	}
+	const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+	const result = await env.RESEARCH_DB.prepare(
+		`SELECT p.participant_id, p.language, p.route_arm, p.current_node, p.completed_nodes_json,
+		 p.defer_counts_json, p.late_response_count, p.withdrawn_at, p.created_at, p.updated_at,
+		 COUNT(r.response_id) AS response_count, COALESCE(SUM(r.score), 0) AS total_score,
+		 COALESCE(SUM(r.max_score), 0) AS max_score, COALESCE(SUM(r.duration_seconds), 0) AS total_duration_seconds
+		 FROM research_participants p LEFT JOIN research_responses r ON r.participant_id = p.participant_id
+		 ${where} GROUP BY p.participant_id ORDER BY p.created_at DESC LIMIT 250`,
+	).bind(...values).all();
+	return json({
+		ok: true,
+		participants: (result.results || []).map(participant => ({
+			participantId: participant.participant_id,
+			language: participant.language,
+			routeArm: participant.route_arm,
+			currentNode: participant.current_node,
+			completedNodes: parseResearchJson(participant.completed_nodes_json, []),
+			deferCounts: parseResearchJson(participant.defer_counts_json, {}),
+			lateResponseCount: Number(participant.late_response_count || 0),
+			withdrawn: Number(participant.withdrawn_at || 0) > 0,
+			complete: researchParticipantComplete(participant),
+			responseCount: Number(participant.response_count || 0),
+			totalScore: Number(participant.total_score || 0),
+			maxScore: Number(participant.max_score || 0),
+			totalDurationSeconds: Number(participant.total_duration_seconds || 0),
+			createdAt: Number(participant.created_at || 0),
+			updatedAt: Number(participant.updated_at || 0),
+		})),
+	});
+}
+
+async function handleAdminResearchParticipant(request, env, participantId) {
+	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
+	const normalizedId = normalizeResearchParticipantId(participantId);
+	if (!normalizedId) return apiError("Research participant not found.", 404, "not_found");
+	const participant = await env.RESEARCH_DB.prepare(
+		`SELECT participant_id, language, consent_version, route_arm, current_node, completed_nodes_json,
+		 defer_counts_json, late_response_count, cross_exposed, withdrawn_at, consented_at, created_at, updated_at
+		 FROM research_participants WHERE participant_id = ?`,
+	).bind(normalizedId).first();
+	if (!participant) return apiError("Research participant not found.", 404, "not_found");
+	const [responseResult, eventResult] = await Promise.all([
+		env.RESEARCH_DB.prepare(
+			`SELECT response_id, node_id, question_form_id, answers_json, score, max_score,
+			 duration_seconds, late_response, created_at FROM research_responses
+			 WHERE participant_id = ? ORDER BY created_at, rowid`,
+		).bind(normalizedId).all(),
+		env.RESEARCH_DB.prepare(
+			`SELECT event_id, event_type, payload_json, created_at FROM research_events
+			 WHERE participant_id = ? ORDER BY created_at, rowid`,
+		).bind(normalizedId).all(),
+	]);
+	return json({
+		ok: true,
+		participant: {
+			participantId: participant.participant_id,
+			language: participant.language,
+			consentVersion: participant.consent_version,
+			routeArm: participant.route_arm,
+			currentNode: participant.current_node,
+			completedNodes: parseResearchJson(participant.completed_nodes_json, []),
+			deferCounts: parseResearchJson(participant.defer_counts_json, {}),
+			lateResponseCount: Number(participant.late_response_count || 0),
+			crossExposed: Number(participant.cross_exposed || 0) === 1,
+			withdrawn: Number(participant.withdrawn_at || 0) > 0,
+			complete: researchParticipantComplete(participant),
+			createdAt: Number(participant.created_at || 0),
+			updatedAt: Number(participant.updated_at || 0),
+		},
+		responses: (responseResult.results || []).map(response => ({
+			responseId: response.response_id,
+			nodeId: response.node_id,
+			questionFormId: response.question_form_id,
+			score: Number(response.score || 0),
+			maxScore: Number(response.max_score || 0),
+			durationSeconds: Number(response.duration_seconds || 0),
+			lateResponse: Number(response.late_response || 0) === 1,
+			createdAt: Number(response.created_at || 0),
+			answers: researchAnswerRows(response, participant.language),
+		})),
+		events: (eventResult.results || []).map(event => ({
+			eventId: event.event_id,
+			type: event.event_type,
+			payload: researchEventPayload(event),
+			createdAt: Number(event.created_at || 0),
+		})),
+	});
+}
+
+function csvCell(value) {
+	const text = String(value ?? "");
+	return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+async function handleAdminResearchExport(request, env) {
+	if (!(await requireAdmin(env, request))) return apiError("Administrator access required.", 403, "forbidden");
+	const [result, skippedResult] = await Promise.all([
+		env.RESEARCH_DB.prepare(
+		`SELECT p.participant_id, p.language, p.route_arm, p.completed_nodes_json, p.defer_counts_json,
+		 r.node_id, r.question_form_id, r.answers_json, r.score, r.max_score, r.duration_seconds,
+		 r.late_response, r.created_at,
+		 (SELECT COALESCE(SUM(r2.score), 0) FROM research_responses r2 WHERE r2.participant_id = p.participant_id) AS participant_total_score
+		 FROM research_participants p
+		 JOIN research_responses r ON r.participant_id = p.participant_id
+		 ORDER BY p.created_at, r.created_at, r.rowid LIMIT 50000`,
+		).all(),
+		env.RESEARCH_DB.prepare(
+			`SELECT p.participant_id, p.route_arm, p.completed_nodes_json, e.payload_json, e.created_at
+			 FROM research_participants p JOIN research_events e ON e.participant_id = p.participant_id
+			 WHERE e.event_type = 'questionnaire_skipped'
+			 ORDER BY p.created_at, e.created_at, e.rowid LIMIT 10000`,
+		).all(),
+	]);
+	const header = ["participant_id", "route_arm", "node_id", "after_level", "question_version", "question_id", "question", "selected_answer", "correct_answer", "is_correct", "node_score", "total_score", "duration_seconds", "submitted_at", "is_skipped", "late_submission", "study_complete"];
+	const rows = [header];
+	for (const response of result.results || []) {
+		const node = RESEARCH_NODES.find(candidate => candidate.id === response.node_id);
+		for (const answer of researchAnswerRows(response, response.language)) {
+			rows.push([
+				response.participant_id,
+				response.route_arm,
+				response.node_id,
+				node?.afterLevel || "",
+				response.question_form_id,
+				answer.questionId,
+				answer.prompt,
+				answer.selectedAnswer,
+				answer.correctAnswer,
+				answer.correct ? 1 : 0,
+				response.score,
+				response.participant_total_score,
+				response.duration_seconds,
+				new Date(Number(response.created_at || 0) * 1000).toISOString(),
+				0,
+				Number(response.late_response || 0) ? 1 : 0,
+				researchParticipantComplete(response) ? 1 : 0,
+			]);
+		}
+	}
+	for (const event of skippedResult.results || []) {
+		const payload = parseResearchJson(event.payload_json, {});
+		const nodeId = String(payload.nodeId || "");
+		const node = RESEARCH_NODES.find(candidate => candidate.id === nodeId);
+		rows.push([
+			event.participant_id,
+			event.route_arm,
+			nodeId,
+			node?.afterLevel || "",
+			RESEARCH_VERSION,
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			"",
+			new Date(Number(event.created_at || 0) * 1000).toISOString(),
+			1,
+			0,
+			researchParticipantComplete(event) ? 1 : 0,
+		]);
+	}
+	const csv = `\uFEFF${rows.map(row => row.map(csvCell).join(",")).join("\r\n")}`;
+	return new Response(csv, {
+		headers: {
+			"Content-Type": "text/csv; charset=utf-8",
+			"Content-Disposition": `attachment; filename="pixel-observatory-research-${new Date().toISOString().slice(0, 10)}.csv"`,
+			"Cache-Control": "no-store",
+		},
+	});
+}
+
 async function handleApi(request, env, url) {
 	if (request.method !== "GET" && !requestOriginAllowed(request)) return apiError("Request origin rejected.", 403, "origin_rejected");
 	if (url.pathname === "/api/config" && request.method === "GET") {
@@ -2416,6 +2786,7 @@ async function handleApi(request, env, url) {
 	if (url.pathname === "/api/research/submit" && request.method === "POST") return handleResearchSubmit(request, env);
 	if (url.pathname === "/api/research/checkpoint" && request.method === "POST") return handleResearchCheckpoint(request, env);
 	if (url.pathname === "/api/research/defer" && request.method === "POST") return handleResearchDefer(request, env);
+	if (url.pathname === "/api/research/skip" && request.method === "POST") return handleResearchSkip(request, env);
 	if (url.pathname === "/api/research/exposure" && request.method === "POST") return handleResearchExposure(request, env);
 	if (url.pathname === "/api/research/withdraw" && request.method === "POST") return handleResearchWithdraw(request, env);
 	if (url.pathname === "/api/research/reward/choose" && request.method === "POST") return handleResearchRewardChoose(request, env);
@@ -2482,6 +2853,13 @@ async function handleApi(request, env, url) {
 		return handleConversationGet(request, env, decodeURIComponent(conversationMatch[1]));
 	}
 	if (url.pathname === "/api/admin/feedback" && request.method === "GET") return handleAdminList(request, env);
+	if (url.pathname === "/api/admin/research/summary" && request.method === "GET") return handleAdminResearchSummary(request, env);
+	if (url.pathname === "/api/admin/research/participants" && request.method === "GET") return handleAdminResearchParticipants(request, env);
+	if (url.pathname === "/api/admin/research/export.csv" && request.method === "GET") return handleAdminResearchExport(request, env);
+	const adminResearchParticipantMatch = url.pathname.match(/^\/api\/admin\/research\/participants\/([^/]+)$/);
+	if (adminResearchParticipantMatch && request.method === "GET") {
+		return handleAdminResearchParticipant(request, env, decodeURIComponent(adminResearchParticipantMatch[1]));
+	}
 	const adminMatch = url.pathname.match(/^\/api\/admin\/feedback\/([^/]+)$/);
 	if (adminMatch && request.method === "PATCH") return handleAdminUpdate(request, env, decodeURIComponent(adminMatch[1]));
 	const moderationMatch = url.pathname.match(/^\/api\/admin\/users\/([^/]+)\/moderation$/);
@@ -2509,7 +2887,7 @@ export default {
 		// Cloudflare Assets canonicalises *.html routes to extensionless paths.
 		// Serve this private text asset directly so /study cannot be redirected
 		// back to itself by that canonicalisation rule.
-		if ((url.pathname === "/study" || url.pathname === "/study/") && request.method === "GET") {
+		if (/^\/study(?:\/(?:text|game))?\/?$/.test(url.pathname) && request.method === "GET") {
 			const studyAsset = await env.ASSETS.fetch(new Request(new URL("/study-entry.txt", url), request));
 			const headers = new Headers(studyAsset.headers);
 			headers.set("Content-Type", "text/html; charset=utf-8");

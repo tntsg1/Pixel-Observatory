@@ -589,7 +589,7 @@ func study_mode_active() -> bool:
 func research_route_arm() -> String:
 	if not OS.has_feature("web") or not ClassDB.class_exists("JavaScriptBridge"):
 		return ""
-	var value: Variant = JavaScriptBridge.eval("new URL(location.href).searchParams.get('research_arm') || ''", true)
+	var value: Variant = JavaScriptBridge.eval("new URL(location.href).searchParams.get('research_route') || ''", true)
 	var arm := str(value)
 	if arm == "archive_text" or arm == "field_gameplay":
 		return arm

@@ -1,9 +1,15 @@
 (() => {
   "use strict";
 
-  import("./research-content.mjs").then(({ TEXT_ARCHIVE_MODULES }) => {
+  import("./research-content.mjs").then(({ RESEARCH_NODES, TEXT_ARCHIVE_MODULES }) => {
     const app = document.getElementById("study-app");
-    const sessionStorageKey = "pixel-observatory:research-session:v2";
+    const routeMode = (() => {
+      const pathname = window.location.pathname.replace(/\/+$/, "");
+      if (pathname.endsWith("/study/text")) return "archive_text";
+      if (pathname.endsWith("/study/game")) return "field_gameplay";
+      return "";
+    })();
+    const sessionStorageKey = `pixel-observatory:research-session:v2:${routeMode || "entry"}`;
     const moduleNodeIds = Object.keys(TEXT_ARCHIVE_MODULES);
     const staticCopy = {
       sessionLabel: ["Research session", "研究会话"],
@@ -31,6 +37,7 @@
         participantId: createPrestudyId(),
         token: "",
         language: "en",
+        readingComplete: false,
         noRemindSessionNodes: [],
       };
     }
@@ -56,6 +63,7 @@
           participantId,
           token: typeof parsed.token === "string" ? parsed.token : "",
           language: parsed.language === "zh" ? "zh" : "en",
+          readingComplete: parsed.readingComplete === true,
           noRemindSessionNodes,
         };
       } catch (_) {
@@ -68,6 +76,7 @@
         participantId: session.participantId,
         token: session.token,
         language,
+        readingComplete: session.readingComplete === true,
         noRemindSessionNodes: session.noRemindSessionNodes,
       };
       session = persisted;
@@ -142,7 +151,8 @@
     }
 
     function gameUrl() {
-      return `/game/?mode=study&research_intro=1&participant=${encodeURIComponent(session.participantId)}&study_reset=${Date.now()}`;
+      const participant = hasServerSession() ? `&participant=${encodeURIComponent(session.participantId)}` : "";
+      return `/game/?mode=study&research_intro=1&research_route=field_gameplay${participant}&study_reset=${Date.now()}`;
     }
 
     function view(markup, name) {
@@ -174,28 +184,148 @@
       if (resumeError) return renderResumeError();
       if (!serverState) return renderLoading();
       if (serverState.withdrawn) return renderWithdrawn();
-      if (serverState.routeArm === "archive_text" && TEXT_ARCHIVE_MODULES[serverState.currentNode]) {
-        return renderArchiveRoute(TEXT_ARCHIVE_MODULES[serverState.currentNode]);
+      if (routeMode && serverState.routeArm && serverState.routeArm !== routeMode) {
+        return renderRouteMismatch();
+      }
+      if (routeMode === "archive_text" && !session.readingComplete) return renderTextReading();
+      const isTextRoute = serverState.routeArm === "archive_text"
+        || (!serverState.routeArm && routeMode === "archive_text");
+      if (isTextRoute && serverState.currentNode) {
+        return renderTextQuestionnaire();
       }
       if (serverState.completedNodes?.includes("E")) return renderCompleted();
       return renderGameReturn();
     }
 
     function renderFreshEntry() {
+      if (routeMode === "archive_text") return renderFreshTextEntry();
+      if (routeMode === "field_gameplay") return renderFreshGameEntry();
       view(`
         <section class="study-view fresh-entry" data-view="fresh-entry">
-          <p class="eyebrow">${t("Optional research", "可选研究")}</p>
-          <h1>${t("Start with the original observatory opening.", "从原始观测站开场开始。")}</h1>
+          <p class="eyebrow">${t("Two learning routes", "两条学习路线")}</p>
+          <h1>${t("Choose how you want to learn astronomy.", "选择你希望如何学习天文学。")}</h1>
           <p class="lead">${t(
-            "This optional study follows your normal Pixel Observatory journey. Start from the opening and complete Level 1 in the original game; the next in-game step will guide any optional research activity.",
-            "这项可选研究会跟随你正常的《像素观测站》旅程。请从原始开场开始，并在原游戏中完成第 1 关；下一步可选研究会在游戏内引导你继续。",
+            "Both routes use the same astronomy topics. One uses concise reading material; the other uses the original 24-level game.",
+            "两条路线使用相同的天文知识点。一条通过精简资料学习，另一条完整体验原版 24 关游戏。",
           )}</p>
-          <div class="actions">
-            <a class="primary" data-action="start-opening" href="${escapeHtml(gameUrl())}">${t("Start from the opening", "从开场开始")}</a>
+          <div class="route-grid">
+            <a class="route-choice" href="/study/text/"><strong>${t("Read, then answer", "阅读资料后答题")}</strong><span>${t("Read all learning cards, then complete the full questionnaire.", "阅读全部知识卡后，完成完整问卷。")}</span></a>
+            <a class="route-choice" href="/study/game/"><strong>${t("Play Levels 1-24", "游玩第 1 至 24 关")}</strong><span>${t("Learn through the original Godot game and answer short checkpoint questionnaires.", "通过原版 Godot 游戏学习，并完成阶段问卷。")}</span></a>
           </div>
-          <p class="fine">${t("Your game progress remains in an isolated study session.", "你的游戏进度会保留在独立的研究会话中。")}</p>
+          <p class="fine">${t("The two anonymous research records are kept separate.", "两条路线的匿名研究记录彼此隔离。")}</p>
         </section>
       `, "fresh-entry");
+    }
+
+    function renderFreshTextEntry() {
+      view(`
+        <section class="study-view fresh-entry" data-view="fresh-text-entry">
+          <p class="eyebrow">${t("Text learning route", "文字学习路线")}</p>
+          <h1>${t("Read the material, then answer all 18 questions.", "阅读资料，然后完成全部 18 道题。")}</h1>
+          <p class="lead">${t(
+            "The material covers the same core ideas taught across Pixel Observatory Levels 1-24. Your anonymous answers are stored for educational analysis.",
+            "资料涵盖《像素天文台》第 1 至 24 关教授的核心概念。你的匿名答案将用于教育效果分析。",
+          )}</p>
+          <div class="actions">
+            <button class="primary" type="button" data-action="start-text-study">${t("Begin reading", "开始阅读")}</button>
+            <a class="secondary" href="/study/">${t("Choose another route", "选择其他路线")}</a>
+          </div>
+          <p class="fine">${t("Participation is voluntary. You may withdraw this anonymous record at any time.", "参与完全自愿，你可以随时撤回这份匿名记录。")}</p>
+          ${errorMarkup()}
+        </section>
+      `, "fresh-text-entry");
+    }
+
+    function renderFreshGameEntry() {
+      view(`
+        <section class="study-view fresh-entry" data-view="fresh-game-entry">
+          <p class="eyebrow">${t("Game learning route", "游戏学习路线")}</p>
+          <h1>${t("Play the original observatory from Level 1.", "从第 1 关开始体验原版天文台。")}</h1>
+          <p class="lead">${t(
+            "The opening animation, assembly, finding, focusing, collimation and observation stages remain intact. Three short questions appear after selected milestones.",
+            "开场动画、组装、寻星、调焦、准直和观测流程全部保留，并在指定关卡后出现三道简短问题。",
+          )}</p>
+          <div class="actions">
+            <a class="primary" href="${escapeHtml(gameUrl())}">${t("Start from Level 1", "从第 1 关开始")}</a>
+            <a class="secondary" href="/study/">${t("Choose another route", "选择其他路线")}</a>
+          </div>
+          <p class="fine">${t("This study save is isolated from your ordinary game progress.", "此研究存档与普通游戏进度完全隔离。")}</p>
+        </section>
+      `, "fresh-game-entry");
+    }
+
+    async function startTextStudy() {
+      const button = app.querySelector('[data-action="start-text-study"]');
+      if (button) button.disabled = true;
+      try {
+        const payload = await api("/api/research/enroll", {
+          consent: true,
+          language,
+          routeArm: "archive_text",
+        });
+        session.participantId = payload.participantId;
+        session.token = payload.token;
+        session.readingComplete = false;
+        serverState = payload.state;
+        persistSession();
+        render();
+      } catch (error) {
+        if (button) button.disabled = false;
+        showError(error.message);
+      }
+    }
+
+    function renderTextReading() {
+      const modules = Object.entries(TEXT_ARCHIVE_MODULES).map(([nodeId, module], index) => {
+        const article = module.body[language]
+          .split(/\n{2,}/)
+          .map(paragraph => `<p>${escapeHtml(paragraph)}</p>`)
+          .join("");
+        return `<article class="archive-reading reading-module" data-archive-node="${escapeHtml(nodeId)}"><span>${String(index + 1).padStart(2, "0")}</span><h2>${escapeHtml(localText(module.title))}</h2>${article}</article>`;
+      }).join("");
+      view(`
+        <section class="study-view text-reading" data-view="text-reading">
+          <p class="eyebrow">${t("Learning material", "学习资料")}</p>
+          <h1>${t("Read all six sections before beginning the questionnaire.", "阅读全部六节资料后再开始问卷。")}</h1>
+          <p class="lead">${t("The questionnaire contains 18 questions covering all six knowledge stages.", "问卷共有 18 道题，覆盖六个知识阶段。")}</p>
+          <div class="reading-stack">${modules}</div>
+          <div class="actions reading-complete-actions">
+            <button class="primary" type="button" data-action="start-questionnaire">${t("I have finished reading — start all questions", "我已阅读完毕，开始全部题目")}</button>
+          </div>
+          ${withdrawalControlMarkup()}
+          ${withdrawalDialogMarkup()}
+        </section>
+      `, "text-reading");
+    }
+
+    function renderTextQuestionnaire() {
+      const nodeId = serverState.currentNode;
+      const questions = Array.isArray(serverState.questions) ? serverState.questions : [];
+      const nodeIndex = Math.max(0, RESEARCH_NODES.findIndex(node => node.id === nodeId));
+      const node = RESEARCH_NODES[nodeIndex];
+      if (questions.length === 3 && surveyNodeId !== nodeId) restartSurveyTimer(nodeId);
+      view(`
+        <section class="study-view text-questionnaire" data-view="text-questionnaire">
+          <div class="questionnaire-progress"><span>${t("Question group", "题组")} ${nodeIndex + 1} / ${RESEARCH_NODES.length}</span><strong>${(nodeIndex * 3) + 1}-${(nodeIndex + 1) * 3} / 18</strong></div>
+          <p class="eyebrow">${t("Full knowledge questionnaire", "完整知识问卷")}</p>
+          <h1>${escapeHtml(localText(node?.title) || nodeId)}</h1>
+          ${noticeMarkup()}
+          ${questions.length === 3 ? surveyMarkup(nodeId, questions, 2) : unavailableSurveyMarkup()}
+          ${withdrawalControlMarkup()}
+          ${withdrawalDialogMarkup()}
+        </section>
+      `, "text-questionnaire");
+    }
+
+    function renderRouteMismatch() {
+      view(`
+        <section class="study-view resume-error" data-view="route-mismatch">
+          <p class="eyebrow">${t("Separate research routes", "独立研究路线")}</p>
+          <h1>${t("This saved session belongs to the other route.", "这份已保存会话属于另一条路线。")}</h1>
+          <p class="lead">${t("Return to the study entrance and choose the matching route.", "请返回研究入口并选择对应路线。")}</p>
+          <div class="actions"><a class="primary" href="/study/">${t("Return to study entrance", "返回研究入口")}</a></div>
+        </section>
+      `, "route-mismatch");
     }
 
     function renderLoading() {
@@ -257,6 +387,9 @@
     }
 
     function surveyMarkup(nodeId, questions, deferCount) {
+      const reminderControls = routeMode === "archive_text" ? "" : `
+              ${deferCount < 2 ? `<button class="secondary" type="button" data-action="defer" data-node-id="${escapeHtml(nodeId)}">${t("Remind me later", "稍后提醒我")}</button>` : ""}
+              <button class="text-button" type="button" data-action="no-remind" data-node-id="${escapeHtml(nodeId)}">${t("No more reminders this session", "本次会话不再提醒")}</button>`;
       return `
         <section class="survey" aria-labelledby="survey-title">
           <div class="section-heading">
@@ -271,8 +404,7 @@
             ${errorMarkup()}
             <div class="actions survey-actions">
               <button class="primary" type="submit">${t("Record answers", "记录答案")}</button>
-              ${deferCount < 2 ? `<button class="secondary" type="button" data-action="defer" data-node-id="${escapeHtml(nodeId)}">${t("Remind me later", "稍后提醒我")}</button>` : ""}
-              <button class="text-button" type="button" data-action="no-remind" data-node-id="${escapeHtml(nodeId)}">${t("No more reminders this session", "本次会话不再提醒")}</button>
+              ${reminderControls}
             </div>
           </form>
         </section>
@@ -397,7 +529,8 @@
         <section class="study-view completion-view" data-view="completed">
           <p class="eyebrow">${t("Research session", "研究会话")}</p>
           <h1>${t("Research complete", "研究已完成")}</h1>
-          <p class="lead">${t("All available text-route responses have been recorded.", "所有可用文字路线回答均已记录。")}</p>
+          <p class="lead">${t("All 18 answers have been recorded under your anonymous research ID.", "全部 18 道题的答案都已记录在你的匿名研究编号下。")}</p>
+          <p class="participant-receipt"><span>${t("Anonymous participant", "匿名参与者")}</span><strong>${escapeHtml(session.participantId)}</strong></p>
           ${noticeMarkup()}
           ${settingsMarkup()}
           ${withdrawalControlMarkup()}
@@ -566,6 +699,14 @@
         switch (control.dataset.action) {
           case "retry-session":
             refreshSession();
+            break;
+          case "start-text-study":
+            startTextStudy();
+            break;
+          case "start-questionnaire":
+            session.readingComplete = true;
+            persistSession();
+            render();
             break;
           case "defer":
             deferCurrentNode(nodeId);
