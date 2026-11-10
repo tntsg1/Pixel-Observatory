@@ -1,0 +1,26 @@
+{
+  "command": [
+    "node",
+    "C:/Users/tntsg/AppData/Local/npm-cache/_npx/d77349f55c2be1c0/node_modules/wrangler/bin/wrangler.js",
+    "deploy",
+    "--assets",
+    "E:/godot/po-player-blockers-live-20261009/build/cloudflare-public"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 37331.28,
+    "commit_headroom_mb": 37645.05,
+    "memory_load_percent": 42
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 50308,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 335.18,
+  "windows_peak_process_counter_mb": 255.94,
+  "elapsed_seconds": 11.28,
+  "after": {
+    "available_mb": 37588.08,
+    "commit_headroom_mb": 37961.67,
+    "memory_load_percent": 42
+  }
+}

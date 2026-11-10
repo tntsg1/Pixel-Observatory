@@ -1,0 +1,140 @@
+[
+  {
+    "file": "account.css",
+    "path": "/account.css",
+    "sha256": "a287d9951493d05272936e664a24fbdcf6039c712ac9a017fa0aadce2d75815f",
+    "same_as_source": true
+  },
+  {
+    "file": "account.js",
+    "path": "/account.js",
+    "sha256": "0f10a12f39edba59a6327a69bc19ac01c194fb5dd77f68f39360b7d0966d39de",
+    "same_as_source": true
+  },
+  {
+    "file": "game-cache-sw.js",
+    "path": "/game-cache-sw.js",
+    "sha256": "a80b2e55a5d028c221947e277c8c37d958b4c515117da5f51c9a9fe31545ff88",
+    "same_as_source": true
+  },
+  {
+    "file": "game-loader.css",
+    "path": "/game-loader.css",
+    "sha256": "5a977f1d29ddce07c55eab7d91540552f36cf0456c12855fc3451f1c00b3810a",
+    "same_as_source": true
+  },
+  {
+    "file": "game-loader.js",
+    "path": "/game-loader.js",
+    "sha256": "5f60e973a062858d89552fefeb493e9a837049eb2859efd7c1e2170b4d42bc94",
+    "same_as_source": true
+  },
+  {
+    "file": "game-runtime-cache.js",
+    "path": "/game-runtime-cache.js",
+    "sha256": "d0689cf9452fea23ca818e98820c9868b100251688a40f18ac613763055ba871",
+    "same_as_source": true
+  },
+  {
+    "file": "game-runtime-core.js",
+    "path": "/game-runtime-core.js",
+    "sha256": "28bb6e895b430bfca386226aa37f7bef0f86705df7006fb57f3918d8770669bb",
+    "same_as_source": true
+  },
+  {
+    "file": "inbox.css",
+    "path": "/inbox.css",
+    "sha256": "caf170adf73c579ef565c2bb3f273d15238adc6846099dad7942b1d022c11551",
+    "same_as_source": true
+  },
+  {
+    "file": "inbox.js",
+    "path": "/inbox.js",
+    "sha256": "65452a4638eb834019a689cf1a3d21728ecf0430a946c0cbfaa3a96297a4f1d0",
+    "same_as_source": true
+  },
+  {
+    "file": "messaging.js",
+    "path": "/messaging.js",
+    "sha256": "1765567ad15a20e8f38a7b020ca6b71505dba1fb4a899a32d2283336d2c1d24d",
+    "same_as_source": true
+  },
+  {
+    "file": "observation-share.css",
+    "path": "/observation-share.css",
+    "sha256": "a8609c18b69299e206bec4f5e77ef1a9b5806a0ec87d8d79df690c1d61f25660",
+    "same_as_source": true
+  },
+  {
+    "file": "observation-share.js",
+    "path": "/observation-share.js",
+    "sha256": "f16f7b08808e4814092e3b38ae6004588bae9ab42bd6f7937c55e6ec6cbfb003",
+    "same_as_source": true
+  },
+  {
+    "file": "observation.css",
+    "path": "/observation.css",
+    "sha256": "5a2e33fe70011f5e8fc06391a7fae11fe7125ef002d0e7c613a0436d2c11f69e",
+    "same_as_source": true
+  },
+  {
+    "file": "observation.html",
+    "path": "/observation.html",
+    "sha256": "a41566b918ba63a4cbc2db0e880b0f14e925c03be0f300df11ce0a4c0c1e702a",
+    "same_as_source": false
+  },
+  {
+    "file": "observation.js",
+    "path": "/observation.js",
+    "sha256": "df1db8f0df736652feff3a7eaa70e1533d2170dbcd2a2ecf2577f0d7f56c4b68",
+    "same_as_source": true
+  },
+  {
+    "file": "promo.css",
+    "path": "/promo.css",
+    "sha256": "705e62ef71b2245faeccdc8ea0ef685031ac172bae913a9c1bb5e743c24193f3",
+    "same_as_source": true
+  },
+  {
+    "file": "promo.html",
+    "path": "/",
+    "sha256": "6d70bae1e9092a6892871b83e1ab249f8e7d1208f05ff1023d0033027e83638d",
+    "same_as_source": false
+  },
+  {
+    "file": "promo.js",
+    "path": "/promo.js",
+    "sha256": "3e41b15a770f5a9dc191215d94253724b7d53052cce9ef9fe2b6373b22607c9f",
+    "same_as_source": true
+  },
+  {
+    "file": "release-announcement.json",
+    "path": "/release-announcement.json",
+    "sha256": "573ec804e609e3aa7ffb4be61446136810b07281350ae15374f9dd4fdba82e68",
+    "same_as_source": true
+  },
+  {
+    "file": "robots.txt",
+    "path": "/robots.txt",
+    "sha256": "139365aa1a4c43a9b08b6d553da136387ac6b6c9f983d20c19d134f1cdd8d30e",
+    "same_as_source": true
+  },
+  {
+    "file": "sitemap.xml",
+    "path": "/sitemap.xml",
+    "sha256": "85852d81014ef3bf26f686a57ba79d2f30cbbc00884234bb851ea89497d44ceb",
+    "same_as_source": true
+  },
+  {
+    "file": "social.css",
+    "path": "/social.css",
+    "sha256": "ab935647f4fda8df8b0e3d92c198791962173da2e2ae25c26eb791c733aced11",
+    "same_as_source": true
+  },
+  {
+    "file": "social.js",
+    "path": "/social.js",
+    "sha256": "6a2de8d2605ac9b582442613ad57d6b4eee264a75f374f37f100898eb6ab18f7",
+    "same_as_source": true
+  }
+]

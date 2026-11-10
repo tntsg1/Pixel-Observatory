@@ -1,0 +1,29 @@
+{
+  "command": [
+    "E:/godot/godot47/Godot_v4.7-stable_win64_console.exe",
+    "--headless",
+    "--path",
+    "E:/godot/po-player-blockers-live-20261009",
+    "--editor",
+    "--import",
+    "--quit"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 36219.11,
+    "commit_headroom_mb": 36064.87,
+    "memory_load_percent": 44
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 2892,
+  "exit_code": 3221225477,
+  "windows_peak_job_counter_mb": 792.49,
+  "windows_peak_process_counter_mb": 787.42,
+  "reason": "Child failed; inspect its log. Memory allocations cannot exceed the job cap.",
+  "elapsed_seconds": 18.53,
+  "after": {
+    "available_mb": 36385.64,
+    "commit_headroom_mb": 36203.75,
+    "memory_load_percent": 44
+  }
+}

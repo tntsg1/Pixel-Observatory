@@ -1,0 +1,27 @@
+{
+  "command": [
+    "E:/godot/godot47/Godot_v4.7-stable_win64_console.exe",
+    "--headless",
+    "--path",
+    "E:/godot/po-player-blockers-live-20261009",
+    "--script",
+    "res://tools/player_reported_blockers_test.gd"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 36925.88,
+    "commit_headroom_mb": 36728.75,
+    "memory_load_percent": 43
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 17152,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 179.7,
+  "windows_peak_process_counter_mb": 174.64,
+  "elapsed_seconds": 17.8,
+  "after": {
+    "available_mb": 36779.69,
+    "commit_headroom_mb": 36427.68,
+    "memory_load_percent": 43
+  }
+}

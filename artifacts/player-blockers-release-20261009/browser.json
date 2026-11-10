@@ -1,0 +1,88 @@
+{
+  "routes": [
+    {
+      "url": "https://pixelobservatorygame.com/stellar",
+      "status": 404
+    },
+    {
+      "url": "https://pixelobservatorygame.com/stellar/",
+      "status": 404
+    },
+    {
+      "url": "https://pixelobservatorygame.com/stellar/play/",
+      "status": 404
+    },
+    {
+      "url": "https://pixelobservatorygame.com/stellar/skyguard/",
+      "status": 404
+    },
+    {
+      "url": "https://pixelobservatorygame.com/stellar/game/v1/index.wasm",
+      "status": 404
+    },
+    {
+      "url": "https://pixelobservatorygame.com/stellar/api/save",
+      "status": 404
+    },
+    {
+      "url": "https://stellarascensiongame.com/",
+      "status": 200
+    },
+    {
+      "url": "https://stellarascensiongame.com/play/",
+      "status": 200
+    },
+    {
+      "url": "https://stellarascensiongame.com/stellar/",
+      "status": 200
+    }
+  ],
+  "homepageHash": "42d3e61829d9981a79088bb7b1edf7119b8b428261068056981317a59dc13bc6",
+  "pckMD5": "15ea1f5cdb81dbe0ad1fb5cc75b1738e",
+  "gameContext": [
+    {
+      "assembly_family": "refractor",
+      "language": "zh",
+      "level": 1,
+      "observation_mode": "naked_eye",
+      "scene": "menu"
+    }
+  ],
+  "afterNewGame": [
+    {
+      "assembly_family": "refractor",
+      "language": "zh",
+      "level": 1,
+      "observation_mode": "naked_eye",
+      "scene": "menu"
+    },
+    {
+      "assembly_family": "refractor",
+      "language": "zh",
+      "level": 1,
+      "observation_mode": "naked_eye",
+      "scene": "story"
+    }
+  ],
+  "unauthorized": [
+    {
+      "url": "https://pixelobservatorygame.com/api/social/friends",
+      "status": 401
+    },
+    {
+      "url": "https://pixelobservatorygame.com/api/social/friends",
+      "status": 401
+    }
+  ],
+  "errors": [],
+  "logs": [
+    "Godot Engine v4.7.stable.official.5b4e0cb0f - https://godotengine.org",
+    "OpenGL API OpenGL ES 3.0 (WebGL 2.0 (OpenGL ES 3.0 Chromium)) - Compatibility - Using Device: WebKit - WebKit WebGL",
+    "Build configuration: Emscripten 4.0.20, single-threaded, no GDExtension support.",
+    "Mounted incremental Web resource pack: /resource-packs/audio.pck",
+    "Mounted incremental Web resource pack: /resource-packs/astronomy-media.pck",
+    "Mounted incremental Web resource pack: /resource-packs/star-catalog.pck",
+    "Failed to load resource: the server responded with a status of 401 ()",
+    "Failed to load resource: the server responded with a status of 401 ()"
+  ]
+}

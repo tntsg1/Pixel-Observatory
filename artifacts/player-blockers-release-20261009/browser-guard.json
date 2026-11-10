@@ -1,0 +1,23 @@
+{
+  "command": [
+    "node",
+    "artifacts/player-blockers-release-20261009/verify-live.cjs"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 37286.88,
+    "commit_headroom_mb": 37427.42,
+    "memory_load_percent": 43
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 35596,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 4219.17,
+  "windows_peak_process_counter_mb": 3402.11,
+  "elapsed_seconds": 28.56,
+  "after": {
+    "available_mb": 37440.75,
+    "commit_headroom_mb": 37747.4,
+    "memory_load_percent": 42
+  }
+}

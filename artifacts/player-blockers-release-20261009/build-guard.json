@@ -1,0 +1,25 @@
+{
+  "command": [
+    "pwsh",
+    "-NoProfile",
+    "-File",
+    "artifacts/player-blockers-release-20261009/build.ps1"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 37464.36,
+    "commit_headroom_mb": 37789.38,
+    "memory_load_percent": 42
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 49680,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 838.23,
+  "windows_peak_process_counter_mb": 805.23,
+  "elapsed_seconds": 26.61,
+  "after": {
+    "available_mb": 37197.66,
+    "commit_headroom_mb": 37718.36,
+    "memory_load_percent": 43
+  }
+}
