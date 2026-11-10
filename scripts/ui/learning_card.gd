@@ -408,7 +408,7 @@ func _build_mission_complete(data: Dictionary) -> void:
 	if bool(GameManager.progress.get("program_completed", false)) and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL:
 		_build_program_complete_route()
 	else:
-		_build_next_mission_route()
+		_build_next_mission_route(completed_level_number)
 
 	_build_completion_navigation(level)
 	_build_share_result_button()
@@ -568,7 +568,7 @@ func _build_fast_mission_complete(data: Dictionary) -> void:
 	if bool(GameManager.progress.get("program_completed", false)) and completed_level_number == GameManager.FINAL_CAMPAIGN_LEVEL:
 		_build_program_complete_route()
 	else:
-		_build_next_mission_route()
+		_build_next_mission_route(completed_level_number)
 	_build_completion_navigation(level)
 	_build_share_result_button()
 	_emit_share_payload("observatory:observation-complete")
@@ -851,7 +851,16 @@ func _build_completion_navigation(level: Dictionary) -> void:
 	)
 
 
-func _build_next_mission_route() -> void:
+func _next_mission_route_hint(completed_level_number: int, next_level: int, route: Dictionary) -> String:
+	if completed_level_number == 55 and next_level == 66:
+		return GameManager.text(
+			"Optical chapter complete: infrared starts at 66. Levels 56-65 are retired; progress is intact.",
+			"光学篇完成。旧关卡 56–65 已退役，接下来从第 66 关进入红外篇；进度没有丢失。"
+		)
+	return str(route.get("hint", ""))
+
+
+func _build_next_mission_route(completed_level_number: int = 0) -> void:
 	# Tell the player exactly where the newly advanced campaign continues.
 	var next_route := GameManager.current_room_route()
 	var next_level := int(GameManager.progress.get("current_level", 0))
@@ -864,7 +873,7 @@ func _build_next_mission_route() -> void:
 		GameManager.text("Go to: ", "前往：") + str(next_route.get("action", "")),
 		Vector2(180, 619), Vector2(664, 20), 14, Color(0.72, 0.94, 0.68), HORIZONTAL_ALIGNMENT_CENTER)
 	where.clip_text = true
-	var what := _label(str(next_route.get("hint", "")), Vector2(180, 637), Vector2(664, 20), 14, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	var what := _label(_next_mission_route_hint(completed_level_number, next_level, next_route), Vector2(180, 637), Vector2(664, 20), 14, MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 	what.clip_text = true
 
 

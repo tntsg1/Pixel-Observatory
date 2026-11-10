@@ -1,0 +1,27 @@
+{
+  "command": [
+    "E:/godot/godot47/Godot_v4.7-stable_win64_console.exe",
+    "--headless",
+    "--path",
+    "E:/godot/po-l26-devreward-release",
+    "--script",
+    "res://tools/player_reported_blockers_test.gd"
+  ],
+  "scope": "new process tree only",
+  "before": {
+    "available_mb": 40458.88,
+    "commit_headroom_mb": 43724.38,
+    "memory_load_percent": 38
+  },
+  "enforced_job_memory_mb": 4096,
+  "root_pid": 2280,
+  "exit_code": 0,
+  "windows_peak_job_counter_mb": 180.79,
+  "windows_peak_process_counter_mb": 175.65,
+  "elapsed_seconds": 17.91,
+  "after": {
+    "available_mb": 40437.77,
+    "commit_headroom_mb": 43597.05,
+    "memory_load_percent": 38
+  }
+}

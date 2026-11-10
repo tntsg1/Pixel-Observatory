@@ -3426,14 +3426,32 @@ func _stop_fold_adjust_audio(fade_seconds := 0.035) -> void:
 	AudioManager.stop_event_loop("fast_fold_adjust", fade_seconds)
 
 
+func _fold_period_calibrated() -> bool:
+	# A visual fundamental candidate must also satisfy this level's report.
+	return (model != null and model.period_solution_state() == "fundamental"
+		and model.period_match() > model.period_threshold)
+
+
+func _fold_dm_calibrated() -> bool:
+	# Never disable DM adjustment below the final report's stricter threshold.
+	return (model != null and model.dm_match() >= 0.72
+		and model.dm_match() > model.dm_threshold)
+
+
+func _fold_phase_calibrated() -> bool:
+	# Capture and report must both accept the phase, including monitor drift.
+	return (model != null and model.phase_match() >= 0.72
+		and _fold_effective_phase_match() >= 0.72)
+
+
 func _current_fold_adjust_parameter() -> String:
 	if model == null or fold_candidate_ready:
 		return ""
-	if model.period_solution_state() != "fundamental":
+	if not _fold_period_calibrated():
 		return "period"
-	if model.dm_match() < 0.72:
+	if not _fold_dm_calibrated():
 		return "dm"
-	if model.phase_match() < 0.72 or absf(fold_monitor_phase_residual) > FOLD_MONITOR_TRIM_TOLERANCE:
+	if not _fold_phase_calibrated() or absf(fold_monitor_phase_residual) > FOLD_MONITOR_TRIM_TOLERANCE:
 		return "phase"
 	return ""
 
@@ -3749,13 +3767,13 @@ func _fold_parameters_changed(parameter: String) -> void:
 func _fold_tutorial_parameter_action(parameter: String) -> void:
 	match parameter:
 		"dm":
-			if model.dm_match() >= 0.72:
+			if _fold_dm_calibrated():
 				_tutorial_action("fold_dm_adjust")
 		"phase":
-			if model.phase_match() >= 0.72:
+			if _fold_phase_calibrated():
 				_tutorial_action("fold_phase_adjust")
 		_:
-			if model.period_solution_state() == "fundamental":
+			if _fold_period_calibrated():
 				_tutorial_action("fold_period_adjust")
 
 
@@ -3800,11 +3818,11 @@ func _reset_fold_capture_validation(reset_integration: bool) -> void:
 
 
 func _sync_fold_capture_state() -> void:
-	if model.period_solution_state() != "fundamental":
+	if not _fold_period_calibrated():
 		fold_step = 0
-	elif model.dm_match() < 0.72:
+	elif not _fold_dm_calibrated():
 		fold_step = 1
-	elif _fold_effective_phase_match() < 0.72:
+	elif not _fold_phase_calibrated():
 		fold_step = 2
 	else:
 		fold_step = 3
@@ -3814,7 +3832,7 @@ func _sync_fold_capture_state() -> void:
 func _fold_capture_available() -> bool:
 	if model == null or fold_lock_sequence_running or prediction_running or fold_candidate_ready:
 		return false
-	return fold_step >= 3 and model.period_solution_state() == "fundamental" and model.dm_match() >= 0.72 and _fold_effective_phase_match() >= 0.72
+	return fold_step >= 3 and _fold_period_calibrated() and _fold_dm_calibrated() and _fold_phase_calibrated()
 
 
 func _fold_capture_target_phase() -> float:
@@ -3910,22 +3928,22 @@ func _fold_solution_label(solution: String) -> String:
 
 
 func _fold_next_action_text() -> String:
-	if model.period_solution_state() != "fundamental":
+	if not _fold_period_calibrated():
 		return GameManager.text(
 			"Sweep the correlation belt: drag until the strongest repeating ridge locks to one fundamental period.",
 			"先扫相关度带：拖动到最强的重复脊线锁定为一个基频周期。"
 		)
-	if model.dm_match() < 0.72:
+	if not _fold_dm_calibrated():
 		return GameManager.text(
 			"Drag the upper sub-band arrivals until the diagonal sweep stands vertical.",
 			"拖动上方子频段到达轨迹，直到斜向扫频变为垂直。"
 		)
-	if model.period_solution_state() != "fundamental":
+	if not _fold_period_calibrated():
 		return GameManager.text(
 			"Drag the two-cycle profile until the peak stops drifting; reject split aliases.",
 			"拖动双周期轮廓，让峰停止漂移，并排除分裂的周期假解。"
 		)
-	if _fold_effective_phase_match() < 0.72:
+	if not _fold_phase_calibrated():
 		return GameManager.text(
 			"Rotate the arrival phase with Q/E or the wheel so the peak clears the plot edge.",
 			"用 Q/E 或滚轮调整到达相位，让峰完整进入观察窗。"
@@ -3968,22 +3986,22 @@ func _fold_step_heading() -> String:
 
 
 func _fold_compact_action_text() -> String:
-	if model.period_solution_state() != "fundamental":
+	if not _fold_period_calibrated():
 		return GameManager.text(
 			"NOW: drag the period correlation belt to the strongest fundamental ridge.",
 			"现在：拖动周期相关度带，锁定最强的基频脊线。"
 		)
-	if model.dm_match() < 0.72:
+	if not _fold_dm_calibrated():
 		return GameManager.text(
 			"NOW: hold DM -/+ until B1-B7 form one vertical column.",
 			"现在做：按住 DM -/+，直到 B1-B7 排成一条竖线。"
 		)
-	if model.period_solution_state() != "fundamental":
+	if not _fold_period_calibrated():
 		return GameManager.text(
 			"NOW: hold Period -/+ until drift and split peaks disappear.",
 			"现在做：按住周期 -/+，直到漂移和分裂峰消失。"
 		)
-	if _fold_effective_phase_match() < 0.72:
+	if not _fold_phase_calibrated():
 		return GameManager.text(
 			"NOW: hold Phase -/+ until the pulse enters the gold arrival gate.",
 			"现在做：按住相位 -/+，把脉冲送入金色到达门。"
@@ -4387,7 +4405,7 @@ func _draw_phase_wheel(plot: RadioPlot, center: Vector2, radius: float) -> void:
 	var wheel_color := GREEN if model.phase_match() >= 0.72 else AMBER
 	var phase_active := (
 		fold_step == 1
-		and model.period_solution_state() == "fundamental"
+		and _fold_period_calibrated()
 		and model.phase_match() < 0.72
 	)
 	if phase_active:

@@ -7,6 +7,17 @@ which contains the detailed target/function/fix/verification format. This file
 adds a readable release-facing timeline with dates, player-facing meaning and
 concrete implementation details.
 
+## Unreleased - 2026-10-07 Player Progression Fixes
+
+- Level 55 now leads its one-line instruction with clicking Triton and keeps
+  the full instruction within the visible hint strip.
+- FAST pulse capture uses the mission's final period and DM thresholds before
+  locking adjustment controls. Raw phase and monitor-adjusted phase must both
+  qualify, preventing three captures from becoming a report-failing dead end.
+- Verified Levels 76–85 accept three valid captures and automatically advance
+  to clock verification; stricter period/DM and phase boundary cases retain
+  usable calibration controls.
+
 ## 2026-10-04 - v0.9.8 Level 26 Assembly Hotfix
 
 - Fixed the Level 26 Newtonian assembly lock caused by refractor-family state
