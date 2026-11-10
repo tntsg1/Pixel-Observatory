@@ -1683,7 +1683,7 @@ func can_identify_object() -> bool:
 # and if the observation itself is good enough, marks that step done.
 # Only advances forward - never un-marks a step that was already completed.
 func _check_mission_step_progress() -> void:
-	if not is_focus_acceptable() or not is_quality_acceptable():
+	if not is_focus_acceptable() or not _is_comparison_observation_usable():
 		return
 	# ORDER-INDEPENDENT: the lesson is comparing magnifications, not doing
 	# them in declared order - a player who equipped the 10mm first must get
@@ -1706,6 +1706,26 @@ func _check_mission_step_progress() -> void:
 			continue
 		GameManager.mark_mission_step_done(step_id)
 		_announce_step_complete(step)
+
+
+# A comparison step records that the player really looked through that
+# eyepiece: focused, with the target in the field. The level's magnification
+# window is the *answer* of the experiment (L10: only the 20mm lands inside
+# 32-55x), so it gates identification, never the steps that lead to it -
+# otherwise the 32mm and 10mm steps could not complete at all.
+func _is_comparison_observation_usable() -> bool:
+	if is_quality_acceptable():
+		return true
+	if target_off_center:
+		return false
+	return _magnification_is_only_failure()
+
+
+func _magnification_is_only_failure() -> bool:
+	var failure: Variant = observation.get("technique_failure", {})
+	if not failure is Dictionary:
+		return false
+	return str((failure as Dictionary).get("code", "")) in ["magnification_low", "magnification_high"]
 
 
 func _announce_step_complete(step: Dictionary) -> void:
@@ -2692,6 +2712,16 @@ func _current_feedback() -> String:
 		return GameManager.text(
 			"Adjust focus before identifying.",
 			"请先调焦。"
+		)
+	if not GameManager.mission_steps().is_empty() and not is_quality_acceptable() and _magnification_is_only_failure():
+		if GameManager.next_pending_mission_step().is_empty():
+			return GameManager.text(
+				"All eyepieces compared. Switch back to the one that showed the target best (medium power) and identify it.",
+				"三档目镜都比较过了。请换回看得最清楚的那一枚（中倍率），再识别目标。"
+			)
+		return GameManager.text(
+			"Recorded for the comparison. Next: %s" % _pending_step_label(),
+			"已记录这一档的观测。下一步：%s" % _pending_step_label()
 		)
 	if requires_focus and not is_quality_acceptable():
 		# The feedback box names the REAL limiting factor, in priority order
