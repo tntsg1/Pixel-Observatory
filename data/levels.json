@@ -163,6 +163,9 @@
       "focus_knob"
     ],
     "required_assembly_score": 70,
+    "minimum_success_quality": "Fair",
+    "observation_success_feedback_en": "The image is clear enough to compare magnification, brightness, and field of view.",
+    "observation_success_feedback_zh": "图像已经可以辨认。现在比较倍率、亮度和视野，不必更换设备。",
     "hint_text_en": "Compare how magnification changes brightness and field of view.",
     "hint_text_zh": "先用低倍率定位，再换高倍率。比较木星大小、亮度和抖动。",
     "success_text_en": "Choose magnification for the target, not just the biggest number.",

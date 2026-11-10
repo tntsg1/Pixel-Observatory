@@ -217,6 +217,8 @@ static func _evaluate_telescope(stats: Dictionary, celestial_object: Dictionary,
 	elif quality == "Poor" or quality == "Failed":
 		feedback_en = "The target is too hard to see. Return to the workshop and improve the telescope."
 		feedback_zh = "目标太难看清。回到组装台改进望远镜。"
+	if success and str(extra_context.get("success_feedback_en", "")) != "":
+		feedback_en = str(extra_context.get("success_feedback_en", ""))
 	if success and str(extra_context.get("success_feedback_zh", "")) != "":
 		feedback_zh = str(extra_context.get("success_feedback_zh", ""))
 	return {
